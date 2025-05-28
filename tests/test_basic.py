@@ -1,0 +1,50 @@
+"""Basic tests for StarHTML functionality."""
+
+import pytest
+
+
+def test_starhtml_imports():
+    """Test that StarHTML can be imported without errors."""
+    from starhtml import fast_app
+    assert fast_app is not None
+
+
+def test_app_creation():
+    """Test that a basic StarHTML app can be created."""
+    from starhtml import fast_app
+    
+    app, rt = fast_app()
+    assert app is not None
+    assert rt is not None
+    assert hasattr(app, 'hdrs')
+    assert len(app.hdrs) > 0  # Should have default headers
+
+
+def test_route_creation():
+    """Test that routes can be created."""
+    from starhtml import fast_app, Div, H1
+    
+    app, rt = fast_app()
+    
+    @rt('/')
+    def get():
+        return Div(H1("Test"))
+    
+    # Should not raise any errors
+    assert get is not None
+
+
+def test_components_import():
+    """Test that HTML components can be imported."""
+    from starhtml import Div, H1, P, Button
+    
+    # Should be able to create components
+    div = Div("test")
+    h1 = H1("title")
+    p = P("paragraph")
+    button = Button("click me")
+    
+    assert div is not None
+    assert h1 is not None
+    assert p is not None
+    assert button is not None 
