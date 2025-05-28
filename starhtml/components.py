@@ -1,0 +1,202 @@
+"""`ft_html` and `ft_hx` functions to add some conveniences to `ft`, along with a full set of basic HTML components, and functions to work with forms and `FT` conversion"""
+
+from dataclasses import dataclass, asdict, is_dataclass, make_dataclass, replace, astuple, MISSING
+from bs4 import BeautifulSoup, Comment
+from typing import Literal, Optional
+
+from fastcore.utils import *
+from fastcore.xml import *
+from fastcore.meta import use_kwargs, delegates
+from fastcore.test import *
+from .core import fh_cfg, unqid
+
+import types, json
+
+@patch
+def __str__(self:FT): return self.id if self.id else to_xml(self, indent=False)
+
+@patch
+def __radd__(self:FT, b): return f'{b}{self}'
+
+@patch
+def __add__(self:FT, b): return f'{self}{b}'
+
+named = set('a button form frame iframe img input map meta object param select textarea'.split())
+html_attrs = 'id cls title style accesskey contenteditable dir draggable enterkeyhint hidden inert inputmode lang popover spellcheck tabindex translate'.split()
+hx_attrs = 'get post put delete patch trigger target swap swap_oob include select select_oob indicator push_url confirm disable replace_url vals disabled_elt ext headers history history_elt indicator inherit params preserve prompt replace_url request sync validate'
+
+hx_evts = 'abort afterOnLoad afterProcessNode afterRequest afterSettle afterSwap beforeCleanupElement beforeOnLoad beforeProcessNode beforeRequest beforeSwap beforeSend beforeTransition configRequest confirm historyCacheError historyCacheMiss historyCacheMissError historyCacheMissLoad historyRestore beforeHistorySave load noSSESourceError onLoadError oobAfterSwap oobBeforeSwap oobErrorNoTarget prompt pushedIntoHistory replacedInHistory responseError sendAbort sendError sseError sseOpen swapError targetError timeout validation:validate validation:failed validation:halted xhr:abort xhr:loadend xhr:loadstart xhr:progress'
+js_evts = "blur change contextmenu focus input invalid reset select submit keydown keypress keyup click dblclick mousedown mouseenter mouseleave mousemove mouseout mouseover mouseup wheel"
+hx_attrs = [f'hx_{o}' for o in hx_attrs.split()]
+hx_attrs_annotations = {
+    "hx_swap": Literal["innerHTML", "outerHTML", "afterbegin", "beforebegin", "beforeend", "afterend", "delete", "none"] | str,
+    "hx_swap_oob": Literal["true", "innerHTML", "outerHTML", "afterbegin", "beforebegin", "beforeend", "afterend", "delete", "none"] | str,
+    "hx_push_url": Literal["true", "false"] | str, 
+    "hx_replace_url": Literal["true", "false"] | str, 
+    "hx_disabled_elt": Literal["this", "next", "previous"] | str, 
+    "hx_history": Literal["false"] | str,
+    "hx_params": Literal["*", "none"] | str,
+    "hx_validate": Literal["true", "false"],
+}
+hx_attrs_annotations |= {o: str for o in set(hx_attrs) - set(hx_attrs_annotations.keys())}
+hx_attrs_annotations = {k: Optional[v] for k,v in hx_attrs_annotations.items()} 
+hx_attrs = html_attrs + hx_attrs
+
+hx_evt_attrs = ['hx_on__'+camel2snake(o).replace(':','_') for o in hx_evts.split()]
+js_evt_attrs = ['hx_on_'+o for o in js_evts.split()]
+evt_attrs = js_evt_attrs+hx_evt_attrs
+
+def attrmap_x(o):
+    if o.startswith('_at_'): o = '@'+o[4:]
+    return attrmap(o)
+
+fh_cfg['attrmap']=attrmap_x
+fh_cfg['valmap' ]=valmap
+fh_cfg['ft_cls' ]=FT
+fh_cfg['auto_id']=False
+fh_cfg['auto_name']=True
+
+def ft_html(tag: str, *c, id=None, cls=None, title=None, style=None, attrmap=None, valmap=None, ft_cls=None, **kwargs):
+    ds,c = partition(c, risinstance(dict))
+    for d in ds: kwargs = {**kwargs, **d}
+    if ft_cls is None: ft_cls = fh_cfg.ft_cls
+    if attrmap is None: attrmap=fh_cfg.attrmap
+    if valmap  is None: valmap =fh_cfg.valmap
+    if not id and fh_cfg.auto_id: id = True
+    if id and isinstance(id,bool): id = unqid()
+    kwargs['id'] = id.id if isinstance(id,FT) else id
+    kwargs['cls'],kwargs['title'],kwargs['style'] = cls,title,style
+    tag,c,kw = ft(tag, *c, attrmap=attrmap, valmap=valmap, **kwargs).list
+    if fh_cfg['auto_name'] and tag in named and id and 'name' not in kw: kw['name'] = kw['id']
+    return ft_cls(tag,c,kw, void_=tag in voids)
+
+@use_kwargs(hx_attrs+evt_attrs, keep=True)
+def ft_hx(tag: str, *c, target_id=None, hx_vals=None, hx_target=None, **kwargs):
+    if hx_vals: kwargs['hx_vals'] = json.dumps(hx_vals) if isinstance (hx_vals,dict) else hx_vals
+    if hx_target: kwargs['hx_target'] = '#'+hx_target.id if isinstance(hx_target,FT) else hx_target
+    if target_id: kwargs['hx_target'] = '#'+target_id
+    return ft_html(tag, *c, **kwargs)
+
+_g = globals()
+_all_ = [
+    'A', 'Abbr', 'Address', 'Area', 'Article', 'Aside', 'Audio', 'B', 'Base', 'Bdi', 'Bdo', 'Blockquote', 'Body', 'Br',
+    'Button', 'Canvas', 'Caption', 'Cite', 'Code', 'Col', 'Colgroup', 'Data', 'Datalist', 'Dd', 'Del', 'Details', 'Dfn',
+    'Dialog', 'Div', 'Dl', 'Dt', 'Em', 'Embed', 'Fencedframe', 'Fieldset', 'Figcaption', 'Figure', 'Footer', 'Form',
+    'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'Head', 'Header',
+    'Hgroup', 'Hr', 'I', 'Iframe', 'Img', 'Input', 'Ins', 'Kbd', 'Label', 'Legend', 'Li',
+    'Link', 'Main', 'Map', 'Mark', 'Menu', 'Meta', 'Meter', 'Nav', 'Noscript', 'Object', 'Ol', 'Optgroup', 'Option', 'Output',
+    'P', 'Picture', 'PortalExperimental', 'Pre', 'Progress', 'Q', 'Rp', 'Rt', 'Ruby', 'S', 'Samp', 'Script', 'Search',
+    'Section', 'Select', 'Slot', 'Small', 'Source', 'Span', 'Strong', 'Style', 'Sub', 'Summary', 'Sup', 'Table', 'Tbody',
+    'Td', 'Template', 'Textarea', 'Tfoot', 'Th', 'Thead', 'Time', 'Title', 'Tr', 'Track', 'U', 'Ul', 'Var', 'Video', 'Wbr']
+for o in _all_: _g[o] = partial(ft_hx, o.lower())
+
+def File(fname):
+    "Use the unescaped text in file `fname` directly"
+    return NotStr(Path(fname).read_text())
+
+def _fill_item(item, obj):
+    if not isinstance(item,FT): return item
+    tag,cs,attr = item.list
+    if isinstance(cs,tuple): cs = tuple(_fill_item(o, obj) for o in cs)
+    name = attr.get('name', None)
+    val = None if name is None else obj.get(name, None)
+    if val is not None and not 'skip' in attr:
+        if tag=='input':
+            if attr.get('type', '') == 'checkbox':
+                if isinstance(val, list):
+                    if attr['value'] in val: attr['checked'] = '1'
+                    else: attr.pop('checked', '')
+                elif val: attr['checked'] = '1'
+                else: attr.pop('checked', '')
+            elif attr.get('type', '') == 'radio':
+                if val and val == attr['value']: attr['checked'] = '1'
+                else: attr.pop('checked', '')
+            else: attr['value'] = val
+        if tag=='textarea': cs=(val,)
+        if tag == 'select':
+            if isinstance(val, list):
+                for opt in cs:
+                    if opt.tag == 'option' and opt.get('value') in val:
+                        opt.selected = '1'
+            else:
+                option = next((o for o in cs if o.tag=='option' and o.get('value')==val), None)
+                if option: option.selected = '1'
+    return FT(tag,cs,attr,void_=item.void_)
+
+def fill_form(form:FT, obj)->FT:
+    "Fills named items in `form` using attributes in `obj`"
+    if is_dataclass(obj): obj = asdict(obj)
+    elif not isinstance(obj,dict): obj = obj.__dict__
+    return _fill_item(form, obj)
+
+def fill_dataclass(src, dest):
+    "Modifies dataclass in-place and returns it"
+    for nm,val in asdict(src).items(): setattr(dest, nm, val)
+    return dest
+
+def find_inputs(e, tags='input', **kw):
+    "Recursively find all elements in `e` with `tags` and attrs matching `kw`"
+    if not isinstance(e, (list,tuple,FT)): return []
+    inputs = []
+    if isinstance(tags,str): tags = [tags]
+    elif tags is None: tags = []
+    cs = e
+    if isinstance(e, FT):
+        tag,cs,attr = e.list
+        if tag in tags and kw.items()<=attr.items(): inputs.append(e)
+    for o in cs: inputs += find_inputs(o, tags, **kw)
+    return inputs
+
+def __getattr__(tag):
+    if tag.startswith('_') or tag[0].islower(): raise AttributeError
+    tag = tag.replace("_", "-")
+    def _f(*c, target_id=None, **kwargs): return ft_hx(tag, *c, target_id=target_id, **kwargs)
+    return _f
+
+_re_h2x_attr_key = re.compile(r'^[A-Za-z_-][\w-]*$')
+def html2ft(html, attr1st=False):
+    """Convert HTML to an `ft` expression"""
+    rev_map = {'class': 'cls', 'for': 'fr'}
+    
+    def _parse(elm, lvl=0, indent=4):
+        if isinstance(elm, str): return repr(elm.strip()) if elm.strip() else ''
+        if isinstance(elm, list): return '\n'.join(_parse(o, lvl) for o in elm)
+        tag_name = elm.name.capitalize().replace("-", "_")
+        if tag_name=='[document]': return _parse(list(elm.children), lvl)
+        cts = elm.contents
+        cs = [repr(c.strip()) if isinstance(c, str) else _parse(c, lvl+1)
+              for c in cts if str(c).strip()]
+        attrs, exotic_attrs  = [], {}
+        for key, value in sorted(elm.attrs.items(), key=lambda x: x[0]=='class'):
+            if isinstance(value,(tuple,list)): value = " ".join(value)
+            key, value = rev_map.get(key, key), value or True
+            if _re_h2x_attr_key.match(key): attrs.append(f'{key.replace("-", "_")}={value!r}')
+            else: exotic_attrs[key] = value
+        if exotic_attrs: attrs.append(f'**{exotic_attrs!r}')
+        spc = " "*lvl*indent
+        onlychild = not cts or (len(cts)==1 and isinstance(cts[0],str))
+        j = ', ' if onlychild else f',\n{spc}'
+        inner = j.join(filter(None, cs+attrs))
+        if onlychild:
+            if not attr1st: return f'{tag_name}({inner})'
+            else:
+                # respect attr1st setting
+                attrs = ', '.join(filter(None, attrs))
+                return f'{tag_name}({attrs})({cs[0] if cs else ""})'
+        if not attr1st or not attrs: return f'{tag_name}(\n{spc}{inner}\n{" "*(lvl-1)*indent})' 
+        inner_cs = j.join(filter(None, cs))
+        inner_attrs = ', '.join(filter(None, attrs))
+        return f'{tag_name}({inner_attrs})(\n{spc}{inner_cs}\n{" "*(lvl-1)*indent})'
+
+    soup = BeautifulSoup(html.strip(), 'html.parser')
+    for c in soup.find_all(string=risinstance(Comment)): c.extract()
+    return _parse(soup, 1)
+
+def sse_message(elm, event='message'):
+    "Convert element `elm` into a format suitable for SSE streaming"
+    data = '\n'.join(f'data: {o}' for o in to_xml(elm).splitlines())
+    return f'event: {event}\n{data}\n\n'
+
+__all__ = ['named', 'html_attrs', 'hx_attrs', 'hx_evts', 'js_evts', 'hx_attrs_annotations', 'hx_evt_attrs', 'js_evt_attrs',
+           'evt_attrs', 'attrmap_x', 'ft_html', 'ft_hx', 'File', 'fill_form', 'fill_dataclass', 'find_inputs',
+           'html2ft', 'sse_message'] + _all_

@@ -1,0 +1,233 @@
+"""Simple extensions to standard HTML components, such as adding sensible defaults"""
+
+from dataclasses import dataclass, asdict
+from typing import Any
+
+from fastcore.utils import *
+from fastcore.xtras import partial_format
+from fastcore.xml import *
+from fastcore.meta import use_kwargs, delegates
+from .core import *
+from .components import *
+
+__all__ = ['sid_scr', 'A', 'AX', 'Form', 'Hidden', 'CheckboxX', 'Script', 'Style', 'double_braces', 'undouble_braces',
+           'loose_format', 'ScriptX', 'replace_css_vars', 'StyleX', 'Nbsp', 'Surreal', 'On', 'Prev', 'Now', 'AnyNow',
+           'run_js', 'HtmxOn', 'jsd', 'Fragment', 'Titled', 'Socials', 'YouTubeEmbed', 'Favicon', 'clear', 'with_sid']
+
+@delegates(ft_hx, keep=True)
+def A(*c, hx_get=None, target_id=None, hx_swap=None, href='#', **kwargs)->FT:
+    "An A tag; `href` defaults to '#' for more concise use with HTMX"
+    return ft_hx('a', *c, href=href, hx_get=hx_get, target_id=target_id, hx_swap=hx_swap, **kwargs)
+
+@delegates(ft_hx, keep=True)
+def AX(txt, hx_get=None, target_id=None, hx_swap=None, href='#', **kwargs)->FT:
+    "An A tag with just one text child, allowing hx_get, target_id, and hx_swap to be positional params"
+    return ft_hx('a', txt, href=href, hx_get=hx_get, target_id=target_id, hx_swap=hx_swap, **kwargs)
+
+@delegates(ft_hx, keep=True)
+def Form(*c, enctype="multipart/form-data", **kwargs)->FT:
+    "A Form tag; identical to plain `ft_hx` version except default `enctype='multipart/form-data'`"
+    return ft_hx('form', *c, enctype=enctype, **kwargs)
+
+@delegates(ft_hx, keep=True)
+def Hidden(value:Any="", id:Any=None, **kwargs)->FT:
+    "An Input of type 'hidden'"
+    return Input(type="hidden", value=value, id=id, **kwargs)
+
+@delegates(ft_hx, keep=True)
+def CheckboxX(checked:bool=False, label=None, value="1", id=None, name=None, **kwargs)->FT:
+    "A Checkbox optionally inside a Label, preceded by a `Hidden` with matching name"
+    if id and not name: name=id
+    if not checked: checked=None
+    res = Input(type="checkbox", id=id, name=name, checked=checked, value=value, **kwargs)
+    if label: res = Label(res, label)
+    return Hidden(name=name, skip=True, value=""), res
+
+@delegates(ft_html, keep=True)
+def Script(code:str="", **kwargs)->FT:
+    "A Script tag that doesn't escape its code"
+    return ft_html('script', NotStr(code), **kwargs)
+
+@delegates(ft_html, keep=True)
+def Style(*c, **kwargs)->FT:
+    "A Style tag that doesn't escape its code"
+    return ft_html('style', map(NotStr,c), **kwargs)
+
+def double_braces(s):
+    "Convert single braces to double braces if next to special chars or newline"
+    s = re.sub(r'{(?=[\s:;\'"]|$)', '{{', s)
+    return re.sub(r'(^|[\s:;\'"])}', r'\1}}', s)
+
+def undouble_braces(s):
+    "Convert double braces to single braces if next to special chars or newline"
+    s = re.sub(r'\{\{(?=[\s:;\'"]|$)', '{', s)
+    return re.sub(r'(^|[\s:;\'"])\}\}', r'\1}', s)
+
+def loose_format(s, **kw):
+    "String format `s` using `kw`, without being strict about braces outside of template params"
+    if not kw: return s
+    return undouble_braces(partial_format(double_braces(s), **kw)[0])
+
+def ScriptX(fname, src=None, nomodule=None, type=None, _async=None, defer=None,
+            charset=None, crossorigin=None, integrity=None, **kw):
+    "A `script` element with contents read from `fname`"
+    s = loose_format(Path(fname).read_text(), **kw)
+    return Script(s, src=src, nomodule=nomodule, type=type, _async=_async, defer=defer,
+                  charset=charset, crossorigin=crossorigin, integrity=integrity)
+
+def replace_css_vars(css, pre='tpl', **kwargs):
+    "Replace `var(--)` CSS variables with `kwargs` if name prefix matches `pre`"
+    if not kwargs: return css
+    def replace_var(m):
+        var_name = m.group(1).replace('-', '_')
+        return kwargs.get(var_name, m.group(0))
+    return re.sub(fr'var\(--{pre}-([\w-]+)\)', replace_var, css)
+
+def StyleX(fname, **kw):
+    "A `style` element with contents read from `fname` and variables replaced from `kw`"
+    s = Path(fname).read_text()
+    attrs = ['type', 'media', 'scoped', 'title', 'nonce', 'integrity', 'crossorigin']
+    sty_kw = {k:kw.pop(k) for k in attrs if k in kw}
+    return Style(replace_css_vars(s, **kw), **sty_kw)
+
+def Nbsp():
+    "A non-breaking space"
+    return Safe('&nbsp;')
+
+def Surreal(code:str):
+    "Wrap `code` in `domReadyExecute` and set `m=me()` and `p=me('-')`"
+    return Script('''
+{
+    const m=me();
+    const _p = document.currentScript.previousElementSibling;
+    const p = _p ? me(_p) : null;
+    domReadyExecute(() => {
+        %s
+    });
+}''' % code)
+
+def On(code:str, event:str='click', sel:str='', me=True):
+    "An async surreal.js script block event handler for `event` on selector `sel,p`, making available parent `p`, event `ev`, and target `e`"
+    func = 'me' if me else 'any'
+    if sel=='-': sel='p'
+    elif sel: sel=f'{func}("{sel}", m)'
+    else: sel='m'
+    return Surreal('''
+%s.on("%s", async ev=>{
+    let e = me(ev);
+    %s
+});''' % (sel,event,code))
+
+def Prev(code:str, event:str='click'):
+    "An async surreal.js script block event handler for `event` on previous sibling, with same vars as `On`"
+    return On(code, event=event, sel='-')
+
+def Now(code:str, sel:str=''):
+    "An async surreal.js script block on selector `me(sel)`"
+    if sel: sel=f'"{sel}"'
+    return Script('(async (ee = me(%s)) => {\nlet e = me(ee);\n%s\n})()\n' % (sel,code))
+
+def AnyNow(sel:str, code:str):
+    "An async surreal.js script block on selector `any(sel)`"
+    return Script('(async (e = any("%s")) => {\n%s\n})()\n' % (sel,code))
+
+def run_js(js, id=None, **kw):
+    "Run `js` script, auto-generating `id` based on name of caller if needed, and js-escaping any `kw` params"
+    if not id: id = sys._getframe(1).f_code.co_name
+    kw = {k:dumps(v) for k,v in kw.items()}
+    return Script(js.format(**kw), id=id, hx_swap_oob='true')
+
+def HtmxOn(eventname:str, code:str):
+    return Script('''domReadyExecute(function() {
+document.body.addEventListener("htmx:%s", function(event) { %s })
+})''' % (eventname, code))
+
+def jsd(org, repo, root, path, prov='gh', typ='script', ver=None, esm=False, **kwargs)->FT:
+    "jsdelivr `Script` or CSS `Link` tag, or URL"
+    ver = '@'+ver if ver else ''
+    s = f'https://cdn.jsdelivr.net/{prov}/{org}/{repo}{ver}/{root}/{path}'
+    if esm: s += '/+esm'
+    return Script(src=s, **kwargs) if typ=='script' else Link(rel='stylesheet', href=s, **kwargs) if typ=='css' else s
+
+class Fragment(FT):
+    "An empty tag, used as a container"
+    def __init__(self, *c): super().__init__('', c, {}, void_=True)
+
+@delegates(ft_hx, keep=True)
+def Titled(title:str="FastHTML app", *args, cls="container", **kwargs)->FT:
+    "An HTML partial containing a `Title`, and `H1`, and any provided children"
+    return Title(title), Main(H1(title), *args, cls=cls, **kwargs)
+
+def Socials(title, site_name, description, image, url=None, w=1200, h=630, twitter_site=None, creator=None, card='summary'):
+    "OG and Twitter social card headers"
+    if not url: url=site_name
+    if not url.startswith('http'): url = f'https://{url}'
+    if not image.startswith('http'): image = f'{url}{image}'
+    res = [Meta(property='og:image', content=image),
+        Meta(property='og:site_name', content=site_name),
+        Meta(property='og:image:type', content='image/png'),
+        Meta(property='og:image:width', content=w),
+        Meta(property='og:image:height', content=h),
+        Meta(property='og:type', content='website'),
+        Meta(property='og:url', content=url),
+        Meta(property='og:title', content=title),
+        Meta(property='og:description', content=description),
+        Meta(name='twitter:image', content=image),
+        Meta(name='twitter:card', content=card),
+        Meta(name='twitter:title', content=title),
+        Meta(name='twitter:description', content=description)]
+    if twitter_site is not None: res.append(Meta(name='twitter:site',    content=twitter_site))
+    if creator      is not None: res.append(Meta(name='twitter:creator', content=creator))
+    return tuple(res)
+
+def YouTubeEmbed(video_id:str, *, width:int=560, height:int=315, start_time:int=0, no_controls:bool=False, title:str="YouTube video player", cls:str="", **kwargs):
+    """Embed a YouTube video"""
+    if not video_id or not isinstance(video_id, str):
+        raise ValueError("A valid YouTube video ID is required")
+    params = []
+    if start_time>0: params.append(f"start={start_time}")
+    if no_controls: params.append("controls=0")
+    query_string = "?" + "&".join(params) if params else ""
+    print(f"https://www.youtube.com/embed/{video_id}{query_string}")
+    return Div(
+        Iframe(
+            width=width,
+            height=height,
+            src=f"https://www.youtube.com/embed/{video_id}{query_string}",
+            title=title,
+            frameborder="0",
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share",
+            referrerpolicy="strict-origin-when-cross-origin",
+            allowfullscreen='',
+            **kwargs
+        ),
+        cls=cls
+    )
+
+def Favicon(light_icon, dark_icon):
+    "Light and dark favicon headers"
+    return (Link(rel='icon', type='image/x-ico', href=light_icon, media='(prefers-color-scheme: light)'),
+            Link(rel='icon', type='image/x-ico', href=dark_icon, media='(prefers-color-scheme: dark)'))
+
+def clear(id): return Div(hx_swap_oob='innerHTML', id=id)
+
+sid_scr = Script('''
+function uuid() {
+    return [...crypto.getRandomValues(new Uint8Array(10))].map(b=>b.toString(36)).join('');
+}
+
+sessionStorage.setItem("sid", sessionStorage.getItem("sid") || uuid());
+
+htmx.on("htmx:configRequest", (e) => {
+    const sid = sessionStorage.getItem("sid");
+    if (sid) {
+        const url = new URL(e.detail.path, window.location.origin);
+        url.searchParams.set('sid', sid);
+        e.detail.path = url.pathname + url.search;
+    }
+});
+''')
+
+def with_sid(app, dest, path='/'):
+    @app.route(path)
+    def get(): return Div(hx_get=dest, hx_trigger=f'load delay:0.001s', hx_swap='outerHTML')

@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Start a discussion
+    url: https://github.com/banditburai/starhtml/discussions
+    about: You can ask for help here!

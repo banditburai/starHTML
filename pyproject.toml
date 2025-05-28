@@ -1,0 +1,66 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "starhtml"
+version = "0.1.0"
+description = "A Python-first Datastar HTML framework forked from FastHTML"
+readme = "README.md"
+license = "Apache-2.0"
+authors = [
+    {name = "StarHTML Contributors"},
+]
+keywords = ["web", "html", "framework", "starlette", "python"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Natural Language :: English",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+requires-python = ">=3.10"
+dependencies = [
+    "fastcore>=1.8.1",
+    "python-dateutil",
+    "starlette>0.33",
+    "oauthlib",
+    "itsdangerous",
+    "uvicorn[standard]>=0.30",
+    "httpx",
+    "fastlite>=0.1.1",
+    "python-multipart",
+    "beautifulsoup4",
+]
+
+[project.urls]
+Repository = "https://github.com/banditburai/starhtml"
+Issues = "https://github.com/banditburai/starhtml/issues"
+
+[tool.setuptools.packages.find]
+include = ["starhtml*"]
+exclude = ["demo*", "examples*", "tests*"]
+
+[tool.uv]
+dev-dependencies = [
+    "pytest>=7.0",
+    "ruff>=0.1.0",
+    "bump-my-version>=0.15.0",
+]
+
+[tool.bumpversion]
+current_version = "0.1.0"
+parse = "(?P<major>\\d+)\\.(?P<minor>\\d+)\\.(?P<patch>\\d+)"
+serialize = ["{major}.{minor}.{patch}"]
+search = "{current_version}"
+replace = "{new_version}"
+tag = true
+commit = true
+commit_args = "--no-verify"
+
+[[tool.bumpversion.files]]
+filename = "pyproject.toml"
+search = 'version = "{current_version}"'
+replace = 'version = "{new_version}"'
