@@ -12,7 +12,7 @@ from .components import *
 
 __all__ = ['sid_scr', 'A', 'AX', 'Form', 'Hidden', 'CheckboxX', 'Script', 'Style', 'double_braces', 'undouble_braces',
            'loose_format', 'ScriptX', 'replace_css_vars', 'StyleX', 'Nbsp', 'Surreal', 'On', 'Prev', 'Now', 'AnyNow',
-           'run_js', 'HtmxOn', 'jsd', 'Fragment', 'Titled', 'Socials', 'YouTubeEmbed', 'Favicon', 'clear', 'with_sid']
+           'run_js', 'HtmxOn', 'jsd', 'Fragment', 'Socials', 'YouTubeEmbed', 'Favicon', 'clear', 'with_sid']
 
 @delegates(ft_hx, keep=True)
 def A(*c, hx_get=None, target_id=None, hx_swap=None, href='#', **kwargs)->FT:
@@ -152,11 +152,6 @@ def jsd(org, repo, root, path, prov='gh', typ='script', ver=None, esm=False, **k
 class Fragment(FT):
     "An empty tag, used as a container"
     def __init__(self, *c): super().__init__('', c, {}, void_=True)
-
-@delegates(ft_hx, keep=True)
-def Titled(title:str="FastHTML app", *args, cls="container", **kwargs)->FT:
-    "An HTML partial containing a `Title`, and `H1`, and any provided children"
-    return Title(title), Main(H1(title), *args, cls=cls, **kwargs)
 
 def Socials(title, site_name, description, image, url=None, w=1200, h=630, twitter_site=None, creator=None, card='summary'):
     "OG and Twitter social card headers"

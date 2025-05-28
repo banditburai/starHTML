@@ -476,7 +476,7 @@ class FastHTML(Starlette):
         if exts:
             # Lazy import to avoid circular imports
             from .components import Script
-            hdrs += [Script(src=ext) for ext in exts.values()]
+        hdrs += [Script(src=ext) for ext in exts.values()]
         on_startup,on_shutdown = listify(on_startup) or None,listify(on_shutdown) or None
         self.lifespan,self.hdrs,self.ftrs = lifespan,hdrs,ftrs
         self.body_wrap,self.before,self.after,self.htmlkw,self.bodykw = body_wrap,before,after,htmlkw,bodykw
