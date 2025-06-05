@@ -12,4 +12,4 @@ from .components import *
 from .xtend import *
 from .live_reload import *
 from .js import *
-from .fastapp import *
+from .starapp import *

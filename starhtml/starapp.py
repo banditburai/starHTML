@@ -1,4 +1,4 @@
-"""The `fast_app` convenience wrapper"""
+"""The `star_app` convenience wrapper for creating StarHTML applications"""
 
 import inspect,uvicorn
 from fastcore.utils import *
@@ -7,9 +7,9 @@ from .core import *
 from .components import *
 from .xtend import *
 from .starlette import *
-from .live_reload import FastHTMLWithLiveReload
+from .live_reload import StarHTMLWithLiveReload
 
-__all__ = ['fast_app']
+__all__ = ['star_app']
 
 def _get_tbl(dt, nm, schema):
     render = schema.pop('render', None)
@@ -20,14 +20,14 @@ def _get_tbl(dt, nm, schema):
     if render: dc.__ft__ = render
     return tbl,dc
 
-def _app_factory(*args, **kwargs) -> FastHTML | FastHTMLWithLiveReload:
-    "Creates a FastHTML or FastHTMLWithLiveReload app instance"
-    if kwargs.pop('live', False): return FastHTMLWithLiveReload(*args, **kwargs)
+def _app_factory(*args, **kwargs) -> StarHTML | StarHTMLWithLiveReload:
+    "Creates a StarHTML or StarHTMLWithLiveReload app instance"
+    if kwargs.pop('live', False): return StarHTMLWithLiveReload(*args, **kwargs)
     kwargs.pop('reload_attempts', None)
     kwargs.pop('reload_interval', None)
-    return FastHTML(*args, **kwargs)
+    return StarHTML(*args, **kwargs)
 
-def fast_app(
+def star_app(
         db_file:Optional[str]=None, # Database file name, if needed
         render:Optional[callable]=None, # Function used to render default database class
         hdrs:Optional[tuple]=None, # Additional FT elements to add to <HEAD>
@@ -43,9 +43,7 @@ def fast_app(
         on_shutdown:Optional[callable]=None, # Passed to Starlette
         lifespan:Optional[callable]=None, # Passed to Starlette
         default_hdrs=True, # Include default StarHTML headers?
-        surreal:Optional[bool]=True, # Include surreal.js/scope headers?
-        htmx:Optional[bool]=True, # Include HTMX header?
-        exts:Optional[list|str]=None, # HTMX extension names to include
+        exts:Optional[list|str]=None, # Extensions (deprecated, not used with Datastar)
         canonical:bool=True, # Automatically include canonical link?
         secret_key:Optional[str]=None, # Signing key for sessions
         key_fname:str='.sesskey', # Session cookie signing key file name
@@ -62,15 +60,16 @@ def fast_app(
         static_path:str=".",  # Where the static file route points to, defaults to root dir
         body_wrap:callable=noop_body, # FT wrapper for body contents
         **kwargs)->Any:
-    "Create a FastHTML or FastHTMLWithLiveReload app."
+    "Create a StarHTML app with optional live reloading."
     h = tuple(hdrs) if hdrs else ()
 
     app = _app_factory(hdrs=h, ftrs=ftrs, before=before, middleware=middleware, live=live, debug=debug, routes=routes, exception_handlers=exception_handlers,
                   on_startup=on_startup, on_shutdown=on_shutdown, lifespan=lifespan, default_hdrs=default_hdrs, secret_key=secret_key, canonical=canonical,
                   session_cookie=session_cookie, max_age=max_age, sess_path=sess_path, same_site=same_site, sess_https_only=sess_https_only,
-                  sess_domain=sess_domain, key_fname=key_fname, exts=exts, surreal=surreal, htmx=htmx, htmlkw=htmlkw,
+                  sess_domain=sess_domain, key_fname=key_fname, exts=exts, htmlkw=htmlkw,
                   reload_attempts=reload_attempts, reload_interval=reload_interval, body_wrap=body_wrap, **(bodykw or {}))
     app.static_route_exts(static_path=static_path)
+    
     if not db_file: return app,app.route
 
     db = database(db_file)

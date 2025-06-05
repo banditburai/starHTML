@@ -14,4 +14,5 @@
 
 __version__ = "0.1.0"
 from .core import *
-from .fastapp import fast_app
+from .starapp import star_app
+from .datastar import *

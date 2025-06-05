@@ -1,6 +1,6 @@
-"""The `FastHTML` subclass of `Starlette`, along with the `RouterX` and `RouteX` classes it automatically uses."""
+"""The `StarHTML` subclass of `Starlette`, along with the `RouterX` and `RouteX` classes it automatically uses."""
 
-import json,uuid,inspect,types,signal,asyncio,threading,inspect
+import json,uuid,inspect,types,signal,asyncio,threading
 
 from fastcore.utils import *
 from fastcore.xml import *
@@ -38,26 +38,6 @@ def snake2hyphens(s:str):
     s = snake2camel(s)
     return camel2words(s, '-')
 
-htmx_hdrs = dict(
-    boosted="HX-Boosted",
-    current_url="HX-Current-URL",
-    history_restore_request="HX-History-Restore-Request",
-    prompt="HX-Prompt",
-    request="HX-Request",
-    target="HX-Target",
-    trigger_name="HX-Trigger-Name",
-    trigger="HX-Trigger")
-
-@dataclass
-class HtmxHeaders:
-    boosted:str|None=None; current_url:str|None=None; history_restore_request:str|None=None; prompt:str|None=None
-    request:str|None=None; target:str|None=None; trigger_name:str|None=None; trigger:str|None=None
-    def __bool__(self): return any(hasattr(self,o) for o in htmx_hdrs)
-
-def _get_htmx(h):
-    res = {k:h.get(v.lower(), None) for k,v in htmx_hdrs.items()}
-    return HtmxHeaders(**res)
-
 def _mk_list(t, v): return [t(o) for o in listify(v)]
 
 fh_cfg = AttrDict(indent=True)
@@ -85,17 +65,8 @@ def _form_arg(k, v, d):
 @dataclass
 class HttpHeader: k:str;v:str
 
-def _to_htmx_header(s):
-    return 'HX-' + s.replace('_', '-').title()
 
-htmx_resps = dict(location=None, push_url=None, redirect=None, refresh=None, replace_url=None,
-                 reswap=None, retarget=None, reselect=None, trigger=None, trigger_after_settle=None, trigger_after_swap=None)
 
-@use_kwargs_dict(**htmx_resps)
-def HtmxResponseHeaders(**kwargs):
-    "HTMX response headers"
-    res = tuple(HttpHeader(_to_htmx_header(k), v) for k,v in kwargs.items())
-    return res[0] if len(res)==1 else res
 
 def _annotations(anno):
     "Same as `get_annotations`, but also works on namedtuples"
@@ -149,7 +120,6 @@ async def _find_p(req, arg:str, p:Parameter):
     # GenericAlias is a type of typing for iterators like list[int] that is not a class
     if isinstance(anno, type) and not isinstance(anno, GenericAlias):
         if issubclass(anno, Request): return req
-        if issubclass(anno, HtmxHeaders): return _get_htmx(req.headers)
         if issubclass(anno, Starlette): return req.scope['app']
         if _is_body(anno) and 'session'.startswith(arg.lower()): return req.scope.get('session', {})
         if _is_body(anno): return await _from_body(req, p)
@@ -159,7 +129,6 @@ async def _find_p(req, arg:str, p:Parameter):
         if 'session'.startswith(arg.lower()): return req.scope.get('session', {})
         if arg.lower()=='scope': return dict2obj(req.scope)
         if arg.lower()=='auth': return req.scope.get('auth', None)
-        if arg.lower()=='htmx': return _get_htmx(req.headers)
         if arg.lower()=='app': return req.scope['app']
         if arg.lower()=='body': return (await req.body()).decode()
         if arg.lower() in ('hdrs','ftrs','bodykw','htmlkw'): return getattr(req, arg.lower())
@@ -203,14 +172,12 @@ def _find_wsp(ws, data, hdrs, arg:str, p:Parameter):
     "In `data` find param named `arg` of type in `p` (`arg` is ignored for body types)"
     anno = p.annotation
     if isinstance(anno, type):
-        if issubclass(anno, HtmxHeaders): return _get_htmx(hdrs)
         if issubclass(anno, Starlette): return ws.scope['app']
         if issubclass(anno, WebSocket): return ws
     if anno is empty:
         if arg.lower()=='ws': return ws
         if arg.lower()=='scope': return dict2obj(ws.scope)
         if arg.lower()=='data': return data
-        if arg.lower()=='htmx': return _get_htmx(hdrs)
         if arg.lower()=='app': return ws.scope['app']
         if arg.lower()=='send': return partial(_send_ws, ws)
         if 'session'.startswith(arg.lower()): return ws.scope.get('session', {})
@@ -288,7 +255,7 @@ def url_path_for(self:HTTPConnection, name: str, **path_params):
     lp = self.scope['app'].url_path_for(name, **path_params)
     return URLPath(f"{self.scope['root_path']}{lp}", lp.protocol, lp.host)
 
-_verbs = dict(get='hx-get', post='hx-post', put='hx-post', delete='hx-delete', patch='hx-patch', link='href')
+_verbs = dict(get='data-on-click', post='data-on-submit', put='data-on-submit', delete='data-on-click', patch='data-on-submit', link='href')
 
 def _url_for(req, t):
     if callable(t): t = t.__routename__
@@ -304,7 +271,11 @@ def _find_targets(req, resp):
         for o in resp.children: _find_targets(req, o)
         for k,v in _verbs.items():
             t = resp.attrs.pop(k, None)
-            if t: resp.attrs[v] = _url_for(req, t)
+            if t and k != 'link': 
+                action = f"@{k}('{_url_for(req, t)}')"
+                resp.attrs[v] = action
+            elif t and k == 'link':
+                resp.attrs[v] = _url_for(req, t)
 
 def _apply_ft(o):
     if isinstance(o, tuple): o = tuple(_apply_ft(c) for c in o)
@@ -343,14 +314,14 @@ def respond(req, heads, bdy):
 
 def is_full_page(req, resp):
     if resp and any(getattr(o, 'tag', '')=='html' for o in resp): return True
-    return 'hx-request' in req.headers and 'hx-history-restore-request' not in req.headers
+    return False
 
 def _part_resp(req, resp):
     resp = flat_tuple(resp)
     resp = resp + tuple(getattr(req, 'injects', ()))
     http_hdrs,resp = partition(resp, risinstance(HttpHeader))
     tasks,resp = partition(resp, risinstance(BackgroundTask))
-    kw = {"headers": {"vary": "HX-Request, HX-History-Restore-Request"}}
+    kw = {"headers": {}}
     if http_hdrs: kw['headers'] |= {o.k:str(o.v) for o in http_hdrs}
     if tasks:
         ts = BackgroundTasks()
@@ -391,28 +362,15 @@ def _resp(req, resp, cls=empty, status_code=200):
     return cls(resp, status_code=status_code, **kw)
 
 class Redirect:
-    "Use HTMX or Starlette RedirectResponse as required to redirect to `loc`"
+    "Redirect to `loc` using standard HTTP redirect"
     def __init__(self, loc): self.loc = loc
     def __response__(self, req):
-        if 'hx-request' in req.headers: return HtmxResponseHeaders(redirect=self.loc)
         return RedirectResponse(self.loc, status_code=303)
 
 async def _wrap_call(f, req, params):
     wreq = await _wrap_req(req, params)
     return await _handle(f, wreq)
 
-htmx_exts = {
-    "morph": "https://cdn.jsdelivr.net/npm/idiomorph@0.7.3/dist/idiomorph-ext.min.js",
-    "head-support": "https://cdn.jsdelivr.net/npm/htmx-ext-head-support@2.0.3/head-support.js",
-    "preload": "https://cdn.jsdelivr.net/npm/htmx-ext-preload@2.1.0/preload.js",
-    "class-tools": "https://cdn.jsdelivr.net/npm/htmx-ext-class-tools@2.0.1/class-tools.js",
-    "loading-states": "https://cdn.jsdelivr.net/npm/htmx-ext-loading-states@2.0.0/loading-states.js",
-    "multi-swap": "https://cdn.jsdelivr.net/npm/htmx-ext-multi-swap@2.0.0/multi-swap.js",
-    "path-deps": "https://cdn.jsdelivr.net/npm/htmx-ext-path-deps@2.0.0/path-deps.js",
-    "remove-me": "https://cdn.jsdelivr.net/npm/htmx-ext-remove-me@2.0.0/remove-me.js",
-    "ws": "https://cdn.jsdelivr.net/npm/htmx-ext-ws@2.0.2/ws.js",
-    "chunked-transfer": "https://cdn.jsdelivr.net/npm/htmx-ext-transfer-encoding-chunked@0.4.0/transfer-encoding-chunked.js"
-}
 
 def get_key(key=None, fname='.sesskey'):
     if key: return key
@@ -443,40 +401,35 @@ def qp(p:str, **kw) -> str:
     # encode query params
     return p + ('?' + urlencode({k:'' if v in (False,None) else v for k,v in kw.items()},doseq=True) if kw else '')
 
-def def_hdrs(htmx=True, surreal=True):
-    "Default headers for a FastHTML app"
+def def_hdrs():
+    "Default headers for a StarHTML app"
     # Lazy import to avoid circular imports
     from .components import Script, Meta
     
-    htmxsrc   = Script(src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.4/dist/htmx.min.js")
-    fhjsscr   = Script(src="https://cdn.jsdelivr.net/gh/answerdotai/fasthtml-js@1.0.12/fasthtml.js")
-    surrsrc   = Script(src="https://cdn.jsdelivr.net/gh/answerdotai/surreal@main/surreal.js")
-    scopesrc  = Script(src="https://cdn.jsdelivr.net/gh/gnat/css-scope-inline@main/script.js")
-    viewport  = Meta(name="viewport", content="width=device-width, initial-scale=1, viewport-fit=cover")
-    charset   = Meta(charset="utf-8")
+    datastarsrc = Script(src="/static/datastar.js", type="module")
+    viewport    = Meta(name="viewport", content="width=device-width, initial-scale=1, viewport-fit=cover")
+    charset     = Meta(charset="utf-8")
     
-    hdrs = []
-    if surreal: hdrs = [surrsrc,scopesrc] + hdrs
-    if htmx: hdrs = [htmxsrc,fhjsscr] + hdrs
-    return [charset, viewport] + hdrs
+    return [charset, viewport, datastarsrc]
 
-class FastHTML(Starlette):
-    def __init__(self, debug=False, routes=None, middleware=None, title: str = "FastHTML page", exception_handlers=None,
+class StarHTML(Starlette):
+    def __init__(self, debug=False, routes=None, middleware=None, title: str = "StarHTML page", exception_handlers=None,
                  on_startup=None, on_shutdown=None, lifespan=None, hdrs=None, ftrs=None, exts=None,
-                 before=None, after=None, surreal=True, htmx=True, default_hdrs=True, sess_cls=SessionMiddleware,
+                 before=None, after=None, default_hdrs=True, sess_cls=SessionMiddleware,
                  secret_key=None, session_cookie='session_', max_age=365*24*3600, sess_path='/',
                  same_site='lax', sess_https_only=False, sess_domain=None, key_fname='.sesskey',
                  body_wrap=noop_body, htmlkw=None, canonical=True, **bodykw):
         middleware,before,after = map(_list, (middleware,before,after))
         self.title,self.canonical = title,canonical
         hdrs,ftrs,exts = map(listify, (hdrs,ftrs,exts))
-        exts = {k:htmx_exts[k] for k in exts}
+        # Extensions are not used with Datastar
+        if exts: exts = {}
         htmlkw = htmlkw or {}
-        if default_hdrs: hdrs = def_hdrs(htmx, surreal=surreal) + hdrs
+        if default_hdrs: hdrs = def_hdrs() + hdrs
         if exts:
             # Lazy import to avoid circular imports
             from .components import Script
-        hdrs += [Script(src=ext) for ext in exts.values()]
+            hdrs += [Script(src=ext) for ext in exts]
         on_startup,on_shutdown = listify(on_startup) or None,listify(on_shutdown) or None
         self.lifespan,self.hdrs,self.ftrs = lifespan,hdrs,ftrs
         self.body_wrap,self.before,self.after,self.htmlkw,self.bodykw = body_wrap,before,after,htmlkw,bodykw
@@ -492,6 +445,12 @@ class FastHTML(Starlette):
             exception_handlers[404] = _not_found
         excs = {k:_wrap_ex(v, k, hdrs, ftrs, htmlkw, bodykw, body_wrap=body_wrap) for k,v in exception_handlers.items()}
         super().__init__(debug, routes, middleware=middleware, exception_handlers=excs, on_startup=on_startup, on_shutdown=on_shutdown, lifespan=lifespan)
+        
+        # Always serve datastar.js from the RC version
+        import os
+        from starlette.responses import FileResponse
+        datastar_path = os.path.join(os.path.dirname(__file__), '..', 'worktrees', 'datastar-rc', 'datastar.js')
+        self.route('/static/datastar.js')(lambda: FileResponse(datastar_path, media_type='application/javascript'))
 
     def add_route(self, route):
         route.methods = [m.upper() for m in listify(route.methods)]
@@ -503,7 +462,7 @@ class FastHTML(Starlette):
 all_meths = 'get post put delete patch head trace options'.split()
 
 @patch
-def _endp(self:FastHTML, f, body_wrap):
+def _endp(self:StarHTML, f, body_wrap):
     sig = signature_ex(f, True)
     async def _f(req):
         resp = None
@@ -526,7 +485,7 @@ def _endp(self:FastHTML, f, body_wrap):
     return _f
 
 @patch
-def _add_ws(self:FastHTML, func, path, conn, disconn, name, middleware):
+def _add_ws(self:StarHTML, func, path, conn, disconn, name, middleware):
     endp = _ws_endp(func, conn, disconn)
     route = WebSocketRoute(path, endpoint=endp, name=name, middleware=middleware)
     route.methods = ['ws']
@@ -534,7 +493,7 @@ def _add_ws(self:FastHTML, func, path, conn, disconn, name, middleware):
     return func
 
 @patch
-def ws(self:FastHTML, path:str, conn=None, disconn=None, name=None, middleware=None):
+def ws(self:StarHTML, path:str, conn=None, disconn=None, name=None, middleware=None):
     "Add a websocket route at `path`"
     def f(func=noop): return self._add_ws(func, path, conn, disconn, name=name, middleware=middleware)
     return f
@@ -552,7 +511,7 @@ def nested_name(f):
     return f.__qualname__.replace('.<locals>.', '_')
 
 @patch
-def _add_route(self:FastHTML, func, path, methods, name, include_in_schema, body_wrap):
+def _add_route(self:StarHTML, func, path, methods, name, include_in_schema, body_wrap):
     n,fn,p = name,nested_name(func),None if callable(path) else path
     if methods: m = [methods] if isinstance(methods,str) else methods
     elif fn in all_meths and p is not None: m = [fn]
@@ -566,12 +525,12 @@ def _add_route(self:FastHTML, func, path, methods, name, include_in_schema, body
     return lf
 
 @patch
-def route(self:FastHTML, path:str=None, methods=None, name=None, include_in_schema=True, body_wrap=None):
+def route(self:StarHTML, path:str=None, methods=None, name=None, include_in_schema=True, body_wrap=None):
     "Add a route at `path`"
     def f(func): return self._add_route(func, path, methods, name=name, include_in_schema=include_in_schema, body_wrap=body_wrap)
     return f(path) if callable(path) else f
 
-for o in all_meths: setattr(FastHTML, o, partialmethod(FastHTML.route, methods=o))
+for o in all_meths: setattr(StarHTML, o, partialmethod(StarHTML.route, methods=o))
 
 def serve(
         appname=None, # Name of the module
@@ -687,13 +646,13 @@ _static_exts = "ico gif jpg jpeg webm css js woff png svg mp4 webp ttf otf eot w
 reg_re_param("static", '|'.join(_static_exts))
 
 @patch
-def static_route_exts(self:FastHTML, prefix='/', static_path='.', exts='static'):
+def static_route_exts(self:StarHTML, prefix='/', static_path='.', exts='static'):
     "Add a static route at URL path `prefix` with files from `static_path` and `exts` defined by `reg_re_param()`"
     @self.route(f"{prefix}{{fname:path}}.{{ext:{exts}}}")
     async def get(fname:str, ext:str): return FileResponse(f'{static_path}/{fname}.{ext}')
 
 @patch
-def static_route(self:FastHTML, ext='', prefix='/', static_path='.'):
+def static_route(self:StarHTML, ext='', prefix='/', static_path='.'):
     "Add a static route at URL path `prefix` with files from `static_path` and single `ext` (including the '.')"
     @self.route(f"{prefix}{{fname:path}}{ext}")
     async def get(fname:str): return FileResponse(f'{static_path}/{fname}{ext}')
@@ -741,9 +700,12 @@ def setup_ws(app, f=noop):
 devtools_loc = "/.well-known/appspecific/com.chrome.devtools.json"
 
 @patch
-def devtools_json(self:FastHTML, path=None, uuid=None):
+def devtools_json(self:StarHTML, path=None, uuid=None):
     if not path: path = Path().absolute()
     if not uuid: uuid = get_key()
     @self.route(devtools_loc)
     def devtools():
         return dict(workspace=dict(root=path, uuid=uuid))
+
+# Override fastcore.xml HTML components with Datastar-aware versions
+from .components import *

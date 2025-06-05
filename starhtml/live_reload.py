@@ -1,7 +1,8 @@
 from starlette.routing import WebSocketRoute
-from starhtml.common import FastHTML, Script
+from starhtml.core import StarHTML
+from starhtml.components import Script
 
-__all__ = ["FastHTMLWithLiveReload"]
+__all__ = ["StarHTMLWithLiveReload"]
 
 def LiveReloadJs(reload_attempts:int=20, reload_interval:int=1000, **kwargs):
     src = """
@@ -25,9 +26,9 @@ def LiveReloadJs(reload_attempts:int=20, reload_interval:int=1000, **kwargs):
 
 async def live_reload_ws(websocket): await websocket.accept()
 
-class FastHTMLWithLiveReload(FastHTML):
+class StarHTMLWithLiveReload(StarHTML):
     """
-    `FastHTMLWithLiveReload` enables live reloading.
+    `StarHTMLWithLiveReload` enables live reloading.
     This means that any code changes saved on the server will automatically
     trigger a reload of both the server and browser window.
 

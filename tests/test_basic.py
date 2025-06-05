@@ -5,15 +5,15 @@ import pytest
 
 def test_starhtml_imports():
     """Test that StarHTML can be imported without errors."""
-    from starhtml import fast_app
-    assert fast_app is not None
+    from starhtml import star_app
+    assert star_app is not None
 
 
 def test_app_creation():
     """Test that a basic StarHTML app can be created."""
-    from starhtml import fast_app
+    from starhtml import star_app
     
-    app, rt = fast_app()
+    app, rt = star_app()
     assert app is not None
     assert rt is not None
     assert hasattr(app, 'hdrs')
@@ -22,9 +22,9 @@ def test_app_creation():
 
 def test_route_creation():
     """Test that routes can be created."""
-    from starhtml import fast_app, Div, H1
+    from starhtml import star_app, Div, H1
     
-    app, rt = fast_app()
+    app, rt = star_app()
     
     @rt('/')
     def get():

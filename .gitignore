@@ -156,3 +156,5 @@ _docs
 
 .claude
 .ruff_cache
+
+worktrees/

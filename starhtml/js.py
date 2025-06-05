@@ -5,6 +5,21 @@ from fastcore.utils import *
 from starhtml.components import *
 from starhtml.xtend import *
 
+# Datastar-compatible element processor
+proc_dstar_js = """
+window.proc_dstar = function(selector, callback) {
+    // Process existing elements on page load
+    document.addEventListener('DOMContentLoaded', () => {
+        document.querySelectorAll(selector).forEach(callback);
+    });
+    
+    // Also process any existing elements immediately if DOM is already loaded
+    if (document.readyState !== 'loading') {
+        document.querySelectorAll(selector).forEach(callback);
+    }
+};
+"""
+
 __all__ = ['marked_imp', 'npmcdn', 'light_media', 'dark_media', 'MarkdownJS', 'KatexMarkdownJS', 'HighlightJS', 'SortableJS',
            'MermaidJS']
 
@@ -28,8 +43,8 @@ def MarkdownJS(
         sel='.marked' # CSS selector for markdown elements
     ):
     "Implements browser-based markdown rendering."
-    src = "proc_htmx('%s', e => e.innerHTML = marked.parse(e.textContent));" % sel
-    return Script(marked_imp+src, type='module')
+    src = "proc_dstar('%s', e => e.innerHTML = marked.parse(e.textContent));" % sel
+    return Script(proc_dstar_js + marked_imp + src, type='module')
 
 def KatexMarkdownJS(
         sel='.marked',  # CSS selector for markdown elements
@@ -73,9 +88,9 @@ def SortableJS(
     ):
     src = """
 import {Sortable} from 'https://cdn.jsdelivr.net/npm/sortablejs/+esm';
-proc_htmx('%s', Sortable.create);
-""" % sel
-    return Script(src, type='module')
+proc_dstar('%s', el => Sortable.create(el, {ghostClass: '%s'}));
+""" % (sel, ghost_class)
+    return Script(proc_dstar_js + src, type='module')
 
 def MermaidJS(
         sel='.language-mermaid',  # CSS selector for mermaid elements
@@ -110,7 +125,6 @@ function renderMermaidDiagrams(element, index) {
     }
 }
 
-// Assuming proc_htmx is a function that triggers rendering
-proc_htmx('%s', renderMermaidDiagrams);
+proc_dstar('%s', (el, idx) => renderMermaidDiagrams(el, idx));
 """ % (theme, sel)
-    return Script(src, type='module')
+    return Script(proc_dstar_js + src, type='module')

@@ -1,3 +1,5 @@
+{proc_dstar_js}
+
 import { marked } from "https://cdn.jsdelivr.net/npm/marked/lib/marked.esm.js";
 import katex from "https://cdn.jsdelivr.net/npm/katex/dist/katex.mjs";
 
@@ -11,7 +13,7 @@ const processLatexEnvironments = (content) => {
         return match;
 }) };
 
-proc_htmx('{sel}', e => {
+proc_dstar('{sel}', e => {
     let content = processLatexEnvironments(e.textContent);
     // Display math (including environments)
     content = content.replace(/{display_delim}([\s\S]+?){display_delim}/gm, (_, tex) => renderMath(tex.trim(), true));

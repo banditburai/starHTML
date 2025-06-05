@@ -22,7 +22,7 @@ __all__ = ['g', 'svg_inb', 'Svg', 'ft_svg', 'Rect', 'Circle', 'Ellipse', 'transf
 _all_ = ['AltGlyph', 'AltGlyphDef', 'AltGlyphItem', 'Animate', 'AnimateColor', 'AnimateMotion', 'AnimateTransform', 'ClipPath', 'Color_profile', 'Cursor', 'Defs', 'Desc', 'FeBlend', 'FeColorMatrix', 'FeComponentTransfer', 'FeComposite', 'FeConvolveMatrix', 'FeDiffuseLighting', 'FeDisplacementMap', 'FeDistantLight', 'FeFlood', 'FeFuncA', 'FeFuncB', 'FeFuncG', 'FeFuncR', 'FeGaussianBlur', 'FeImage', 'FeMerge', 'FeMergeNode', 'FeMorphology', 'FeOffset', 'FePointLight', 'FeSpecularLighting', 'FeSpotLight', 'FeTile', 'FeTurbulence', 'Filter', 'Font', 'Font_face', 'Font_face_format', 'Font_face_name', 'Font_face_src', 'Font_face_uri', 'ForeignObject', 'G', 'Glyph', 'GlyphRef', 'Hkern', 'Image', 'LinearGradient', 'Marker', 'Mask', 'Metadata', 'Missing_glyph', 'Mpath', 'Pattern', 'RadialGradient', 'Set', 'Stop', 'Switch', 'Symbol', 'TextPath', 'Tref', 'Tspan', 'Use', 'View', 'Vkern', 'Template']
 
 g = globals()
-for o in _all_: g[o] = partial(ft_hx, o[0].lower() + o[1:])
+for o in _all_: g[o] = partial(ft_datastar, o[0].lower() + o[1:])
 
 def Svg(*args, viewBox=None, h=None, w=None, height=None, width=None, xmlns="http://www.w3.org/2000/svg", **kwargs):
     "An SVG tag; xmlns is added automatically, and viewBox defaults to height and width if not provided"
@@ -31,11 +31,11 @@ def Svg(*args, viewBox=None, h=None, w=None, height=None, width=None, xmlns="htt
     if not viewBox and height and width: viewBox=f'0 0 {width} {height}'
     return ft_svg('svg', *args, xmlns=xmlns, viewBox=viewBox, height=height, width=width, **kwargs)
 
-@delegates(ft_hx)
+@delegates(ft_datastar)
 def ft_svg(tag: str, *c, transform=None, opacity=None, clip=None, mask=None, filter=None,
            vector_effect=None, pointer_events=None, **kwargs):
     "Create a standard `FT` element with some SVG-specific attrs"
-    return ft_hx(tag, *c, transform=transform, opacity=opacity, clip=clip, mask=mask, filter=filter,
+    return ft_datastar(tag, *c, transform=transform, opacity=opacity, clip=clip, mask=mask, filter=filter,
            vector_effect=vector_effect, pointer_events=pointer_events, **kwargs)
 
 @delegates(ft_svg)
@@ -142,12 +142,11 @@ def Path(d='', fill=None, stroke=None, stroke_width=None, **kwargs):
     "Create a standard `path` SVG element. This is a special object"
     return ft_svg('path', d=d, fill=fill, stroke=stroke, stroke_width=stroke_width, ft_cls=PathFT, **kwargs)
 
-svg_inb = dict(hx_select="svg>*")
 
 def SvgOob(*args, **kwargs):
-    "Wraps an SVG shape as required for an HTMX OOB swap"
-    return Template(Svg(*args, **kwargs))
+    "Wraps an SVG shape (simplified for Datastar)"
+    return Svg(*args, **kwargs)
 
 def SvgInb(*args, **kwargs):
-    "Wraps an SVG shape as required for an HTMX inband swap"
-    return Svg(*args, **kwargs), HtmxResponseHeaders(hx_reselect='svg>*')
+    "Wraps an SVG shape (simplified for Datastar)"
+    return Svg(*args, **kwargs)

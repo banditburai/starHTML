@@ -10,31 +10,33 @@ from fastcore.meta import use_kwargs, delegates
 from .core import *
 from .components import *
 
-__all__ = ['sid_scr', 'A', 'AX', 'Form', 'Hidden', 'CheckboxX', 'Script', 'Style', 'double_braces', 'undouble_braces',
-           'loose_format', 'ScriptX', 'replace_css_vars', 'StyleX', 'Nbsp', 'Surreal', 'On', 'Prev', 'Now', 'AnyNow',
-           'run_js', 'HtmxOn', 'jsd', 'Fragment', 'Socials', 'YouTubeEmbed', 'Favicon', 'clear', 'with_sid']
+__all__ = ['A', 'AX', 'Form', 'Hidden', 'CheckboxX', 'Script', 'Style', 'double_braces', 'undouble_braces',
+           'loose_format', 'ScriptX', 'replace_css_vars', 'StyleX', 'Nbsp', 'run_js', 'DatastarOn', 'jsd',
+           'Fragment', 'Socials', 'YouTubeEmbed', 'Favicon', 'with_sid']
 
-@delegates(ft_hx, keep=True)
-def A(*c, hx_get=None, target_id=None, hx_swap=None, href='#', **kwargs)->FT:
-    "An A tag; `href` defaults to '#' for more concise use with HTMX"
-    return ft_hx('a', *c, href=href, hx_get=hx_get, target_id=target_id, hx_swap=hx_swap, **kwargs)
+@delegates(ft_datastar, keep=True)
+def A(*c, get=None, target_id=None, href='#', **kwargs)->FT:
+    "An A tag; `href` defaults to '#' for more concise use with Datastar"
+    if get: kwargs['data_on_click'] = f"@get('{get}')"
+    return ft_datastar('a', *c, href=href, **kwargs)
 
-@delegates(ft_hx, keep=True)
-def AX(txt, hx_get=None, target_id=None, hx_swap=None, href='#', **kwargs)->FT:
-    "An A tag with just one text child, allowing hx_get, target_id, and hx_swap to be positional params"
-    return ft_hx('a', txt, href=href, hx_get=hx_get, target_id=target_id, hx_swap=hx_swap, **kwargs)
+@delegates(ft_datastar, keep=True)
+def AX(txt, get=None, target_id=None, href='#', **kwargs)->FT:
+    "An A tag with just one text child, allowing get and target_id to be positional params"
+    if get: kwargs['data_on_click'] = f"@get('{get}')"
+    return ft_datastar('a', txt, href=href, **kwargs)
 
-@delegates(ft_hx, keep=True)
+@delegates(ft_datastar, keep=True)
 def Form(*c, enctype="multipart/form-data", **kwargs)->FT:
-    "A Form tag; identical to plain `ft_hx` version except default `enctype='multipart/form-data'`"
-    return ft_hx('form', *c, enctype=enctype, **kwargs)
+    "A Form tag; identical to plain `ft_datastar` version except default `enctype='multipart/form-data'`"
+    return ft_datastar('form', *c, enctype=enctype, **kwargs)
 
-@delegates(ft_hx, keep=True)
+@delegates(ft_datastar, keep=True)
 def Hidden(value:Any="", id:Any=None, **kwargs)->FT:
     "An Input of type 'hidden'"
     return Input(type="hidden", value=value, id=id, **kwargs)
 
-@delegates(ft_hx, keep=True)
+@delegates(ft_datastar, keep=True)
 def CheckboxX(checked:bool=False, label=None, value="1", id=None, name=None, **kwargs)->FT:
     "A Checkbox optionally inside a Label, preceded by a `Hidden` with matching name"
     if id and not name: name=id
@@ -94,52 +96,15 @@ def Nbsp():
     "A non-breaking space"
     return Safe('&nbsp;')
 
-def Surreal(code:str):
-    "Wrap `code` in `domReadyExecute` and set `m=me()` and `p=me('-')`"
-    return Script('''
-{
-    const m=me();
-    const _p = document.currentScript.previousElementSibling;
-    const p = _p ? me(_p) : null;
-    domReadyExecute(() => {
-        %s
-    });
-}''' % code)
-
-def On(code:str, event:str='click', sel:str='', me=True):
-    "An async surreal.js script block event handler for `event` on selector `sel,p`, making available parent `p`, event `ev`, and target `e`"
-    func = 'me' if me else 'any'
-    if sel=='-': sel='p'
-    elif sel: sel=f'{func}("{sel}", m)'
-    else: sel='m'
-    return Surreal('''
-%s.on("%s", async ev=>{
-    let e = me(ev);
-    %s
-});''' % (sel,event,code))
-
-def Prev(code:str, event:str='click'):
-    "An async surreal.js script block event handler for `event` on previous sibling, with same vars as `On`"
-    return On(code, event=event, sel='-')
-
-def Now(code:str, sel:str=''):
-    "An async surreal.js script block on selector `me(sel)`"
-    if sel: sel=f'"{sel}"'
-    return Script('(async (ee = me(%s)) => {\nlet e = me(ee);\n%s\n})()\n' % (sel,code))
-
-def AnyNow(sel:str, code:str):
-    "An async surreal.js script block on selector `any(sel)`"
-    return Script('(async (e = any("%s")) => {\n%s\n})()\n' % (sel,code))
-
 def run_js(js, id=None, **kw):
     "Run `js` script, auto-generating `id` based on name of caller if needed, and js-escaping any `kw` params"
     if not id: id = sys._getframe(1).f_code.co_name
     kw = {k:dumps(v) for k,v in kw.items()}
-    return Script(js.format(**kw), id=id, hx_swap_oob='true')
+    return Script(js.format(**kw), id=id)
 
-def HtmxOn(eventname:str, code:str):
+def DatastarOn(eventname:str, code:str):
     return Script('''domReadyExecute(function() {
-document.body.addEventListener("htmx:%s", function(event) { %s })
+document.body.addEventListener("datastar:%s", function(event) { %s })
 })''' % (eventname, code))
 
 def jsd(org, repo, root, path, prov='gh', typ='script', ver=None, esm=False, **kwargs)->FT:
@@ -204,25 +169,6 @@ def Favicon(light_icon, dark_icon):
     return (Link(rel='icon', type='image/x-ico', href=light_icon, media='(prefers-color-scheme: light)'),
             Link(rel='icon', type='image/x-ico', href=dark_icon, media='(prefers-color-scheme: dark)'))
 
-def clear(id): return Div(hx_swap_oob='innerHTML', id=id)
-
-sid_scr = Script('''
-function uuid() {
-    return [...crypto.getRandomValues(new Uint8Array(10))].map(b=>b.toString(36)).join('');
-}
-
-sessionStorage.setItem("sid", sessionStorage.getItem("sid") || uuid());
-
-htmx.on("htmx:configRequest", (e) => {
-    const sid = sessionStorage.getItem("sid");
-    if (sid) {
-        const url = new URL(e.detail.path, window.location.origin);
-        url.searchParams.set('sid', sid);
-        e.detail.path = url.pathname + url.search;
-    }
-});
-''')
-
 def with_sid(app, dest, path='/'):
     @app.route(path)
-    def get(): return Div(hx_get=dest, hx_trigger=f'load delay:0.001s', hx_swap='outerHTML')
+    def get(): return Div(data_on_load=f'@get("{dest}")', data_swap='outerHTML')

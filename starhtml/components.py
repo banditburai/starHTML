@@ -1,4 +1,4 @@
-"""`ft_html` and `ft_hx` functions to add some conveniences to `ft`, along with a full set of basic HTML components, and functions to work with forms and `FT` conversion"""
+"""`ft_html` and `ft_datastar` functions to add some conveniences to `ft`, along with a full set of basic HTML components, and functions to work with forms and `FT` conversion"""
 
 from dataclasses import dataclass, asdict, is_dataclass, make_dataclass, replace, astuple, MISSING
 from bs4 import BeautifulSoup, Comment
@@ -24,28 +24,26 @@ def __add__(self:FT, b): return f'{self}{b}'
 
 named = set('a button form frame iframe img input map meta object param select textarea'.split())
 html_attrs = 'id cls title style accesskey contenteditable dir draggable enterkeyhint hidden inert inputmode lang popover spellcheck tabindex translate'.split()
-hx_attrs = 'get post put delete patch trigger target swap swap_oob include select select_oob indicator push_url confirm disable replace_url vals disabled_elt ext headers history history_elt indicator inherit params preserve prompt replace_url request sync validate'
+datastar_attrs = 'on_click on_submit on_change on_input on_load on_keydown on_keyup signals bind text show hide class style indicator computed store signal'
 
-hx_evts = 'abort afterOnLoad afterProcessNode afterRequest afterSettle afterSwap beforeCleanupElement beforeOnLoad beforeProcessNode beforeRequest beforeSwap beforeSend beforeTransition configRequest confirm historyCacheError historyCacheMiss historyCacheMissError historyCacheMissLoad historyRestore beforeHistorySave load noSSESourceError onLoadError oobAfterSwap oobBeforeSwap oobErrorNoTarget prompt pushedIntoHistory replacedInHistory responseError sendAbort sendError sseError sseOpen swapError targetError timeout validation:validate validation:failed validation:halted xhr:abort xhr:loadend xhr:loadstart xhr:progress'
+datastar_evts = 'click submit change input load keydown keyup focus blur scroll resize'
 js_evts = "blur change contextmenu focus input invalid reset select submit keydown keypress keyup click dblclick mousedown mouseenter mouseleave mousemove mouseout mouseover mouseup wheel"
-hx_attrs = [f'hx_{o}' for o in hx_attrs.split()]
-hx_attrs_annotations = {
-    "hx_swap": Literal["innerHTML", "outerHTML", "afterbegin", "beforebegin", "beforeend", "afterend", "delete", "none"] | str,
-    "hx_swap_oob": Literal["true", "innerHTML", "outerHTML", "afterbegin", "beforebegin", "beforeend", "afterend", "delete", "none"] | str,
-    "hx_push_url": Literal["true", "false"] | str, 
-    "hx_replace_url": Literal["true", "false"] | str, 
-    "hx_disabled_elt": Literal["this", "next", "previous"] | str, 
-    "hx_history": Literal["false"] | str,
-    "hx_params": Literal["*", "none"] | str,
-    "hx_validate": Literal["true", "false"],
+datastar_attrs = [f'data_{o}' for o in datastar_attrs.split()]
+datastar_attrs_annotations = {
+    "data_on_click": str,
+    "data_on_submit": str,
+    "data_signals": str,
+    "data_bind": str,
+    "data_text": str,
+    "data_show": str,
+    "data_indicator": str,
 }
-hx_attrs_annotations |= {o: str for o in set(hx_attrs) - set(hx_attrs_annotations.keys())}
-hx_attrs_annotations = {k: Optional[v] for k,v in hx_attrs_annotations.items()} 
-hx_attrs = html_attrs + hx_attrs
+datastar_attrs_annotations |= {o: str for o in set(datastar_attrs) - set(datastar_attrs_annotations.keys())}
+datastar_attrs_annotations = {k: Optional[v] for k,v in datastar_attrs_annotations.items()} 
+datastar_attrs = html_attrs + datastar_attrs
 
-hx_evt_attrs = ['hx_on__'+camel2snake(o).replace(':','_') for o in hx_evts.split()]
-js_evt_attrs = ['hx_on_'+o for o in js_evts.split()]
-evt_attrs = js_evt_attrs+hx_evt_attrs
+datastar_evt_attrs = [f'data_on_{o}' for o in datastar_evts.split()]
+evt_attrs = datastar_evt_attrs
 
 def attrmap_x(o):
     if o.startswith('_at_'): o = '@'+o[4:]
@@ -71,12 +69,25 @@ def ft_html(tag: str, *c, id=None, cls=None, title=None, style=None, attrmap=Non
     if fh_cfg['auto_name'] and tag in named and id and 'name' not in kw: kw['name'] = kw['id']
     return ft_cls(tag,c,kw, void_=tag in voids)
 
-@use_kwargs(hx_attrs+evt_attrs, keep=True)
-def ft_hx(tag: str, *c, target_id=None, hx_vals=None, hx_target=None, **kwargs):
-    if hx_vals: kwargs['hx_vals'] = json.dumps(hx_vals) if isinstance (hx_vals,dict) else hx_vals
-    if hx_target: kwargs['hx_target'] = '#'+hx_target.id if isinstance(hx_target,FT) else hx_target
-    if target_id: kwargs['hx_target'] = '#'+target_id
-    return ft_html(tag, *c, **kwargs)
+def ft_datastar(tag: str, *c, **kwargs):
+    # Process Datastar helpers mixed in with regular content
+    from .datastar import _DSHelper
+    ds_attrs = {}
+    new_c = []
+    
+    # Separate Datastar helpers from regular content
+    for item in c:
+        if isinstance(item, _DSHelper):
+            ds_attrs.update(item)
+        elif isinstance(item, dict):
+            # Handle regular dictionaries as attributes too
+            kwargs.update(item)
+        else:
+            new_c.append(item)
+    
+    # Merge Datastar attributes with kwargs
+    kwargs.update(ds_attrs)
+    return ft_html(tag, *new_c, **kwargs)
 
 _g = globals()
 _all_ = [
@@ -89,7 +100,7 @@ _all_ = [
     'P', 'Picture', 'PortalExperimental', 'Pre', 'Progress', 'Q', 'Rp', 'Rt', 'Ruby', 'S', 'Samp', 'Script', 'Search',
     'Section', 'Select', 'Slot', 'Small', 'Source', 'Span', 'Strong', 'Style', 'Sub', 'Summary', 'Sup', 'Table', 'Tbody',
     'Td', 'Template', 'Textarea', 'Tfoot', 'Th', 'Thead', 'Time', 'Title', 'Tr', 'Track', 'U', 'Ul', 'Var', 'Video', 'Wbr']
-for o in _all_: _g[o] = partial(ft_hx, o.lower())
+for o in _all_: _g[o] = partial(ft_datastar, o.lower())
 
 def File(fname):
     "Use the unescaped text in file `fname` directly"
@@ -151,7 +162,7 @@ def find_inputs(e, tags='input', **kw):
 def __getattr__(tag):
     if tag.startswith('_') or tag[0].islower(): raise AttributeError
     tag = tag.replace("_", "-")
-    def _f(*c, target_id=None, **kwargs): return ft_hx(tag, *c, target_id=target_id, **kwargs)
+    def _f(*c, target_id=None, **kwargs): return ft_datastar(tag, *c, target_id=target_id, **kwargs)
     return _f
 
 _re_h2x_attr_key = re.compile(r'^[A-Za-z_-][\w-]*$')
@@ -227,6 +238,6 @@ def sse_message(elm, event='message'):
     data = '\n'.join(f'data: {o}' for o in to_xml(elm).splitlines())
     return f'event: {event}\n{data}\n\n'
 
-__all__ = ['named', 'html_attrs', 'hx_attrs', 'hx_evts', 'js_evts', 'hx_attrs_annotations', 'hx_evt_attrs', 'js_evt_attrs',
-           'evt_attrs', 'attrmap_x', 'ft_html', 'ft_hx', 'File', 'fill_form', 'fill_dataclass', 'find_inputs',
+__all__ = ['named', 'html_attrs', 'datastar_attrs', 'datastar_evts', 'js_evts', 'datastar_attrs_annotations', 'datastar_evt_attrs',
+           'evt_attrs', 'attrmap_x', 'ft_html', 'ft_datastar', 'File', 'fill_form', 'fill_dataclass', 'find_inputs',
            'html2ft', 'sse_message'] + _all_
