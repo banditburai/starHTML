@@ -30,49 +30,49 @@ def home():
 
 @rt('/api/load-data')
 @sse
-def load_data():
-    yield signal(status="Loading...")
+def load_data(req):
+    yield signals(status="Loading...")
     time.sleep(0.5)
     
     # Add some sample items
     items = ["Apple", "Banana", "Cherry", "Date", "Elderberry"]
     for i, item in enumerate(items):
-        yield fragment(
+        yield fragments(
             P(f"{i+1}. {item}", style="margin: 5px 0; padding: 5px; background: #f0f0f0;"),
             "#items",
             "append"
         )
         time.sleep(0.2)
     
-    yield signal(status=f"Loaded {len(items)} items")
+    yield signals(status=f"Loaded {len(items)} items")
 
 @rt('/api/add-item')
 @sse
-def add_item():
-    yield signal(status="Adding item...")
+def add_item(req):
+    yield signals(status="Adding item...")
     time.sleep(0.3)
     
     # Add a random item
     items = ["Orange", "Grape", "Mango", "Pineapple", "Strawberry", "Blueberry"]
     item = random.choice(items)
     
-    yield fragment(
+    yield fragments(
         P(f"• {item}", style="margin: 5px 0; padding: 5px; background: #e8f5e8; border-left: 3px solid green;"),
         "#items",
         "append"
     )
     
-    yield signal(status=f"Added {item}")
+    yield signals(status=f"Added {item}")
 
 @rt('/api/clear')
 @sse
-def clear():
-    yield signal(status="Clearing...")
+def clear(req):
+    yield signals(status="Clearing...")
     time.sleep(0.2)
     
     # Use a single space or empty div to clear content
-    yield fragment(Div("", id="empty-placeholder"), "#items", "inner")
-    yield signal(status="Cleared")
+    yield fragments(Div("", id="empty-placeholder"), "#items", "inner")
+    yield signals(status="Cleared")
 
 if __name__ == "__main__":
     print("SSE Fragments Demo running on http://localhost:5001")

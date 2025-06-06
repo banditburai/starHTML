@@ -1,7 +1,6 @@
 """Helper to demonstrate common syntax patterns and avoid errors"""
 
-from starhtml import star_app, Div, Button, P, H1, Input, Pre, Code
-from starhtml.core import serve
+from starhtml import *
 
 app, rt = star_app(title="StarHTML Syntax Patterns")
 

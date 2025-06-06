@@ -3,7 +3,7 @@
 import pytest
 import asyncio
 from starhtml import star_app, Div, P
-from starhtml.datastar import sse, signal, fragment
+from starhtml.datastar import sse, signals, fragments
 from starlette.testclient import TestClient
 import time
 
@@ -14,10 +14,10 @@ def test_sync_sse_handler():
     @rt('/sync-test')
     @sse
     def sync_handler(req):
-        yield signal(status="Starting")
+        yield signals(status="Starting")
         time.sleep(0.1)  # Simulate work
-        yield fragment(Div("Done", id="result"))
-        yield signal(status="Complete")
+        yield fragments(Div("Done", id="result"))
+        yield signals(status="Complete")
     
     client = TestClient(app)
     
@@ -42,10 +42,10 @@ def test_async_sse_handler():
     @rt('/async-test')
     @sse
     async def async_handler(req):
-        yield signal(status="Starting async")
+        yield signals(status="Starting async")
         await asyncio.sleep(0.1)  # Simulate async work
-        yield fragment(Div("Async done", id="result"))
-        yield signal(status="Async complete")
+        yield fragments(Div("Async done", id="result"))
+        yield signals(status="Async complete")
     
     # TestClient handles async routes automatically
     client = TestClient(app)
@@ -72,7 +72,7 @@ def test_async_with_concurrent_operations():
     @rt('/concurrent-test')
     @sse
     async def concurrent_handler(req):
-        yield signal(status="Starting concurrent operations")
+        yield signals(status="Starting concurrent operations")
         
         # Simulate concurrent operations
         async def task1():
@@ -86,7 +86,7 @@ def test_async_with_concurrent_operations():
         # Run concurrently
         results = await asyncio.gather(task1(), task2())
         
-        yield fragment(
+        yield fragments(
             Div(
                 P(f"Result 1: {results[0]}"),
                 P(f"Result 2: {results[1]}"),
@@ -94,7 +94,7 @@ def test_async_with_concurrent_operations():
             )
         )
         
-        yield signal(status="All tasks complete")
+        yield signals(status="All tasks complete")
     
     client = TestClient(app)
     
@@ -122,15 +122,15 @@ def test_mixed_sync_async_handlers():
     @rt('/sync')
     @sse
     def sync_handler(req):
-        yield signal(type="sync")
-        yield fragment(Div("Sync", id="sync"))
+        yield signals(type="sync")
+        yield fragments(Div("Sync", id="sync"))
     
     @rt('/async')
     @sse
     async def async_handler(req):
-        yield signal(type="async")
+        yield signals(type="async")
         await asyncio.sleep(0.01)
-        yield fragment(Div("Async", id="async"))
+        yield fragments(Div("Async", id="async"))
     
     client = TestClient(app)
     
@@ -153,15 +153,15 @@ def test_async_error_handling():
     @rt('/async-error')
     @sse
     async def async_error_handler(req):
-        yield signal(status="Starting")
+        yield signals(status="Starting")
         
         try:
             await asyncio.sleep(0.01)
             # Simulate an error
             raise ValueError("Test error")
         except ValueError as e:
-            yield signal(error=str(e), status="Error occurred")
-            yield fragment(
+            yield signals(error=str(e), status="Error occurred")
+            yield fragments(
                 Div(
                     P("An error occurred", cls="error"),
                     id="error"
@@ -183,11 +183,11 @@ def test_async_with_auto_selector():
     @rt('/async-auto-selector')
     @sse
     async def async_auto_selector(req):
-        yield signal(status="Testing auto-selector")
+        yield signals(status="Testing auto-selector")
         await asyncio.sleep(0.01)
         
         # Should auto-detect #my-target selector
-        yield fragment(Div("Auto-detected", id="my-target"))
+        yield fragments(Div("Auto-detected", id="my-target"))
     
     client = TestClient(app)
     

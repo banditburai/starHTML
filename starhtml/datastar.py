@@ -125,14 +125,14 @@ def sse(handler: Callable) -> Callable:
     
         @sse
         def sync_handler():
-            yield signal(status="Loading...")
-            yield fragment(Div("Done"))
+            yield signals(status="Loading...")
+            yield fragments(Div("Done"))
             
         @sse
         async def async_handler():
-            yield signal(status="Loading...")
+            yield signals(status="Loading...")
             data = await fetch_data()
-            yield fragment(Div(data))
+            yield fragments(Div(data))
     """
     @wraps(handler)
     async def wrapped(*args, **kwargs) -> StreamingResponse:
@@ -142,23 +142,23 @@ def sse(handler: Callable) -> Callable:
     
     return wrapped
 
-def signal(**signals: Any) -> Tuple[str, Dict[str, Any]]:
+def signals(**signals: Any) -> Tuple[str, Dict[str, Any]]:
     """Helper to create signal updates for SSE responses.
     
     Example:
-        yield signal(count=5, message="Hello")
+        yield signals(count=5, message="Hello")
     """
     return "signals", signals
 
-def fragment(content: Any, selector: Optional[str] = None, 
+def fragments(content: Any, selector: Optional[str] = None, 
             mode: str = DEFAULT_MERGE_MODE) -> Tuple[str, Tuple[Any, Optional[str], str]]:
     """Helper to create fragment updates for SSE responses.
     
     Auto-detects selector from element id if not provided.
     
     Examples:
-        yield fragment(Div("Hello", id="msg"))  # Auto-detects #msg selector
-        yield fragment(Div("Hello"), "#content", "append")  # Explicit selector and mode
+        yield fragments(Div("Hello", id="msg"))  # Auto-detects #msg selector
+        yield fragments(Div("Hello"), "#content", "append")  # Explicit selector and mode
     """
     return "fragments", (content, selector, mode)
 

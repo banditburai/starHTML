@@ -2,14 +2,14 @@
 
 import pytest
 from starhtml import star_app, Div, H1, Button, Form, Input, P, A
-from starhtml.datastar import sse, signal, fragment
+from starhtml.datastar import sse, signals, fragments
 from starhtml.components import to_xml
 
 def test_datastar_imports():
     """Test that Datastar SSE components can be imported."""
     assert sse is not None
-    assert signal is not None
-    assert fragment is not None
+    assert signals is not None
+    assert fragments is not None
 
 def test_datastar_direct_attributes():
     """Test Datastar direct attribute syntax."""
@@ -84,8 +84,8 @@ def test_datastar_sse():
     @rt('/sse')
     @sse
     def get():
-        yield signal(count=1)
-        yield fragment(Div("Updated content"), "#target", "morph")
+        yield signals(count=1)
+        yield fragments(Div("Updated content"), "#target", "morph")
     
     # Should not raise any errors
     assert get is not None
@@ -98,7 +98,7 @@ def test_datastar_auto_selector():
     @sse
     def get():
         # Auto-detection: should use #my-target selector
-        yield fragment(Div("Auto content", id="my-target"))
+        yield fragments(Div("Auto content", id="my-target"))
     
     # Should not raise any errors
     assert get is not None

@@ -33,6 +33,7 @@ dependencies = [
     "fastlite>=0.1.1",
     "python-multipart",
     "beautifulsoup4",
+    "orjson>=3.10.18",
 ]
 
 [project.urls]

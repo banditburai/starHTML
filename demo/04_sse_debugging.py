@@ -51,10 +51,10 @@ def home():
 
 @rt('/test-simple')
 @sse
-def test_simple():
-    yield signal(status="Testing simple fragment...")
+def test_simple(req):
+    yield signals(status="Testing simple fragment...")
     # Auto-detection: Since Div has id="target", selector "#target" is auto-detected
-    yield fragment(
+    yield fragments(
         Div(
             P("✅ Simple fragment replaced successfully!"),
             P("Notice: No manual selector needed - auto-detected from id!"),
@@ -62,15 +62,15 @@ def test_simple():
             style="border: 1px solid #ccc; padding: 20px; margin: 20px 0;"
         )
     )
-    yield signal(
+    yield signals(
         status="Simple fragment complete",
-        lastAction="fragment(Div(id='target')) - auto-detected #target!"
+        lastAction="fragments(Div(id='target')) - auto-detected #target!"
     )
 
 @rt('/test-multiple')
 @sse
-def test_multiple():
-    yield signal(status="Testing multiple fragments...")
+def test_multiple(req):
+    yield signals(status="Testing multiple fragments...")
     
     fragments = [
         P("Fragment 1: First paragraph"),
@@ -83,25 +83,25 @@ def test_multiple():
     ]
     
     # Auto-detection: id="target" automatically becomes selector "#target"
-    yield fragment(
+    yield fragments(
         Div(
             *fragments,
             id="target",
             style="border: 1px solid #ccc; padding: 20px; margin: 20px 0;"
         )
     )
-    yield signal(
+    yield signals(
         status="Multiple fragments complete",
-        lastAction="fragment(Div(*fragments, id='target')) - auto-detected!"
+        lastAction="fragments(Div(*fragments, id='target')) - auto-detected!"
     )
 
 @rt('/test-selector')
 @sse
-def test_selector():
-    yield signal(status="Testing auto-detection vs manual selectors...")
+def test_selector(req):
+    yield signals(status="Testing auto-detection vs manual selectors...")
     
     # Auto-detection: id="target" automatically becomes "#target"
-    yield fragment(
+    yield fragments(
         Div(
             P("✅ Auto-detected from id='target'"),
             id="target",
@@ -110,7 +110,7 @@ def test_selector():
     )
     
     # Manual override: explicitly specify different selector
-    yield fragment(
+    yield fragments(
         Div(
             P("✅ Manual override: targeting #target2", style="color: green;"),
             P("(Even though this div has id='target2', we could target anywhere)"),
@@ -120,15 +120,15 @@ def test_selector():
         "#target2"  # Manual selector (could be different from id)
     )
     
-    yield signal(
+    yield signals(
         status="Selector test complete",
         lastAction="Auto-detected #target + manual #target2"
     )
 
 @rt('/test-complex')
 @sse
-def test_complex():
-    yield signal(status="Testing complex HTML...")
+def test_complex(req):
+    yield signals(status="Testing complex HTML...")
     
     complex_content = Div(
         H1("Complex Content", style="font-size: 1.5em;"),
@@ -142,25 +142,25 @@ def test_complex():
     )
     
     # Auto-detection works with complex nested content too
-    yield fragment(
+    yield fragments(
         Div(
             complex_content,
             id="target",
             style="border: 1px solid #ccc; padding: 20px; margin: 20px 0;"
         )
     )
-    yield signal(
+    yield signals(
         status="Complex HTML complete",
         lastAction="Complex HTML with auto-detected selector"
     )
 
 @rt('/reset')
 @sse
-def reset():
-    yield signal(status="Resetting...")
+def reset(req):
+    yield signals(status="Resetting...")
     
     # Both use auto-detection
-    yield fragment(
+    yield fragments(
         Div(
             P("Initial content - will be replaced"),
             id="target",
@@ -168,7 +168,7 @@ def reset():
         )
     )
     
-    yield fragment(
+    yield fragments(
         Div(
             P("Secondary target - for selector tests"),
             id="target2",
@@ -176,7 +176,7 @@ def reset():
         )
     )
     
-    yield signal(
+    yield signals(
         status="Ready",
         lastAction="Reset with auto-detected selectors"
     )

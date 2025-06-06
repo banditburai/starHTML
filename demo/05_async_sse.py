@@ -90,12 +90,12 @@ async def slow_async_operation(seconds=2):
 @sse
 def sync_handler(req):
     """Synchronous SSE handler - blocks the thread"""
-    yield signal(status="Starting sync operation...")
+    yield signals(status="Starting sync operation...")
     
     # This blocks the thread!
     result = slow_sync_operation(2)
     
-    yield fragment(
+    yield fragments(
         Div(
             P("✅ Sync operation complete!", cls="font-semibold text-red-600"),
             P(f"Result: {result['data']}"),
@@ -104,18 +104,18 @@ def sync_handler(req):
         )
     )
     
-    yield signal(status="Sync complete")
+    yield signals(status="Sync complete")
 
 @rt('/async-sse')
 @sse
 async def async_handler(req):
     """Asynchronous SSE handler - non-blocking"""
-    yield signal(status="Starting async operation...")
+    yield signals(status="Starting async operation...")
     
     # This doesn't block - other requests can be handled!
     result = await slow_async_operation(2)
     
-    yield fragment(
+    yield fragments(
         Div(
             P("✅ Async operation complete!", cls="font-semibold text-green-600"),
             P(f"Result: {result['data']}"),
@@ -124,22 +124,22 @@ async def async_handler(req):
         )
     )
     
-    yield signal(status="Async complete")
+    yield signals(status="Async complete")
 
 @rt('/multi-async')
 @sse
 async def multi_async_handler(req):
     """Handle multiple async operations concurrently"""
-    yield signal(
+    yield signals(
         api1Status="Starting...",
         api2Status="Starting...",
         api3Status="Starting..."
     )
     
     # Update status for all APIs
-    yield signal(api1Status="Fetching API 1...")
-    yield signal(api2Status="Fetching API 2...")
-    yield signal(api3Status="Fetching API 3...")
+    yield signals(api1Status="Fetching API 1...")
+    yield signals(api2Status="Fetching API 2...")
+    yield signals(api3Status="Fetching API 3...")
     
     # Simulate concurrent API calls
     start_time = asyncio.get_event_loop().time()
@@ -154,13 +154,13 @@ async def multi_async_handler(req):
     
     total_time = asyncio.get_event_loop().time() - start_time
     
-    yield signal(
+    yield signals(
         api1Status="✅ Complete",
         api2Status="✅ Complete",
         api3Status="✅ Complete"
     )
     
-    yield fragment(
+    yield fragments(
         Div(
             P("✅ All APIs fetched concurrently!", cls="font-semibold text-blue-600"),
             P(f"Total time: {total_time:.2f}s (not 3s!)"),

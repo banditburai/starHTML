@@ -2,7 +2,7 @@
 
 import pytest
 from starhtml import star_app, Div, P, Button
-from starhtml.datastar import sse, signal, fragment, format_signal_event, format_fragment_event
+from starhtml.datastar import sse, signals, fragments, format_signal_event, format_fragment_event
 from starlette.testclient import TestClient
 import json
 
@@ -81,8 +81,8 @@ def test_sse_with_app():
     @rt('/sse-test')
     @sse
     def sse_test():
-        yield signal(count=1, message="Hello")
-        yield fragment(Div(P("Updated")), "#content")
+        yield signals(count=1, message="Hello")
+        yield fragments(Div(P("Updated")), "#content")
     
     client = TestClient(app)
     
