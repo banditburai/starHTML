@@ -1,4 +1,4 @@
-"""Datastar SSE and helper functions for StarHTML."""
+"""Datastar SSE functionality for StarHTML."""
 
 from typing import Any, Callable, Dict, Optional, Tuple, List
 from functools import wraps
@@ -69,8 +69,8 @@ class ServerSentEventGenerator:
         return cls._send("datastar-merge-fragments", data_lines)
 
 
-def sse_response(handler: Callable) -> Callable:    
-    """Decorator that handles sequential signal/fragment updates for Datastar"""
+def sse(handler: Callable) -> Callable:    
+    """Decorator that handles sequential signal/fragment updates for Datastar."""
     @wraps(handler)
     def wrapped(*args, **kwargs):
         def stream_generator():
@@ -88,6 +88,10 @@ def sse_response(handler: Callable) -> Callable:
                     else:
                         fragment, selector, merge_mode = payload, None, "morph"
                     
+                    # Auto-detect selector if not provided and fragment has id
+                    if selector is None and hasattr(fragment, 'attrs') and 'id' in fragment.attrs:
+                        selector = f"#{fragment.attrs['id']}"
+                    
                     yield ServerSentEventGenerator.merge_fragments(
                         fragment,
                         selector=selector,
@@ -97,124 +101,25 @@ def sse_response(handler: Callable) -> Callable:
         return StreamingResponse(stream_generator(), headers=SSE_HEADERS)
     return wrapped
 
-# Alias for compatibility with ft-datastar
-sse = sse_response
-
-def update_signals(**signals: Any) -> Tuple[str, Dict[str, Any]]:
-    """Helper to create signal updates for SSE responses
+def signal(**signals: Any) -> Tuple[str, Dict[str, Any]]:
+    """Helper to create signal updates for SSE responses.
     
     Example:
-        yield update_signals(count=5, message="Hello")
-        # Generates: event: datastar-signal
-        #           data: {"count": 5, "message": "Hello"}
+        yield signal(count=5, message="Hello")
+        # Generates: event: datastar-merge-signals
+        #           data: signals {"count": 5, "message": "Hello"}
     """
     return "signals", signals
 
-def update_fragments(fragment: Any, selector: Optional[str] = None, 
-                    merge_mode: str = "morph") -> Tuple[str, Tuple[Any, Optional[str], str]]:
-    """Helper to create fragment updates for SSE responses
+def fragment(content: Any, selector: Optional[str] = None, 
+            mode: str = "morph") -> Tuple[str, Tuple[Any, Optional[str], str]]:
+    """Helper to create fragment updates for SSE responses.
     
-    Example:
-        yield update_fragments(Div("Hello"), "#content", "morph")
-        # Generates: event: datastar-fragment
-        #           data: merge morph #content
-        #           data: <div>Hello</div>
+    Auto-detects selector from element id if not provided.
+    
+    Examples:
+        yield fragment(Div("Hello", id="msg"))  # Auto-detects #msg selector
+        yield fragment(Div("Hello"), "#content", "morph")  # Explicit selector
     """
-    return "fragments", (fragment, selector, merge_mode)
+    return "fragments", (content, selector, mode)
 
-# Helper functions similar to ft-datastar reference
-class _DSHelper(dict):
-    """Special dictionary that converts keys to proper data-* attributes"""
-    def __init__(self, attrs: dict):
-        super().__init__({
-            key.replace('_', '-'): value 
-            for key, value in attrs.items()
-        })
-    
-    def __getitem__(self, key):
-        # Support both hyphenated and underscore access
-        try:
-            return super().__getitem__(key)
-        except KeyError:
-            return super().__getitem__(key.replace('-', '_'))
-    
-    def get(self, key, default=None):
-        try:
-            return self[key]
-        except KeyError:
-            return default
-
-def ds_attrs(**exprs: str) -> _DSHelper:
-    """Convert expressions to DataStar data-attr-* attributes."""
-    return _DSHelper({
-        f"data_attr_{key}": value 
-        for key, value in exprs.items()
-    })
-
-def ds_signals(exprs: Optional[Dict[str, Any]] = None, **kwargs: Any) -> _DSHelper:
-    """Convert signals to a single data-signals attribute with JSON object"""
-    import json
-    
-    def process_key(key: str) -> str:
-        # Convert double underscores to dots for namespacing
-        return key.replace('__', '.')
-    
-    inputs = {**(exprs or {}), **kwargs}
-    
-    # Process the inputs directly as a Python dict, then serialize to JSON
-    processed_dict = {}
-    for k, v in inputs.items():
-        processed_key = process_key(k)
-        # Handle different value types properly for JSON serialization
-        if isinstance(v, str) and v.startswith("'") and v.endswith("'"):
-            # String values with quotes - remove the quotes for JSON
-            processed_dict[processed_key] = v[1:-1]
-        elif isinstance(v, str) and v in ('true', 'false'):
-            # Boolean strings
-            processed_dict[processed_key] = v == 'true'
-        elif isinstance(v, bool):
-            # Python booleans
-            processed_dict[processed_key] = v
-        elif isinstance(v, (int, float)):
-            # Numbers
-            processed_dict[processed_key] = v
-        elif isinstance(v, str) and v.isdigit():
-            # String numbers
-            processed_dict[processed_key] = int(v)
-        else:
-            # Everything else (including already quoted strings)
-            processed_dict[processed_key] = v
-    
-    # Serialize to JSON
-    json_signals = json.dumps(processed_dict)
-    
-    return _DSHelper({"data_signals": json_signals})
-
-def ds_on(**events: str) -> _DSHelper:
-    """Convert event handlers to DataStar data-on-* attributes."""
-    return _DSHelper({
-        f"data_on_{k}": v 
-        for k, v in events.items()
-    })
-
-def ds_show(*args, **conditions: str) -> _DSHelper:
-    """Convert expressions to DataStar data-show attributes."""
-    if args:
-        if conditions:
-            raise ValueError("Cannot mix positional and keyword arguments")
-        return _DSHelper({"data_show": args[0]})
-    if "when" in conditions:
-        return _DSHelper({"data_show": conditions["when"]})
-    return _DSHelper({"data_show": next(iter(conditions.values()))})
-
-def ds_bind(name: str) -> _DSHelper:
-    """Create data-bind attribute helper for direct value syntax."""
-    return _DSHelper({"data_bind": name})
-
-def ds_text(expr: str) -> _DSHelper:
-    """Create data-text attribute helper."""
-    return _DSHelper({"data_text": expr})
-
-def ds_indicator(signal_name: str) -> _DSHelper:
-    """Track request state with a boolean signal."""
-    return _DSHelper({"data_indicator": signal_name})

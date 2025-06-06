@@ -15,13 +15,13 @@ from inspect import isfunction,ismethod,Parameter,get_annotations
 from functools import wraps, partialmethod, update_wrapper
 from http import cookies
 from urllib.parse import urlencode, parse_qs, quote, unquote
-from copy import copy,deepcopy
+from copy import copy, deepcopy
 from warnings import warn
 from dateutil import parser as dtparse
 from httpx import ASGITransport, AsyncClient
 from anyio import from_thread
 from uuid import uuid4
-from base64 import b85encode,b64encode
+from base64 import b85encode, b64encode
 
 from starhtml.starlette import *
 
@@ -64,9 +64,6 @@ def _form_arg(k, v, d):
 
 @dataclass
 class HttpHeader: k:str;v:str
-
-
-
 
 def _annotations(anno):
     "Same as `get_annotations`, but also works on namedtuples"

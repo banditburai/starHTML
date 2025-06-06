@@ -24,11 +24,22 @@ def __add__(self:FT, b): return f'{self}{b}'
 
 named = set('a button form frame iframe img input map meta object param select textarea'.split())
 html_attrs = 'id cls title style accesskey contenteditable dir draggable enterkeyhint hidden inert inputmode lang popover spellcheck tabindex translate'.split()
-datastar_attrs = 'on_click on_submit on_change on_input on_load on_keydown on_keyup signals bind text show hide class style indicator computed store signal'
+# Original Datastar attributes for backward compatibility
+datastar_core_attrs = 'signals bind text show hide class style indicator computed store signal'
+# All Datastar event types
+datastar_event_types = 'click submit change input load keydown keyup focus blur scroll resize mouseover mouseout mouseenter mouseleave intersect interval'
+# New direct attributes with ds_ prefix
+ds_direct_attrs = ['ds_' + attr for attr in datastar_core_attrs.split()]
+ds_event_attrs = ['ds_on_' + evt for evt in datastar_event_types.split()]
+# Additional RC.11 attributes
+ds_extra_attrs = 'ds_ref ds_html ds_teleport ds_transition_enter ds_transition_leave'.split()
+# For wildcard attributes
+ds_wildcard_attrs = ['ds_attr_', 'ds_on_intersect_', 'ds_on_interval_']
 
 datastar_evts = 'click submit change input load keydown keyup focus blur scroll resize'
 js_evts = "blur change contextmenu focus input invalid reset select submit keydown keypress keyup click dblclick mousedown mouseenter mouseleave mousemove mouseout mouseover mouseup wheel"
-datastar_attrs = [f'data_{o}' for o in datastar_attrs.split()]
+# Keep backward compatibility
+datastar_attrs = [f'data_{o}' for o in ('on_click on_submit on_change on_input on_load on_keydown on_keyup ' + datastar_core_attrs).split()]
 datastar_attrs_annotations = {
     "data_on_click": str,
     "data_on_submit": str,
@@ -69,25 +80,55 @@ def ft_html(tag: str, *c, id=None, cls=None, title=None, style=None, attrmap=Non
     if fh_cfg['auto_name'] and tag in named and id and 'name' not in kw: kw['name'] = kw['id']
     return ft_cls(tag,c,kw, void_=tag in voids)
 
-def ft_datastar(tag: str, *c, **kwargs):
-    # Process Datastar helpers mixed in with regular content
-    from .datastar import _DSHelper
-    ds_attrs = {}
-    new_c = []
+def _process_datastar_attrs(kwargs):
+    """Process ds_* attributes and transform them to data-* attributes."""
+    processed = {}
     
-    # Separate Datastar helpers from regular content
-    for item in c:
-        if isinstance(item, _DSHelper):
-            ds_attrs.update(item)
-        elif isinstance(item, dict):
-            # Handle regular dictionaries as attributes too
-            kwargs.update(item)
+    for key, value in kwargs.items():
+        if key.startswith('ds_'):
+            # Transform ds_* to data-*
+            if key.startswith('ds_on_'):
+                # Event handlers: ds_on_click -> data-on-click
+                event_part = key[6:]  # Remove 'ds_on_'
+                # Handle modifiers like ds_on_intersect_once -> data-on-intersect.once
+                if '_' in event_part and event_part.split('_')[0] in ['intersect', 'interval']:
+                    base_event, modifier = event_part.split('_', 1)
+                    data_key = f'data-on-{base_event}.{modifier}'
+                else:
+                    data_key = f'data-on-{event_part.replace("_", "-")}'
+            elif key.startswith('ds_attr_'):
+                # Dynamic attributes: ds_attr_disabled -> data-attr-disabled
+                data_key = key.replace('ds_attr_', 'data-attr-').replace('_', '-')
+            elif key == 'ds_signals' and isinstance(value, dict):
+                # Special handling for signals dict
+                import json
+                processed['data-signals'] = json.dumps(value)
+                continue
+            else:
+                # Simple attributes: ds_show -> data-show
+                data_key = key.replace('ds_', 'data-').replace('_', '-')
+            
+            # Convert Python booleans to string "true"/"false" for JavaScript
+            if isinstance(value, bool):
+                processed[data_key] = "true" if value else "false"
+            else:
+                processed[data_key] = value
         else:
-            new_c.append(item)
+            # Non-datastar attributes pass through
+            processed[key] = value
     
-    # Merge Datastar attributes with kwargs
-    kwargs.update(ds_attrs)
-    return ft_html(tag, *new_c, **kwargs)
+    return processed
+
+def ft_datastar(tag: str, *c, **kwargs):
+    """Create an HTML element with support for Datastar direct attributes.
+    
+    This function processes ds_* attributes and transforms them to data-* attributes.
+    For example: ds_on_click="handler()" becomes data-on-click="handler()"
+    """
+    # Process ds_* attributes to data-* attributes
+    kwargs = _process_datastar_attrs(kwargs)
+    
+    return ft_html(tag, *c, **kwargs)
 
 _g = globals()
 _all_ = [

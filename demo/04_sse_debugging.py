@@ -1,8 +1,6 @@
 """Debug SSE merge fragments - test different scenarios"""
 
-from starhtml import star_app, Div, Button, P, H1, Pre, Code
-from starhtml.datastar import ds_signals, ds_on, ds_text, sse_response, update_fragments, update_signals
-from starhtml.core import serve
+from starhtml import *
 
 app, rt = star_app(
     title="SSE Debugging Demo",
@@ -15,11 +13,11 @@ def home():
         H1("SSE Merge Fragments Debugging"),
         
         Div(
-            Button("Test Simple Fragment", **ds_on(click="@get('/test-simple')")),
-            Button("Test Multiple Fragments", **ds_on(click="@get('/test-multiple')")),
-            Button("Test With Selector", **ds_on(click="@get('/test-selector')")),
-            Button("Test Complex HTML", **ds_on(click="@get('/test-complex')")),
-            Button("Reset All", **ds_on(click="@get('/reset')"), style="background: #ff5252; color: white;"),
+            Button("Test Simple Fragment", ds_on_click="@get('/test-simple')"),
+            Button("Test Multiple Fragments", ds_on_click="@get('/test-multiple')"),
+            Button("Test With Selector", ds_on_click="@get('/test-selector')"),
+            Button("Test Complex HTML", ds_on_click="@get('/test-complex')"),
+            Button("Reset All", ds_on_click="@get('/reset')", style="background: #ff5252; color: white;"),
             style="display: flex; gap: 10px; margin: 20px 0; flex-wrap: wrap;"
         ),
         
@@ -30,109 +28,159 @@ def home():
         ),
         
         Div(
-            P("Second target - for multiple fragment tests"),
+            P("Secondary target - for selector tests"),
             id="target2",
-            style="border: 1px solid #ccc; padding: 20px; margin: 20px 0;"
+            style="border: 1px solid #00c853; padding: 20px; margin: 20px 0;"
         ),
         
+        Div(
+            P("Status: ", ds_text="$status"),
+            style="font-weight: bold; margin: 20px 0;"
+        ),
         
-        **ds_signals(status="ready")
+        Div(
+            Pre(
+                Code(ds_text="$lastAction", style="white-space: pre-wrap;"),
+                style="background: #f5f5f5; padding: 15px; overflow-x: auto;"
+            ),
+            style="margin-top: 20px;"
+        ),
+        
+        ds_signals={"status": "Ready", "lastAction": "No action yet"}
     )
 
 @rt('/test-simple')
-@sse_response
+@sse
 def test_simple():
-    """Test simple fragment replacement"""
-    yield update_fragments(
+    yield signal(status="Testing simple fragment...")
+    # Auto-detection: Since Div has id="target", selector "#target" is auto-detected
+    yield fragment(
         Div(
-            P("Simple fragment replacement worked!", style="color: green; font-weight: bold;"),
-            id="target"  # Maintain the ID for subsequent updates
-        ),
-        "#target"
+            P("✅ Simple fragment replaced successfully!"),
+            P("Notice: No manual selector needed - auto-detected from id!"),
+            id="target",
+            style="border: 1px solid #ccc; padding: 20px; margin: 20px 0;"
+        )
+    )
+    yield signal(
+        status="Simple fragment complete",
+        lastAction="fragment(Div(id='target')) - auto-detected #target!"
     )
 
-@rt('/test-multiple') 
-@sse_response
+@rt('/test-multiple')
+@sse
 def test_multiple():
-    """Test multiple fragment updates to different targets"""
-    # Update first target with multiple child elements
-    yield update_fragments(
+    yield signal(status="Testing multiple fragments...")
+    
+    fragments = [
+        P("Fragment 1: First paragraph"),
+        P("Fragment 2: Second paragraph", style="color: blue;"),
         Div(
-            Div(P("First fragment"), id="part1", style="background: #e8f5e9; padding: 10px; margin: 5px;"),
-            Div(P("Second fragment"), id="part2", style="background: #fff3e0; padding: 10px; margin: 5px;"),
-            id="target"  # Keep the same ID so subsequent updates work
-        ),
-        "#target"
+            P("Fragment 3: Nested content"),
+            P("Fragment 3: More nested content"),
+            style="background: #f0f0f0; padding: 10px; margin: 10px 0;"
+        )
+    ]
+    
+    # Auto-detection: id="target" automatically becomes selector "#target"
+    yield fragment(
+        Div(
+            *fragments,
+            id="target",
+            style="border: 1px solid #ccc; padding: 20px; margin: 20px 0;"
+        )
     )
-    # Also update the second target
-    yield update_fragments(
-        Div(
-            P("Target 2 also updated!", style="color: red; font-weight: bold;"),
-            id="target2"
-        ),
-        "#target2"
+    yield signal(
+        status="Multiple fragments complete",
+        lastAction="fragment(Div(*fragments, id='target')) - auto-detected!"
     )
 
 @rt('/test-selector')
-@sse_response  
+@sse
 def test_selector():
-    """Test updating different selectors"""
-    yield update_fragments(
-        Div(P("Updated target 1", style="color: blue;"), id="target"),
-        "#target"
+    yield signal(status="Testing auto-detection vs manual selectors...")
+    
+    # Auto-detection: id="target" automatically becomes "#target"
+    yield fragment(
+        Div(
+            P("✅ Auto-detected from id='target'"),
+            id="target",
+            style="border: 1px solid #ccc; padding: 20px; margin: 20px 0;"
+        )
     )
-    yield update_fragments(
-        Div(P("Updated target 2", style="color: purple;"), id="target2"),
-        "#target2"
+    
+    # Manual override: explicitly specify different selector
+    yield fragment(
+        Div(
+            P("✅ Manual override: targeting #target2", style="color: green;"),
+            P("(Even though this div has id='target2', we could target anywhere)"),
+            id="target2",
+            style="border: 1px solid #00c853; padding: 20px; margin: 20px 0;"
+        ),
+        "#target2"  # Manual selector (could be different from id)
+    )
+    
+    yield signal(
+        status="Selector test complete",
+        lastAction="Auto-detected #target + manual #target2"
     )
 
 @rt('/test-complex')
-@sse_response
+@sse
 def test_complex():
-    """Test complex HTML with special characters"""
-    # Use proper multi-line string with explicit line breaks
-    code_content = """function test() {
-  console.log('Hello');
-  // This is a comment
-  return 42;
-}"""
+    yield signal(status="Testing complex HTML...")
     
-    yield update_fragments(
+    complex_content = Div(
+        H1("Complex Content", style="font-size: 1.5em;"),
+        P("This has special characters: < > & \" '"),
+        Pre("Code block with\nmultiple lines\n    and indentation"),
         Div(
-            H1("Complex <HTML> Test"),
-            P('Text with "quotes" and \'apostrophes\''),
-            P("Special chars: < > & \" '"),
-            Pre(
-                Code(code_content),
-                style="background: #2d2d2d; color: #f8f8f2; padding: 10px; border-radius: 5px; white-space: pre-wrap; font-family: monospace;"
-            ),
-            id="target",  # Maintain the ID
-            style="background: #e0e0e0; padding: 10px;"
-        ),
-        "#target"
+            Button("Nested button", ds_on_click="alert('Clicked!')"),
+            P("With dynamic content", ds_text="'[dynamic text here]'"),
+            style="background: #e3f2fd; padding: 10px;"
+        )
+    )
+    
+    # Auto-detection works with complex nested content too
+    yield fragment(
+        Div(
+            complex_content,
+            id="target",
+            style="border: 1px solid #ccc; padding: 20px; margin: 20px 0;"
+        )
+    )
+    yield signal(
+        status="Complex HTML complete",
+        lastAction="Complex HTML with auto-detected selector"
     )
 
 @rt('/reset')
-@sse_response
+@sse
 def reset():
-    """Reset all targets to initial state"""
-    yield update_fragments(
+    yield signal(status="Resetting...")
+    
+    # Both use auto-detection
+    yield fragment(
         Div(
             P("Initial content - will be replaced"),
-            id="target"
-        ),
-        "#target"
+            id="target",
+            style="border: 1px solid #ccc; padding: 20px; margin: 20px 0;"
+        )
     )
-    yield update_fragments(
+    
+    yield fragment(
         Div(
-            P("Second target - for multiple fragment tests"),
-            id="target2"
-        ),
-        "#target2"
+            P("Secondary target - for selector tests"),
+            id="target2",
+            style="border: 1px solid #00c853; padding: 20px; margin: 20px 0;"
+        )
     )
-    yield update_signals(status="Reset complete")
+    
+    yield signal(
+        status="Ready",
+        lastAction="Reset with auto-detected selectors"
+    )
 
 if __name__ == "__main__":
     print("SSE Debugging Demo running on http://localhost:5001")
-    print("Open browser console to see SSE events")
     serve()

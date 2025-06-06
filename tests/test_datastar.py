@@ -1,64 +1,62 @@
-"""Comprehensive tests for StarHTML with Datastar functionality."""
+"""Tests for StarHTML with Datastar functionality - new direct attribute syntax only."""
 
 import pytest
 from starhtml import star_app, Div, H1, Button, Form, Input, P, A
-from starhtml.datastar import ds_attrs, ds_signals, ds_on, ds_show, ds_bind, ds_text, ds_indicator
+from starhtml.datastar import sse, signal, fragment
+from starhtml.components import to_xml
 
 def test_datastar_imports():
-    """Test that Datastar components can be imported."""
-    assert ds_attrs is not None
-    assert ds_signals is not None
-    assert ds_on is not None
-    assert ds_show is not None
-    assert ds_bind is not None
-    assert ds_text is not None
-    assert ds_indicator is not None
+    """Test that Datastar SSE components can be imported."""
+    assert sse is not None
+    assert signal is not None
+    assert fragment is not None
 
-def test_datastar_attributes():
-    """Test Datastar attribute generation."""
-    attrs = ds_attrs(visible="true", disabled="false")
-    assert "data-attr-visible" in attrs
-    assert "data-attr-disabled" in attrs
-    assert attrs["data-attr-visible"] == "true"
-    assert attrs["data-attr-disabled"] == "false"
+def test_datastar_direct_attributes():
+    """Test Datastar direct attribute syntax."""
+    div = Div(ds_attr_visible="true", ds_attr_disabled="false")
+    xml = to_xml(div)
+    assert 'data-attr-visible="true"' in xml
+    assert 'data-attr-disabled="false"' in xml
 
 def test_datastar_signals():
-    """Test Datastar signal generation."""
-    signals = ds_signals(count=0, name="test")
-    assert "data-signals" in signals
-    # Check for proper JSON format instead of JavaScript object format
-    assert '"count": 0' in signals["data-signals"]
-    assert '"name": "test"' in signals["data-signals"]
+    """Test Datastar signal initialization."""
+    div = Div(ds_signals={"count": 0, "name": "test"})
+    xml = to_xml(div)
+    assert 'data-signals=' in xml
+    # Check for proper JSON format
+    assert '"count": 0' in xml
+    assert '"name": "test"' in xml
 
 def test_datastar_events():
     """Test Datastar event handling."""
-    events = ds_on(click="console.log('clicked')")
-    assert "data-on-click" in events
-    assert events["data-on-click"] == "console.log('clicked')"
+    button = Button(ds_on_click="console.log('clicked')")
+    xml = to_xml(button)
+    assert 'data-on-click="console.log(\'clicked\')"' in xml
 
 def test_datastar_visibility():
     """Test Datastar visibility control."""
-    show = ds_show(when="count > 0")
-    assert "data-show" in show
-    assert show["data-show"] == "count > 0"
+    div = Div(ds_show="count > 0")
+    xml = to_xml(div)
+    # Note: > will be escaped in XML
+    assert 'data-show="count &gt; 0"' in xml
 
 def test_datastar_binding():
     """Test Datastar value binding."""
-    bind = ds_bind("name")
-    assert "data-bind" in bind
-    assert bind["data-bind"] == "name"
+    input_elem = Input(ds_bind="name")
+    xml = to_xml(input_elem)
+    assert 'data-bind="name"' in xml
 
 def test_datastar_text():
     """Test Datastar text binding."""
-    text = ds_text("name")
-    assert "data-text" in text
-    assert text["data-text"] == "name"
+    p = P(ds_text="name")
+    xml = to_xml(p)
+    assert 'data-text="name"' in xml
 
 def test_datastar_indicator():
     """Test Datastar loading indicator."""
-    indicator = ds_indicator("loading")
-    assert "data-indicator" in indicator
-    assert indicator["data-indicator"] == "loading"
+    button = Button(ds_indicator="loading")
+    xml = to_xml(button)
+    assert 'data-indicator="loading"' in xml
 
 def test_datastar_component_integration():
     """Test Datastar with StarHTML components."""
@@ -68,10 +66,10 @@ def test_datastar_component_integration():
     def get():
         return Div(
             H1("Datastar Test"),
-            Button("Click Me", **ds_on(click="count++")),
-            P("Count: ", **ds_text("count")),
+            Button("Click Me", ds_on_click="count++"),
+            P("Count: ", ds_text="count"),
             Form(
-                Input(**ds_bind("name")),
+                Input(ds_bind="name"),
                 Button("Submit", type="submit")
             )
         )
@@ -81,15 +79,26 @@ def test_datastar_component_integration():
 
 def test_datastar_sse():
     """Test Datastar SSE functionality."""
-    from starhtml.datastar import sse_response, update_signals, update_fragments
-    
     app, rt = star_app()
     
     @rt('/sse')
-    @sse_response
+    @sse
     def get():
-        yield update_signals(count=1)
-        yield update_fragments(Div("Updated content"), "#target", "morph")
+        yield signal(count=1)
+        yield fragment(Div("Updated content"), "#target", "morph")
+    
+    # Should not raise any errors
+    assert get is not None
+
+def test_datastar_auto_selector():
+    """Test auto-selector detection functionality."""
+    app, rt = star_app()
+    
+    @rt('/auto')
+    @sse
+    def get():
+        # Auto-detection: should use #my-target selector
+        yield fragment(Div("Auto content", id="my-target"))
     
     # Should not raise any errors
     assert get is not None
@@ -101,8 +110,8 @@ def test_datastar_conditional_rendering():
     @rt('/')
     def get():
         return Div(
-            Button("Toggle", **ds_on(click="visible = !visible")),
-            Div("Content", **ds_show(when="visible"))
+            Button("Toggle", ds_on_click="visible = !visible"),
+            Div("Content", ds_show="visible")
         )
     
     # Should not raise any errors
@@ -115,9 +124,9 @@ def test_datastar_form_handling():
     @rt('/')
     def get():
         return Form(
-            Input(**ds_bind("name")),
-            Input(**ds_bind("email")),
-            Button("Submit", type="submit", **ds_on(submit="submitForm()"))
+            Input(ds_bind="name"),
+            Input(ds_bind="email"),
+            Button("Submit", type="submit", ds_on_submit="submitForm()")
         )
     
     # Should not raise any errors
@@ -129,7 +138,19 @@ def test_datastar_navigation():
     
     @rt('/')
     def get():
-        return A("Go to page", href="/page", **ds_on(click="navigate()"))
+        return A("Go to page", href="/page", ds_on_click="navigate()")
     
     # Should not raise any errors
-    assert get is not None 
+    assert get is not None
+
+def test_boolean_values():
+    """Test that boolean values are converted to strings."""
+    div = Div(
+        ds_show=True,
+        ds_on_load=True,
+        ds_on_intersect_once=False
+    )
+    xml = to_xml(div)
+    assert 'data-show="true"' in xml
+    assert 'data-on-load="true"' in xml
+    assert 'data-on-intersect.once="false"' in xml

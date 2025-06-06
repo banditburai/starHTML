@@ -1,7 +1,7 @@
 """Test SSE format matches Datastar v1 RC specification"""
 
 import pytest
-from starhtml.datastar import ServerSentEventGenerator, update_signals, update_fragments
+from starhtml.datastar import ServerSentEventGenerator, signal, fragment
 
 
 def test_signal_sse_format():
@@ -58,25 +58,25 @@ def test_fragment_sse_format_no_selector():
     assert output == expected
 
 
-def test_update_signals_helper():
-    """Test update_signals helper function."""
-    result = update_signals(status="test", count=123)
+def test_signal_helper():
+    """Test signal helper function."""
+    result = signal(status="test", count=123)
     
     assert result[0] == "signals"
     assert result[1] == {"status": "test", "count": 123}
 
 
-def test_update_fragments_helper():
-    """Test update_fragments helper function."""
-    result = update_fragments("content", "#target", "morph")
+def test_fragment_helper():
+    """Test fragment helper function."""
+    result = fragment("content", "#target", "morph")
     
     assert result[0] == "fragments"
     assert result[1] == ("content", "#target", "morph")
 
 
-def test_update_fragments_helper_defaults():
-    """Test update_fragments helper with default parameters."""
-    result = update_fragments("content")
+def test_fragment_helper_defaults():
+    """Test fragment helper with default parameters."""
+    result = fragment("content")
     
     assert result[0] == "fragments"
     assert result[1] == ("content", None, "morph")

@@ -158,3 +158,5 @@ _docs
 .ruff_cache
 
 worktrees/
+
+*.md
