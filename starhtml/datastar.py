@@ -4,6 +4,8 @@ from typing import Any, Callable, Dict, Optional, Tuple, List
 from functools import wraps
 from starlette.responses import StreamingResponse
 import json
+import asyncio
+import inspect
 
 from .components import to_xml
 
@@ -70,36 +72,84 @@ class ServerSentEventGenerator:
 
 
 def sse(handler: Callable) -> Callable:    
-    """Decorator that handles sequential signal/fragment updates for Datastar."""
-    @wraps(handler)
-    def wrapped(*args, **kwargs):
-        def stream_generator():
-            # Get the generator from the handler
-            gen = handler(*args, **kwargs)
+    """Decorator that handles sequential signal/fragment updates for Datastar.
+    
+    Supports both sync and async handlers:
+    
+        @sse
+        def sync_handler():
+            yield signal(status="Loading...")
+            yield fragment(Div("Done"))
             
-            # Process items from generator
-            for item_type, payload in gen:
-                if item_type == "signals":
-                    yield ServerSentEventGenerator.merge_signals(payload)
-                elif item_type == "fragments":
-                    # Allow flexible fragment definitions
-                    if isinstance(payload, tuple):
-                        fragment, selector, merge_mode = payload + (None, "morph")[:3-len(payload)]
-                    else:
-                        fragment, selector, merge_mode = payload, None, "morph"
-                    
-                    # Auto-detect selector if not provided and fragment has id
-                    if selector is None and hasattr(fragment, 'attrs') and 'id' in fragment.attrs:
-                        selector = f"#{fragment.attrs['id']}"
-                    
-                    yield ServerSentEventGenerator.merge_fragments(
-                        fragment,
-                        selector=selector,
-                        merge_mode=merge_mode
-                    )
+        @sse
+        async def async_handler():
+            yield signal(status="Loading...")
+            data = await fetch_data()
+            yield fragment(Div(data))
+    """
+    
+    def process_sse_item(item_type, payload):
+        """Process an SSE item and return the formatted output"""
+        if item_type == "signals":
+            return ServerSentEventGenerator.merge_signals(payload)
+        elif item_type == "fragments":
+            # Allow flexible fragment definitions
+            if isinstance(payload, tuple):
+                fragment, selector, merge_mode = payload + (None, "morph")[:3-len(payload)]
+            else:
+                fragment, selector, merge_mode = payload, None, "morph"
+            
+            # Auto-detect selector if not provided and fragment has id
+            if selector is None and hasattr(fragment, 'attrs') and 'id' in fragment.attrs:
+                selector = f"#{fragment.attrs['id']}"
+            
+            return ServerSentEventGenerator.merge_fragments(
+                fragment,
+                selector=selector,
+                merge_mode=merge_mode
+            )
+        return None
+    
+    # Check if handler is async (either async function or async generator)
+    if asyncio.iscoroutinefunction(handler) or inspect.isasyncgenfunction(handler):
+        @wraps(handler)
+        async def wrapped(*args, **kwargs):
+            async def async_stream_generator():
+                # Get the async generator from the handler
+                async_gen = handler(*args, **kwargs)
+                
+                # Process items from async generator
+                async for item in async_gen:
+                    if isinstance(item, tuple) and len(item) == 2:
+                        result = process_sse_item(item[0], item[1])
+                        if result:
+                            yield result
+            
+            return StreamingResponse(async_stream_generator(), headers=SSE_HEADERS)
+        return wrapped
+    
+    else:
+        # Sync handler
+        # Since StarHTML always wraps route handlers in async context,
+        # we return an async function that handles the sync generator properly
+        @wraps(handler)
+        async def wrapped(*args, **kwargs):
+            async def async_stream_generator():
+                # Get the sync generator from the handler
+                gen = handler(*args, **kwargs)
+                
+                # Process items from sync generator
+                # Note: This runs the sync generator in the same thread, which is fine
+                # for generators that yield values without blocking I/O
+                for item in gen:
+                    if isinstance(item, tuple) and len(item) == 2:
+                        result = process_sse_item(item[0], item[1])
+                        if result:
+                            yield result
+            
+            return StreamingResponse(async_stream_generator(), headers=SSE_HEADERS)
         
-        return StreamingResponse(stream_generator(), headers=SSE_HEADERS)
-    return wrapped
+        return wrapped
 
 def signal(**signals: Any) -> Tuple[str, Dict[str, Any]]:
     """Helper to create signal updates for SSE responses.
