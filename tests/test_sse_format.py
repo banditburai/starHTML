@@ -1,13 +1,13 @@
 """Test SSE format matches Datastar v1 RC specification"""
 
 import pytest
-from starhtml.datastar import ServerSentEventGenerator, signal, fragment
+from starhtml.datastar import signal, fragment, format_signal_event, format_fragment_event
 
 
 def test_signal_sse_format():
     """Test that signal SSE events use correct v1 RC format."""
     signals = {"status": "test", "count": 42}
-    output = ServerSentEventGenerator.merge_signals(signals)
+    output = format_signal_event(signals)
     
     expected_lines = [
         "event: datastar-merge-signals",
@@ -24,7 +24,7 @@ def test_signal_sse_format():
 def test_fragment_sse_format():
     """Test that fragment SSE events use correct v1 RC format."""
     html = "<div>Test content</div>"
-    output = ServerSentEventGenerator.merge_fragments([html], "#target", "morph")
+    output = format_fragment_event([html], "#target", "morph")
     
     expected_lines = [
         "event: datastar-merge-fragments",
@@ -43,7 +43,7 @@ def test_fragment_sse_format():
 def test_fragment_sse_format_no_selector():
     """Test fragment SSE format when no selector provided."""
     html = "<p>No selector</p>"
-    output = ServerSentEventGenerator.merge_fragments([html], merge_mode="append")
+    output = format_fragment_event([html], merge_mode="append")
     
     expected_lines = [
         "event: datastar-merge-fragments",
@@ -85,7 +85,7 @@ def test_fragment_helper_defaults():
 def test_multiple_fragments():
     """Test handling multiple fragments."""
     fragments = ["<div>First</div>", "<div>Second</div>"]
-    output = ServerSentEventGenerator.merge_fragments(fragments, "#target", "append")
+    output = format_fragment_event(fragments, "#target", "append")
     
     expected_lines = [
         "event: datastar-merge-fragments",
@@ -109,7 +109,7 @@ def test_complex_signals():
         "active": True,
         "count": 0
     }
-    output = ServerSentEventGenerator.merge_signals(signals)
+    output = format_signal_event(signals)
     
     # Should contain the event type and data prefix
     assert "event: datastar-merge-signals" in output

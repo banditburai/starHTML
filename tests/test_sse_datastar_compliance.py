@@ -2,7 +2,7 @@
 
 import pytest
 from starhtml import star_app, Div, P, Button
-from starhtml.datastar import sse, signal, fragment, ServerSentEventGenerator
+from starhtml.datastar import sse, signal, fragment, format_signal_event, format_fragment_event
 from starlette.testclient import TestClient
 import json
 
@@ -13,18 +13,18 @@ def test_sse_event_names():
     # ye="datastar-merge-signals"
     
     # Test signal event name
-    output = ServerSentEventGenerator.merge_signals({"test": 1})
+    output = format_signal_event({"test": 1})
     assert "event: datastar-merge-signals" in output
     
     # Test fragment event name  
-    output = ServerSentEventGenerator.merge_fragments(Div("test"))
+    output = format_fragment_event(Div("test"))
     assert "event: datastar-merge-fragments" in output
 
 def test_sse_signal_format():
     """Test signal merge format matches Datastar expectations."""
     # From RC.11: data: signals {JSON}
     signals = {"count": 42, "active": True}
-    output = ServerSentEventGenerator.merge_signals(signals)
+    output = format_signal_event(signals)
     
     lines = output.strip().split('\n')
     data_line = next(line for line in lines if line.startswith("data: signals "))
@@ -42,7 +42,7 @@ def test_sse_fragment_format():
     # data: fragments <html>
     
     fragment = Div(P("Test"), id="test")
-    output = ServerSentEventGenerator.merge_fragments(fragment, "#target", "morph")
+    output = format_fragment_event(fragment, "#target", "morph")
     
     lines = output.strip().split('\n')
     
@@ -61,17 +61,17 @@ def test_sse_merge_modes():
     modes = ["morph", "inner", "outer", "prepend", "append", "before", "after"]
     
     for mode in modes:
-        output = ServerSentEventGenerator.merge_fragments(Div("test"), "#target", mode)
+        output = format_fragment_event(Div("test"), "#target", mode)
         assert f"data: mergeMode {mode}" in output
 
 def test_sse_retry_header():
     """Test that retry duration is included."""
     # Check signals
-    output = ServerSentEventGenerator.merge_signals({})
+    output = format_signal_event({})
     assert "retry: 1000" in output
     
     # Check fragments
-    output = ServerSentEventGenerator.merge_fragments(Div())
+    output = format_fragment_event(Div())
     assert "retry: 1000" in output
 
 def test_sse_with_app():
@@ -113,7 +113,7 @@ def test_sse_special_characters_in_fragments():
         P("Unicode: 🚀")
     )
     
-    output = ServerSentEventGenerator.merge_fragments(fragment)
+    output = format_fragment_event(fragment)
     
     # Get the fragments line
     lines = output.strip().split('\n')
@@ -132,7 +132,7 @@ def test_sse_special_characters_in_fragments():
 
 def test_sse_empty_selector():
     """Test fragment merge without selector."""
-    output = ServerSentEventGenerator.merge_fragments(Div("test"))
+    output = format_fragment_event(Div("test"))
     
     lines = output.strip().split('\n')
     
