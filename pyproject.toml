@@ -40,9 +40,8 @@ dependencies = [
 Repository = "https://github.com/banditburai/starhtml"
 Issues = "https://github.com/banditburai/starhtml/issues"
 
-[tool.setuptools.packages.find]
-include = ["starhtml*"]
-exclude = ["demo*", "examples*", "tests*"]
+[tool.hatch.build.targets.wheel]
+packages = ["src/starhtml"]
 
 [tool.uv]
 dev-dependencies = [

@@ -444,10 +444,19 @@ class StarHTML(Starlette):
         super().__init__(debug, routes, middleware=middleware, exception_handlers=excs, on_startup=on_startup, on_shutdown=on_shutdown, lifespan=lifespan)
         
         # Always serve datastar.js from the RC version
-        import os
+        from pathlib import Path
         from starlette.responses import FileResponse
-        datastar_path = os.path.join(os.path.dirname(__file__), '..', 'worktrees', 'datastar-rc', 'datastar.js')
-        self.route('/static/datastar.js')(lambda: FileResponse(datastar_path, media_type='application/javascript'))
+        
+        # Get the project root directory (2 levels up from this file)
+        project_root = Path(__file__).parent.parent.parent
+        datastar_path = project_root / 'worktrees' / 'datastar-rc' / 'datastar.js'
+        
+        def serve_datastar():
+            if not datastar_path.exists():
+                raise FileNotFoundError(f"datastar.js not found at {datastar_path}")
+            return FileResponse(datastar_path, media_type='application/javascript')
+        
+        self.route('/static/datastar.js')(serve_datastar)
 
     def add_route(self, route):
         route.methods = [m.upper() for m in listify(route.methods)]
