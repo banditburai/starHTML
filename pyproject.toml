@@ -3,7 +3,7 @@ name = "starhtml"
 version = "0.1.0"
 description = "Modern HTML generation in Python, inspired by FastHTML"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = ["starlette", "uvicorn[standard]", "httpx", "beautifulsoup4", "python-dateutil"]
 
 [project.optional-dependencies]
@@ -12,14 +12,11 @@ dev = ["ipykernel", "pip-tools"]
 doc = ["mkdocs", "mkdocs-material", "mdx-include"]
 
 [build-system]
-requires = ["setuptools>=61.0"]
-build-backend = "setuptools.build_backend"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
-[tool.setuptools]
-package-dir = {"" = "src"}
-
-[tool.setuptools.packages.find]
-where = ["src"]
+[tool.hatch.build.targets.wheel]
+packages = ["src/starhtml"]
 
 [tool.pytest.ini_options]
 minversion = "7.0"
@@ -87,7 +84,7 @@ indent-style = "space"
 [tool.pyright]
 include = ["src", "tests", "demo"]
 exclude = ["**/node_modules", "**/__pycache__", "**/.venv", "**/build", "**/dist"]
-pythonVersion = "3.10"
+pythonVersion = "3.11"
 pythonPlatform = "All"
 typeCheckingMode = "basic"
 reportMissingImports = true
