@@ -3,6 +3,7 @@
 import asyncio
 import inspect
 import json
+import os
 import types
 import uuid
 from base64 import b64encode
@@ -301,10 +302,10 @@ def _ws_endp(recv, conn=None, disconn=None):
         await _generic_handler(recv, ws, data)
 
     if conn:
-        cls.on_connect = _connect
+        cls.on_connect = _connect  # type: ignore[attr-defined]
     if disconn:
-        cls.on_disconnect = _disconnect
-    cls.on_receive = _recv
+        cls.on_disconnect = _disconnect  # type: ignore[attr-defined]
+    cls.on_receive = _recv  # type: ignore[attr-defined]
     return cls
 
 
@@ -322,7 +323,7 @@ def signal_shutdown():
     def handle_exit(self: Server, *args, **kwargs):
         event.set()
         self.force_exit = True
-        self._orig_handle_exit(*args, **kwargs)
+        self._orig_handle_exit(*args, **kwargs)  # type: ignore[attr-defined]
 
     return event
 
@@ -367,7 +368,7 @@ _verbs = dict(
 
 def _url_for(req, t):
     if callable(t):
-        t = t.__routename__
+        t = getattr(t, '__routename__', str(t))
     kw = {}
     if t.find("/") > -1 and (t.find("?") < 0 or t.find("/") < t.find("?")):
         t, kw = decode_uri(t)
@@ -394,8 +395,8 @@ def _find_targets(req, resp):
 def _apply_ft(o):
     if isinstance(o, tuple):
         o = tuple(_apply_ft(c) for c in o)
-    if hasattr(o, "__ft__"):
-        o = o.__ft__()
+    if hasattr(o, "__ft__") and callable(getattr(o, "__ft__")):
+        o = o.__ft__()  # type: ignore[attr-defined]
     if isinstance(o, FT):
         o.children = tuple(_apply_ft(c) for c in o.children)
     return o
@@ -481,8 +482,8 @@ def _is_ft_resp(resp):
 def _resp(req, resp, cls=empty, status_code=200):
     if not resp:
         resp = ""
-    if hasattr(resp, "__response__"):
-        resp = resp.__response__(req)
+    if hasattr(resp, "__response__") and callable(getattr(resp, "__response__")):
+        resp = resp.__response__(req)  # type: ignore[attr-defined]
     if cls in (Any, FT):
         cls = empty
     if isinstance(resp, FileResponse) and not os.path.exists(resp.path):
@@ -669,15 +670,15 @@ class StarHTML(Starlette):
 
         self.route("/static/datastar.js")(serve_datastar)
 
-    def add_route(self, route):
-        route.methods = [m.upper() for m in listify(route.methods)]
+    def add_route(self, route) -> None:  # type: ignore[override]
+        route.methods = [m.upper() if isinstance(m, str) else m for m in listify(route.methods)]
         self.router.routes = [
             r
             for r in self.router.routes
             if not (
-                r.path == route.path
-                and r.name == route.name
-                and ((route.methods is None) or (set(r.methods) == set(route.methods)))
+                getattr(r, 'path', None) == route.path
+                and getattr(r, 'name', None) == route.name
+                and ((route.methods is None) or (set(getattr(r, 'methods', [])) == set(route.methods)))
             )
         ]
         self.router.routes.append(route)
@@ -720,7 +721,7 @@ def _endp(self: StarHTML, f, body_wrap):
 def _add_ws(self: StarHTML, func, path, conn, disconn, name, middleware):
     endp = _ws_endp(func, conn, disconn)
     route = WebSocketRoute(path, endpoint=endp, name=name, middleware=middleware)
-    route.methods = ["ws"]
+    setattr(route, 'methods', ["ws"])  # type: ignore[attr-defined]
     self.add_route(route)
     return func
 
@@ -730,7 +731,7 @@ def ws(self: StarHTML, path: str, conn=None, disconn=None, name=None, middleware
     "Add a websocket route at `path`"
 
     def f(func=noop):
-        return self._add_ws(func, path, conn, disconn, name=name, middleware=middleware)
+        return self._add_ws(func, path, conn, disconn, name=name, middleware=middleware)  # type: ignore[attr-defined]
 
     return f
 
@@ -772,14 +773,14 @@ def _add_route(self: StarHTML, func, path, methods, name, include_in_schema, bod
         p = "/" + ("" if fn == "index" else fn)
     route = Route(
         p,
-        endpoint=self._endp(func, body_wrap or self.body_wrap),
+        endpoint=self._endp(func, body_wrap or self.body_wrap),  # type: ignore[attr-defined]
         methods=m,
         name=n,
         include_in_schema=include_in_schema,
     )
     self.add_route(route)
     lf = _mk_locfunc(func, p)
-    lf.__routename__ = n
+    setattr(lf, '__routename__', n)  # type: ignore[attr-defined]
     return lf
 
 
@@ -788,7 +789,7 @@ def route(self: StarHTML, path: str = None, methods=None, name=None, include_in_
     "Add a route at `path`"
 
     def f(func):
-        return self._add_route(func, path, methods, name=name, include_in_schema=include_in_schema, body_wrap=body_wrap)
+        return self._add_route(func, path, methods, name=name, include_in_schema=include_in_schema, body_wrap=body_wrap)  # type: ignore[attr-defined]
 
     return f(path) if callable(path) else f
 
@@ -880,7 +881,7 @@ class APIRouter:
     def _wrap_func(self, func, path=None):
         name = func.__name__
         wrapped = _mk_locfunc(func, path)
-        wrapped.__routename__ = name
+        setattr(wrapped, '__routename__', name)  # type: ignore[attr-defined]
         # If you are using the def get or def post method names, this approach is not supported
         if name not in all_meths:
             setattr(self.rt_funcs, name, wrapped)
