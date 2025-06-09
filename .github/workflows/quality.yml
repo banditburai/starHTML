@@ -24,8 +24,8 @@ jobs:
       
     - name: Install dependencies
       run: |
-        uv sync --all-extras
-        uv pip install pyright pytest-cov
+        uv sync --all-extras --dev
+        uv pip install pyright
         
     - name: Lint with ruff
       run: |
