@@ -8,7 +8,7 @@ dependencies = ["starlette", "uvicorn[standard]", "httpx", "beautifulsoup4", "py
 
 [project.optional-dependencies]
 test = ["pytest", "pytest-cov", "pytest-timeout", "pytest-xdist", "pytest-watch"]
-dev = ["ipykernel", "pip-tools"]
+dev = ["ipykernel", "pip-tools", "ruff", "pyright"]
 doc = ["mkdocs", "mkdocs-material", "mdx-include"]
 
 [build-system]
