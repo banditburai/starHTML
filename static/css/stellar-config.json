@@ -1,0 +1,23 @@
+{
+    "fonts": {
+        "families": {
+            "brand": "Audiowide, sans-serif",
+            "pixel" : "Silkscreen, sans-serif",
+            "sans" : "Inter, sans-serif",
+            "mono" : "'JetBrains Mono', monospace"
+        },
+        "size": {
+            "steps": [-2, 1, 2, 3, 8, 10],
+            "values": [0.5, 1, 1.25, 1.75, 6, 20],
+            "suffix": "REM",
+            "decimals": 2
+        }
+    },
+    "size": {
+        "base": {
+            "steps": [-2, 7, 15],
+            "values": [-0.5, 2, 30],
+            "suffix": "REM"
+        }
+    }
+}
