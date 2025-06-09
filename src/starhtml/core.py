@@ -891,7 +891,7 @@ class APIRouter:
         "Add a route at `path`"
 
         def f(func):
-            p = self.prefix + ("/" + ("" if path.__name__ == "index" else func.__name__) if callable(path) else path)
+            p = self.prefix + ("/" + ("" if getattr(path, '__name__', None) == "index" else func.__name__) if callable(path) else path)
             wrapped = self._wrap_func(func, p)
             self.routes.append((func, p, methods, name, include_in_schema, body_wrap or self.body_wrap))
             return wrapped
@@ -902,7 +902,7 @@ class APIRouter:
         try:
             return getattr(self.rt_funcs, name)
         except AttributeError:
-            return super().__getattr__(self, name)
+            return super().__getattribute__(name)  # type: ignore[misc]
 
     def to_app(self, app):
         "Add routes to `app`"
@@ -997,9 +997,9 @@ def static_route(self: StarHTML, ext="", prefix="/", static_path="."):
 class MiddlewareBase:
     async def __call__(self, scope, receive, send) -> None:
         if scope["type"] not in ["http", "websocket"]:
-            await self._app(scope, receive, send)
+            await self._app(scope, receive, send)  # type: ignore[attr-defined]
             return
-        return HTTPConnection(scope)
+        return HTTPConnection(scope)  # type: ignore[return-value]
 
 
 class FtResponse:
@@ -1023,7 +1023,7 @@ class FtResponse:
         tasks, httphdrs = kw.get("background"), kw.get("headers")
         if not tasks:
             tasks = self.background
-        headers = {**(self.headers or {}), **httphdrs}
+        headers = {**(self.headers or {}), **(httphdrs or {})}  # type: ignore[misc]
         return self.cls(
             cts, status_code=self.status_code, headers=headers, media_type=self.media_type, background=tasks
         )
