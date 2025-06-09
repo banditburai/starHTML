@@ -1,8 +1,9 @@
 """Demo: Async SSE handlers for non-blocking operations"""
 
-from starhtml import *
 import asyncio
 import time
+
+from starhtml import *
 
 app, rt = star_app(title="Async SSE Demo")
 
@@ -11,11 +12,11 @@ def home():
     return Div(
         H1("Async SSE Demo", cls="text-3xl font-bold mb-6"),
         P("Demonstrating async SSE handlers for non-blocking operations", cls="text-lg mb-8"),
-        
+
         # Sync vs Async comparison
         Div(
             H2("Sync vs Async SSE Handlers", cls="text-2xl font-semibold mb-4"),
-            
+
             Div(
                 Button(
                     "Test Sync Handler (blocks)",
@@ -24,52 +25,52 @@ def home():
                 ),
                 Button(
                     "Test Async Handler (non-blocking)",
-                    ds_on_click="@get('/async-sse')", 
+                    ds_on_click="@get('/async-sse')",
                     cls="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 ml-4"
                 ),
                 cls="mb-4"
             ),
-            
+
             Div(
                 P("Status: ", ds_text="$status", cls="font-semibold"),
                 cls="mb-4"
             ),
-            
+
             Div(
                 id="result",
                 cls="p-4 bg-gray-100 rounded min-h-[100px]"
             ),
-            
+
             cls="mb-8"
         ),
-        
+
         # Multiple async operations
         Div(
             H2("Multiple Async Operations", cls="text-2xl font-semibold mb-4"),
-            
+
             Button(
                 "Fetch Multiple APIs",
                 ds_on_click="@get('/multi-async')",
                 cls="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 mb-4"
             ),
-            
+
             Div(
                 P("API 1: ", ds_text="$api1Status", cls="mb-2"),
                 P("API 2: ", ds_text="$api2Status", cls="mb-2"),
                 P("API 3: ", ds_text="$api3Status", cls="mb-2"),
                 cls="mb-4"
             ),
-            
+
             Div(
                 id="multi-result",
                 cls="p-4 bg-gray-100 rounded min-h-[100px]"
             )
         ),
-        
+
         ds_signals={
             "status": "Ready",
             "api1Status": "Not started",
-            "api2Status": "Not started", 
+            "api2Status": "Not started",
             "api3Status": "Not started"
         },
         cls="max-w-4xl mx-auto p-8"
@@ -91,10 +92,10 @@ async def slow_async_operation(seconds=2):
 def sync_handler(req):
     """Synchronous SSE handler - blocks the thread"""
     yield signals(status="Starting sync operation...")
-    
+
     # This blocks the thread!
     result = slow_sync_operation(2)
-    
+
     yield fragments(
         Div(
             P("✅ Sync operation complete!", cls="font-semibold text-red-600"),
@@ -103,7 +104,7 @@ def sync_handler(req):
             id="result"
         )
     )
-    
+
     yield signals(status="Sync complete")
 
 @rt('/async-sse')
@@ -111,10 +112,10 @@ def sync_handler(req):
 async def async_handler(req):
     """Asynchronous SSE handler - non-blocking"""
     yield signals(status="Starting async operation...")
-    
+
     # This doesn't block - other requests can be handled!
     result = await slow_async_operation(2)
-    
+
     yield fragments(
         Div(
             P("✅ Async operation complete!", cls="font-semibold text-green-600"),
@@ -123,7 +124,7 @@ async def async_handler(req):
             id="result"
         )
     )
-    
+
     yield signals(status="Async complete")
 
 @rt('/multi-async')
@@ -135,31 +136,31 @@ async def multi_async_handler(req):
         api2Status="Starting...",
         api3Status="Starting..."
     )
-    
+
     # Update status for all APIs
     yield signals(api1Status="Fetching API 1...")
     yield signals(api2Status="Fetching API 2...")
     yield signals(api3Status="Fetching API 3...")
-    
+
     # Simulate concurrent API calls
     start_time = asyncio.get_event_loop().time()
-    
+
     # Create tasks that run concurrently
     task1 = asyncio.create_task(slow_async_operation(1))
     task2 = asyncio.create_task(slow_async_operation(1.5))
     task3 = asyncio.create_task(slow_async_operation(0.5))
-    
+
     # Wait for all to complete
     results = await asyncio.gather(task1, task2, task3)
-    
+
     total_time = asyncio.get_event_loop().time() - start_time
-    
+
     yield signals(
         api1Status="✅ Complete",
         api2Status="✅ Complete",
         api3Status="✅ Complete"
     )
-    
+
     yield fragments(
         Div(
             P("✅ All APIs fetched concurrently!", cls="font-semibold text-blue-600"),

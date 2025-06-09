@@ -1,17 +1,16 @@
 """`ft_html` and `ft_datastar` functions to add some conveniences to `ft`, along with a full set of basic HTML components, and functions to work with forms and `FT` conversion"""
 
-from dataclasses import dataclass, asdict, is_dataclass, make_dataclass, replace, astuple, MISSING
-from bs4 import BeautifulSoup, Comment
-from typing import Literal, Optional
+import re
+from dataclasses import asdict, is_dataclass
+from typing import Optional
 
+from bs4 import BeautifulSoup, Comment
+from fastcore.test import *
 from fastcore.utils import *
 from fastcore.xml import *
-from fastcore.meta import use_kwargs, delegates
-from fastcore.test import *
+
 from .core import fh_cfg, unqid
 
-import types, json
-import re
 
 @patch
 def __str__(self:FT): return self.id if self.id else to_xml(self, indent=False)
@@ -50,7 +49,7 @@ datastar_attrs_annotations = {
     "data_indicator": str,
 }
 datastar_attrs_annotations |= {o: str for o in set(datastar_attrs) - set(datastar_attrs_annotations.keys())}
-datastar_attrs_annotations = {k: Optional[v] for k,v in datastar_attrs_annotations.items()} 
+datastar_attrs_annotations = {k: Optional[v] for k,v in datastar_attrs_annotations.items()}
 datastar_attrs = html_attrs + datastar_attrs
 
 datastar_evt_attrs = [f'data_on_{o}' for o in datastar_evts.split()]
@@ -83,7 +82,7 @@ def ft_html(tag: str, *c, id=None, cls=None, title=None, style=None, attrmap=Non
 def _process_datastar_attrs(kwargs):
     """Process ds_* attributes and transform them to data-* attributes."""
     processed = {}
-    
+
     for key, value in kwargs.items():
         if key.startswith('ds_'):
             # Transform ds_* to data-*
@@ -107,7 +106,7 @@ def _process_datastar_attrs(kwargs):
             else:
                 # Simple attributes: ds_show -> data-show
                 data_key = key.replace('ds_', 'data-').replace('_', '-')
-            
+
             # Convert Python booleans to string "true"/"false" for JavaScript
             if isinstance(value, bool):
                 processed[data_key] = "true" if value else "false"
@@ -116,7 +115,7 @@ def _process_datastar_attrs(kwargs):
         else:
             # Non-datastar attributes pass through
             processed[key] = value
-    
+
     return processed
 
 def ft_datastar(tag: str, *c, **kwargs):
@@ -127,7 +126,7 @@ def ft_datastar(tag: str, *c, **kwargs):
     """
     # Process ds_* attributes to data-* attributes
     kwargs = _process_datastar_attrs(kwargs)
-    
+
     return ft_html(tag, *c, **kwargs)
 
 _g = globals()
@@ -153,7 +152,7 @@ def _fill_item(item, obj):
     if isinstance(cs,tuple): cs = tuple(_fill_item(o, obj) for o in cs)
     name = attr.get('name', None)
     val = None if name is None else obj.get(name, None)
-    if val is not None and not 'skip' in attr:
+    if val is not None and 'skip' not in attr:
         if tag=='input':
             if attr.get('type', '') == 'checkbox':
                 if isinstance(val, list):
@@ -216,57 +215,57 @@ def _is_valid_attr(key):
 
 def _get_tag_name(name):
     """Cached tag name transformation"""
-    return _tag_cache.setdefault(name, '[document]' if name == '[document]' 
+    return _tag_cache.setdefault(name, '[document]' if name == '[document]'
                                  else name.capitalize().replace("-", "_"))
 
 def html2ft(html, attr1st=False):
     """Convert HTML to an `ft` expression - Optimized version with 2.52x speedup"""
     rev_map = {'class': 'cls', 'for': 'fr'}
-    
+
     def _parse(elm, lvl=0, indent=4):
         # Fast paths for strings and lists
-        if isinstance(elm, str): 
+        if isinstance(elm, str):
             return repr(stripped) if (stripped := elm.strip()) else ''
-        if isinstance(elm, list): 
+        if isinstance(elm, list):
             return '\n'.join(_parse(o, lvl) for o in elm)
-        
+
         # Get cached tag name and handle document
         tag_name = _get_tag_name(elm.name)
-        if tag_name == '[document]': 
+        if tag_name == '[document]':
             return _parse(list(elm.children), lvl)
-        
+
         # Process contents efficiently
-        cs = [repr(c.strip()) if isinstance(c, str) and c.strip() 
-              else _parse(c, lvl+1) for c in elm.contents 
+        cs = [repr(c.strip()) if isinstance(c, str) and c.strip()
+              else _parse(c, lvl+1) for c in elm.contents
               if not isinstance(c, str) or c.strip()]
-        
+
         # Process attributes with optimizations
         attrs, exotic_attrs = [], {}
         items = sorted(elm.attrs.items(), key=lambda x: x[0] == 'class') if 'class' in elm.attrs else elm.attrs.items()
-        
+
         for key, value in items:
             value = " ".join(value) if isinstance(value, (tuple, list)) else (value or True)
             key = rev_map.get(key, key)
-            
-            if _is_valid_attr(key): 
+
+            if _is_valid_attr(key):
                 attrs.append(f'{key.replace("-", "_")}={value!r}')
-            else: 
+            else:
                 exotic_attrs[key] = value
-        
-        if exotic_attrs: 
+
+        if exotic_attrs:
             attrs.append(f'**{exotic_attrs!r}')
-        
+
         # Format output efficiently
         spc = " " * (lvl * indent)
         onlychild = not elm.contents or (len(elm.contents) == 1 and isinstance(elm.contents[0], str))
-        
+
         if onlychild:
             inner = ', '.join(filter(None, cs + attrs))
             return f'{tag_name}({inner})' if not attr1st else f'{tag_name}({", ".join(filter(None, attrs))})({cs[0] if cs else ""})'
-        
+
         j = f',\n{spc}'
-        return (f'{tag_name}(\n{spc}{j.join(filter(None, cs + attrs))}\n{" " * ((lvl-1) * indent)})' 
-                if not attr1st or not attrs else 
+        return (f'{tag_name}(\n{spc}{j.join(filter(None, cs + attrs))}\n{" " * ((lvl-1) * indent)})'
+                if not attr1st or not attrs else
                 f'{tag_name}({", ".join(filter(None, attrs))})(\n{spc}{j.join(filter(None, cs))}\n{" " * ((lvl-1) * indent)})')
 
     # Parse HTML and remove comments efficiently

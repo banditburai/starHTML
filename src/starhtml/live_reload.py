@@ -1,6 +1,7 @@
 from starlette.routing import WebSocketRoute
-from starhtml.core import StarHTML
+
 from starhtml.components import Script
+from starhtml.core import StarHTML
 
 __all__ = ["StarHTMLWithLiveReload"]
 

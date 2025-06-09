@@ -11,7 +11,7 @@ app, rt = star_app(
 def home():
     return Div(
         H1("SSE Merge Fragments Debugging"),
-        
+
         Div(
             Button("Test Simple Fragment", ds_on_click="@get('/test-simple')"),
             Button("Test Multiple Fragments", ds_on_click="@get('/test-multiple')"),
@@ -20,24 +20,24 @@ def home():
             Button("Reset All", ds_on_click="@get('/reset')", style="background: #ff5252; color: white;"),
             style="display: flex; gap: 10px; margin: 20px 0; flex-wrap: wrap;"
         ),
-        
+
         Div(
             P("Initial content - will be replaced"),
             id="target",
             style="border: 1px solid #ccc; padding: 20px; margin: 20px 0;"
         ),
-        
+
         Div(
             P("Secondary target - for selector tests"),
             id="target2",
             style="border: 1px solid #00c853; padding: 20px; margin: 20px 0;"
         ),
-        
+
         Div(
             P("Status: ", ds_text="$status"),
             style="font-weight: bold; margin: 20px 0;"
         ),
-        
+
         Div(
             Pre(
                 Code(ds_text="$lastAction", style="white-space: pre-wrap;"),
@@ -45,7 +45,7 @@ def home():
             ),
             style="margin-top: 20px;"
         ),
-        
+
         ds_signals={"status": "Ready", "lastAction": "No action yet"}
     )
 
@@ -71,7 +71,7 @@ def test_simple(req):
 @sse
 def test_multiple(req):
     yield signals(status="Testing multiple fragments...")
-    
+
     fragments = [
         P("Fragment 1: First paragraph"),
         P("Fragment 2: Second paragraph", style="color: blue;"),
@@ -81,7 +81,7 @@ def test_multiple(req):
             style="background: #f0f0f0; padding: 10px; margin: 10px 0;"
         )
     ]
-    
+
     # Auto-detection: id="target" automatically becomes selector "#target"
     yield fragments(
         Div(
@@ -99,7 +99,7 @@ def test_multiple(req):
 @sse
 def test_selector(req):
     yield signals(status="Testing auto-detection vs manual selectors...")
-    
+
     # Auto-detection: id="target" automatically becomes "#target"
     yield fragments(
         Div(
@@ -108,7 +108,7 @@ def test_selector(req):
             style="border: 1px solid #ccc; padding: 20px; margin: 20px 0;"
         )
     )
-    
+
     # Manual override: explicitly specify different selector
     yield fragments(
         Div(
@@ -119,7 +119,7 @@ def test_selector(req):
         ),
         "#target2"  # Manual selector (could be different from id)
     )
-    
+
     yield signals(
         status="Selector test complete",
         lastAction="Auto-detected #target + manual #target2"
@@ -129,7 +129,7 @@ def test_selector(req):
 @sse
 def test_complex(req):
     yield signals(status="Testing complex HTML...")
-    
+
     complex_content = Div(
         H1("Complex Content", style="font-size: 1.5em;"),
         P("This has special characters: < > & \" '"),
@@ -140,7 +140,7 @@ def test_complex(req):
             style="background: #e3f2fd; padding: 10px;"
         )
     )
-    
+
     # Auto-detection works with complex nested content too
     yield fragments(
         Div(
@@ -158,7 +158,7 @@ def test_complex(req):
 @sse
 def reset(req):
     yield signals(status="Resetting...")
-    
+
     # Both use auto-detection
     yield fragments(
         Div(
@@ -167,7 +167,7 @@ def reset(req):
             style="border: 1px solid #ccc; padding: 20px; margin: 20px 0;"
         )
     )
-    
+
     yield fragments(
         Div(
             P("Secondary target - for selector tests"),
@@ -175,7 +175,7 @@ def reset(req):
             style="border: 1px solid #00c853; padding: 20px; margin: 20px 0;"
         )
     )
-    
+
     yield signals(
         status="Ready",
         lastAction="Reset with auto-detected selectors"

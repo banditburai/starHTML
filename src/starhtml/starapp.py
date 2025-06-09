@@ -1,13 +1,13 @@
 """The `star_app` convenience wrapper for creating StarHTML applications"""
 
-import inspect,uvicorn
 from fastcore.utils import *
 from fastlite import *
-from .core import *
+
 from .components import *
-from .xtend import *
-from .starlette import *
+from .core import *
 from .live_reload import StarHTMLWithLiveReload
+from .starlette import *
+from .xtend import *
 
 __all__ = ['star_app']
 
@@ -69,7 +69,7 @@ def star_app(
                   sess_domain=sess_domain, key_fname=key_fname, exts=exts, htmlkw=htmlkw,
                   reload_attempts=reload_attempts, reload_interval=reload_interval, body_wrap=body_wrap, **(bodykw or {}))
     app.static_route_exts(static_path=static_path)
-    
+
     if not db_file: return app,app.route
 
     db = database(db_file)

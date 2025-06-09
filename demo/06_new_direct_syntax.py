@@ -10,7 +10,7 @@ def home():
     return Div(
         H1("StarHTML Direct Attribute Syntax", cls="text-3xl font-bold mb-6"),
         P("No more ** unpacking! Use Datastar attributes directly.", cls="text-lg mb-8"),
-        
+
         # Example 1: Basic signals and binding
         Div(
             H2("1. Basic Signals & Binding", cls="text-xl font-semibold mb-4"),
@@ -29,7 +29,7 @@ def home():
                 cls="space-y-2 mb-8"
             )
         ),
-        
+
         # Example 2: Event handlers
         Div(
             H2("2. Event Handlers", cls="text-xl font-semibold mb-4"),
@@ -41,7 +41,7 @@ def home():
             ),
             cls="mb-8"
         ),
-        
+
         # Example 3: Conditional rendering
         Div(
             H2("3. Conditional Rendering", cls="text-xl font-semibold mb-4"),
@@ -57,7 +57,7 @@ def home():
             ),
             cls="mb-8"
         ),
-        
+
         # Example 4: Dynamic attributes
         Div(
             H2("4. Dynamic Attributes", cls="text-xl font-semibold mb-4"),
@@ -74,7 +74,7 @@ def home():
             ),
             cls="mb-8"
         ),
-        
+
         # Example 5: SSE with indicators
         Div(
             H2("5. Server-Sent Events", cls="text-xl font-semibold mb-4"),
@@ -95,7 +95,7 @@ def home():
             ),
             cls="mb-8"
         ),
-        
+
         # Initialize all signals
         ds_signals={
             "username": "",
@@ -113,7 +113,7 @@ def sse_data(req):
     """Demo SSE endpoint."""
     import time
     time.sleep(1)  # Simulate loading
-    
+
     yield fragments(
         Div(
             P("Data loaded successfully!", cls="font-semibold text-green-600"),

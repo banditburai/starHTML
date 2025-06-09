@@ -8,7 +8,7 @@ app, rt = star_app(title="StarHTML Syntax Patterns")
 def home():
     return Div(
         H1("Common StarHTML Syntax Patterns"),
-        
+
         # CORRECT: All positional args (children) first, then keyword args
         Div(
             P("This is correct syntax"),
@@ -16,7 +16,7 @@ def home():
             id="correct-example",
             style="border: 1px solid green; padding: 10px; margin: 10px 0;"
         ),
-        
+
         # Pattern 1: When you need an ID/class early, put ALL attrs at the end
         Div(
             H1("Pattern 1: Attributes Last"),
@@ -26,7 +26,7 @@ def home():
             cls="my-class",
             style="background: #f0f0f0; padding: 10px; margin: 10px 0;"
         ),
-        
+
         # Pattern 2: Use nested structure to make it clearer
         Div(
             H1("Pattern 2: Nested Structure"),
@@ -38,10 +38,10 @@ def home():
             id="outer",
             style="background: #e0e0e0; padding: 10px; margin: 10px 0;"
         ),
-        
+
         # Pattern 3: Extract complex components
         example_component(),
-        
+
         # Common Error Examples (commented out - would cause SyntaxError)
         Pre(Code('''
 # WRONG - SyntaxError:
@@ -56,7 +56,7 @@ def home():
 # CORRECT - All children first:
 # Button("Click", Icon("arrow"), id="btn", cls="primary")
 '''), style="background: #333; color: #0f0; padding: 15px; margin: 20px 0;"),
-        
+
         style="max-width: 800px; margin: 0 auto; padding: 20px;"
     )
 

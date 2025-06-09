@@ -3,10 +3,14 @@
 __all__ = ['http_patterns', 'GoogleAppClient', 'GitHubAppClient', 'HuggingFaceClient', 'DiscordAppClient', 'Auth0AppClient',
            'redir_url', 'url_match', 'OAuth', 'load_creds']
 
-from .common import *
+import secrets
+from urllib.parse import urlencode
+
+import httpx
 from oauthlib.oauth2 import WebApplicationClient
-from urllib.parse import urlparse, urlencode, parse_qs, quote, unquote
-import secrets, httpx
+
+from .common import *
+
 
 class _AppClient(WebApplicationClient):
     id_key = 'sub'
@@ -19,13 +23,13 @@ class GoogleAppClient(_AppClient):
     base_url = "https://accounts.google.com/o/oauth2/v2/auth"
     token_url = "https://oauth2.googleapis.com/token"
     info_url = "https://openidconnect.googleapis.com/v1/userinfo"
-    
+
     def __init__(self, client_id, client_secret, code=None, scope=None, project_id=None, **kwargs):
         scope_pre = "https://www.googleapis.com/auth/userinfo"
         if not scope: scope=["openid", f"{scope_pre}.email", f"{scope_pre}.profile"]
         super().__init__(client_id, client_secret, code=code, scope=scope, **kwargs)
         self.project_id = project_id
-    
+
     @classmethod
     def from_file(cls, fname, code=None, scope=None, **kwargs):
         cred = Path(fname).read_json()['web']
@@ -49,7 +53,7 @@ class HuggingFaceClient(_AppClient):
     base_url = f"{prefix}authorize"
     token_url = f"{prefix}token"
     info_url = f"{prefix}userinfo"
-    
+
     def __init__(self, client_id, client_secret, code=None, scope=None, state=None, **kwargs):
         if not scope: scope=["openid","profile"]
         if not state: state=secrets.token_urlsafe(16)
@@ -186,8 +190,8 @@ class OAuth:
     def get_auth(self, info, ident, session, state): raise NotImplementedError()
 
 try:
-    from google.oauth2.credentials import Credentials
     from google.auth.transport.requests import Request
+    from google.oauth2.credentials import Credentials
 except ImportError:
     Request=None
     class Credentials: pass
@@ -217,6 +221,6 @@ def load_creds(fname):
 @patch
 def creds(self:GoogleAppClient):
     "Create `Credentials` from the client, refreshing if needed"
-    return Credentials(token=self.access_token, refresh_token=self.refresh_token, 
+    return Credentials(token=self.access_token, refresh_token=self.refresh_token,
         token_uri=self.token_url, client_id=self.client_id,
         client_secret=self.client_secret, scopes=self.scope).update()

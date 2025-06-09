@@ -1,29 +1,33 @@
 """The `StarHTML` subclass of `Starlette`, along with the `RouterX` and `RouteX` classes it automatically uses."""
 
-import json,uuid,inspect,types,signal,asyncio,threading
+import asyncio
+import inspect
+import json
+import types
+import uuid
+from base64 import b64encode
+from collections.abc import Mapping
+from copy import deepcopy
+from dataclasses import dataclass
+from datetime import date, datetime
+from functools import partialmethod, update_wrapper
+from http import cookies
+from inspect import Parameter, get_annotations
+from types import GenericAlias, UnionType
+from types import SimpleNamespace as ns
+from typing import Any, Union, get_args, get_origin
+from urllib.parse import parse_qs, quote, unquote, urlencode
+from uuid import uuid4
+from warnings import warn
 
+from anyio import from_thread
+from dateutil import parser as dtparse
 from fastcore.utils import *
 from fastcore.xml import *
-from fastcore.meta import use_kwargs_dict
-
-from types import UnionType, SimpleNamespace as ns, GenericAlias
-from typing import Optional, get_type_hints, get_args, get_origin, Union, Mapping, TypedDict, List, Any
-from datetime import datetime,date
-from dataclasses import dataclass,fields
-from collections import namedtuple
-from inspect import isfunction,ismethod,Parameter,get_annotations
-from functools import wraps, partialmethod, update_wrapper
-from http import cookies
-from urllib.parse import urlencode, parse_qs, quote, unquote
-from copy import copy, deepcopy
-from warnings import warn
-from dateutil import parser as dtparse
 from httpx import ASGITransport, AsyncClient
-from anyio import from_thread
-from uuid import uuid4
-from base64 import b85encode, b64encode
 
 from starhtml.starlette import *
+
 
 def _params(f): return signature_ex(f, True).parameters
 
@@ -45,11 +49,11 @@ fh_cfg = AttrDict(indent=True)
 def _fix_anno(t, o):
     "Create appropriate callable type for casting a `str` to type `t` (or first type in `t` if union)"
     origin = get_origin(t)
-    if origin is Union or origin is UnionType or origin in (list,List):
+    if origin is Union or origin is UnionType or origin in (list,list):
         t = first(o for o in get_args(t) if o!=type(None))
     d = {bool: str2bool, int: str2int, date: str2date, UploadFile: noop}
     res = d.get(t, t)
-    if origin in (list,List): return _mk_list(res, o)
+    if origin in (list,list): return _mk_list(res, o)
     if not isinstance(o, (str,list,tuple)): return o
     return res(o[-1]) if isinstance(o,(list,tuple)) else res(o)
 
@@ -268,7 +272,7 @@ def _find_targets(req, resp):
         for o in resp.children: _find_targets(req, o)
         for k,v in _verbs.items():
             t = resp.attrs.pop(k, None)
-            if t and k != 'link': 
+            if t and k != 'link':
                 action = f"@{k}('{_url_for(req, t)}')"
                 resp.attrs[v] = action
             elif t and k == 'link':
@@ -407,12 +411,12 @@ def qp(p:str, **kw) -> str:
 def def_hdrs():
     "Default headers for a StarHTML app"
     # Lazy import to avoid circular imports
-    from .components import Script, Meta
-    
+    from .components import Meta, Script
+
     datastarsrc = Script(src="/static/datastar.js", type="module")
     viewport    = Meta(name="viewport", content="width=device-width, initial-scale=1, viewport-fit=cover")
     charset     = Meta(charset="utf-8")
-    
+
     return [charset, viewport, datastarsrc]
 
 class StarHTML(Starlette):
@@ -448,20 +452,21 @@ class StarHTML(Starlette):
             exception_handlers[404] = _not_found
         excs = {k:_wrap_ex(v, k, hdrs, ftrs, htmlkw, bodykw, body_wrap=body_wrap) for k,v in exception_handlers.items()}
         super().__init__(debug, routes, middleware=middleware, exception_handlers=excs, on_startup=on_startup, on_shutdown=on_shutdown, lifespan=lifespan)
-        
+
         # Always serve datastar.js from the RC version
         from pathlib import Path
+
         from starlette.responses import FileResponse
-        
+
         # Get the project root directory (2 levels up from this file)
         project_root = Path(__file__).parent.parent.parent
         datastar_path = project_root / 'worktrees' / 'datastar-rc' / 'datastar.js'
-        
+
         def serve_datastar():
             if not datastar_path.exists():
                 raise FileNotFoundError(f"datastar.js not found at {datastar_path}")
             return FileResponse(datastar_path, media_type='application/javascript')
-        
+
         self.route('/static/datastar.js')(serve_datastar)
 
     def add_route(self, route) -> None:  # type: ignore[override]
@@ -500,7 +505,7 @@ def _endp(self:StarHTML, f, body_wrap):
 def _add_ws(self:StarHTML, func, path, conn, disconn, name, middleware):
     endp = _ws_endp(func, conn, disconn)
     route = WebSocketRoute(path, endpoint=endp, name=name, middleware=middleware)
-    setattr(route, 'methods', ['ws'])  # type: ignore[attr-defined]
+    route.methods = ['ws']  # type: ignore[attr-defined]
     self.add_route(route)
     return func
 
@@ -533,7 +538,7 @@ def _add_route(self:StarHTML, func, path, methods, name, include_in_schema, body
     route = Route(p, endpoint=self._endp(func, body_wrap or self.body_wrap), methods=m, name=n, include_in_schema=include_in_schema)  # type: ignore[attr-defined]
     self.add_route(route)
     lf = _mk_locfunc(func, p)
-    setattr(lf, '__routename__', n)  # type: ignore[attr-defined]
+    lf.__routename__ = n  # type: ignore[attr-defined]
     return lf
 
 @patch
@@ -597,7 +602,7 @@ class APIRouter:
     def _wrap_func(self, func, path=None):
         name = func.__name__
         wrapped = _mk_locfunc(func, path)
-        setattr(wrapped, '__routename__', name)  # type: ignore[attr-defined]
+        wrapped.__routename__ = name  # type: ignore[attr-defined]
         # If you are using the def get or def post method names, this approach is not supported
         if name not in all_meths: setattr(self.rt_funcs, name, wrapped)
         return wrapped

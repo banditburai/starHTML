@@ -1,7 +1,9 @@
 """Basic external Javascript lib wrappers"""
 
 import re
+
 from fastcore.utils import *
+
 from starhtml.components import *
 from starhtml.xtend import *
 
@@ -77,7 +79,7 @@ htmx.onLoad(hljs.highlightAll);""" % sel
     langjs = [jsd(*hjs, f'languages/{lang}.min.js') for lang in langs]
     return [jsd(*hjs, f'styles/{dark}.css', typ='css', media="(prefers-color-scheme: dark)"),
             jsd(*hjs, f'styles/{light}.css', typ='css', media="(prefers-color-scheme: light)"),
-            jsd(*hjs, f'highlight.min.js'),
+            jsd(*hjs, 'highlight.min.js'),
             jsd(*hjc, 'highlightjs-copy.min.js'),
             jsd(*hjc, 'highlightjs-copy.min.css', typ='css'),
             *langjs, Script(src, type='module')]

@@ -1,9 +1,9 @@
 """Tests for StarHTML with Datastar functionality - new direct attribute syntax only."""
 
-import pytest
-from starhtml import star_app, Div, H1, Button, Form, Input, P, A
-from starhtml.datastar import sse, signals, fragments
+from starhtml import H1, A, Button, Div, Form, Input, P, star_app
 from starhtml.components import to_xml
+from starhtml.datastar import fragments, signals, sse
+
 
 def test_datastar_imports():
     """Test that Datastar SSE components can be imported."""
@@ -61,7 +61,7 @@ def test_datastar_indicator():
 def test_datastar_component_integration():
     """Test Datastar with StarHTML components."""
     app, rt = star_app()
-    
+
     @rt('/')
     def get():
         return Div(
@@ -73,54 +73,54 @@ def test_datastar_component_integration():
                 Button("Submit", type="submit")
             )
         )
-    
+
     # Should not raise any errors
     assert get is not None
 
 def test_datastar_sse():
     """Test Datastar SSE functionality."""
     app, rt = star_app()
-    
+
     @rt('/sse')
     @sse
     def get():
         yield signals(count=1)
         yield fragments(Div("Updated content"), "#target", "morph")
-    
+
     # Should not raise any errors
     assert get is not None
 
 def test_datastar_auto_selector():
     """Test auto-selector detection functionality."""
     app, rt = star_app()
-    
+
     @rt('/auto')
     @sse
     def get():
         # Auto-detection: should use #my-target selector
         yield fragments(Div("Auto content", id="my-target"))
-    
+
     # Should not raise any errors
     assert get is not None
 
 def test_datastar_conditional_rendering():
     """Test Datastar conditional rendering."""
     app, rt = star_app()
-    
+
     @rt('/')
     def get():
         return Div(
             Button("Toggle", ds_on_click="visible = !visible"),
             Div("Content", ds_show="visible")
         )
-    
+
     # Should not raise any errors
     assert get is not None
 
 def test_datastar_form_handling():
     """Test Datastar form handling."""
     app, rt = star_app()
-    
+
     @rt('/')
     def get():
         return Form(
@@ -128,18 +128,18 @@ def test_datastar_form_handling():
             Input(ds_bind="email"),
             Button("Submit", type="submit", ds_on_submit="submitForm()")
         )
-    
+
     # Should not raise any errors
     assert get is not None
 
 def test_datastar_navigation():
     """Test Datastar navigation."""
     app, rt = star_app()
-    
+
     @rt('/')
     def get():
         return A("Go to page", href="/page", ds_on_click="navigate()")
-    
+
     # Should not raise any errors
     assert get is not None
 
