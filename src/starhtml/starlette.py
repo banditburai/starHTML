@@ -2,9 +2,11 @@
 
 from json import loads
 
+from starlette._utils import is_async_callable
 from starlette.applications import Starlette
 from starlette.authentication import requires
 from starlette.background import BackgroundTask, BackgroundTasks
+from starlette.concurrency import run_in_threadpool
 from starlette.convertors import StringConvertor, register_url_convertor
 from starlette.datastructures import FormData, Headers, QueryParams, State, UploadFile, URLPath
 from starlette.endpoints import HTTPEndpoint, WebSocketEndpoint
@@ -32,6 +34,8 @@ from starlette.websockets import WebSocket, WebSocketDisconnect, WebSocketState
 
 __all__ = [
     "loads",
+    "is_async_callable",
+    "run_in_threadpool",
     "Starlette",
     "requires",
     "BackgroundTask",
