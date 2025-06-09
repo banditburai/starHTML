@@ -15,11 +15,13 @@ from starlette.requests import HTTPConnection, Request
 from starlette.responses import (
     FileResponse,
     HTMLResponse,
-    JSONResponse as JSONResponseOrig,
     PlainTextResponse,
     RedirectResponse,
     Response,
     StreamingResponse,
+)
+from starlette.responses import (
+    JSONResponse as JSONResponseOrig,
 )
 from starlette.routing import Mount, Route, WebSocketRoute
 from starlette.staticfiles import StaticFiles
