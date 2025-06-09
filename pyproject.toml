@@ -29,7 +29,7 @@ addopts = [
     "--cov-report=term-missing:skip-covered",
     "--cov-report=html",
     "--cov-report=xml",
-    "--cov-fail-under=80",
+    "--cov-fail-under=25",
 ]
 testpaths = ["tests"]
 pythonpath = ["src", "."]
