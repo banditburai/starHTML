@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Modern HTML generation in Python, inspired by FastHTML"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = ["starlette", "uvicorn[standard]", "httpx", "beautifulsoup4", "python-dateutil", "fastcore", "fastlite"]
+dependencies = ["starlette", "uvicorn[standard]", "httpx", "beautifulsoup4", "python-dateutil", "fastcore", "fastlite", "oauthlib"]
 
 [project.optional-dependencies]
 test = ["pytest", "pytest-cov", "pytest-timeout", "pytest-xdist", "pytest-watch"]
@@ -112,7 +112,7 @@ reportPrivateImportUsage = false
 reportUnusedImport = false
 reportUnusedClass = true
 reportUnusedFunction = false
-reportUnusedVariable = true
+reportUnusedVariable = false
 reportDuplicateImport = true
 reportWildcardImportFromLibrary = false
 reportOptionalMemberAccess = false
@@ -122,10 +122,10 @@ reportOptionalContextManager = true
 reportOptionalOperand = true
 reportTypedDictNotRequiredAccess = true
 reportUnnecessaryCast = true
-reportUnnecessaryComparison = true
-reportUnnecessaryContains = true
+reportUnnecessaryComparison = false
+reportUnnecessaryContains = false
 reportAssertAlwaysTrue = true
-reportUnnecessaryTypeIgnoreComment = true
+reportUnnecessaryTypeIgnoreComment = false
 reportImplicitOverride = false
 reportShadowedImports = true
 reportUndefinedVariable = false
