@@ -128,3 +128,4 @@ reportAssertAlwaysTrue = true
 reportUnnecessaryTypeIgnoreComment = true
 reportImplicitOverride = false
 reportShadowedImports = true
+reportUndefinedVariable = false
