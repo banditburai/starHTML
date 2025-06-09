@@ -5,8 +5,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from components.ui import Button as UIButton
+from components.ui import button
+
 from starhtml import *
-from components.ui import Button as UIButton, button
 
 
 def test_button_renders_basic():
