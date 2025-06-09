@@ -354,7 +354,9 @@ def _resp(req, resp, cls=empty, status_code=200):
         if callable(response_method):
             resp = response_method(req)
     if cls in (Any,FT): cls=empty
-    if isinstance(resp, FileResponse) and not os.path.exists(resp.path): raise HTTPException(404, resp.path)
+    if isinstance(resp, FileResponse):
+        if not os.path.exists(resp.path):  # type: ignore[attr-defined]
+            raise HTTPException(404, resp.path)  # type: ignore[attr-defined]
     resp,kw = _part_resp(req, resp)
     if cls is not empty: return cls(resp, status_code=status_code, **kw)
     if isinstance(resp, Response): return resp
