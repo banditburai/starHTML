@@ -1,66 +1,133 @@
+[project]
+name = "starhtml"
+version = "0.1.0"
+description = "Modern HTML generation in Python, inspired by FastHTML"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = ["starlette", "uvicorn[standard]", "httpx", "beautifulsoup4", "python-dateutil", "fastcore", "fastlite", "oauthlib", "itsdangerous"]
+
+[project.optional-dependencies]
+test = ["pytest", "pytest-cov", "pytest-timeout", "pytest-xdist", "pytest-watch"]
+dev = ["ipykernel", "pip-tools", "ruff", "pyright"]
+doc = ["mkdocs", "mkdocs-material", "mdx-include"]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-[project]
-name = "starhtml"
-version = "0.1.0"
-description = "A Python-first Datastar HTML framework forked from FastHTML"
-readme = "README.md"
-license = "Apache-2.0"
-authors = [
-    {name = "StarHTML Contributors"},
-]
-keywords = ["web", "html", "framework", "starlette", "python"]
-classifiers = [
-    "Development Status :: 3 - Alpha",
-    "Intended Audience :: Developers",
-    "Natural Language :: English",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
-]
-requires-python = ">=3.10"
-dependencies = [
-    "fastcore>=1.8.1",
-    "python-dateutil",
-    "starlette>0.33",
-    "oauthlib",
-    "itsdangerous",
-    "uvicorn[standard]>=0.30",
-    "httpx",
-    "fastlite>=0.1.1",
-    "python-multipart",
-    "beautifulsoup4",
-    "orjson>=3.10.18",
-]
-
-[project.urls]
-Repository = "https://github.com/banditburai/starhtml"
-Issues = "https://github.com/banditburai/starhtml/issues"
-
 [tool.hatch.build.targets.wheel]
 packages = ["src/starhtml"]
 
-[tool.uv]
-dev-dependencies = [
-    "pytest>=7.0",
-    "ruff>=0.1.0",
-    "bump-my-version>=0.15.0",
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = [
+    "--verbose",
+    "--strict-markers",
+    "--strict-config",
+    "--cov=src/starhtml",
+    "--cov-branch",
+    "--cov-report=term-missing:skip-covered",
+    "--cov-report=html",
+    "--cov-report=xml",
+    "--cov-fail-under=25",
+]
+testpaths = ["tests"]
+pythonpath = ["src", "."]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
 ]
 
-[tool.bumpversion]
-current_version = "0.1.0"
-parse = "(?P<major>\\d+)\\.(?P<minor>\\d+)\\.(?P<patch>\\d+)"
-serialize = ["{major}.{minor}.{patch}"]
-search = "{current_version}"
-replace = "{new_version}"
-tag = true
-commit = true
-commit_args = "--no-verify"
+[tool.coverage.run]
+source = ["src/starhtml"]
+omit = ["*/tests/*", "*/test_*.py"]
 
-[[tool.bumpversion.files]]
-filename = "pyproject.toml"
-search = 'version = "{current_version}"'
-replace = 'version = "{new_version}"'
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+    "pass",
+    "except ImportError:",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+src = ["src", "tests", "demo"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "N",   # pep8-naming
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "C90", # mccabe complexity
+    "PL",  # pylint
+]
+ignore = [
+    "E501",     # Line length
+    "PLR0913",  # Too many arguments
+    "F403",     # Star imports - allowed for StarHTML demos
+    "F405",     # May be undefined from star imports
+    "N802",     # Function names should be lowercase - HTML components need capitals
+]
+
+[tool.ruff.lint.per-file-ignores]
+"demo/*.py" = ["F403", "F405", "PLR2004", "N802"]  # Allow star imports, magic values, and capitalized function names in demos
+"tests/*.py" = ["F403", "F405", "PLR2004"]  # Allow star imports and magic values in tests
+"src/starhtml/components.py" = ["N802", "N807", "C901", "PLR0912", "UP007", "PLW2901", "PLE0605"]  # Allow capitalized function names for HTML components and complexity
+"src/starhtml/xtend.py" = ["N802", "UP031"]  # Allow capitalized function names for extended components and % formatting
+"src/starhtml/core.py" = ["N813", "E721", "B904", "C901", "PLR0911", "PLR0912", "N802", "E402", "PLR2004", "N801"]  # Allow various patterns needed for StarHTML
+"src/starhtml/svg.py" = ["N802", "N803", "N806"]  # Allow capitalized function names for SVG elements
+"src/starhtml/js.py" = ["N802"]  # Allow capitalized function names for JS components
+"src/starhtml/datastar.py" = ["B904", "PLR2004"]  # Allow datastar patterns
+"src/starhtml/live_reload.py" = ["N802"]  # Allow capitalized function names
+"src/starhtml/oauth.py" = ["C901"]  # Allow complexity in OAuth
+"src/starhtml/__init__.py" = ["F401"]  # Allow unused imports in __init__
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.pyright]
+include = ["src", "tests", "demo"]
+exclude = ["**/node_modules", "**/__pycache__", "**/.venv", "**/build", "**/dist"]
+pythonVersion = "3.11"
+pythonPlatform = "All"
+typeCheckingMode = "standard"
+reportMissingImports = false
+reportMissingTypeStubs = false
+reportPrivateImportUsage = false
+reportUnusedImport = false
+reportUnusedClass = true
+reportUnusedFunction = false
+reportUnusedVariable = false
+reportDuplicateImport = true
+reportWildcardImportFromLibrary = false
+reportOptionalMemberAccess = false
+reportOptionalCall = false
+reportOptionalIterable = true
+reportOptionalContextManager = true
+reportOptionalOperand = true
+reportTypedDictNotRequiredAccess = true
+reportUnnecessaryCast = true
+reportUnnecessaryComparison = false
+reportUnnecessaryContains = false
+reportAssertAlwaysTrue = true
+reportUnnecessaryTypeIgnoreComment = false
+reportImplicitOverride = false
+reportShadowedImports = true
+reportUndefinedVariable = false
+reportCallIssue = false
+reportArgumentType = false
