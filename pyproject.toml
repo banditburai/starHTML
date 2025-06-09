@@ -77,6 +77,8 @@ select = [
 ]
 ignore = [
     "E501",     # Line length
+    "E701",     # Multiple statements on one line - StarHTML uses concise style
+    "W293",     # Blank line contains whitespace
     "PLR0913",  # Too many arguments
     "F403",     # Star imports - allowed for StarHTML demos
     "F405",     # May be undefined from star imports
