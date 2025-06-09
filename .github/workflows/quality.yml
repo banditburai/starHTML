@@ -44,7 +44,7 @@ jobs:
         uv run pytest tests/ -v --tb=short --cov=src/starhtml --cov-report=term-missing --cov-report=xml
         
     - name: Test demo files
-      run: uv run pytest demo/ -v --tb=short
+      run: uv run pytest demo/ -v --tb=short --no-cov
         
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
