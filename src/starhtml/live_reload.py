@@ -3,7 +3,8 @@ from starhtml.core import StarHTML
 
 __all__ = ["StarHTMLWithLiveReload"]
 
-def LiveReloadJs(reload_attempts:int=20, reload_interval:int=1000, **kwargs):
+
+def LiveReloadJs(reload_attempts: int = 20, reload_interval: int = 1000, **kwargs):
     src = """
     (() => {
         let attempts = 0;
@@ -24,9 +25,13 @@ def LiveReloadJs(reload_attempts:int=20, reload_interval:int=1000, **kwargs):
     })();
     """
     from starhtml.xtend import Script
+
     return Script(src % (reload_interval, reload_attempts))
 
-async def live_reload_ws(websocket): await websocket.accept()
+
+async def live_reload_ws(websocket):
+    await websocket.accept()
+
 
 class StarHTMLWithLiveReload(StarHTML):
     """
@@ -52,6 +57,7 @@ class StarHTMLWithLiveReload(StarHTML):
         Run:
             serve()
     """
+
     def __init__(self, *args, **kwargs):
         # "hdrs" and "routes" can be missing, None, a list or a tuple.
         kwargs["hdrs"] = [*(kwargs.get("hdrs") or []), LiveReloadJs(**kwargs)]

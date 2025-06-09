@@ -2,6 +2,7 @@
 
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from starhtml import *
@@ -9,7 +10,8 @@ from components.ui import Button, IconifyIcon
 
 app, rt = star_app(title="Theme Debug Test")
 
-@rt('/')
+
+@rt("/")
 def home():
     return Div(
         # Theme initialization
@@ -28,7 +30,6 @@ def home():
             }
             console.log('Has dark class after init:', document.documentElement.classList.contains('dark'));
         """),
-        
         # Theme toggle with debugging
         Div(
             Button(
@@ -45,7 +46,7 @@ def home():
                 """,
                 size="icon",
                 variant="outline",
-                aria_label="Toggle theme"
+                aria_label="Toggle theme",
             ),
             ds_signals={"isDark": "document.documentElement.classList.contains('dark')"},
             ds_init="""
@@ -53,15 +54,14 @@ def home():
                 console.log('DOM has dark class:', document.documentElement.classList.contains('dark'));
                 console.log('Initial $isDark will be:', document.documentElement.classList.contains('dark'));
             """,
-            cls="fixed top-4 right-4"
+            cls="fixed top-4 right-4",
         ),
-        
         H1("Theme Debug Test"),
         P("Check console logs and test the theme toggle."),
         P("Current theme state: ", Span(ds_text="$isDark ? 'Dark' : 'Light'")),
-        
-        cls="p-8"
+        cls="p-8",
     )
+
 
 if __name__ == "__main__":
     print("Theme Debug Test running on http://localhost:5005")

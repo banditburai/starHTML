@@ -24,26 +24,16 @@ def client(app):
 def sample_components():
     """Common component fixtures."""
     from starhtml import Div, H1, Button, Form, Input, P, A
-    return {
-        'Div': Div,
-        'H1': H1,
-        'Button': Button,
-        'Form': Form,
-        'Input': Input,
-        'P': P,
-        'A': A
-    }
+
+    return {"Div": Div, "H1": H1, "Button": Button, "Form": Form, "Input": Input, "P": P, "A": A}
 
 
 @pytest.fixture
 def datastar_components():
     """Datastar-specific component fixtures."""
     from starhtml.datastar import sse, signals, fragments
-    return {
-        'sse': sse,
-        'signals': signals,
-        'fragments': fragments
-    }
+
+    return {"sse": sse, "signals": signals, "fragments": fragments}
 
 
 @pytest.fixture
@@ -59,25 +49,24 @@ def mock_request():
     """Create a mock request object for testing."""
     from starlette.requests import Request
     from starlette.datastructures import Headers
-    
+
     class MockRequest:
         def __init__(self):
-            self.headers = Headers({
-                "accept": "text/html,application/xhtml+xml",
-                "user-agent": "Mozilla/5.0 (Test)"
-            })
+            self.headers = Headers({"accept": "text/html,application/xhtml+xml", "user-agent": "Mozilla/5.0 (Test)"})
             self.method = "GET"
             self.url = "http://testserver/"
             self.query_params = {}
-            
+
     return MockRequest()
 
 
 @pytest.fixture
 def temp_demo_file(tmp_path):
     """Create a temporary demo file for testing."""
+
     def _create_demo(content):
         demo_file = tmp_path / "test_demo.py"
         demo_file.write_text(content)
         return demo_file
+
     return _create_demo

@@ -5,96 +5,77 @@ from components.docs import ComponentDocPage
 from components.ui import Button
 from components.ui.iconify import IconifyIcon
 
-app, rt = star_app(
-    title="Button - StarHTML UI",
-    live=True
-)
+app, rt = star_app(title="Button - StarHTML UI", live=True)
 
-@rt('/')
+
+@rt("/")
 def button_docs_page():
     """Button documentation page route."""
-    
+
     # Button examples matching shadcn-ui
     examples = [
+        {"title": "Default", "preview": Button("Button"), "code": "<Button>Button</Button>"},
         {
-            "title": "Default",
-            "preview": Button("Button"),
-            "code": '<Button>Button</Button>'
-        },
-        {
-            "title": "Secondary", 
+            "title": "Secondary",
             "preview": Button("Secondary", variant="secondary"),
-            "code": '<Button variant="secondary">Secondary</Button>'
+            "code": '<Button variant="secondary">Secondary</Button>',
         },
         {
             "title": "Destructive",
             "preview": Button("Destructive", variant="destructive"),
-            "code": '<Button variant="destructive">Destructive</Button>'
+            "code": '<Button variant="destructive">Destructive</Button>',
         },
         {
             "title": "Outline",
             "preview": Button("Outline", variant="outline"),
-            "code": '<Button variant="outline">Outline</Button>'
+            "code": '<Button variant="outline">Outline</Button>',
         },
         {
             "title": "Ghost",
             "preview": Button("Ghost", variant="ghost"),
-            "code": '<Button variant="ghost">Ghost</Button>'
+            "code": '<Button variant="ghost">Ghost</Button>',
         },
-        {
-            "title": "Link",
-            "preview": Button("Link", variant="link"),
-            "code": '<Button variant="link">Link</Button>'
-        },
+        {"title": "Link", "preview": Button("Link", variant="link"), "code": '<Button variant="link">Link</Button>'},
         {
             "title": "Icon",
-            "preview": Button(
-                IconifyIcon("lucide:chevron-right", cls="h-4 w-4"),
-                variant="outline",
-                size="icon"
-            ),
-            "code": '''<Button variant="outline" size="icon">
+            "preview": Button(IconifyIcon("lucide:chevron-right", cls="h-4 w-4"), variant="outline", size="icon"),
+            "code": """<Button variant="outline" size="icon">
   <ChevronRight className="h-4 w-4" />
-</Button>'''
+</Button>""",
         },
         {
-            "title": "With Icon", 
-            "preview": Button(
-                IconifyIcon("lucide:mail", cls="mr-2 h-4 w-4"),
-                "Login with Email"
-            ),
-            "code": '''<Button>
+            "title": "With Icon",
+            "preview": Button(IconifyIcon("lucide:mail", cls="mr-2 h-4 w-4"), "Login with Email"),
+            "code": """<Button>
   <Mail className="mr-2 h-4 w-4" />
   Login with Email
-</Button>'''
+</Button>""",
         },
         {
             "title": "Loading",
             "preview": Button(
-                IconifyIcon("lucide:loader-2", cls="mr-2 h-4 w-4 animate-spin"),
-                "Please wait",
-                disabled=True
+                IconifyIcon("lucide:loader-2", cls="mr-2 h-4 w-4 animate-spin"), "Please wait", disabled=True
             ),
-            "code": '''<Button disabled>
+            "code": """<Button disabled>
   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
   Please wait
-</Button>'''
+</Button>""",
         },
         {
             "title": "As Child",
             "description": "Use the asChild prop to make another component look like a button.",
             "preview": Button("Login", variant="outline"),
-            "code": '''<Button asChild>
+            "code": """<Button asChild>
   <Link href="/login">Login</Link>
-</Button>'''
-        }
+</Button>""",
+        },
     ]
-    
+
     # Manual installation files
     manual_files = [
         {
             "filename": "components/ui/button.tsx",
-            "content": '''import * as React from "react"
+            "content": """import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
 import { cva, type VariantProps } from "class-variance-authority"
 
@@ -150,26 +131,21 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 )
 Button.displayName = "Button"
 
-export { Button, buttonVariants }''',
-            "language": "tsx"
+export { Button, buttonVariants }""",
+            "language": "tsx",
         }
     ]
-    
+
     # Dependencies for manual installation
-    dependencies = [
-        "@radix-ui/react-slot",
-        "class-variance-authority",
-        "clsx",
-        "tailwind-merge"
-    ]
-    
+    dependencies = ["@radix-ui/react-slot", "class-variance-authority", "clsx", "tailwind-merge"]
+
     # Usage code example
-    usage_code = '''import { Button } from "@/components/ui/button"
+    usage_code = """import { Button } from "@/components/ui/button"
 
 export function ButtonDemo() {
   return <Button>Button</Button>
-}'''
-    
+}"""
+
     # API Reference
     api_reference = {
         "props": [
@@ -177,20 +153,20 @@ export function ButtonDemo() {
                 "name": "variant",
                 "type": "'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link'",
                 "default": "'default'",
-                "description": "The visual style variant of the button."
+                "description": "The visual style variant of the button.",
             },
             {
-                "name": "size", 
+                "name": "size",
                 "type": "'default' | 'sm' | 'lg' | 'icon'",
                 "default": "'default'",
-                "description": "The size variant of the button."
+                "description": "The size variant of the button.",
             },
             {
                 "name": "asChild",
                 "type": "boolean",
                 "default": "false",
-                "description": "Change the default rendered element for the one passed as a child, merging their props and behavior."
-            }
+                "description": "Change the default rendered element for the one passed as a child, merging their props and behavior.",
+            },
         ],
         "variants": {
             "variant": [
@@ -199,17 +175,17 @@ export function ButtonDemo() {
                 {"name": "outline", "description": "A button with transparent background and border."},
                 {"name": "secondary", "description": "A secondary button with muted styling."},
                 {"name": "ghost", "description": "A button with no background that appears on hover."},
-                {"name": "link", "description": "A button that looks like a text link."}
+                {"name": "link", "description": "A button that looks like a text link."},
             ],
             "size": [
                 {"name": "default", "description": "Default button size (36px height)."},
                 {"name": "sm", "description": "Small button size (32px height)."},
                 {"name": "lg", "description": "Large button size (40px height)."},
-                {"name": "icon", "description": "Square button optimized for icons (36px × 36px)."}
-            ]
-        }
+                {"name": "icon", "description": "Square button optimized for icons (36px × 36px)."},
+            ],
+        },
     }
-    
+
     return ComponentDocPage(
         "Button",
         "Displays a button or a component that looks like a button.",
@@ -223,11 +199,12 @@ export function ButtonDemo() {
         breadcrumb_items=[
             {"label": "Docs", "href": "/docs"},
             {"label": "Components", "href": "/docs/components"},
-            {"label": "Button", "active": True}
-        ]
+            {"label": "Button", "active": True},
+        ],
     )
 
-@rt('/static/globals.css')
+
+@rt("/static/globals.css")
 def css_route():
     """Serve CSS with theme variables."""
     css_content = """
@@ -285,8 +262,9 @@ def css_route():
         color: hsl(var(--foreground));
     }
     """
-    
+
     return Response(css_content, media_type="text/css")
+
 
 if __name__ == "__main__":
     print("Starting Button Documentation Server...")

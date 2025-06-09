@@ -60,7 +60,7 @@ exclude_lines = [
 
 [tool.ruff]
 line-length = 120
-target-version = "py310"
+target-version = "py311"
 src = ["src", "tests", "demo"]
 
 [tool.ruff.lint]
@@ -75,7 +75,16 @@ select = [
     "C90", # mccabe complexity
     "PL",  # pylint
 ]
-ignore = ["E501", "PLR0913"]  # Line length, too many arguments
+ignore = [
+    "E501",     # Line length
+    "PLR0913",  # Too many arguments
+    "F403",     # Star imports - allowed for StarHTML demos
+    "F405",     # May be undefined from star imports
+]
+
+[tool.ruff.lint.per-file-ignores]
+"demo/*.py" = ["F403", "F405"]  # Allow star imports in demos
+"tests/*.py" = ["F403", "F405"]  # Allow star imports in tests
 
 [tool.ruff.format]
 quote-style = "double"
