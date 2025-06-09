@@ -395,7 +395,7 @@ def _find_targets(req, resp):
 def _apply_ft(o):
     if isinstance(o, tuple):
         o = tuple(_apply_ft(c) for c in o)
-    if hasattr(o, "__ft__") and callable(getattr(o, "__ft__")):
+    if hasattr(o, "__ft__") and callable(o.__ft__):
         o = o.__ft__()  # type: ignore[attr-defined]
     if isinstance(o, FT):
         o.children = tuple(_apply_ft(c) for c in o.children)
@@ -482,7 +482,7 @@ def _is_ft_resp(resp):
 def _resp(req, resp, cls=empty, status_code=200):
     if not resp:
         resp = ""
-    if hasattr(resp, "__response__") and callable(getattr(resp, "__response__")):
+    if hasattr(resp, "__response__") and callable(resp.__response__):
         resp = resp.__response__(req)  # type: ignore[attr-defined]
     if cls in (Any, FT):
         cls = empty
