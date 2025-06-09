@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Modern HTML generation in Python, inspired by FastHTML"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = ["starlette", "uvicorn[standard]", "httpx", "beautifulsoup4", "python-dateutil", "fastcore", "fastlite", "oauthlib"]
+dependencies = ["starlette", "uvicorn[standard]", "httpx", "beautifulsoup4", "python-dateutil", "fastcore", "fastlite", "oauthlib", "itsdangerous"]
 
 [project.optional-dependencies]
 test = ["pytest", "pytest-cov", "pytest-timeout", "pytest-xdist", "pytest-watch"]
