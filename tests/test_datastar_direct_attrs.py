@@ -1,8 +1,6 @@
 """Comprehensive tests for Datastar direct attribute syntax (no ** unpacking)."""
 
-import pytest
-import json
-from starhtml import Div, Button, Input, Form, P, A, Script, Span, Select, Option
+from starhtml import Button, Div, Form, Input, P, Span
 from starhtml.components import to_xml
 
 

@@ -1,9 +1,10 @@
 """Test that all demo files can be imported and run without errors."""
 
-import pytest
 import importlib.util
 import sys
 from pathlib import Path
+
+import pytest
 
 DEMO_DIR = Path(__file__).parent.parent / "demo"
 

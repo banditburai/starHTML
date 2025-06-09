@@ -5,9 +5,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import pytest
-from starhtml import *
 from components.ui import Button, button
+
+from starhtml import *
 
 
 def test_button_renders_basic():

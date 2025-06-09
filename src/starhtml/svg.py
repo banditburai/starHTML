@@ -1,8 +1,9 @@
 """Simple SVG FT elements"""
 
-from fastcore.utils import *
 from fastcore.meta import delegates
+from fastcore.utils import *
 from fastcore.xml import FT
+
 from .common import *
 from .components import *
 from .xtend import *
@@ -316,7 +317,7 @@ def Text(
 
 class PathFT(FT):
     def _append_cmd(self, cmd):
-        if not isinstance(getattr(self, "d"), str):
+        if not isinstance(self.d, str):
             self.d = cmd
         else:
             self.d += f" {cmd}"

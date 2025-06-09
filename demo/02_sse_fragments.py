@@ -1,8 +1,9 @@
 """SSE fragments demo - shows server-sent updates"""
 
-from starhtml import *
-import time
 import random
+import time
+
+from starhtml import *
 
 app, rt = star_app(title="SSE Fragments Demo")
 

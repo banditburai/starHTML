@@ -1,7 +1,6 @@
 """Test SSE format matches Datastar v1 RC specification"""
 
-import pytest
-from starhtml.datastar import signals, fragments, format_signal_event, format_fragment_event
+from starhtml.datastar import format_fragment_event, format_signal_event, fragments, signals
 
 
 def test_signal_sse_format():

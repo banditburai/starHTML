@@ -1,9 +1,8 @@
 """Tests for StarHTML with Datastar functionality - new direct attribute syntax only."""
 
-import pytest
-from starhtml import star_app, Div, H1, Button, Form, Input, P, A
-from starhtml.datastar import sse, signals, fragments
+from starhtml import H1, A, Button, Div, Form, Input, P, star_app
 from starhtml.components import to_xml
+from starhtml.datastar import fragments, signals, sse
 
 
 def test_datastar_imports():

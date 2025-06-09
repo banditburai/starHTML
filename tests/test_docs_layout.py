@@ -6,9 +6,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import pytest
+from components.docs import DocsBreadcrumb, DocsFooter, DocsHeader, DocsLayout, DocsSidebar
+
 from starhtml import *
-from components.docs import DocsLayout, DocsHeader, DocsSidebar, DocsBreadcrumb, DocsFooter
 
 
 def test_docs_header_renders():
@@ -115,7 +115,7 @@ def test_docs_layout_with_custom_nav():
 
 def test_lowercase_aliases():
     """Test that lowercase aliases work."""
-    from components.docs import docs_header, docs_sidebar, docs_breadcrumb, docs_footer, docs_layout
+    from components.docs import docs_breadcrumb, docs_footer, docs_header, docs_layout, docs_sidebar
 
     # These should work without errors
     header = docs_header()

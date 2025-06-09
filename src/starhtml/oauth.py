@@ -13,10 +13,13 @@ __all__ = [
     "load_creds",
 ]
 
-from .common import *
+import secrets
+from urllib.parse import urlencode
+
+import httpx
 from oauthlib.oauth2 import WebApplicationClient
-from urllib.parse import urlparse, urlencode, parse_qs, quote, unquote
-import secrets, httpx
+
+from .common import *
 
 
 class _AppClient(WebApplicationClient):
@@ -280,8 +283,8 @@ class OAuth:
 
 
 try:
-    from google.oauth2.credentials import Credentials
     from google.auth.transport.requests import Request
+    from google.oauth2.credentials import Credentials
 except ImportError:
     Request = None
 

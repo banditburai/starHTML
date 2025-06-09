@@ -1,9 +1,11 @@
 """Shared test fixtures and configuration for StarHTML tests."""
 
-import pytest
 import asyncio
-from starhtml import star_app
+
+import pytest
 from starlette.testclient import TestClient
+
+from starhtml import star_app
 
 
 @pytest.fixture
@@ -23,7 +25,7 @@ def client(app):
 @pytest.fixture
 def sample_components():
     """Common component fixtures."""
-    from starhtml import Div, H1, Button, Form, Input, P, A
+    from starhtml import H1, A, Button, Div, Form, Input, P
 
     return {"Div": Div, "H1": H1, "Button": Button, "Form": Form, "Input": Input, "P": P, "A": A}
 
@@ -31,7 +33,7 @@ def sample_components():
 @pytest.fixture
 def datastar_components():
     """Datastar-specific component fixtures."""
-    from starhtml.datastar import sse, signals, fragments
+    from starhtml.datastar import fragments, signals, sse
 
     return {"sse": sse, "signals": signals, "fragments": fragments}
 
@@ -47,7 +49,6 @@ def event_loop():
 @pytest.fixture
 def mock_request():
     """Create a mock request object for testing."""
-    from starlette.requests import Request
     from starlette.datastructures import Headers
 
     class MockRequest:

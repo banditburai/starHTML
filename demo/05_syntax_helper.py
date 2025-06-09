@@ -38,7 +38,7 @@ def home():
         Pre(
             Code("""
 # WRONG - SyntaxError:
-# Div(id="test", P("content"), style="...")  
+# Div(id="test", P("content"), style="...")
 
 # CORRECT - Attributes after children:
 # Div(P("content"), id="test", style="...")

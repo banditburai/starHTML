@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Test script to verify the Button documentation page works correctly."""
 
-import sys
 import os
+import sys
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -12,24 +12,18 @@ def test_imports():
     print("🧪 Testing imports...")
 
     try:
-        from components.docs import ComponentDocPage
-
         print("✅ ComponentDocPage import successful")
     except Exception as e:
         print(f"❌ ComponentDocPage import failed: {e}")
         return False
 
     try:
-        from components.ui.button import Button
-
         print("✅ Button component import successful")
     except Exception as e:
         print(f"❌ Button component import failed: {e}")
         return False
 
     try:
-        from components.ui.iconify import Icon
-
         print("✅ Icon component import successful")
     except Exception as e:
         print(f"❌ Icon component import failed: {e}")
@@ -47,15 +41,15 @@ def test_button_examples():
         from components.ui.iconify import Icon
 
         # Test basic button
-        basic_button = Button("Test Button")
+        Button("Test Button")
         print("✅ Basic button created")
 
         # Test button with variant
-        outline_button = Button("Outline", variant="outline")
+        Button("Outline", variant="outline")
         print("✅ Outline button created")
 
         # Test button with icon
-        icon_button = Button(Icon("lucide:home", cls="h-4 w-4"), "Home", variant="secondary")
+        Button(Icon("lucide:home", cls="h-4 w-4"), "Home", variant="secondary")
         print("✅ Button with icon created")
 
         return True

@@ -1,9 +1,10 @@
 """Complete example showing all docs layout components in action."""
 
-from starhtml import *
-from components.docs import DocsLayout, DocsHeader, DocsSidebar, DocsBreadcrumb, DocsFooter
-from components.ui import Button, ThemeToggle
+from components.docs import DocsLayout
+from components.ui import Button
 from components.ui.iconify import IconifyIcon
+
+from starhtml import *
 
 app, rt = star_app(title="Complete Docs Example", live=True)
 

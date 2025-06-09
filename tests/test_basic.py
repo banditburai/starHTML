@@ -1,7 +1,5 @@
 """Basic tests for StarHTML functionality."""
 
-import pytest
-
 
 def test_starhtml_imports():
     """Test that StarHTML can be imported without errors."""
@@ -23,7 +21,7 @@ def test_app_creation():
 
 def test_route_creation():
     """Test that routes can be created."""
-    from starhtml import star_app, Div, H1
+    from starhtml import H1, Div, star_app
 
     app, rt = star_app()
 
@@ -37,7 +35,7 @@ def test_route_creation():
 
 def test_components_import():
     """Test that HTML components can be imported."""
-    from starhtml import Div, H1, P, Button
+    from starhtml import H1, Button, Div, P
 
     # Should be able to create components
     div = Div("test")

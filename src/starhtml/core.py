@@ -1,27 +1,30 @@
 """The `StarHTML` subclass of `Starlette`, along with the `RouterX` and `RouteX` classes it automatically uses."""
 
-import json, uuid, inspect, types, signal, asyncio, threading
+import asyncio
+import inspect
+import json
+import types
+import uuid
+from base64 import b64encode
+from collections.abc import Mapping
+from copy import deepcopy
+from dataclasses import dataclass
+from datetime import date, datetime
+from functools import partialmethod, update_wrapper
+from http import cookies
+from inspect import Parameter, get_annotations
+from types import GenericAlias, UnionType
+from types import SimpleNamespace as ns
+from typing import Any, Union, get_args, get_origin
+from urllib.parse import parse_qs, quote, unquote, urlencode
+from uuid import uuid4
+from warnings import warn
 
+from anyio import from_thread
+from dateutil import parser as dtparse
 from fastcore.utils import *
 from fastcore.xml import *
-from fastcore.meta import use_kwargs_dict
-
-from types import UnionType, SimpleNamespace as ns, GenericAlias
-from typing import Optional, get_type_hints, get_args, get_origin, Union, Mapping, TypedDict, List, Any
-from datetime import datetime, date
-from dataclasses import dataclass, fields
-from collections import namedtuple
-from inspect import isfunction, ismethod, Parameter, get_annotations
-from functools import wraps, partialmethod, update_wrapper
-from http import cookies
-from urllib.parse import urlencode, parse_qs, quote, unquote
-from copy import copy, deepcopy
-from warnings import warn
-from dateutil import parser as dtparse
 from httpx import ASGITransport, AsyncClient
-from anyio import from_thread
-from uuid import uuid4
-from base64 import b85encode, b64encode
 
 from starhtml.starlette import *
 
@@ -54,22 +57,22 @@ fh_cfg = AttrDict(indent=True)
 def _fix_anno(t, o):
     "Create appropriate callable type for casting a `str` to type `t` (or first type in `t` if union)"
     origin = get_origin(t)
-    if origin is Union or origin is UnionType or origin in (list, List):
+    if origin is Union or origin is UnionType or origin in (list, list):
         t = first(o for o in get_args(t) if o != type(None))
     d = {bool: str2bool, int: str2int, date: str2date, UploadFile: noop}
     res = d.get(t, t)
-    if origin in (list, List):
+    if origin in (list, list):
         return _mk_list(res, o)
-    if not isinstance(o, (str, list, tuple)):
+    if not isinstance(o, str | list | tuple):
         return o
-    return res(o[-1]) if isinstance(o, (list, tuple)) else res(o)
+    return res(o[-1]) if isinstance(o, list | tuple) else res(o)
 
 
 def _form_arg(k, v, d):
     "Get type by accessing key `k` from `d`, and use to cast `v`"
     if v is None:
         return
-    if not isinstance(v, (str, list, tuple)):
+    if not isinstance(v, str | list | tuple):
         return v
     # This is the type we want to cast `v` to
     anno = d.get(k, None)
@@ -92,7 +95,7 @@ def _annotations(anno):
 
 
 def _is_body(anno):
-    return issubclass(anno, (dict, ns)) or _annotations(anno)
+    return issubclass(anno, dict | ns) or _annotations(anno)
 
 
 def _formitem(form, k):
@@ -178,7 +181,7 @@ async def _find_p(req, arg: str, p: Parameter):
         if arg.lower() in ("hdrs", "ftrs", "bodykw", "htmlkw"):
             return getattr(req, arg.lower())
         if arg != "resp":
-            warn(f"`{arg} has no type annotation and is not a recognised special name, so is ignored.")
+            warn(f"`{arg} has no type annotation and is not a recognised special name, so is ignored.", stacklevel=2)
         return None
     # Look through path, cookies, headers, query, and body in that order
     res = req.path_params.get(arg, None)
@@ -214,10 +217,10 @@ async def _wrap_req(req, params):
 def flat_xt(lst):
     "Flatten lists"
     result = []
-    if isinstance(lst, (FT, str)):
+    if isinstance(lst, FT | str):
         lst = [lst]
     for item in lst:
-        if isinstance(item, (list, tuple)):
+        if isinstance(item, list | tuple):
             result.extend(item)
         else:
             result.append(item)
@@ -261,7 +264,7 @@ def _find_wsp(ws, data, hdrs, arg: str, p: Parameter):
     if res is empty or res is None:
         res = p.default
     # We can cast str and list[str] to types; otherwise just return what we have
-    if not isinstance(res, (list, str)) or anno is empty:
+    if not isinstance(res, list | str) or anno is empty:
         return res
     return [_fix_anno(anno, o) for o in res] if isinstance(res, list) else _fix_anno(anno, res)
 
@@ -274,7 +277,7 @@ def _wrap_ws(ws, data, params):
 async def _send_ws(ws, resp):
     if not resp:
         return
-    res = to_xml(resp, indent=fh_cfg.indent) if isinstance(resp, (list, tuple, FT)) or hasattr(resp, "__ft__") else resp
+    res = to_xml(resp, indent=fh_cfg.indent) if isinstance(resp, list | tuple | FT) or hasattr(resp, "__ft__") else resp
     await ws.send_text(res)
 
 
@@ -529,7 +532,7 @@ def get_key(key=None, fname=".sesskey"):
 
 
 def _list(o):
-    return [] if not o else list(o) if isinstance(o, (tuple, list)) else [o]
+    return [] if not o else list(o) if isinstance(o, tuple | list) else [o]
 
 
 def _wrap_ex(f, status_code, hdrs, ftrs, htmlkw, bodykw, body_wrap):
@@ -560,7 +563,7 @@ def qp(p: str, **kw) -> str:
 def def_hdrs():
     "Default headers for a StarHTML app"
     # Lazy import to avoid circular imports
-    from .components import Script, Meta
+    from .components import Meta, Script
 
     datastarsrc = Script(src="/static/datastar.js", type="module")
     viewport = Meta(name="viewport", content="width=device-width, initial-scale=1, viewport-fit=cover")
@@ -652,6 +655,7 @@ class StarHTML(Starlette):
 
         # Always serve datastar.js from the RC version
         from pathlib import Path
+
         from starlette.responses import FileResponse
 
         # Get the project root directory (2 levels up from this file)

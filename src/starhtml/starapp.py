@@ -1,13 +1,13 @@
 """The `star_app` convenience wrapper for creating StarHTML applications"""
 
-import inspect, uvicorn
 from fastcore.utils import *
 from fastlite import *
-from .core import *
+
 from .components import *
-from .xtend import *
-from .starlette import *
+from .core import *
 from .live_reload import StarHTMLWithLiveReload
+from .starlette import *
+from .xtend import *
 
 __all__ = ["star_app"]
 

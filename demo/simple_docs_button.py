@@ -5,8 +5,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from starhtml import *
 from components.ui import Button, ThemeToggle
+
+from starhtml import *
 
 app, rt = star_app(title="Button - shadcn/ui")
 

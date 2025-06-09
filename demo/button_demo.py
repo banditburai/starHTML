@@ -1,7 +1,8 @@
 """Demo showcasing Button component with exact shadcn-ui layout and styling."""
 
-from starhtml import *
 from components.ui import Button, ThemeToggle
+
+from starhtml import *
 
 app, rt = star_app(
     title="Button",

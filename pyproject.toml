@@ -80,11 +80,21 @@ ignore = [
     "PLR0913",  # Too many arguments
     "F403",     # Star imports - allowed for StarHTML demos
     "F405",     # May be undefined from star imports
+    "N802",     # Function names should be lowercase - HTML components need capitals
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"demo/*.py" = ["F403", "F405"]  # Allow star imports in demos
-"tests/*.py" = ["F403", "F405"]  # Allow star imports in tests
+"demo/*.py" = ["F403", "F405", "PLR2004", "N802"]  # Allow star imports, magic values, and capitalized function names in demos
+"tests/*.py" = ["F403", "F405", "PLR2004"]  # Allow star imports and magic values in tests
+"src/starhtml/components.py" = ["N802", "N807", "C901", "PLR0912", "UP007", "PLW2901", "PLE0605"]  # Allow capitalized function names for HTML components and complexity
+"src/starhtml/xtend.py" = ["N802", "UP031"]  # Allow capitalized function names for extended components and % formatting
+"src/starhtml/core.py" = ["N813", "E721", "B904", "C901", "PLR0911", "PLR0912", "N802", "E402", "PLR2004", "N801"]  # Allow various patterns needed for StarHTML
+"src/starhtml/svg.py" = ["N802", "N803", "N806"]  # Allow capitalized function names for SVG elements
+"src/starhtml/js.py" = ["N802"]  # Allow capitalized function names for JS components
+"src/starhtml/datastar.py" = ["B904", "PLR2004"]  # Allow datastar patterns
+"src/starhtml/live_reload.py" = ["N802"]  # Allow capitalized function names
+"src/starhtml/oauth.py" = ["C901"]  # Allow complexity in OAuth
+"src/starhtml/__init__.py" = ["F401"]  # Allow unused imports in __init__
 
 [tool.ruff.format]
 quote-style = "double"

@@ -1,17 +1,15 @@
 """`ft_html` and `ft_datastar` functions to add some conveniences to `ft`, along with a full set of basic HTML components, and functions to work with forms and `FT` conversion"""
 
-from dataclasses import dataclass, asdict, is_dataclass, make_dataclass, replace, astuple, MISSING
-from bs4 import BeautifulSoup, Comment
-from typing import Literal, Optional
+import re
+from dataclasses import asdict, is_dataclass
+from typing import Optional
 
+from bs4 import BeautifulSoup, Comment
+from fastcore.test import *
 from fastcore.utils import *
 from fastcore.xml import *
-from fastcore.meta import use_kwargs, delegates
-from fastcore.test import *
-from .core import fh_cfg, unqid
 
-import types, json
-import re
+from .core import fh_cfg, unqid
 
 
 @patch
@@ -287,7 +285,7 @@ def _fill_item(item, obj):
         cs = tuple(_fill_item(o, obj) for o in cs)
     name = attr.get("name", None)
     val = None if name is None else obj.get(name, None)
-    if val is not None and not "skip" in attr:
+    if val is not None and "skip" not in attr:
         if tag == "input":
             if attr.get("type", "") == "checkbox":
                 if isinstance(val, list):
@@ -338,7 +336,7 @@ def fill_dataclass(src, dest):
 
 def find_inputs(e, tags="input", **kw):
     "Recursively find all elements in `e` with `tags` and attrs matching `kw`"
-    if not isinstance(e, (list, tuple, FT)):
+    if not isinstance(e, list | tuple | FT):
         return []
     inputs = []
     if isinstance(tags, str):
@@ -409,7 +407,7 @@ def html2ft(html, attr1st=False):
         items = sorted(elm.attrs.items(), key=lambda x: x[0] == "class") if "class" in elm.attrs else elm.attrs.items()
 
         for key, value in items:
-            value = " ".join(value) if isinstance(value, (tuple, list)) else (value or True)
+            value = " ".join(value) if isinstance(value, tuple | list) else (value or True)
             key = rev_map.get(key, key)
 
             if _is_valid_attr(key):

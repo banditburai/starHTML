@@ -1,8 +1,9 @@
 """Demo: Async SSE handlers for non-blocking operations"""
 
-from starhtml import *
 import asyncio
 import time
+
+from starhtml import *
 
 app, rt = star_app(title="Async SSE Demo")
 

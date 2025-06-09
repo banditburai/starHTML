@@ -1,14 +1,14 @@
 """Simple extensions to standard HTML components, such as adding sensible defaults"""
 
-from dataclasses import dataclass, asdict
 from typing import Any
 
+from fastcore.meta import delegates
 from fastcore.utils import *
-from fastcore.xtras import partial_format
 from fastcore.xml import *
-from fastcore.meta import use_kwargs, delegates
-from .core import *
+from fastcore.xtras import partial_format
+
 from .components import *
+from .core import *
 
 __all__ = [
     "A",

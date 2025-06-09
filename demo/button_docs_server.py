@@ -1,9 +1,10 @@
 """Server to demo the Button documentation page."""
 
-from starhtml import *
 from components.docs import ComponentDocPage
 from components.ui import Button
 from components.ui.iconify import IconifyIcon
+
+from starhtml import *
 
 app, rt = star_app(title="Button - StarHTML UI", live=True)
 
@@ -230,7 +231,7 @@ def css_route():
         --ring: 222.2 84% 4.9%;
         --radius: 0.5rem;
     }
-    
+
     .dark {
         --background: 222.2 84% 4.9%;
         --foreground: 210 40% 98%;
@@ -252,11 +253,11 @@ def css_route():
         --input: 217.2 32.6% 17.5%;
         --ring: 212.7 26.8% 83.9%;
     }
-    
+
     * {
         border-color: hsl(var(--border));
     }
-    
+
     body {
         background-color: hsl(var(--background));
         color: hsl(var(--foreground));

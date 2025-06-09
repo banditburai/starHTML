@@ -1,8 +1,9 @@
 """Demo showcasing the docs layout components."""
 
-from starhtml import *
 from components.docs import DocsLayout
 from components.ui import Button
+
+from starhtml import *
 
 app, rt = star_app(title="Docs Layout Demo", live=True)
 

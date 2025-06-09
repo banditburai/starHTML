@@ -5,8 +5,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from starhtml import *
 from components.ui import Button, IconifyIcon
+
+from starhtml import *
 
 app, rt = star_app(title="Theme Debug Test")
 
@@ -23,7 +24,7 @@ def home():
             console.log('Saved theme:', saved);
             console.log('System dark:', systemDark);
             console.log('Should be dark:', isDark);
-            
+
             if (isDark) {
                 document.documentElement.classList.add('dark');
                 console.log('Added dark class');

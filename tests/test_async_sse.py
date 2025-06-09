@@ -1,11 +1,12 @@
 """Test async SSE functionality"""
 
-import pytest
 import asyncio
-from starhtml import star_app, Div, P
-from starhtml.datastar import sse, signals, fragments
-from starlette.testclient import TestClient
 import time
+
+from starlette.testclient import TestClient
+
+from starhtml import Div, P, star_app
+from starhtml.datastar import fragments, signals, sse
 
 
 def test_sync_sse_handler():

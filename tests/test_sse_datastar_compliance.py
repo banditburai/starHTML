@@ -1,10 +1,11 @@
 """Test SSE compliance with Datastar RC.11 format expectations."""
 
-import pytest
-from starhtml import star_app, Div, P, Button
-from starhtml.datastar import sse, signals, fragments, format_signal_event, format_fragment_event
-from starlette.testclient import TestClient
 import json
+
+from starlette.testclient import TestClient
+
+from starhtml import Div, P, star_app
+from starhtml.datastar import format_fragment_event, format_signal_event, fragments, signals, sse
 
 
 def test_sse_event_names():
