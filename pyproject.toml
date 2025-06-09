@@ -1,66 +1,114 @@
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
 [project]
 name = "starhtml"
 version = "0.1.0"
-description = "A Python-first Datastar HTML framework forked from FastHTML"
+description = "Modern HTML generation in Python, inspired by FastHTML"
 readme = "README.md"
-license = "Apache-2.0"
-authors = [
-    {name = "StarHTML Contributors"},
-]
-keywords = ["web", "html", "framework", "starlette", "python"]
-classifiers = [
-    "Development Status :: 3 - Alpha",
-    "Intended Audience :: Developers",
-    "Natural Language :: English",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
-]
 requires-python = ">=3.10"
-dependencies = [
-    "fastcore>=1.8.1",
-    "python-dateutil",
-    "starlette>0.33",
-    "oauthlib",
-    "itsdangerous",
-    "uvicorn[standard]>=0.30",
-    "httpx",
-    "fastlite>=0.1.1",
-    "python-multipart",
-    "beautifulsoup4",
-    "orjson>=3.10.18",
+dependencies = ["starlette", "uvicorn[standard]", "httpx", "beautifulsoup4", "python-dateutil"]
+
+[project.optional-dependencies]
+test = ["pytest", "pytest-cov", "pytest-timeout", "pytest-xdist", "pytest-watch"]
+dev = ["ipykernel", "pip-tools"]
+doc = ["mkdocs", "mkdocs-material", "mdx-include"]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_backend"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = [
+    "--verbose",
+    "--strict-markers",
+    "--strict-config",
+    "--cov=src/starhtml",
+    "--cov-branch",
+    "--cov-report=term-missing:skip-covered",
+    "--cov-report=html",
+    "--cov-report=xml",
+    "--cov-fail-under=80",
+]
+testpaths = ["tests"]
+pythonpath = ["src", "."]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
 ]
 
-[project.urls]
-Repository = "https://github.com/banditburai/starhtml"
-Issues = "https://github.com/banditburai/starhtml/issues"
+[tool.coverage.run]
+source = ["src/starhtml"]
+omit = ["*/tests/*", "*/test_*.py"]
 
-[tool.hatch.build.targets.wheel]
-packages = ["src/starhtml"]
-
-[tool.uv]
-dev-dependencies = [
-    "pytest>=7.0",
-    "ruff>=0.1.0",
-    "bump-my-version>=0.15.0",
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+    "pass",
+    "except ImportError:",
 ]
 
-[tool.bumpversion]
-current_version = "0.1.0"
-parse = "(?P<major>\\d+)\\.(?P<minor>\\d+)\\.(?P<patch>\\d+)"
-serialize = ["{major}.{minor}.{patch}"]
-search = "{current_version}"
-replace = "{new_version}"
-tag = true
-commit = true
-commit_args = "--no-verify"
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+src = ["src", "tests", "demo"]
 
-[[tool.bumpversion.files]]
-filename = "pyproject.toml"
-search = 'version = "{current_version}"'
-replace = 'version = "{new_version}"'
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "N",   # pep8-naming
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "C90", # mccabe complexity
+    "PL",  # pylint
+]
+ignore = ["E501", "PLR0913"]  # Line length, too many arguments
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.pyright]
+include = ["src", "tests", "demo"]
+exclude = ["**/node_modules", "**/__pycache__", "**/.venv", "**/build", "**/dist"]
+pythonVersion = "3.10"
+pythonPlatform = "All"
+typeCheckingMode = "basic"
+reportMissingImports = true
+reportMissingTypeStubs = false
+reportPrivateImportUsage = false
+reportUnusedImport = true
+reportUnusedClass = true
+reportUnusedFunction = true
+reportUnusedVariable = true
+reportDuplicateImport = true
+reportWildcardImportFromLibrary = true
+reportOptionalMemberAccess = true
+reportOptionalCall = true
+reportOptionalIterable = true
+reportOptionalContextManager = true
+reportOptionalOperand = true
+reportTypedDictNotRequiredAccess = true
+reportUnnecessaryCast = true
+reportUnnecessaryComparison = true
+reportUnnecessaryContains = true
+reportAssertAlwaysTrue = true
+reportUnnecessaryTypeIgnoreComment = true
+reportImplicitOverride = false
+reportShadowedImports = true

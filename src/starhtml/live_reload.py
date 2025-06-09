@@ -1,6 +1,5 @@
 from starlette.routing import WebSocketRoute
 from starhtml.core import StarHTML
-from starhtml.components import Script
 
 __all__ = ["StarHTMLWithLiveReload"]
 
@@ -14,15 +13,18 @@ def LiveReloadJs(reload_attempts:int=20, reload_interval:int=1000, **kwargs):
                 const res = await fetch(window.location.href);
                 if (res.ok) { 
                     attempts ? window.location.reload() : console.log('LiveReload connected'); 
-                }};
+                }
+            };
             socket.onclose = () => {
-                !attempts++ ? connect() : setTimeout(() => { connect() }, %d);
+                !attempts++ ? connect() : setTimeout(() => { connect(); }, %d);
                 if (attempts > %d) window.location.reload();
-            }};
+            };
+        };
         connect();
     })();
     """
-    return Script(src % (reload_attempts, reload_interval))
+    from starhtml.xtend import Script
+    return Script(src % (reload_interval, reload_attempts))
 
 async def live_reload_ws(websocket): await websocket.accept()
 

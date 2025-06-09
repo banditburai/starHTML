@@ -449,7 +449,7 @@ class StarHTML(Starlette):
         
         # Get the project root directory (2 levels up from this file)
         project_root = Path(__file__).parent.parent.parent
-        datastar_path = project_root / 'worktrees' / 'datastar-rc' / 'datastar.js'
+        datastar_path = project_root / 'static' / 'js' / 'datastar.js'
         
         def serve_datastar():
             if not datastar_path.exists():

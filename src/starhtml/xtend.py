@@ -45,10 +45,10 @@ def CheckboxX(checked:bool=False, label=None, value="1", id=None, name=None, **k
     if label: res = Label(res, label)
     return Hidden(name=name, skip=True, value=""), res
 
-@delegates(ft_html, keep=True)
+@delegates(ft_datastar, keep=True)
 def Script(code:str="", **kwargs)->FT:
-    "A Script tag that doesn't escape its code"
-    return ft_html('script', NotStr(code), **kwargs)
+    "A Script tag that doesn't escape its code and supports Datastar attributes"
+    return ft_datastar('script', NotStr(code), **kwargs)
 
 @delegates(ft_html, keep=True)
 def Style(*c, **kwargs)->FT:

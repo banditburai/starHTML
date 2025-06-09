@@ -1,0 +1,66 @@
+name: Code Quality
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+      
+    - name: Set up Python ${{ matrix.python-version }}
+      run: uv python install ${{ matrix.python-version }}
+      
+    - name: Install dependencies
+      run: |
+        uv sync --all-extras
+        uv pip install pyright pytest-cov
+        
+    - name: Lint with ruff
+      run: |
+        uv run ruff check src/ tests/ demo/
+        uv run ruff format --check src/ tests/ demo/
+        
+    - name: Type check with pyright
+      run: uv run pyright
+      
+    - name: Validate StarHTML patterns
+      run: |
+        if [ -f scripts/validate_starhtml.py ]; then
+          uv run python scripts/validate_starhtml.py demo/
+        fi
+      
+    - name: Run tests
+      run: |
+        uv run pytest tests/ -v --tb=short --cov=src/starhtml --cov-report=term-missing --cov-report=xml
+        
+    - name: Test demo files
+      run: uv run pytest demo/ -v --tb=short
+        
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      if: matrix.python-version == '3.11'
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+
+  # Separate job for checking if all quality checks passed
+  quality-check:
+    runs-on: ubuntu-latest
+    needs: quality
+    steps:
+      - name: All quality checks passed
+        run: echo "✅ All quality checks passed!"
