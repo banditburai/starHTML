@@ -5,9 +5,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from components.ui import Button, button
-
 from starhtml import *
+from components.ui import Button as UIButton, button
 
 
 def test_button_renders_basic():
@@ -122,6 +121,6 @@ def test_button_with_children():
 def test_button_pascal_case_alias():
     """Test that Button (PascalCase) works the same as button."""
     btn1 = button("Test", variant="secondary")
-    btn2 = Button("Test", variant="secondary")
+    btn2 = UIButton("Test", variant="secondary")
 
     assert str(btn1) == str(btn2)
