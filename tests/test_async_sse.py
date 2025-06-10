@@ -13,7 +13,7 @@ def test_sync_sse_handler():
     """Test that sync SSE handlers still work"""
     app, rt = star_app()
 
-    @rt('/sync-test')
+    @rt("/sync-test")
     @sse
     def sync_handler(req):
         yield signals(status="Starting")
@@ -31,17 +31,18 @@ def test_sync_sse_handler():
         for chunk in response.iter_bytes():
             content += chunk
 
-        text = content.decode('utf-8')
+        text = content.decode("utf-8")
         assert "event: datastar-merge-signals" in text
         assert "event: datastar-merge-fragments" in text
         assert '"status": "Starting"' in text
         assert '"status": "Complete"' in text
 
+
 def test_async_sse_handler():
     """Test that async SSE handlers work correctly"""
     app, rt = star_app()
 
-    @rt('/async-test')
+    @rt("/async-test")
     @sse
     async def async_handler(req):
         yield signals(status="Starting async")
@@ -60,18 +61,19 @@ def test_async_sse_handler():
         for chunk in response.iter_bytes():
             content += chunk
 
-        text = content.decode('utf-8')
+        text = content.decode("utf-8")
         assert "event: datastar-merge-signals" in text
         assert "event: datastar-merge-fragments" in text
         assert '"status": "Starting async"' in text
         assert '"status": "Async complete"' in text
         assert "Async done" in text
 
+
 def test_async_with_concurrent_operations():
     """Test async SSE with concurrent operations"""
     app, rt = star_app()
 
-    @rt('/concurrent-test')
+    @rt("/concurrent-test")
     @sse
     async def concurrent_handler(req):
         yield signals(status="Starting concurrent operations")
@@ -88,13 +90,7 @@ def test_async_with_concurrent_operations():
         # Run concurrently
         results = await asyncio.gather(task1(), task2())
 
-        yield fragments(
-            Div(
-                P(f"Result 1: {results[0]}"),
-                P(f"Result 2: {results[1]}"),
-                id="results"
-            )
-        )
+        yield fragments(Div(P(f"Result 1: {results[0]}"), P(f"Result 2: {results[1]}"), id="results"))
 
         yield signals(status="All tasks complete")
 
@@ -113,21 +109,22 @@ def test_async_with_concurrent_operations():
     # Should complete in ~0.1s, not 0.2s (if sequential)
     assert elapsed < 0.15  # Allow some overhead
 
-    text = content.decode('utf-8')
+    text = content.decode("utf-8")
     assert "Task 1 result" in text
     assert "Task 2 result" in text
+
 
 def test_mixed_sync_async_handlers():
     """Test that both sync and async handlers can coexist"""
     app, rt = star_app()
 
-    @rt('/sync')
+    @rt("/sync")
     @sse
     def sync_handler(req):
         yield signals(type="sync")
         yield fragments(Div("Sync", id="sync"))
 
-    @rt('/async')
+    @rt("/async")
     @sse
     async def async_handler(req):
         yield signals(type="async")
@@ -139,20 +136,21 @@ def test_mixed_sync_async_handlers():
     # Test sync endpoint
     with client.stream("GET", "/sync") as response:
         assert response.status_code == 200
-        content = response.read().decode('utf-8')
+        content = response.read().decode("utf-8")
         assert '"type": "sync"' in content
 
     # Test async endpoint
     with client.stream("GET", "/async") as response:
         assert response.status_code == 200
-        content = response.read().decode('utf-8')
+        content = response.read().decode("utf-8")
         assert '"type": "async"' in content
+
 
 def test_async_error_handling():
     """Test error handling in async SSE handlers"""
     app, rt = star_app()
 
-    @rt('/async-error')
+    @rt("/async-error")
     @sse
     async def async_error_handler(req):
         yield signals(status="Starting")
@@ -163,26 +161,22 @@ def test_async_error_handling():
             raise ValueError("Test error")
         except ValueError as e:
             yield signals(error=str(e), status="Error occurred")
-            yield fragments(
-                Div(
-                    P("An error occurred", cls="error"),
-                    id="error"
-                )
-            )
+            yield fragments(Div(P("An error occurred", cls="error"), id="error"))
 
     client = TestClient(app)
 
     with client.stream("GET", "/async-error") as response:
         assert response.status_code == 200
-        content = response.read().decode('utf-8')
+        content = response.read().decode("utf-8")
         assert '"error": "Test error"' in content
         assert "An error occurred" in content
+
 
 def test_async_with_auto_selector():
     """Test that auto-selector detection works with async handlers"""
     app, rt = star_app()
 
-    @rt('/async-auto-selector')
+    @rt("/async-auto-selector")
     @sse
     async def async_auto_selector(req):
         yield signals(status="Testing auto-selector")
@@ -194,5 +188,5 @@ def test_async_with_auto_selector():
     client = TestClient(app)
 
     with client.stream("GET", "/async-auto-selector") as response:
-        content = response.read().decode('utf-8')
+        content = response.read().decode("utf-8")
         assert "data: selector #my-target" in content

@@ -13,7 +13,7 @@ def test_signal_sse_format():
         "retry: 1000",
         'data: signals {"status": "test", "count": 42}',
         "",
-        ""
+        "",
     ]
     expected = "\n".join(expected_lines)
 
@@ -32,7 +32,7 @@ def test_fragment_sse_format():
         "data: mergeMode morph",
         "data: fragments <div>Test content</div>",
         "",
-        ""
+        "",
     ]
     expected = "\n".join(expected_lines)
 
@@ -50,7 +50,7 @@ def test_fragment_sse_format_no_selector():
         "data: mergeMode append",
         "data: fragments <p>No selector</p>",
         "",
-        ""
+        "",
     ]
     expected = "\n".join(expected_lines)
 
@@ -93,7 +93,7 @@ def test_multiple_fragments():
         "data: mergeMode append",
         "data: fragments <div>First</div><div>Second</div>",
         "",
-        ""
+        "",
     ]
     expected = "\n".join(expected_lines)
 
@@ -102,12 +102,7 @@ def test_multiple_fragments():
 
 def test_complex_signals():
     """Test complex signal data types."""
-    signals = {
-        "user": {"name": "John", "age": 30},
-        "items": [1, 2, 3],
-        "active": True,
-        "count": 0
-    }
+    signals = {"user": {"name": "John", "age": 30}, "items": [1, 2, 3], "active": True, "count": 0}
     output = format_signal_event(signals)
 
     # Should contain the event type and data prefix

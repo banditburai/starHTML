@@ -60,14 +60,10 @@ class TestDatastarDirectAttributes:
         # Submit event
         form = Form(ds_on_submit="@post('/submit')")
         xml = to_xml(form)
-        assert 'data-on-submit="@post(\'/submit\')"' in xml
+        assert "data-on-submit=\"@post('/submit')\"" in xml
 
         # Multiple events
-        input_elem = Input(
-            ds_on_input="updateValue()",
-            ds_on_change="validateValue()",
-            ds_on_focus="showHint()"
-        )
+        input_elem = Input(ds_on_input="updateValue()", ds_on_change="validateValue()", ds_on_focus="showHint()")
         xml = to_xml(input_elem)
         assert 'data-on-input="updateValue()"' in xml
         assert 'data-on-change="validateValue()"' in xml
@@ -84,20 +80,17 @@ class TestDatastarDirectAttributes:
         # Dict format
         div = Div(ds_signals={"count": 0, "user": {"name": "John"}})
         xml = to_xml(div)
-        assert 'data-signals=' in xml
+        assert "data-signals=" in xml
         # Check it's valid JSON
         assert '"count": 0' in xml
         assert '"user": {"name": "John"}' in xml
 
     def test_ds_class(self):
         """Test direct ds_class attribute."""
-        div = Div(
-            cls="base-class",
-            ds_class="{ 'active': isActive, 'disabled': isDisabled }"
-        )
+        div = Div(cls="base-class", ds_class="{ 'active': isActive, 'disabled': isDisabled }")
         xml = to_xml(div)
         assert 'class="base-class"' in xml
-        assert 'data-class="{ \'active\': isActive, \'disabled\': isDisabled }"' in xml
+        assert "data-class=\"{ 'active': isActive, 'disabled': isDisabled }\"" in xml
 
     def test_ds_style(self):
         """Test direct ds_style attribute."""
@@ -115,7 +108,7 @@ class TestDatastarDirectAttributes:
         """Test direct ds_computed attribute."""
         div = Div(ds_computed="fullName = firstName + ' ' + lastName")
         xml = to_xml(div)
-        assert 'data-computed="fullName = firstName + \' \' + lastName"' in xml
+        assert "data-computed=\"fullName = firstName + ' ' + lastName\"" in xml
 
     def test_ds_store(self):
         """Test direct ds_store attribute."""
@@ -136,12 +129,7 @@ class TestDatastarDirectAttributes:
 
     def test_ds_transition(self):
         """Test direct ds_transition attributes."""
-        div = Div(
-            "Content",
-            ds_show="isVisible",
-            ds_transition_enter="fade-in",
-            ds_transition_leave="fade-out"
-        )
+        div = Div("Content", ds_show="isVisible", ds_transition_enter="fade-in", ds_transition_leave="fade-out")
         xml = to_xml(div)
         assert 'data-transition-enter="fade-in"' in xml
         assert 'data-transition-leave="fade-out"' in xml
@@ -174,11 +162,7 @@ class TestDatastarDirectAttributes:
 
     def test_ds_attr_dynamic(self):
         """Test dynamic attribute setting with ds_attr_*."""
-        div = Div(
-            ds_attr_disabled="isLoading",
-            ds_attr_title="user.name",
-            ds_attr_data_id="userId"
-        )
+        div = Div(ds_attr_disabled="isLoading", ds_attr_title="user.name", ds_attr_data_id="userId")
         xml = to_xml(div)
         assert 'data-attr-disabled="isLoading"' in xml
         assert 'data-attr-title="user.name"' in xml
@@ -187,35 +171,26 @@ class TestDatastarDirectAttributes:
     def test_complex_component(self):
         """Test complex component with multiple Datastar attributes."""
         form = Form(
+            Input(type="text", ds_bind="username", ds_ref="usernameInput", placeholder="Username"),
             Input(
-                type="text",
-                ds_bind="username",
-                ds_ref="usernameInput",
-                placeholder="Username"
-            ),
-            Input(
-                type="email",
-                ds_bind="email",
-                ds_show="showEmail",
-                ds_on_input="validateEmail()",
-                placeholder="Email"
+                type="email", ds_bind="email", ds_show="showEmail", ds_on_input="validateEmail()", placeholder="Email"
             ),
             Button(
                 "Submit",
                 type="submit",
                 ds_on_click="handleSubmit()",
                 ds_indicator="submitting",
-                ds_attr_disabled="submitting"
+                ds_attr_disabled="submitting",
             ),
             ds_on_submit="@post('/api/submit')",
-            ds_signals={"username": "", "email": "", "submitting": False}
+            ds_signals={"username": "", "email": "", "submitting": False},
         )
 
         xml = to_xml(form)
 
         # Form attributes
-        assert 'data-on-submit="@post(\'/api/submit\')"' in xml
-        assert 'data-signals=' in xml
+        assert "data-on-submit=\"@post('/api/submit')\"" in xml
+        assert "data-signals=" in xml
 
         # First input
         assert 'data-bind="username"' in xml
@@ -251,7 +226,7 @@ class TestDatastarDirectAttributes:
             ds_on_intersect="loadMore()",
             ds_on_intersect_once=True,
             ds_on_interval="updateTime()",
-            ds_on_interval_ms="1000"
+            ds_on_interval_ms="1000",
         )
         xml = to_xml(div)
         assert 'data-on-intersect="loadMore()"' in xml
@@ -272,12 +247,8 @@ class TestDatastarDirectAttributes:
         assert 'data-text=" "' in xml
 
         # Complex JSON in signals
-        div = Div(ds_signals={
-            "array": [1, 2, 3],
-            "nested": {"deep": {"value": True}},
-            "special": "with \"quotes\""
-        })
+        div = Div(ds_signals={"array": [1, 2, 3], "nested": {"deep": {"value": True}}, "special": 'with "quotes"'})
         xml = to_xml(div)
-        assert 'data-signals=' in xml
+        assert "data-signals=" in xml
         # Verify it's valid JSON by parsing the attribute value
         # (Would need to extract and parse in real test)

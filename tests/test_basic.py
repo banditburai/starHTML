@@ -1,10 +1,10 @@
 """Basic tests for StarHTML functionality."""
 
 
-
 def test_starhtml_imports():
     """Test that StarHTML can be imported without errors."""
     from starhtml import star_app
+
     assert star_app is not None
 
 
@@ -15,7 +15,7 @@ def test_app_creation():
     app, rt = star_app()
     assert app is not None
     assert rt is not None
-    assert hasattr(app, 'hdrs')
+    assert hasattr(app, "hdrs")
     assert len(app.hdrs) > 0  # Should have default headers
 
 
@@ -25,7 +25,7 @@ def test_route_creation():
 
     app, rt = star_app()
 
-    @rt('/')
+    @rt("/")
     def get():
         return Div(H1("Test"))
 

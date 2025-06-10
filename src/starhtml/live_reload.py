@@ -5,7 +5,8 @@ from starhtml.core import StarHTML
 
 __all__ = ["StarHTMLWithLiveReload"]
 
-def LiveReloadJs(reload_attempts:int=20, reload_interval:int=1000, **kwargs):
+
+def LiveReloadJs(reload_attempts: int = 20, reload_interval: int = 1000, **kwargs):
     src = """
     (() => {
         let attempts = 0;
@@ -13,8 +14,8 @@ def LiveReloadJs(reload_attempts:int=20, reload_interval:int=1000, **kwargs):
             const socket = new WebSocket(`ws://${window.location.host}/live-reload`);
             socket.onopen = async() => {
                 const res = await fetch(window.location.href);
-                if (res.ok) { 
-                    attempts ? window.location.reload() : console.log('LiveReload connected'); 
+                if (res.ok) {
+                    attempts ? window.location.reload() : console.log('LiveReload connected');
                 }};
             socket.onclose = () => {
                 !attempts++ ? connect() : setTimeout(() => { connect() }, %d);
@@ -25,7 +26,10 @@ def LiveReloadJs(reload_attempts:int=20, reload_interval:int=1000, **kwargs):
     """
     return Script(src % (reload_attempts, reload_interval))
 
-async def live_reload_ws(websocket): await websocket.accept()
+
+async def live_reload_ws(websocket):
+    await websocket.accept()
+
 
 class StarHTMLWithLiveReload(StarHTML):
     """
@@ -51,6 +55,7 @@ class StarHTMLWithLiveReload(StarHTML):
         Run:
             serve()
     """
+
     def __init__(self, *args, **kwargs):
         # "hdrs" and "routes" can be missing, None, a list or a tuple.
         kwargs["hdrs"] = [*(kwargs.get("hdrs") or []), LiveReloadJs(**kwargs)]
