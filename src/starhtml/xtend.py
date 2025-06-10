@@ -1,14 +1,17 @@
 """Simple extensions to standard HTML components, such as adding sensible defaults"""
 
+import re
+import sys
+from json import dumps
+from pathlib import Path
 from typing import Any
 
 from fastcore.meta import delegates
-from fastcore.utils import *
-from fastcore.xml import *
+from fastcore.utils import Path
+from fastcore.xml import FT, NotStr, Safe
 from fastcore.xtras import partial_format
 
-from .components import *
-from .core import *
+from .components import Div, Iframe, Input, Label, Link, Meta, ft_datastar, ft_html
 
 __all__ = [
     "A",
@@ -77,10 +80,10 @@ def CheckboxX(checked: bool = False, label=None, value="1", id=None, name=None, 
     return Hidden(name=name, skip=True, value=""), res
 
 
-@delegates(ft_datastar, keep=True)
+@delegates(ft_html, keep=True)
 def Script(code: str = "", **kwargs) -> FT:
-    "A Script tag that doesn't escape its code and supports Datastar attributes"
-    return ft_datastar("script", NotStr(code), **kwargs)
+    "A Script tag that doesn't escape its code"
+    return ft_html("script", NotStr(code), **kwargs)
 
 
 @delegates(ft_html, keep=True)
@@ -89,19 +92,19 @@ def Style(*c, **kwargs) -> FT:
     return ft_html("style", map(NotStr, c), **kwargs)
 
 
-def double_braces(s):
+def double_braces(s: str) -> str:
     "Convert single braces to double braces if next to special chars or newline"
     s = re.sub(r'{(?=[\s:;\'"]|$)', "{{", s)
     return re.sub(r'(^|[\s:;\'"])}', r"\1}}", s)
 
 
-def undouble_braces(s):
+def undouble_braces(s: str) -> str:
     "Convert double braces to single braces if next to special chars or newline"
     s = re.sub(r'\{\{(?=[\s:;\'"]|$)', "{", s)
     return re.sub(r'(^|[\s:;\'"])\}\}', r"\1}", s)
 
 
-def loose_format(s, **kw):
+def loose_format(s: str, **kw: Any) -> str:
     "String format `s` using `kw`, without being strict about braces outside of template params"
     if not kw:
         return s
@@ -109,17 +112,17 @@ def loose_format(s, **kw):
 
 
 def ScriptX(
-    fname,
-    src=None,
-    nomodule=None,
-    type=None,
-    _async=None,
-    defer=None,
-    charset=None,
-    crossorigin=None,
-    integrity=None,
-    **kw,
-):
+    fname: str | Path,
+    src: str | None = None,
+    nomodule: bool | None = None,
+    type: str | None = None,
+    _async: bool | None = None,
+    defer: bool | None = None,
+    charset: str | None = None,
+    crossorigin: str | None = None,
+    integrity: str | None = None,
+    **kw: Any,
+) -> FT:
     "A `script` element with contents read from `fname`"
     s = loose_format(Path(fname).read_text(), **kw)
     return Script(
@@ -135,7 +138,7 @@ def ScriptX(
     )
 
 
-def replace_css_vars(css, pre="tpl", **kwargs):
+def replace_css_vars(css: str, pre: str = "tpl", **kwargs: Any) -> str:
     "Replace `var(--)` CSS variables with `kwargs` if name prefix matches `pre`"
     if not kwargs:
         return css
@@ -147,7 +150,7 @@ def replace_css_vars(css, pre="tpl", **kwargs):
     return re.sub(rf"var\(--{pre}-([\w-]+)\)", replace_var, css)
 
 
-def StyleX(fname, **kw):
+def StyleX(fname: str | Path, **kw: Any) -> FT:
     "A `style` element with contents read from `fname` and variables replaced from `kw`"
     s = Path(fname).read_text()
     attrs = ["type", "media", "scoped", "title", "nonce", "integrity", "crossorigin"]
@@ -155,12 +158,12 @@ def StyleX(fname, **kw):
     return Style(replace_css_vars(s, **kw), **sty_kw)
 
 
-def Nbsp():
+def Nbsp() -> Safe:
     "A non-breaking space"
     return Safe("&nbsp;")
 
 
-def run_js(js, id=None, **kw):
+def run_js(js: str, id: str | None = None, **kw: Any) -> FT:
     "Run `js` script, auto-generating `id` based on name of caller if needed, and js-escaping any `kw` params"
     if not id:
         id = sys._getframe(1).f_code.co_name
@@ -168,7 +171,7 @@ def run_js(js, id=None, **kw):
     return Script(js.format(**kw), id=id)
 
 
-def DatastarOn(eventname: str, code: str):
+def DatastarOn(eventname: str, code: str) -> FT:
     return Script(
         """domReadyExecute(function() {
 document.body.addEventListener("datastar:%s", function(event) { %s })
@@ -196,8 +199,17 @@ class Fragment(FT):
 
 
 def Socials(
-    title, site_name, description, image, url=None, w=1200, h=630, twitter_site=None, creator=None, card="summary"
-):
+    title: str,
+    site_name: str,
+    description: str,
+    image: str,
+    url: str | None = None,
+    w: int = 1200,
+    h: int = 630,
+    twitter_site: str | None = None,
+    creator: str | None = None,
+    card: str = "summary",
+) -> tuple[FT, ...]:
     "OG and Twitter social card headers"
     if not url:
         url = site_name
@@ -236,8 +248,8 @@ def YouTubeEmbed(
     no_controls: bool = False,
     title: str = "YouTube video player",
     cls: str = "",
-    **kwargs,
-):
+    **kwargs: Any,
+) -> FT:
     """Embed a YouTube video"""
     if not video_id or not isinstance(video_id, str):
         raise ValueError("A valid YouTube video ID is required")
@@ -264,7 +276,7 @@ def YouTubeEmbed(
     )
 
 
-def Favicon(light_icon, dark_icon):
+def Favicon(light_icon: str, dark_icon: str) -> tuple[FT, FT]:
     "Light and dark favicon headers"
     return (
         Link(rel="icon", type="image/x-ico", href=light_icon, media="(prefers-color-scheme: light)"),
@@ -272,7 +284,7 @@ def Favicon(light_icon, dark_icon):
     )
 
 
-def with_sid(app, dest, path="/"):
+def with_sid(app: Any, dest: str, path: str = "/") -> None:
     @app.route(path)
     def get():
         return Div(data_on_load=f'@get("{dest}")', data_swap="outerHTML")

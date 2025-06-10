@@ -1,0 +1,43 @@
+# StarHTML pre-commit hooks
+repos:
+  - repo: local
+    hooks:
+      - id: starhtml-validator
+        name: StarHTML Syntax Validator
+        entry: python scripts/validate_starhtml.py
+        language: python
+        files: '\.py$'
+        exclude: '^(tests/|scripts/)'
+        pass_filenames: false
+        args: ['.']
+        
+      - id: starhtml-imports
+        name: StarHTML Import Checker
+        entry: python scripts/check_imports.py
+        language: python
+        files: '\.py$'
+        exclude: '^(tests/|scripts/)'
+        pass_filenames: false
+        args: ['.']
+        
+      - id: starhtml-patterns
+        name: StarHTML Pattern Linter
+        entry: python scripts/lint_patterns.py
+        language: python
+        files: '\.py$'
+        exclude: '^(tests/|scripts/)'
+        pass_filenames: false
+        args: ['.']
+
+  - repo: https://github.com/psf/black
+    rev: 23.12.1
+    hooks:
+      - id: black
+        language_version: python3.11
+        args: ['--line-length=120']
+
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        args: ['--profile=black', '--line-length=120']

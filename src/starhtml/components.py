@@ -1,29 +1,38 @@
 """`ft_html` and `ft_datastar` functions to add some conveniences to `ft`, along with a full set of basic HTML components, and functions to work with forms and `FT` conversion"""
 
 import re
+from collections.abc import Callable
 from dataclasses import asdict, is_dataclass
-from typing import Optional
+from typing import TYPE_CHECKING, Any, Optional, Union
+
+if TYPE_CHECKING:
+    from fastcore.xml import FT
 
 from bs4 import BeautifulSoup, Comment
-from fastcore.test import *
-from fastcore.utils import *
-from fastcore.xml import *
+from fastcore.utils import (
+    Path,
+    partial,
+    partition,
+    patch,
+    risinstance,
+)
+from fastcore.xml import FT, NotStr, attrmap, ft, to_xml, valmap, voids
 
 from .core import fh_cfg, unqid
 
 
-@patch
-def __str__(self: FT):
-    return self.id if self.id else to_xml(self, indent=False)
+@patch  # type: ignore[misc]
+def __str__(self: "FT") -> str:
+    return self.id if self.id else to_xml(self, indent=False)  # type: ignore[attr-defined]
 
 
-@patch
-def __radd__(self: FT, b):
+@patch  # type: ignore[misc]
+def __radd__(self: "FT", b: Any) -> str:  # type: ignore[operator]
     return f"{b}{self}"
 
 
-@patch
-def __add__(self: FT, b):
+@patch  # type: ignore[misc]
+def __add__(self: "FT", b: Any) -> str:  # type: ignore[operator]
     return f"{self}{b}"
 
 
@@ -65,7 +74,7 @@ datastar_evt_attrs = [f"data_on_{o}" for o in datastar_evts.split()]
 evt_attrs = datastar_evt_attrs
 
 
-def attrmap_x(o):
+def attrmap_x(o: str) -> str:
     if o.startswith("_at_"):
         o = "@" + o[4:]
     return attrmap(o)
@@ -78,7 +87,18 @@ fh_cfg["auto_id"] = False
 fh_cfg["auto_name"] = True
 
 
-def ft_html(tag: str, *c, id=None, cls=None, title=None, style=None, attrmap=None, valmap=None, ft_cls=None, **kwargs):
+def ft_html(
+    tag: str,
+    *c: Any,
+    id: Optional[Union[str, bool, FT]] = None,
+    cls: Optional[str] = None,
+    title: Optional[str] = None,
+    style: Optional[str] = None,
+    attrmap: Optional[Callable] = None,
+    valmap: Optional[Callable] = None,
+    ft_cls: Optional[type] = None,
+    **kwargs: Any,
+) -> FT:
     ds, c = partition(c, risinstance(dict))
     for d in ds:
         kwargs = {**kwargs, **d}
@@ -100,7 +120,7 @@ def ft_html(tag: str, *c, id=None, cls=None, title=None, style=None, attrmap=Non
     return ft_cls(tag, c, kw, void_=tag in voids)
 
 
-def _process_datastar_attrs(kwargs):
+def _process_datastar_attrs(kwargs: dict[str, Any]) -> dict[str, Any]:
     """Process ds_* attributes and transform them to data-* attributes."""
     processed = {}
 
@@ -141,7 +161,7 @@ def _process_datastar_attrs(kwargs):
     return processed
 
 
-def ft_datastar(tag: str, *c, **kwargs):
+def ft_datastar(tag: str, *c: Any, **kwargs: Any) -> FT:
     """Create an HTML element with support for Datastar direct attributes.
 
     This function processes ds_* attributes and transforms them to data-* attributes.
@@ -153,7 +173,7 @@ def ft_datastar(tag: str, *c, **kwargs):
     return ft_html(tag, *c, **kwargs)
 
 
-_g = globals()
+_g: dict[str, Any] = globals()
 _all_ = [
     "A",
     "Abbr",
@@ -204,6 +224,7 @@ _all_ = [
     "Header",
     "Hgroup",
     "Hr",
+    "Html",
     "I",
     "Iframe",
     "Img",
@@ -238,6 +259,7 @@ _all_ = [
     "Ruby",
     "S",
     "Samp",
+    "Script",
     "Search",
     "Section",
     "Select",
@@ -269,15 +291,15 @@ _all_ = [
     "Wbr",
 ]
 for o in _all_:
-    _g[o] = partial(ft_datastar, o.lower())
+    _g[o] = partial(ft_datastar, o.lower())  # type: ignore[misc]
 
 
-def File(fname):
+def File(fname: str) -> NotStr:
     "Use the unescaped text in file `fname` directly"
     return NotStr(Path(fname).read_text())
 
 
-def _fill_item(item, obj):
+def _fill_item(item: Any, obj: dict[str, Any]) -> Any:
     if not isinstance(item, FT):
         return item
     tag, cs, attr = item.list
@@ -318,7 +340,7 @@ def _fill_item(item, obj):
     return FT(tag, cs, attr, void_=item.void_)
 
 
-def fill_form(form: FT, obj) -> FT:
+def fill_form(form: FT, obj: Union[dict[str, Any], Any]) -> FT:
     "Fills named items in `form` using attributes in `obj`"
     if is_dataclass(obj):
         obj = asdict(obj)
@@ -327,14 +349,14 @@ def fill_form(form: FT, obj) -> FT:
     return _fill_item(form, obj)
 
 
-def fill_dataclass(src, dest):
+def fill_dataclass(src: Any, dest: Any) -> Any:
     "Modifies dataclass in-place and returns it"
     for nm, val in asdict(src).items():
         setattr(dest, nm, val)
     return dest
 
 
-def find_inputs(e, tags="input", **kw):
+def find_inputs(e: Union[list, tuple, FT], tags: Union[str, list[str]] = "input", **kw: Any) -> list[FT]:
     "Recursively find all elements in `e` with `tags` and attrs matching `kw`"
     if not isinstance(e, list | tuple | FT):
         return []
@@ -353,28 +375,28 @@ def find_inputs(e, tags="input", **kw):
     return inputs
 
 
-def __getattr__(tag):
+def __getattr__(tag: str) -> Callable[..., Any]:
     if tag.startswith("_") or tag[0].islower():
         raise AttributeError
     tag = tag.replace("_", "-")
 
-    def _f(*c, target_id=None, **kwargs):
+    def _f(*c: Any, target_id: Optional[str] = None, **kwargs: Any) -> Any:
         return ft_datastar(tag, *c, target_id=target_id, **kwargs)
 
     return _f
 
 
 _re_h2x_attr_key = re.compile(r"^[A-Za-z_-][\w-]*$")
-_attr_cache = {}
-_tag_cache = {}
+_attr_cache: dict[str, bool] = {}
+_tag_cache: dict[str, str] = {}
 
 
-def _is_valid_attr(key):
+def _is_valid_attr(key: str) -> bool:
     """Cached attribute validation"""
     return _attr_cache.setdefault(key, _re_h2x_attr_key.match(key) is not None)
 
 
-def _get_tag_name(name):
+def _get_tag_name(name: str) -> str:
     """Cached tag name transformation"""
     return _tag_cache.setdefault(name, "[document]" if name == "[document]" else name.capitalize().replace("-", "_"))
 

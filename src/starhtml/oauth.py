@@ -13,19 +13,31 @@ __all__ = [
     "load_creds",
 ]
 
+import re
 import secrets
+from typing import Any
 from urllib.parse import urlencode
 
 import httpx
 from oauthlib.oauth2 import WebApplicationClient
 
-from .common import *
+from .common import AttrDictDefault, Beforeware, Path, RedirectResponse, load_pickle, patch, save_pickle, store_attr
 
 
 class _AppClient(WebApplicationClient):
-    id_key = "sub"
+    id_key: str = "sub"
+    base_url: str
+    token_url: str
+    info_url: str
 
-    def __init__(self, client_id, client_secret, code=None, scope=None, **kwargs):
+    def __init__(
+        self,
+        client_id: str,
+        client_secret: str,
+        code: str | None = None,
+        scope: str | list[str] | None = None,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(client_id, code=code, scope=scope, **kwargs)
         self.client_secret = client_secret
 
@@ -37,7 +49,15 @@ class GoogleAppClient(_AppClient):
     token_url = "https://oauth2.googleapis.com/token"
     info_url = "https://openidconnect.googleapis.com/v1/userinfo"
 
-    def __init__(self, client_id, client_secret, code=None, scope=None, project_id=None, **kwargs):
+    def __init__(
+        self,
+        client_id: str,
+        client_secret: str,
+        code: str | None = None,
+        scope: list[str] | None = None,
+        project_id: str | None = None,
+        **kwargs: Any,
+    ) -> None:
         scope_pre = "https://www.googleapis.com/auth/userinfo"
         if not scope:
             scope = ["openid", f"{scope_pre}.email", f"{scope_pre}.profile"]
@@ -45,7 +65,9 @@ class GoogleAppClient(_AppClient):
         self.project_id = project_id
 
     @classmethod
-    def from_file(cls, fname, code=None, scope=None, **kwargs):
+    def from_file(
+        cls, fname: str, code: str | None = None, scope: list[str] | None = None, **kwargs: Any
+    ) -> "GoogleAppClient":
         cred = Path(fname).read_json()["web"]
         return cls(
             cred["client_id"],
@@ -66,7 +88,14 @@ class GitHubAppClient(_AppClient):
     info_url = "https://api.github.com/user"
     id_key = "id"
 
-    def __init__(self, client_id, client_secret, code=None, scope=None, **kwargs):
+    def __init__(
+        self,
+        client_id: str,
+        client_secret: str,
+        code: str | None = None,
+        scope: str | list[str] | None = None,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(client_id, client_secret, code=code, scope=scope, **kwargs)
 
 
@@ -78,7 +107,15 @@ class HuggingFaceClient(_AppClient):
     token_url = f"{prefix}token"
     info_url = f"{prefix}userinfo"
 
-    def __init__(self, client_id, client_secret, code=None, scope=None, state=None, **kwargs):
+    def __init__(
+        self,
+        client_id: str,
+        client_secret: str,
+        code: str | None = None,
+        scope: list[str] | None = None,
+        state: str | None = None,
+        **kwargs: Any,
+    ) -> None:
         if not scope:
             scope = ["openid", "profile"]
         if not state:
@@ -95,14 +132,22 @@ class DiscordAppClient(_AppClient):
     info_url = "https://discord.com/api/users/@me"
     id_key = "id"
 
-    def __init__(self, client_id, client_secret, is_user=False, perms=0, scope=None, **kwargs):
+    def __init__(
+        self,
+        client_id: str,
+        client_secret: str,
+        is_user: bool = False,
+        perms: int = 0,
+        scope: str | None = None,
+        **kwargs: Any,
+    ) -> None:
         if not scope:
             scope = "applications.commands applications.commands.permissions.update identify"
         self.integration_type = 1 if is_user else 0
         self.perms = perms
         super().__init__(client_id, client_secret, scope=scope, **kwargs)
 
-    def login_link(self, redirect_uri=None, scope=None, state=None):
+    def login_link(self, redirect_uri: str | None = None, scope: str | None = None, state: str | None = None) -> str:
         use_scope = scope or self.scope
         d = dict(
             response_type="code", client_id=self.client_id, integration_type=self.integration_type, scope=use_scope
@@ -113,7 +158,7 @@ class DiscordAppClient(_AppClient):
             d["redirect_uri"] = redirect_uri
         return f"{self.base_url}?" + urlencode(d)
 
-    def parse_response(self, code, redirect_uri=None):
+    def parse_response(self, code: str, redirect_uri: str | None = None) -> None:
         headers = {"Content-Type": "application/x-www-form-urlencoded"}
         data = dict(grant_type="authorization_code", code=code)
         if redirect_uri:
@@ -126,7 +171,16 @@ class DiscordAppClient(_AppClient):
 class Auth0AppClient(_AppClient):
     "A `WebApplicationClient` for Auth0 OAuth2"
 
-    def __init__(self, domain, client_id, client_secret, code=None, scope=None, redirect_uri="", **kwargs):
+    def __init__(
+        self,
+        domain: str,
+        client_id: str,
+        client_secret: str,
+        code: str | None = None,
+        scope: str | list[str] | None = None,
+        redirect_uri: str = "",
+        **kwargs: Any,
+    ) -> None:
         self.redirect_uri, self.domain = redirect_uri, domain
         config = self._fetch_openid_config()
         self.base_url, self.token_url, self.info_url = (
@@ -136,12 +190,12 @@ class Auth0AppClient(_AppClient):
         )
         super().__init__(client_id, client_secret, code=code, scope=scope, redirect_uri=redirect_uri, **kwargs)
 
-    def _fetch_openid_config(self):
+    def _fetch_openid_config(self) -> dict[str, str]:
         r = httpx.get(f"https://{self.domain}/.well-known/openid-configuration")
         r.raise_for_status()
         return r.json()
 
-    def login_link(self, req):
+    def login_link(self, req: Any) -> str:
         d = dict(
             response_type="code",
             client_id=self.client_id,
@@ -151,8 +205,14 @@ class Auth0AppClient(_AppClient):
         return f"{self.base_url}?{urlencode(d)}"
 
 
-@patch
-def login_link(self: WebApplicationClient, redirect_uri, scope=None, state=None, **kwargs):
+@patch  # type: ignore[misc]
+def login_link(
+    self: WebApplicationClient,
+    redirect_uri: str,
+    scope: str | list[str] | None = None,
+    state: str | None = None,
+    **kwargs: Any,
+) -> str:
     "Get a login link for this client"
     if not scope:
         scope = self.scope
@@ -161,14 +221,14 @@ def login_link(self: WebApplicationClient, redirect_uri, scope=None, state=None,
     return self.prepare_request_uri(self.base_url, redirect_uri, scope, state=state, **kwargs)
 
 
-def redir_url(request, redir_path, scheme=None):
+def redir_url(request: Any, redir_path: str, scheme: str | None = None) -> str:
     "Get the redir url for the host in `request`"
     scheme = "http" if request.url.hostname in ("localhost", "127.0.0.1") else "https"
     return f"{scheme}://{request.url.netloc}{redir_path}"
 
 
-@patch
-def parse_response(self: _AppClient, code, redirect_uri):
+@patch  # type: ignore[misc]
+def parse_response(self: _AppClient, code: str, redirect_uri: str) -> None:
     "Get the token from the oauth2 server response"
     payload = dict(
         code=code,
@@ -182,8 +242,8 @@ def parse_response(self: _AppClient, code, redirect_uri):
     self.parse_request_body_response(r.text)
 
 
-@patch
-def get_info(self: _AppClient, token=None):
+@patch  # type: ignore[misc]
+def get_info(self: _AppClient, token: str | None = None) -> dict[str, Any]:
     "Get the info for authenticated user"
     if not token:
         token = self.token["access_token"]
@@ -191,15 +251,15 @@ def get_info(self: _AppClient, token=None):
     return httpx.get(self.info_url, headers=headers).json()
 
 
-@patch
-def retr_info(self: _AppClient, code, redirect_uri):
+@patch  # type: ignore[misc]
+def retr_info(self: _AppClient, code: str, redirect_uri: str) -> dict[str, Any]:
     "Combines `parse_response` and `get_info`"
     self.parse_response(code, redirect_uri)
     return self.get_info()
 
 
-@patch
-def retr_id(self: _AppClient, code, redirect_uri):
+@patch  # type: ignore[misc]
+def retr_id(self: _AppClient, code: str, redirect_uri: str) -> Any:
     "Call `retr_info` and then return id/subscriber value"
     return self.retr_info(code, redirect_uri)[self.id_key]
 
@@ -207,23 +267,23 @@ def retr_id(self: _AppClient, code, redirect_uri):
 http_patterns = (r"^(localhost|127\.0\.0\.1)(:\d+)?$",)
 
 
-def url_match(url, patterns=http_patterns):
+def url_match(url: Any, patterns: tuple[str, ...] = http_patterns) -> bool:
     return any(re.match(pattern, url.netloc.split(":")[0]) for pattern in patterns)
 
 
 class OAuth:
     def __init__(
         self,
-        app,
-        cli,
-        skip=None,
-        redir_path="/redirect",
-        error_path="/error",
-        logout_path="/logout",
-        login_path="/login",
-        https=True,
-        http_patterns=http_patterns,
-    ):
+        app: Any,
+        cli: _AppClient,
+        skip: list[str] | None = None,
+        redir_path: str = "/redirect",
+        error_path: str = "/error",
+        logout_path: str = "/logout",
+        login_path: str = "/login",
+        https: bool = True,
+        http_patterns: tuple[str, ...] = http_patterns,
+    ) -> None:
         if not skip:
             skip = [redir_path, error_path, login_path]
         store_attr()
@@ -262,23 +322,23 @@ class OAuth:
             session.pop("auth", None)
             return self.logout(session)
 
-    def redir_login(self, session):
+    def redir_login(self, session: Any) -> RedirectResponse:
         return RedirectResponse(self.login_path, status_code=303)
 
-    def redir_url(self, req):
+    def redir_url(self, req: Any) -> str:
         scheme = "http" if url_match(req.url, self.http_patterns) or not self.https else "https"
         return redir_url(req, self.redir_path, scheme)
 
-    def login_link(self, req, scope=None, state=None):
+    def login_link(self, req: Any, scope: str | list[str] | None = None, state: str | None = None) -> str:
         return self.cli.login_link(self.redir_url(req), scope=scope, state=state)
 
-    def check_invalid(self, req, session, auth):
+    def check_invalid(self, req: Any, session: Any, auth: Any) -> bool:
         return False
 
-    def logout(self, session):
+    def logout(self, session: Any) -> RedirectResponse:
         return self.redir_login(session)
 
-    def get_auth(self, info, ident, session, state):
+    def get_auth(self, info: Any, ident: Any, session: Any, state: Any) -> Any:
         raise NotImplementedError()
 
 
@@ -292,8 +352,8 @@ except ImportError:
         pass
 
 
-@patch()
-def consent_url(self: GoogleAppClient, proj=None):
+@patch()  # type: ignore[misc]
+def consent_url(self: GoogleAppClient, proj: str | None = None) -> str:
     "Get Google OAuth consent screen URL"
     loc = "https://console.cloud.google.com/auth/clients"
     if proj is None:
@@ -301,27 +361,27 @@ def consent_url(self: GoogleAppClient, proj=None):
     return f"{loc}/{self.client_id}?project={proj}"
 
 
-@patch
-def update(self: Credentials):
+@patch  # type: ignore[misc]
+def update(self: "Credentials") -> "Credentials":
     "Refresh the credentials if they are expired, and return them"
     if self.expired:
         self.refresh(Request())
     return self
 
 
-@patch
-def save(self: Credentials, fname):
+@patch  # type: ignore[misc]
+def save(self: "Credentials", fname: str) -> None:
     "Save credentials to `fname`"
     save_pickle(fname, self)
 
 
-def load_creds(fname):
+def load_creds(fname: str) -> Any:
     "Load credentials from `fname`"
     return load_pickle(fname).update()
 
 
-@patch
-def creds(self: GoogleAppClient):
+@patch  # type: ignore[misc]
+def creds(self: GoogleAppClient) -> "Credentials":
     "Create `Credentials` from the client, refreshing if needed"
     return Credentials(
         token=self.access_token,

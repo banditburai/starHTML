@@ -90,10 +90,12 @@ def HighlightJS(
     dark="atom-one-dark",  # Dark theme
 ):
     "Implements browser-based syntax highlighting. Usage example [here](/tutorials/quickstart_for_web_devs.html#code-highlighting)."
-    src = f"""
+    src = (
+        f"""
 hljs.addPlugin(new CopyButtonPlugin());
 hljs.configure({{'cssSelector': '{sel}'}});
 htmx.onLoad(hljs.highlightAll);"""
+    )
     hjs = "highlightjs", "cdn-release", "build"
     hjc = "arronhunt", "highlightjs-copy", "dist"
     if isinstance(langs, str):

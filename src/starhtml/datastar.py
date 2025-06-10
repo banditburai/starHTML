@@ -65,7 +65,7 @@ def format_fragment_event(
     # Validate inputs
     if selector and not (selector := selector.strip()):
         selector = None
-    if selector and not re.match(r"^[#.\[\w:*-]", selector):
+    if selector and not re.match(r"^[#.\[\]_\w:*-]+$", selector):
         raise ValueError(f"Invalid selector: {selector}")
     if merge_mode not in VALID_MERGE_MODES:
         raise ValueError(f"Invalid merge mode: {merge_mode}. Valid: {', '.join(VALID_MERGE_MODES)}")
@@ -77,7 +77,7 @@ def format_fragment_event(
     html_parts = []
     for fragment in fragments:
         # Check if it's a StarHTML component
-        if getattr(fragment, "__ft__", None) or getattr(fragment, "tag", None) or isinstance(fragment, list | tuple):
+        if getattr(fragment, "__ft__", None) or getattr(fragment, "tag", None) or isinstance(fragment, list | tuple):  # type: ignore[misc]
             html_parts.append(to_xml(fragment, indent=False))
         else:
             html_parts.append(str(fragment))
@@ -107,7 +107,7 @@ def process_sse_item(item_type: str, payload: Any) -> str | None:
 
         # Auto-detect selector if not provided and fragment has id
         if selector is None:
-            attrs = getattr(fragment, "attrs", {})
+            attrs = getattr(fragment, "attrs", {})  # type: ignore[misc]
             if fragment_id := attrs.get("id"):
                 selector = f"#{fragment_id}"
 

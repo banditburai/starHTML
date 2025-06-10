@@ -156,3 +156,95 @@ def test_boolean_values():
     assert 'data-show="true"' in xml
     assert 'data-on-load="true"' in xml
     assert 'data-on-intersect.once="false"' in xml
+
+
+def test_json_dumps_function():
+    """Test json_dumps functionality"""
+    from starhtml.datastar import json_dumps
+    
+    # Test basic serialization
+    result = json_dumps({"key": "value"})
+    assert isinstance(result, str)
+    assert '"key"' in result
+    assert '"value"' in result
+    
+    # Test with various types
+    result = json_dumps({"num": 123, "bool": True, "null": None})
+    assert "123" in result
+    assert "true" in result
+    assert "null" in result
+
+
+def test_escape_newlines():
+    """Test escape_newlines function"""
+    from starhtml.datastar import escape_newlines
+    
+    # Test various newline formats
+    result = escape_newlines("line1\nline2")
+    assert result == "line1&#10;line2"
+    
+    result = escape_newlines("line1\r\nline2")
+    assert result == "line1&#10;line2"
+    
+    result = escape_newlines("line1\rline2")
+    assert result == "line1&#10;line2"
+    
+    # Test no newlines
+    result = escape_newlines("no newlines here")
+    assert result == "no newlines here"
+
+
+def test_format_sse_event_with_id():
+    """Test format_sse_event with event ID"""
+    from starhtml.datastar import format_sse_event
+    
+    result = format_sse_event("test-event", ["data line 1", "data line 2"], event_id="test-123", retry=5000)
+    assert "id: test-123" in result
+    assert "event: test-event" in result
+    assert "retry: 5000" in result
+    assert "data: data line 1" in result
+    assert "data: data line 2" in result
+    assert result.endswith("\n\n")
+
+
+def test_format_signal_event_error():
+    """Test format_signal_event error handling"""
+    import pytest
+
+    from starhtml.datastar import format_signal_event
+    
+    # Test with non-serializable object
+    class NonSerializable:
+        pass
+    
+    with pytest.raises(ValueError, match="Failed to serialize signals"):
+        format_signal_event({"obj": NonSerializable()})
+
+
+def test_format_fragment_event_errors():
+    """Test format_fragment_event error handling"""
+    import pytest
+
+    from starhtml.datastar import format_fragment_event
+    
+    # Test with invalid selector
+    with pytest.raises(ValueError, match="Invalid selector"):
+        format_fragment_event("content", "invalid selector with spaces")
+        
+    # Test with invalid merge mode
+    with pytest.raises(ValueError, match="Invalid merge mode"):
+        format_fragment_event("content", "#target", "invalid_mode")
+        
+    # Test with empty selector that gets stripped to None
+    result = format_fragment_event("content", "   ", "morph")
+    assert "selector" not in result
+
+
+def test_process_sse_item_unknown_type():
+    """Test process_sse_item with unknown type"""
+    import pytest
+
+    from starhtml.datastar import process_sse_item
+    
+    with pytest.raises(ValueError, match="Unknown SSE item type"):
+        process_sse_item("unknown_type", {})

@@ -1,12 +1,12 @@
 """Simple SVG FT elements"""
 
+from typing import Any
+
 from fastcore.meta import delegates
-from fastcore.utils import *
+from fastcore.utils import partial
 from fastcore.xml import FT
 
-from .common import *
-from .components import *
-from .xtend import *
+from .components import ft_datastar
 
 __all__ = [
     "g",
@@ -166,12 +166,21 @@ _all_ = [
     "Template",
 ]
 
-g = globals()
+g: dict[str, Any] = globals()
 for o in _all_:
-    g[o] = partial(ft_datastar, o[0].lower() + o[1:])
+    g[o] = partial(ft_datastar, o[0].lower() + o[1:])  # type: ignore[misc]
 
 
-def Svg(*args, viewBox=None, h=None, w=None, height=None, width=None, xmlns="http://www.w3.org/2000/svg", **kwargs):
+def Svg(
+    *args: Any,
+    viewBox: str | None = None,
+    h: int | str | None = None,
+    w: int | str | None = None,
+    height: int | str | None = None,
+    width: int | str | None = None,
+    xmlns: str = "http://www.w3.org/2000/svg",
+    **kwargs: Any,
+) -> FT:
     "An SVG tag; xmlns is added automatically, and viewBox defaults to height and width if not provided"
     if h:
         height = h
@@ -185,16 +194,16 @@ def Svg(*args, viewBox=None, h=None, w=None, height=None, width=None, xmlns="htt
 @delegates(ft_datastar)
 def ft_svg(
     tag: str,
-    *c,
-    transform=None,
-    opacity=None,
-    clip=None,
-    mask=None,
-    filter=None,
-    vector_effect=None,
-    pointer_events=None,
-    **kwargs,
-):
+    *c: Any,
+    transform: str | None = None,
+    opacity: int | float | str | None = None,
+    clip: str | None = None,
+    mask: str | None = None,
+    filter: str | None = None,
+    vector_effect: str | None = None,
+    pointer_events: str | None = None,
+    **kwargs: Any,
+) -> FT:
     "Create a standard `FT` element with some SVG-specific attrs"
     return ft_datastar(
         tag,
@@ -240,7 +249,14 @@ def Ellipse(rx, ry, cx=0, cy=0, fill=None, stroke=None, stroke_width=None, **kwa
     return ft_svg("ellipse", rx=rx, ry=ry, cx=cx, cy=cy, fill=fill, stroke=stroke, stroke_width=stroke_width, **kwargs)
 
 
-def transformd(translate=None, scale=None, rotate=None, skewX=None, skewY=None, matrix=None):
+def transformd(
+    translate: tuple | None = None,
+    scale: tuple | None = None,
+    rotate: tuple | None = None,
+    skewX: int | float | None = None,
+    skewY: int | float | None = None,
+    matrix: tuple | None = None,
+) -> dict[str, str]:
     "Create an SVG `transform` kwarg dict"
     funcs = []
     if translate is not None:
@@ -316,50 +332,61 @@ def Text(
 
 
 class PathFT(FT):
-    def _append_cmd(self, cmd):
+    def _append_cmd(self, cmd: str) -> "PathFT":
         if not isinstance(self.d, str):
-            self.d = cmd
+            self.d = cmd  # type: ignore[attr-defined]
         else:
-            self.d += f" {cmd}"
+            self.d += f" {cmd}"  # type: ignore[attr-defined]
         return self
 
-    def M(self, x, y):
+    def M(self, x: int | float, y: int | float) -> "PathFT":
         "Move to."
         return self._append_cmd(f"M{x} {y}")
 
-    def L(self, x, y):
+    def L(self, x: int | float, y: int | float) -> "PathFT":
         "Line to."
         return self._append_cmd(f"L{x} {y}")
 
-    def H(self, x):
+    def H(self, x: int | float) -> "PathFT":
         "Horizontal line to."
         return self._append_cmd(f"H{x}")
 
-    def V(self, y):
+    def V(self, y: int | float) -> "PathFT":
         "Vertical line to."
         return self._append_cmd(f"V{y}")
 
-    def Z(self):
+    def Z(self) -> "PathFT":
         "Close path."
         return self._append_cmd("Z")
 
-    def C(self, x1, y1, x2, y2, x, y):
+    def C(
+        self, x1: int | float, y1: int | float, x2: int | float, y2: int | float, x: int | float, y: int | float
+    ) -> "PathFT":
         "Cubic Bézier curve."
         return self._append_cmd(f"C{x1} {y1} {x2} {y2} {x} {y}")
 
-    def S(self, x2, y2, x, y):
+    def S(self, x2: int | float, y2: int | float, x: int | float, y: int | float) -> "PathFT":
         "Smooth cubic Bézier curve."
         return self._append_cmd(f"S{x2} {y2} {x} {y}")
 
-    def Q(self, x1, y1, x, y):
+    def Q(self, x1: int | float, y1: int | float, x: int | float, y: int | float) -> "PathFT":
         "Quadratic Bézier curve."
         return self._append_cmd(f"Q{x1} {y1} {x} {y}")
 
-    def T(self, x, y):
+    def T(self, x: int | float, y: int | float) -> "PathFT":
         "Smooth quadratic Bézier curve."
         return self._append_cmd(f"T{x} {y}")
 
-    def A(self, rx, ry, x_axis_rotation, large_arc_flag, sweep_flag, x, y):
+    def A(
+        self,
+        rx: int | float,
+        ry: int | float,
+        x_axis_rotation: int | float,
+        large_arc_flag: int,
+        sweep_flag: int,
+        x: int | float,
+        y: int | float,
+    ) -> "PathFT":
         "Elliptical Arc."
         return self._append_cmd(f"A{rx} {ry} {x_axis_rotation} {large_arc_flag} {sweep_flag} {x} {y}")
 

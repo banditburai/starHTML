@@ -1,18 +1,18 @@
 """The `star_app` convenience wrapper for creating StarHTML applications"""
 
-from fastcore.utils import *
-from fastlite import *
+from collections.abc import Callable
+from typing import Any
 
-from .components import *
-from .core import *
+from fastcore.utils import first
+from fastlite import database
+
+from .core import Beforeware, StarHTML, noop_body
 from .live_reload import StarHTMLWithLiveReload
-from .starlette import *
-from .xtend import *
 
 __all__ = ["star_app"]
 
 
-def _get_tbl(dt, nm, schema):
+def _get_tbl(dt: Any, nm: str, schema: dict[str, Any]) -> tuple[Any, Any]:
     render = schema.pop("render", None)
     tbl = dt[nm]
     if tbl not in dt:
@@ -35,38 +35,38 @@ def _app_factory(*args, **kwargs) -> StarHTML | StarHTMLWithLiveReload:
 
 
 def star_app(
-    db_file: Optional[str] = None,  # Database file name, if needed
-    render: Optional[callable] = None,  # Function used to render default database class
-    hdrs: Optional[tuple] = None,  # Additional FT elements to add to <HEAD>
-    ftrs: Optional[tuple] = None,  # Additional FT elements to add to end of <BODY>
-    tbls: Optional[dict] = None,  # Experimental mapping from DB table names to dict table definitions
-    before: Optional[tuple] | Beforeware = None,  # Functions to call prior to calling handler
-    middleware: Optional[tuple] = None,  # Standard Starlette middleware
+    db_file: str | None = None,  # Database file name, if needed
+    render: Callable | None = None,  # Function used to render default database class
+    hdrs: tuple | None = None,  # Additional FT elements to add to <HEAD>
+    ftrs: tuple | None = None,  # Additional FT elements to add to end of <BODY>
+    tbls: dict[str, Any] | None = None,  # Experimental mapping from DB table names to dict table definitions
+    before: tuple | Beforeware | None = None,  # Functions to call prior to calling handler
+    middleware: tuple | None = None,  # Standard Starlette middleware
     live: bool = False,  # Enable live reloading
     debug: bool = False,  # Passed to Starlette, indicating if debug tracebacks should be returned on errors
-    routes: Optional[tuple] = None,  # Passed to Starlette
-    exception_handlers: Optional[dict] = None,  # Passed to Starlette
-    on_startup: Optional[callable] = None,  # Passed to Starlette
-    on_shutdown: Optional[callable] = None,  # Passed to Starlette
-    lifespan: Optional[callable] = None,  # Passed to Starlette
-    default_hdrs=True,  # Include default StarHTML headers?
-    exts: Optional[list | str] = None,  # Extensions (deprecated, not used with Datastar)
+    routes: tuple | None = None,  # Passed to Starlette
+    exception_handlers: dict | None = None,  # Passed to Starlette
+    on_startup: Callable | None = None,  # Passed to Starlette
+    on_shutdown: Callable | None = None,  # Passed to Starlette
+    lifespan: Callable | None = None,  # Passed to Starlette
+    default_hdrs: bool = True,  # Include default StarHTML headers?
+    exts: list | str | None = None,  # Extensions (deprecated, not used with Datastar)
     canonical: bool = True,  # Automatically include canonical link?
-    secret_key: Optional[str] = None,  # Signing key for sessions
+    secret_key: str | None = None,  # Signing key for sessions
     key_fname: str = ".sesskey",  # Session cookie signing key file name
     session_cookie: str = "session_",  # Session cookie name
     max_age: int = 365 * 24 * 3600,  # Session cookie expiry time
     sess_path: str = "/",  # Session cookie path
     same_site: str = "lax",  # Session cookie same site policy
     sess_https_only: bool = False,  # Session cookie HTTPS only?
-    sess_domain: Optional[str] = None,  # Session cookie domain
-    htmlkw: Optional[dict] = None,  # Attrs to add to the HTML tag
-    bodykw: Optional[dict] = None,  # Attrs to add to the Body tag
-    reload_attempts: Optional[int] = 1,  # Number of reload attempts when live reloading
-    reload_interval: Optional[int] = 1000,  # Time between reload attempts in ms
+    sess_domain: str | None = None,  # Session cookie domain
+    htmlkw: dict | None = None,  # Attrs to add to the HTML tag
+    bodykw: dict | None = None,  # Attrs to add to the Body tag
+    reload_attempts: int | None = 1,  # Number of reload attempts when live reloading
+    reload_interval: int | None = 1000,  # Time between reload attempts in ms
     static_path: str = ".",  # Where the static file route points to, defaults to root dir
-    body_wrap: callable = noop_body,  # FT wrapper for body contents
-    **kwargs,
+    body_wrap: Callable = noop_body,  # FT wrapper for body contents
+    **kwargs: Any,
 ) -> Any:
     "Create a StarHTML app with optional live reloading."
     h = tuple(hdrs) if hdrs else ()

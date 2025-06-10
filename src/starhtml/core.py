@@ -3,7 +3,7 @@
 import asyncio
 import inspect
 import json
-import os
+import re
 import types
 import uuid
 from base64 import b64encode
@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from functools import partialmethod, update_wrapper
 from http import cookies
-from inspect import Parameter, get_annotations
+from inspect import Parameter, get_annotations, iscoroutinefunction
 from types import GenericAlias, UnionType
 from types import SimpleNamespace as ns
 from typing import Any, Union, get_args, get_origin
@@ -23,11 +23,43 @@ from warnings import warn
 
 from anyio import from_thread
 from dateutil import parser as dtparse
-from fastcore.utils import *
-from fastcore.xml import *
+from fastcore.utils import (
+    AttrDict,
+    Path,
+    camel2words,
+    dict2obj,
+    first,
+    get_class,
+    ifnone,
+    is_namedtuple,
+    listify,
+    noop,
+    partition,
+    patch,
+    risinstance,
+    signature_ex,
+    snake2camel,
+    str2bool,
+    str2date,
+    str2int,
+    tuplify,
+)
+from fastcore.xml import FT, to_xml
 from httpx import ASGITransport, AsyncClient
-
-from starhtml.starlette import *
+from starlette.applications import Starlette
+from starlette.background import BackgroundTask, BackgroundTasks
+from starlette.concurrency import run_in_threadpool
+from starlette.convertors import StringConvertor, register_url_convertor
+from starlette.datastructures import FormData, UploadFile, URLPath
+from starlette.endpoints import WebSocketEndpoint
+from starlette.exceptions import HTTPException
+from starlette.middleware import Middleware
+from starlette.middleware.sessions import SessionMiddleware
+from starlette.requests import HTTPConnection, Request
+from starlette.responses import FileResponse, HTMLResponse, RedirectResponse, Response, StreamingResponse
+from starlette.responses import JSONResponse as JSONResponseOrig
+from starlette.routing import Route, WebSocketRoute
+from starlette.websockets import WebSocket
 
 
 def _params(f):
@@ -234,7 +266,7 @@ class Beforeware:
 
 
 async def _handle(f, args, **kwargs):
-    return (await f(*args, **kwargs)) if is_async_callable(f) else await run_in_threadpool(f, *args, **kwargs)
+    return (await f(*args, **kwargs)) if iscoroutinefunction(f) else await run_in_threadpool(f, *args, **kwargs)
 
 
 def _find_wsp(ws, data, hdrs, arg: str, p: Parameter):
@@ -337,8 +369,6 @@ def decode_uri(s):
     return unquote(arg), {k: v[0] for k, v in parse_qs(kw).items()}
 
 
-from starlette.convertors import StringConvertor
-
 StringConvertor.regex = "[^/]*"  # `+` replaced with `*`
 
 
@@ -368,7 +398,7 @@ _verbs = dict(
 
 def _url_for(req, t):
     if callable(t):
-        t = getattr(t, '__routename__', str(t))
+        t = getattr(t, "__routename__", str(t))  # type: ignore[attr-defined]
     kw = {}
     if t.find("/") > -1 and (t.find("?") < 0 or t.find("/") < t.find("?")):
         t, kw = decode_uri(t)
@@ -395,8 +425,10 @@ def _find_targets(req, resp):
 def _apply_ft(o):
     if isinstance(o, tuple):
         o = tuple(_apply_ft(c) for c in o)
-    if hasattr(o, "__ft__") and callable(o.__ft__):
-        o = o.__ft__()  # type: ignore[attr-defined]
+    if hasattr(o, "__ft__"):
+        ft_method = getattr(o, "__ft__", None)
+        if callable(ft_method):
+            o = ft_method()
     if isinstance(o, FT):
         o.children = tuple(_apply_ft(c) for c in o.children)
     return o
@@ -482,12 +514,15 @@ def _is_ft_resp(resp):
 def _resp(req, resp, cls=empty, status_code=200):
     if not resp:
         resp = ""
-    if hasattr(resp, "__response__") and callable(resp.__response__):
-        resp = resp.__response__(req)  # type: ignore[attr-defined]
+    if hasattr(resp, "__response__"):
+        response_method = getattr(resp, "__response__", None)
+        if callable(response_method):
+            resp = response_method(req)
     if cls in (Any, FT):
         cls = empty
-    if isinstance(resp, FileResponse) and not os.path.exists(resp.path):
-        raise HTTPException(404, resp.path)
+    if isinstance(resp, FileResponse):
+        if not os.path.exists(resp.path):  # type: ignore[attr-defined]
+            raise HTTPException(404, resp.path)  # type: ignore[attr-defined]
     resp, kw = _part_resp(req, resp)
     if cls is not empty:
         return cls(resp, status_code=status_code, **kw)
@@ -661,7 +696,7 @@ class StarHTML(Starlette):
 
         # Get the project root directory (2 levels up from this file)
         project_root = Path(__file__).parent.parent.parent
-        datastar_path = project_root / "static" / "js" / "datastar.js"
+        datastar_path = project_root / "worktrees" / "datastar-rc" / "datastar.js"
 
         def serve_datastar():
             if not datastar_path.exists():
@@ -671,14 +706,14 @@ class StarHTML(Starlette):
         self.route("/static/datastar.js")(serve_datastar)
 
     def add_route(self, route) -> None:  # type: ignore[override]
-        route.methods = [m.upper() if isinstance(m, str) else m for m in listify(route.methods)]
+        route.methods = [m.upper() if isinstance(m, str) else m for m in listify(route.methods)]  # type: ignore[attr-defined]
         self.router.routes = [
             r
             for r in self.router.routes
             if not (
-                getattr(r, 'path', None) == route.path
-                and getattr(r, 'name', None) == route.name
-                and ((route.methods is None) or (set(getattr(r, 'methods', [])) == set(route.methods)))
+                getattr(r, "path", None) == route.path
+                and getattr(r, "name", None) == route.name
+                and ((route.methods is None) or (set(getattr(r, "methods", [])) == set(route.methods)))
             )
         ]
         self.router.routes.append(route)
@@ -721,7 +756,7 @@ def _endp(self: StarHTML, f, body_wrap):
 def _add_ws(self: StarHTML, func, path, conn, disconn, name, middleware):
     endp = _ws_endp(func, conn, disconn)
     route = WebSocketRoute(path, endpoint=endp, name=name, middleware=middleware)
-    setattr(route, 'methods', ["ws"])  # type: ignore[attr-defined]
+    route.methods = ["ws"]  # type: ignore[attr-defined]
     self.add_route(route)
     return func
 
@@ -773,14 +808,14 @@ def _add_route(self: StarHTML, func, path, methods, name, include_in_schema, bod
         p = "/" + ("" if fn == "index" else fn)
     route = Route(
         p,
-        endpoint=self._endp(func, body_wrap or self.body_wrap),  # type: ignore[attr-defined]
+        endpoint=self._endp(func, body_wrap or self.body_wrap),
         methods=m,
         name=n,
         include_in_schema=include_in_schema,
-    )
+    )  # type: ignore[attr-defined]
     self.add_route(route)
     lf = _mk_locfunc(func, p)
-    setattr(lf, '__routename__', n)  # type: ignore[attr-defined]
+    lf.__routename__ = n  # type: ignore[attr-defined]
     return lf
 
 
@@ -881,7 +916,7 @@ class APIRouter:
     def _wrap_func(self, func, path=None):
         name = func.__name__
         wrapped = _mk_locfunc(func, path)
-        setattr(wrapped, '__routename__', name)  # type: ignore[attr-defined]
+        wrapped.__routename__ = name  # type: ignore[attr-defined]
         # If you are using the def get or def post method names, this approach is not supported
         if name not in all_meths:
             setattr(self.rt_funcs, name, wrapped)
@@ -891,7 +926,9 @@ class APIRouter:
         "Add a route at `path`"
 
         def f(func):
-            p = self.prefix + ("/" + ("" if getattr(path, '__name__', None) == "index" else func.__name__) if callable(path) else path)
+            p = self.prefix + (
+                "/" + ("" if getattr(path, "__name__", None) == "index" else func.__name__) if callable(path) else path
+            )
             wrapped = self._wrap_func(func, p)
             self.routes.append((func, p, methods, name, include_in_schema, body_wrap or self.body_wrap))
             return wrapped

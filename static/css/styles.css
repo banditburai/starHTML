@@ -1,0 +1,146 @@
+html {
+    display: none !important;
+}
+
+body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    container-type: inline-size;
+}
+
+/* Show HTML after Stellar loads */
+html:has(sf-stellar) {
+    display: initial !important;
+}
+
+.color-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: var(--size-2);
+}
+
+.animation-demo {
+    animation-duration: 1s;
+    animation-fill-mode: both;
+}
+
+/* Theme toggle button styles */
+.theme-toggle {
+    position: fixed;
+    top: var(--size-4);
+    right: var(--size-4);
+    padding: var(--size-2) var(--size-3);
+    background: var(--surface-2);
+    border: var(--border-size-1) solid var(--surface-3);
+    border-radius: var(--radius-3);
+    cursor: pointer;
+    transition: all 0.2s var(--ease-outQuad);
+    font-size: var(--font-size-2);
+    color: var(--text-1);
+    z-index: var(--z-index-5);
+}
+
+.theme-toggle:hover {
+    background: var(--surface-3);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-2);
+}
+
+/* Define theme variables */
+:root {
+    --background: oklch(0.98 0.01 279.69);
+    --foreground: oklch(0.25 0.03 272.63);
+    --card: oklch(0.99 0.01 247.88);
+    --card-foreground: oklch(0.25 0.03 272.63);
+    --popover: oklch(0.97 0.01 273.36);
+    --popover-foreground: oklch(0.25 0.03 272.63);
+    --primary: oklch(0.62 0.12 227.73);
+    --primary-foreground: oklch(0.25 0.03 272.63);
+    --secondary: oklch(0.90 0.02 257.47);
+    --secondary-foreground: oklch(0.25 0.03 272.63);
+    --muted: oklch(0.95 0.01 273.35);
+    --muted-foreground: oklch(0.45 0.02 274.45);
+    --accent: oklch(0.70 0.10 205.28);
+    --accent-foreground: oklch(0.25 0.03 272.63);
+    --destructive: oklch(0.55 0.22 15.06);
+    --destructive-foreground: oklch(0.99 0 0);
+    --border: oklch(0.85 0.02 276.30);
+    --input: oklch(0.85 0.02 276.30);
+    --ring: oklch(0.62 0.12 227.73);
+}
+
+[data-theme="light"] {
+    color-scheme: light !important;
+    --background: oklch(0.98 0.01 279.69);
+    --foreground: oklch(0.25 0.03 272.63);
+    --card: oklch(0.99 0.01 247.88);
+    --card-foreground: oklch(0.25 0.03 272.63);
+    --popover: oklch(0.97 0.01 273.36);
+    --popover-foreground: oklch(0.25 0.03 272.63);
+    --primary: oklch(0.62 0.12 227.73);
+    --primary-foreground: oklch(0.25 0.03 272.63);
+    --secondary: oklch(0.90 0.02 257.47);
+    --secondary-foreground: oklch(0.25 0.03 272.63);
+    --muted: oklch(0.95 0.01 273.35);
+    --muted-foreground: oklch(0.45 0.02 274.45);
+    --accent: oklch(0.70 0.10 205.28);
+    --accent-foreground: oklch(0.25 0.03 272.63);
+    --destructive: oklch(0.55 0.22 15.06);
+    --destructive-foreground: oklch(0.99 0 0);
+    --border: oklch(0.85 0.02 276.30);
+    --input: oklch(0.85 0.02 276.30);
+    --ring: oklch(0.62 0.12 227.73);
+}
+
+[data-theme="dark"] {
+    color-scheme: dark !important;
+    --background: oklch(0.22 0.03 284.06);
+    --foreground: oklch(0.88 0.04 272.28);
+    --card: oklch(0.24 0.03 283.91);
+    --card-foreground: oklch(0.88 0.04 272.28);
+    --popover: oklch(0.40 0.03 280.15);
+    --popover-foreground: oklch(0.88 0.04 272.28);
+    --primary: oklch(0.85 0.08 210.25);
+    --primary-foreground: oklch(0.24 0.03 283.91);
+    --secondary: oklch(0.48 0.03 278.64);
+    --secondary-foreground: oklch(0.88 0.04 272.28);
+    --muted: oklch(0.30 0.03 276.21);
+    --muted-foreground: oklch(0.75 0.04 273.93);
+    --accent: oklch(0.72 0.09 206.31);
+    --accent-foreground: oklch(0.24 0.03 283.91);
+    --destructive: oklch(0.76 0.13 2.76);
+    --destructive-foreground: oklch(0.24 0.03 283.91);
+    --border: oklch(0.32 0.03 281.98);
+    --input: oklch(0.32 0.03 281.98);
+    --ring: oklch(0.85 0.08 210.25);
+}
+
+/* Apply body background and text color */
+body {
+    background-color: var(--background);
+    color: var(--foreground);
+}
+
+/* Map to Stellar's expected variables */
+[data-theme="light"] body {
+    --surface-1: var(--background) !important;
+    --surface-2: var(--card) !important;
+    --surface-3: var(--muted) !important;
+    --surface-4: var(--border) !important;
+    --text-1: var(--foreground) !important;
+    --text-2: var(--muted-foreground) !important;
+    background-color: var(--background) !important;
+    color: var(--foreground) !important;
+}
+
+[data-theme="dark"] body {
+    --surface-1: var(--background) !important;
+    --surface-2: var(--card) !important;
+    --surface-3: var(--muted) !important;
+    --surface-4: var(--border) !important;
+    --text-1: var(--foreground) !important;
+    --text-2: var(--muted-foreground) !important;
+    background-color: var(--background) !important;
+    color: var(--foreground) !important;
+}
