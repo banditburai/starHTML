@@ -14,7 +14,7 @@ window.proc_dstar = function(selector, callback) {
     document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll(selector).forEach(callback);
     });
-    
+
     // Also process any existing elements immediately if DOM is already loaded
     if (document.readyState !== 'loading') {
         document.querySelectorAll(selector).forEach(callback);

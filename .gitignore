@@ -160,3 +160,18 @@ _docs
 worktrees/
 
 *.md
+
+static/
+demo/07_stellar_css_exploration.py
+
+# Reference repositories (these are for reference only)
+reference/basecoat/
+reference/datastarui/
+reference/shadcn-ui-web/
+
+# Local project notes
+CLAUDE.local.md
+scratchpad/
+
+# Pre-commit
+.pre-commit-config.yaml
