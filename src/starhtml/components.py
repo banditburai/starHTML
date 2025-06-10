@@ -3,7 +3,10 @@
 import re
 from collections.abc import Callable
 from dataclasses import asdict, is_dataclass
-from typing import Any, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional, Union
+
+if TYPE_CHECKING:
+    from fastcore.xml import FT
 
 from bs4 import BeautifulSoup, Comment
 from fastcore.utils import (
@@ -18,18 +21,18 @@ from fastcore.xml import FT, NotStr, attrmap, ft, to_xml, valmap, voids
 from .core import fh_cfg, unqid
 
 
-@patch
-def __str__(self: FT) -> str:
+@patch  # type: ignore[misc]
+def __str__(self: "FT") -> str:
     return self.id if self.id else to_xml(self, indent=False)  # type: ignore[attr-defined]
 
 
 @patch  # type: ignore[misc]
-def __radd__(self: FT, b: Any) -> str:
+def __radd__(self: "FT", b: Any) -> str:  # type: ignore[operator]
     return f"{b}{self}"
 
 
 @patch  # type: ignore[misc]
-def __add__(self: FT, b: Any) -> str:
+def __add__(self: "FT", b: Any) -> str:  # type: ignore[operator]
     return f"{self}{b}"
 
 
