@@ -4,7 +4,18 @@ version = "0.1.0"
 description = "Modern HTML generation in Python, inspired by FastHTML"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = ["starlette", "uvicorn[standard]", "httpx", "beautifulsoup4", "python-dateutil", "fastcore", "fastlite", "oauthlib", "itsdangerous"]
+dependencies = [
+    "starlette",
+ "uvicorn[standard]",
+ "httpx",
+ "beautifulsoup4",
+ "python-dateutil",
+ "fastcore",
+ "fastlite",
+ "oauthlib",
+ "itsdangerous",
+ "pytest-cov>=6.1.1",
+]
 
 [project.optional-dependencies]
 test = ["pytest", "pytest-cov", "pytest-timeout", "pytest-xdist", "pytest-watch"]
@@ -29,7 +40,7 @@ addopts = [
     "--cov-report=term-missing:skip-covered",
     "--cov-report=html",
     "--cov-report=xml",
-    "--cov-fail-under=25",
+    "--cov-fail-under=80",
 ]
 testpaths = ["tests"]
 pythonpath = ["src", "."]
