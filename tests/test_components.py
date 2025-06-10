@@ -1086,12 +1086,12 @@ class TestUtilityFunctionsAdvanced:
         ft = FT("div", ("test",), {})
         
         # Test __add__
-        result = ft + " suffix"
+        result = ft + " suffix"  # type: ignore[operator]
         assert "test" in result
         assert "suffix" in result
         
         # Test __radd__
-        result = "prefix " + ft
+        result = "prefix " + ft  # type: ignore[operator]
         assert "prefix" in result
         assert "test" in result
         
