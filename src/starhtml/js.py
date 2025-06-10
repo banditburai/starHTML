@@ -22,111 +22,140 @@ window.proc_dstar = function(selector, callback) {
 };
 """
 
-__all__ = ['marked_imp', 'npmcdn', 'light_media', 'dark_media', 'MarkdownJS', 'KatexMarkdownJS', 'HighlightJS', 'SortableJS',
-           'MermaidJS']
+__all__ = [
+    "marked_imp",
+    "npmcdn",
+    "light_media",
+    "dark_media",
+    "MarkdownJS",
+    "KatexMarkdownJS",
+    "HighlightJS",
+    "SortableJS",
+    "MermaidJS",
+]
+
 
 def light_media(
-        css: str # CSS to be included in the light media query
-    ):
+    css: str,  # CSS to be included in the light media query
+):
     "Render light media for day mode views"
-    return Style('@media (prefers-color-scheme: light) {%s}' %css)
+    return Style(f"@media (prefers-color-scheme: light) {{{css}}}")
+
 
 def dark_media(
-        css: str # CSS to be included in the dark media query
-    ):
+    css: str,  # CSS to be included in the dark media query
+):
     "Render dark media for night mode views"
-    return Style('@media (prefers-color-scheme:  dark) {%s}' %css)
+    return Style(f"@media (prefers-color-scheme:  dark) {{{css}}}")
+
 
 marked_imp = """import { marked } from "https://cdn.jsdelivr.net/npm/marked/lib/marked.esm.js";
 """
-npmcdn = 'https://cdn.jsdelivr.net/npm/'
+npmcdn = "https://cdn.jsdelivr.net/npm/"
+
 
 def MarkdownJS(
-        sel='.marked' # CSS selector for markdown elements
-    ):
+    sel=".marked",  # CSS selector for markdown elements
+):
     "Implements browser-based markdown rendering."
-    src = "proc_dstar('%s', e => e.innerHTML = marked.parse(e.textContent));" % sel
-    return Script(proc_dstar_js + marked_imp + src, type='module')
+    src = f"proc_dstar('{sel}', e => e.innerHTML = marked.parse(e.textContent));"
+    return Script(proc_dstar_js + marked_imp + src, type="module")
+
 
 def KatexMarkdownJS(
-        sel='.marked',  # CSS selector for markdown elements
-        inline_delim='$',  # Delimiter for inline math
-        display_delim='$$',  # Delimiter for long math
-        math_envs=None  # List of environments to render as display math
-    ):
-    math_envs = math_envs or ['equation', 'align', 'gather', 'multline']
-    env_list = '[' + ','.join(f"'{env}'" for env in math_envs) + ']'
-    fn = Path(__file__).parent/'katex.js'
-    scr = ScriptX(fn, display_delim=re.escape(display_delim), inline_delim=re.escape(inline_delim),
-                  sel=sel, env_list=env_list, type='module')
-    css = Link(rel="stylesheet", href=npmcdn+"katex@0.16.11/dist/katex.min.css")
-    return scr,css
+    sel=".marked",  # CSS selector for markdown elements
+    inline_delim="$",  # Delimiter for inline math
+    display_delim="$$",  # Delimiter for long math
+    math_envs=None,  # List of environments to render as display math
+):
+    math_envs = math_envs or ["equation", "align", "gather", "multline"]
+    env_list = "[" + ",".join(f"'{env}'" for env in math_envs) + "]"
+    fn = Path(__file__).parent / "katex.js"
+    scr = ScriptX(
+        fn,
+        display_delim=re.escape(display_delim),
+        inline_delim=re.escape(inline_delim),
+        sel=sel,
+        env_list=env_list,
+        type="module",
+    )
+    css = Link(rel="stylesheet", href=npmcdn + "katex@0.16.11/dist/katex.min.css")
+    return scr, css
+
 
 def HighlightJS(
-        sel='pre code:not([data-highlighted="yes"])', # CSS selector for code elements. Default is industry standard, be careful before adjusting it
-        langs:str|list|tuple='python',  # Language(s) to highlight
-        light='atom-one-light',  # Light theme
-        dark='atom-one-dark'  # Dark theme
-    ):
+    sel='pre code:not([data-highlighted="yes"])',  # CSS selector for code elements. Default is industry standard, be careful before adjusting it
+    langs: str | list | tuple = "python",  # Language(s) to highlight
+    light="atom-one-light",  # Light theme
+    dark="atom-one-dark",  # Dark theme
+):
     "Implements browser-based syntax highlighting. Usage example [here](/tutorials/quickstart_for_web_devs.html#code-highlighting)."
-    src = """
+    src = (
+        f"""
 hljs.addPlugin(new CopyButtonPlugin());
-hljs.configure({'cssSelector': '%s'});
-htmx.onLoad(hljs.highlightAll);""" % sel
-    hjs = 'highlightjs','cdn-release', 'build'
-    hjc = 'arronhunt'  ,'highlightjs-copy', 'dist'
-    if isinstance(langs, str): langs = [langs]
-    langjs = [jsd(*hjs, f'languages/{lang}.min.js') for lang in langs]
-    return [jsd(*hjs, f'styles/{dark}.css', typ='css', media="(prefers-color-scheme: dark)"),
-            jsd(*hjs, f'styles/{light}.css', typ='css', media="(prefers-color-scheme: light)"),
-            jsd(*hjs, 'highlight.min.js'),
-            jsd(*hjc, 'highlightjs-copy.min.js'),
-            jsd(*hjc, 'highlightjs-copy.min.css', typ='css'),
-            *langjs, Script(src, type='module')]
+hljs.configure({{'cssSelector': '{sel}'}});
+htmx.onLoad(hljs.highlightAll);"""
+    )
+    hjs = "highlightjs", "cdn-release", "build"
+    hjc = "arronhunt", "highlightjs-copy", "dist"
+    if isinstance(langs, str):
+        langs = [langs]
+    langjs = [jsd(*hjs, f"languages/{lang}.min.js") for lang in langs]
+    return [
+        jsd(*hjs, f"styles/{dark}.css", typ="css", media="(prefers-color-scheme: dark)"),
+        jsd(*hjs, f"styles/{light}.css", typ="css", media="(prefers-color-scheme: light)"),
+        jsd(*hjs, "highlight.min.js"),
+        jsd(*hjc, "highlightjs-copy.min.js"),
+        jsd(*hjc, "highlightjs-copy.min.css", typ="css"),
+        *langjs,
+        Script(src, type="module"),
+    ]
+
 
 def SortableJS(
-        sel='.sortable',  # CSS selector for sortable elements
-        ghost_class='blue-background-class'  # When an element is being dragged, this is the class used to distinguish it from the rest
-    ):
-    src = """
-import {Sortable} from 'https://cdn.jsdelivr.net/npm/sortablejs/+esm';
-proc_dstar('%s', el => Sortable.create(el, {ghostClass: '%s'}));
-""" % (sel, ghost_class)
-    return Script(proc_dstar_js + src, type='module')
+    sel=".sortable",  # CSS selector for sortable elements
+    ghost_class="blue-background-class",  # When an element is being dragged, this is the class used to distinguish it from the rest
+):
+    src = f"""
+import {{Sortable}} from 'https://cdn.jsdelivr.net/npm/sortablejs/+esm';
+proc_dstar('{sel}', el => Sortable.create(el, {{ghostClass: '{ghost_class}'}}));
+"""
+    return Script(proc_dstar_js + src, type="module")
+
 
 def MermaidJS(
-        sel='.language-mermaid',  # CSS selector for mermaid elements
-        theme='base',  # Mermaid theme to use
-    ):
+    sel=".language-mermaid",  # CSS selector for mermaid elements
+    theme="base",  # Mermaid theme to use
+):
     "Implements browser-based Mermaid diagram rendering."
-    src = """
+    src = f"""
 import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
 
-mermaid.initialize({
+mermaid.initialize({{
     startOnLoad: false,
-    theme: '%s',
+    theme: '{theme}',
     securityLevel: 'loose',
-    flowchart: { useMaxWidth: false, useMaxHeight: false }
-});
+    flowchart: {{ useMaxWidth: false, useMaxHeight: false }}
+}});
 
-function renderMermaidDiagrams(element, index) {
-    try {
+function renderMermaidDiagrams(element, index) {{
+    try {{
         const graphDefinition = element.textContent;
-        const graphId = `mermaid-diagram-${index}`;
+        const graphId = `mermaid-diagram-${{index}}`;
         mermaid.render(graphId, graphDefinition)
-            .then(({svg, bindFunctions}) => {
+            .then(({{svg, bindFunctions}}) => {{
                 element.innerHTML = svg;
                 bindFunctions?.(element);
-            })
-            .catch(error => {
-                console.error(`Error rendering Mermaid diagram ${index}:`, error);
-                element.innerHTML = `<p>Error rendering diagram: ${error.message}</p>`;
-            });
-    } catch (error) {
-        console.error(`Error processing Mermaid diagram ${index}:`, error);
-    }
-}
+            }})
+            .catch(error => {{
+                console.error(`Error rendering Mermaid diagram ${{index}}:`, error);
+                element.innerHTML = `<p>Error rendering diagram: ${{error.message}}</p>`;
+            }});
+    }} catch (error) {{
+        console.error(`Error processing Mermaid diagram ${{index}}:`, error);
+    }}
+}}
 
-proc_dstar('%s', (el, idx) => renderMermaidDiagrams(el, idx));
-""" % (theme, sel)
-    return Script(proc_dstar_js + src, type='module')
+proc_dstar('{sel}', (el, idx) => renderMermaidDiagrams(el, idx));
+"""
+    return Script(proc_dstar_js + src, type="module")
