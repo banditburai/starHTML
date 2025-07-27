@@ -18,7 +18,7 @@ from starlette.responses import FileResponse
 from starlette.testclient import TestClient
 
 from starhtml import star_app
-from starhtml.core import JSONResponse
+from starhtml.server import JSONResponse
 from starhtml.utils import form2dict, parse_form
 
 

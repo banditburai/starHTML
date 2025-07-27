@@ -22,7 +22,7 @@ from starhtml.tags import (
     Input,
     Line,
     P,
-    Path,
+    SvgPath,
     PathFT,
     Polygon,
     Polyline,
@@ -345,25 +345,25 @@ class TestPathFT:
     
     def test_path_creation(self):
         """Test basic Path creation."""
-        path = Path()
+        path = SvgPath()
         assert isinstance(path, PathFT)
         assert path.tag == "path"
     
     def test_path_with_initial_d(self):
         """Test Path creation with initial d attribute."""
-        path = Path(d="M 10 10 L 20 20")
+        path = SvgPath(d="M 10 10 L 20 20")
         assert path.attrs["d"] == "M 10 10 L 20 20"
     
     def test_path_with_styling(self):
         """Test Path with styling attributes."""
-        path = Path(fill="none", stroke="red", stroke_width=2)
+        path = SvgPath(fill="none", stroke="red", stroke_width=2)
         assert path.attrs["fill"] == "none"
         assert path.attrs["stroke"] == "red"
         assert path.attrs["stroke-width"] == 2
     
     def test_path_absolute_commands(self):
         """Test PathFT absolute command methods."""
-        path = Path()
+        path = SvgPath()
         
         # Test Move to (M)
         path.M(10, 20)
@@ -387,7 +387,7 @@ class TestPathFT:
     
     def test_path_relative_commands(self):
         """Test PathFT relative command methods."""
-        path = Path()
+        path = SvgPath()
         
         # Test Move to relative (m)
         path.m(5, 10)
@@ -411,7 +411,7 @@ class TestPathFT:
     
     def test_path_cubic_bezier_commands(self):
         """Test PathFT cubic Bézier curve commands."""
-        path = Path()
+        path = SvgPath()
         
         # Test Cubic Bézier absolute (C)
         path.C(10, 10, 20, 20, 30, 10)
@@ -431,7 +431,7 @@ class TestPathFT:
     
     def test_path_quadratic_bezier_commands(self):
         """Test PathFT quadratic Bézier curve commands."""
-        path = Path()
+        path = SvgPath()
         
         # Test Quadratic Bézier absolute (Q)
         path.Q(10, 20, 30, 10)
@@ -451,7 +451,7 @@ class TestPathFT:
     
     def test_path_arc_commands(self):
         """Test PathFT arc commands."""
-        path = Path()
+        path = SvgPath()
         
         # Test Arc absolute (A)
         path.A(rx=25, ry=25, x_axis_rotation=0, large_arc_flag=0, sweep_flag=1, x=50, y=25)
@@ -463,7 +463,7 @@ class TestPathFT:
     
     def test_path_command_chaining(self):
         """Test chaining of PathFT commands."""
-        path = Path().M(0, 0).L(10, 0).L(10, 10).L(0, 10).Z()
+        path = SvgPath().M(0, 0).L(10, 0).L(10, 10).L(0, 10).Z()
         
         d_attr = path.d
         assert "M0,0" in d_attr
@@ -474,7 +474,7 @@ class TestPathFT:
     
     def test_path_d_accumulation(self):
         """Test that path commands properly accumulate in d attribute."""
-        path = Path()
+        path = SvgPath()
         
         # Start with empty d
         getattr(path, 'd', '')
@@ -490,7 +490,7 @@ class TestPathFT:
     
     def test_path_non_string_d_handling(self):
         """Test PathFT handles non-string d attribute."""
-        path = Path()
+        path = SvgPath()
         # Simulate non-string d attribute
         path.d = None
         path.M(10, 10)
@@ -650,7 +650,7 @@ class TestComplexSVGScenarios:
     def test_complex_path_drawing(self):
         """Test complex path drawing with PathFT."""
         # Draw a simple house shape
-        path = (Path()
+        path = (SvgPath()
                 .M(10, 50)  # Start at bottom left
                 .L(10, 20)  # Up to roof level
                 .L(25, 10)  # Up to roof peak
@@ -684,7 +684,7 @@ class TestEdgeCases:
     
     def test_path_with_empty_d(self):
         """Test Path with empty d attribute."""
-        path = Path(d="")
+        path = SvgPath(d="")
         assert path.attrs["d"] == ""
         
         # Adding commands should work normally
@@ -737,7 +737,7 @@ class TestRealWorldUsage:
         """Test creating an SVG icon."""
         # Create a simple checkmark icon
         checkmark = Svg(
-            Path(d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z", fill="currentColor"),
+            SvgPath(d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z", fill="currentColor"),
             width=24, height=24,
             viewBox="0 0 24 24"
         )

@@ -474,7 +474,7 @@ class TestSessionSecurity:
     
     def test_secure_cookie_attributes(self):
         """Test that cookies have secure attributes."""
-        from starhtml.core import cookie
+        from starhtml.server import cookie
         
         # Test secure cookie creation
         secure_cookie = cookie(

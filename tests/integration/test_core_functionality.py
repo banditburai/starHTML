@@ -6,7 +6,7 @@ from starlette.datastructures import UploadFile
 from starlette.testclient import TestClient
 
 from starhtml import *
-from starhtml.core import JSONResponse
+from starhtml.server import JSONResponse
 from starhtml.realtime import elements, format_element_event, format_signal_event, signals
 
 

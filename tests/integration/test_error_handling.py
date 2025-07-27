@@ -15,7 +15,7 @@ from starlette.requests import Request
 from starlette.testclient import TestClient
 
 from starhtml import H1, Div, star_app
-from starhtml.core import JSONResponse
+from starhtml.server import JSONResponse
 from starhtml.realtime import format_element_event, format_signal_event, signals, sse
 
 

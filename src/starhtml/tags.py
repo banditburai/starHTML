@@ -2,7 +2,6 @@
 
 from typing import Any
 
-from fastcore.utils import Path
 from fastcore.xml import FT
 
 _HTML_TAG_NAMES = [
@@ -26,7 +25,7 @@ _SVG_TAG_NAMES = [
     # Note: Custom-defined tags like Svg, Rect, Path, etc., are listed here
     # to be included in __all__, but their functions will be defined manually below.
     "Svg", "G", "Rect", "Circle", "Ellipse", "Line", "Polyline", "Polygon",
-    "Text", "Path", "AltGlyph", "AltGlyphDef", "AltGlyphItem", "Animate", "AnimateColor",
+    "Text", "SvgPath", "AltGlyph", "AltGlyphDef", "AltGlyphItem", "Animate", "AnimateColor",
     "AnimateMotion", "AnimateTransform", "ClipPath", "Color_profile", "Cursor",
     "Defs", "Desc", "FeBlend", "FeColorMatrix", "FeComponentTransfer",
     "FeComposite", "FeConvolveMatrix", "FeDiffuseLighting", "FeDisplacementMap",
@@ -337,7 +336,7 @@ class PathFT(FT):
         "Close path (relative, equivalent to Z)."
         return self._append_cmd("z")
 
-def Path(d="", fill=None, stroke=None, stroke_width=None, **kwargs):
+def SvgPath(d="", fill=None, stroke=None, stroke_width=None, **kwargs):
     """Creates a <path> SVG element, returning a powerful PathFT builder object."""
     return ft_svg("path", d=d, fill=fill, stroke=stroke, stroke_width=stroke_width, ft_cls=PathFT, **kwargs)
 

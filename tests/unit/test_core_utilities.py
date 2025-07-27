@@ -16,13 +16,13 @@ from datetime import datetime
 import pytest
 from starlette.applications import Starlette
 
-from starhtml.core import (
+from starhtml.server import (
     Client,
-    EventStream,
     JSONResponse,
     Redirect,
     cookie,
 )
+from starhtml.realtime import EventStream
 from starhtml.utils import (
     HttpHeader,
     _fix_anno,
