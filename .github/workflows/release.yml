@@ -44,7 +44,7 @@ jobs:
       run: bun install --frozen-lockfile
     
     - name: Build JavaScript assets
-      run: bun run build:package
+      run: bun run build
     
     - name: Validate JavaScript build outputs
       run: |
@@ -53,6 +53,7 @@ jobs:
           "src/starhtml/static/js/handlers/persist.js"
           "src/starhtml/static/js/handlers/scroll.js"
           "src/starhtml/static/js/handlers/resize.js"
+          "src/starhtml/static/js/handlers/smooth-scroll.js"
           "src/starhtml/static/js/handlers/throttle.js"
           "src/starhtml/static/js/handlers/index.js"
           "src/starhtml/static/js/external/katex.js"
