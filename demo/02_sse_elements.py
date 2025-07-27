@@ -9,7 +9,7 @@ app, rt = star_app(
     title="SSE Elements Demo",
     hdrs=[
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
-    ]
+    ],
 )
 # Demo state - in production use database/session
 item_count = 0
@@ -130,16 +130,16 @@ def home():
                 flex-wrap: wrap;
             }
         """),
-        
         Div(
             # Header
             Div(
-                H1("SSE Elements Demo", style="color: #1f2937; margin-bottom: 0.5rem; font-size: 2.5rem; font-weight: 700;"),
-                P("Real-time server-sent events",
-                  style="color: #6b7280; font-size: 1.1rem; margin-bottom: 2rem;"),
-                style="text-align: center;"
+                H1(
+                    "SSE Elements Demo",
+                    style="color: #1f2937; margin-bottom: 0.5rem; font-size: 2.5rem; font-weight: 700;",
+                ),
+                P("Real-time server-sent events", style="color: #6b7280; font-size: 1.1rem; margin-bottom: 2rem;"),
+                style="text-align: center;",
             ),
-            
             # Control Panel
             Div(
                 H2("Controls", style="color: #374151; margin-bottom: 1rem; font-size: 1.3rem; font-weight: 600;"),
@@ -150,23 +150,14 @@ def home():
                         Span("Loading...", ds_show="$loading"),
                         ds_on_click="@get('/api/load-data')",
                         ds_indicator="loading",
-                        cls="btn btn-primary"
+                        cls="btn btn-primary",
                     ),
-                    Button(
-                        "➕ Add Random Item",
-                        ds_on_click="@get('/api/add-item')",
-                        cls="btn btn-secondary"
-                    ),
-                    Button(
-                        "🗑️ Clear All",
-                        ds_on_click="@get('/api/clear')",
-                        cls="btn btn-danger"
-                    ),
-                    cls="controls"
+                    Button("➕ Add Random Item", ds_on_click="@get('/api/add-item')", cls="btn btn-secondary"),
+                    Button("🗑️ Clear All", ds_on_click="@get('/api/clear')", cls="btn btn-danger"),
+                    cls="controls",
                 ),
-                cls="card"
+                cls="card",
             ),
-            
             # Status Bar
             Div(
                 Div(
@@ -177,9 +168,8 @@ def home():
                     Span("📦 Items: ", style="font-weight: 500; color: #374151;"),
                     Span(ds_text="$itemCount", style="color: #2563eb; font-weight: 700; font-size: 1.1rem;"),
                 ),
-                cls="status-bar"
+                cls="status-bar",
             ),
-            
             # Items Container
             Div(
                 H3("Items", style="color: #374151; margin-bottom: 1rem; font-size: 1.2rem; font-weight: 600;"),
@@ -188,21 +178,21 @@ def home():
                     P("No items yet", style="font-weight: 500; font-size: 1.1rem; margin-bottom: 0.5rem;"),
                     P("Click 'Load Sample Data' to get started", style="font-size: 0.9rem; opacity: 0.7;"),
                     cls="empty-state",
-                    ds_show="$itemCount === 0"
+                    ds_show="$itemCount === 0",
                 ),
                 Div(id="items"),
-                cls="card"
+                cls="card",
             ),
-            
             # Footer
             Div(
-                P("Powered by StarHTML",
-                  style="text-align: center; color: #9ca3af; font-size: 0.9rem; margin-top: 2rem;"),
+                P(
+                    "Powered by StarHTML",
+                    style="text-align: center; color: #9ca3af; font-size: 0.9rem; margin-top: 2rem;",
+                ),
             ),
-            
             ds_signals={"status": "Ready", "loading": False, "itemCount": 0},
-            cls="container"
-        )
+            cls="container",
+        ),
     )
 
 
@@ -211,15 +201,13 @@ def home():
 def load_data(req):
     global item_count
     yield signals(status="Loading sample data...", loading=True)
-    time.sleep(0.5) # simulate network latency
+    time.sleep(0.5)  # simulate network latency
 
     # Add some sample items (append to existing)
     items = ["🍎 Apple", "🍌 Banana", "🍒 Cherry", "🥝 Kiwi", "🫐 Elderberry"]
     for item in items:
         item_count += 1
-        yield elements(
-            Div(f"📋 {item}", cls="item"), "#items", "append"
-        )
+        yield elements(Div(f"📋 {item}", cls="item"), "#items", "append")
         yield signals(itemCount=item_count)
         time.sleep(0.3)
 
@@ -238,9 +226,7 @@ def add_item(req):
     item = random.choice(items)
 
     item_count += 1
-    yield elements(
-        Div(f"🆕 {item}", cls="item item-new"), "#items", "append"
-    )
+    yield elements(Div(f"🆕 {item}", cls="item item-new"), "#items", "append")
 
     yield signals(status=f"Added {item.split(' ')[1]}", itemCount=item_count)
 

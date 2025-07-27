@@ -15,16 +15,32 @@ from .html import ft_datastar, ft_html
 from .tags import Div, Iframe, Input, Label, Link, Meta
 
 __all__ = [
-    "A", "AX", "Form", "Fragment",
-    "Hidden", "CheckboxX",
-    "Script", "Style", "ScriptX", "StyleX", "run_js", "jsd",
-    "Socials", "Favicon", "YouTubeEmbed", "Nbsp",
-    "loose_format", "double_braces", "undouble_braces", "replace_css_vars",
+    "A",
+    "AX",
+    "Form",
+    "Fragment",
+    "Hidden",
+    "CheckboxX",
+    "Script",
+    "Style",
+    "ScriptX",
+    "StyleX",
+    "run_js",
+    "jsd",
+    "Socials",
+    "Favicon",
+    "YouTubeEmbed",
+    "Nbsp",
+    "loose_format",
+    "double_braces",
+    "undouble_braces",
+    "replace_css_vars",
 ]
 
 # ============================================================================
 # Core Component Extensions
 # ============================================================================
+
 
 @delegates(ft_datastar, keep=True)
 def A(*c, get=None, target_id=None, href="#", **kwargs) -> FT:
@@ -33,6 +49,7 @@ def A(*c, get=None, target_id=None, href="#", **kwargs) -> FT:
         kwargs["data_on_click"] = f"@get('{get}')"
     return ft_datastar("a", *c, href=href, **kwargs)
 
+
 @delegates(ft_datastar, keep=True)
 def AX(txt, get=None, target_id=None, href="#", **kwargs) -> FT:
     "An A tag with just one text child, allowing get and target_id to be positional params"
@@ -40,24 +57,30 @@ def AX(txt, get=None, target_id=None, href="#", **kwargs) -> FT:
         kwargs["data_on_click"] = f"@get('{get}')"
     return ft_datastar("a", txt, href=href, **kwargs)
 
+
 @delegates(ft_datastar, keep=True)
 def Form(*c, enctype="multipart/form-data", **kwargs) -> FT:
     "A Form tag; identical to plain `ft_datastar` version except default `enctype='multipart/form-data'`"
     return ft_datastar("form", *c, enctype=enctype, **kwargs)
 
+
 class Fragment(FT):
     "An empty tag, used as a container"
+
     def __init__(self, *c):
         super().__init__("", c, {}, void_=True)
+
 
 # ============================================================================
 # Form Helpers
 # ============================================================================
 
+
 @delegates(ft_datastar, keep=True)
 def Hidden(value: Any = "", id: Any = None, **kwargs) -> FT:
     "An Input of type 'hidden'"
     return Input(type="hidden", value=value, id=id, **kwargs)
+
 
 @delegates(ft_datastar, keep=True)
 def CheckboxX(checked: bool = False, label=None, value="1", id=None, name=None, **kwargs) -> FT:
@@ -71,19 +94,23 @@ def CheckboxX(checked: bool = False, label=None, value="1", id=None, name=None, 
         res = Label(res, label)
     return Hidden(name=name, skip=True, value=""), res
 
+
 # ============================================================================
 # Script and Style Helpers
 # ============================================================================
+
 
 @delegates(ft_html, keep=True)
 def Script(code: str = "", **kwargs) -> FT:
     "A Script tag that doesn't escape its code"
     return ft_html("script", NotStr(code), **kwargs)
 
+
 @delegates(ft_html, keep=True)
 def Style(*c, **kwargs) -> FT:
     "A Style tag that doesn't escape its code"
     return ft_html("style", map(NotStr, c), **kwargs)
+
 
 def ScriptX(
     fname: str | Path,
@@ -115,6 +142,7 @@ def ScriptX(
         integrity=integrity,
     )
 
+
 def StyleX(fname: str | Path, **kw: Any) -> FT:
     "A `style` element with contents read from `fname` and variables replaced from `kw`"
     try:
@@ -126,12 +154,14 @@ def StyleX(fname: str | Path, **kw: Any) -> FT:
     sty_kw = {k: kw.pop(k) for k in attrs if k in kw}
     return Style(replace_css_vars(s, **kw), **sty_kw)
 
+
 def run_js(js: str, id: str | None = None, **kw: Any) -> FT:
     "Run `js` script, auto-generating `id` based on name of caller if needed, and js-escaping any `kw` params"
     if not id:
         id = sys._getframe(1).f_code.co_name
     kw = {k: dumps(v) for k, v in kw.items()}
     return Script(js.format(**kw), id=id)
+
 
 def jsd(org, repo, root, path, prov="gh", typ="script", ver=None, esm=False, **kwargs) -> FT:
     "jsdelivr `Script` or CSS `Link` tag, or URL"
@@ -143,13 +173,16 @@ def jsd(org, repo, root, path, prov="gh", typ="script", ver=None, esm=False, **k
         Script(src=s, **kwargs) if typ == "script" else Link(rel="stylesheet", href=s, **kwargs) if typ == "css" else s
     )
 
+
 def Nbsp() -> Safe:
     "A non-breaking space"
     return Safe("&nbsp;")
 
+
 # ============================================================================
 # SEO, Social Media, and Misc
 # ============================================================================
+
 
 def Socials(
     title: str,
@@ -191,12 +224,14 @@ def Socials(
         res.append(Meta(name="twitter:creator", content=creator))
     return tuple(res)
 
+
 def Favicon(light_icon: str, dark_icon: str) -> tuple[FT, FT]:
     "Light and dark favicon headers"
     return (
         Link(rel="icon", type="image/x-ico", href=light_icon, media="(prefers-color-scheme: light)"),
         Link(rel="icon", type="image/x-ico", href=dark_icon, media="(prefers-color-scheme: dark)"),
     )
+
 
 def YouTubeEmbed(
     video_id: str,
@@ -212,49 +247,60 @@ def YouTubeEmbed(
     """Embeds a YouTube video in a responsive Iframe."""
     if not video_id or not isinstance(video_id, str):
         raise ValueError("A valid YouTube video ID string is required.")
-        
+
     params = {}
-    if start_time > 0: params['start'] = start_time
-    if no_controls: params['controls'] = 0
-    
+    if start_time > 0:
+        params["start"] = start_time
+    if no_controls:
+        params["controls"] = 0
+
     from urllib.parse import urlencode
+
     query_string = f"?{urlencode(params)}" if params else ""
-    
+
     embed_url = f"https://www.youtube.com/embed/{video_id}{query_string}"
-    
+
     return Div(
         Iframe(
-            width=width, height=height, src=embed_url, title=title,
+            width=width,
+            height=height,
+            src=embed_url,
+            title=title,
             frameborder="0",
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share",
             referrerpolicy="strict-origin-when-cross-origin",
             allowfullscreen=True,
-            **kwargs
+            **kwargs,
         ),
-        cls=cls
+        cls=cls,
     )
+
 
 # ============================================================================
 # Advanced String Formatting Utilities
 # ============================================================================
+
 
 def double_braces(s: str) -> str:
     "Convert single braces to double braces if next to special chars or newline"
     s = re.sub(r'{(?=[\s:;\'"]|$)', "{{", s)
     return re.sub(r'(^|[\s:;\'"])}', r"\1}}", s)
 
+
 def undouble_braces(s: str) -> str:
     "Convert double braces to single braces if next to special chars or newline"
     s = re.sub(r'\{\{(?=[\s:;\'"]|$)', "{", s)
     return re.sub(r'(^|[\s:;\'"])\}\}', r"\1}", s)
 
+
 def loose_format(s: str, **kw: Any) -> str:
     """String format `s` using `kw`, without being strict about braces outside of template params
-    
+
     Warning: Only use with trusted template files and data - not with user input"""
     if not kw:
         return s
     return undouble_braces(partial_format(double_braces(s), **kw)[0])
+
 
 def replace_css_vars(css: str, pre: str = "tpl", **kwargs: Any) -> str:
     "Replace `var(--)` CSS variables with `kwargs` if name prefix matches `pre`"
@@ -266,4 +312,3 @@ def replace_css_vars(css: str, pre: str = "tpl", **kwargs: Any) -> str:
         return kwargs.get(var_name, m.group(0))
 
     return re.sub(rf"var\(--{pre}-([\w-]+)\)", replace_var, css)
-

@@ -19,15 +19,17 @@ A FastHTML rewrite with Datastar integration for reactive UIs.
 
 Example:
     from starhtml import *
-    
+
     app, rt = star_app()
-    
+
     @rt("/")
     def home():
         return Div(H1("Hello StarHTML!"))
 """
+
 try:
     from importlib.metadata import version
+
     __version__ = version("starhtml")
 except ImportError:
     __version__ = "0.1.0"
@@ -82,7 +84,7 @@ def loads(s):
     """JSON loads function"""
     return json.loads(s)
 
+
 def is_async_callable(func):
     """Check if function is async callable"""
     return iscoroutinefunction(func)
-

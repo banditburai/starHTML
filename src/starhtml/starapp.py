@@ -15,6 +15,7 @@ __all__ = ["star_app", "DATASTAR_VERSION", "ICONIFY_VERSION", "def_hdrs", "Befor
 # Main Application Factory
 # ============================================================================
 
+
 def star_app(
     db_file: str = None,
     render: Callable = None,
@@ -50,12 +51,11 @@ def star_app(
     **kwargs: Any,
 ):
     from .core import noop_body
-    
+
     if body_wrap is None:
         body_wrap = noop_body
     h = list(hdrs) if hdrs else []
-    
-    
+
     h = tuple(h)
 
     app = _app_factory(
@@ -106,6 +106,7 @@ def star_app(
         dbtbls = dbtbls[0]
     return app, app.route, *dbtbls
 
+
 # ============================================================================
 # Public Helpers & Constants
 # ============================================================================
@@ -113,35 +114,39 @@ def star_app(
 DATASTAR_VERSION = "release-candidate"
 ICONIFY_VERSION = "2.3.0"
 
+
 def def_hdrs(datastar_version=None, include_iconify=True, iconify_version=None, fallback_path="/static/datastar.js"):
     from .tags import Meta, Script
-    
+
     version = datastar_version or DATASTAR_VERSION
     iconify_ver = iconify_version or ICONIFY_VERSION
-    
+
     datastarsrc = Script(
         src=f"https://cdn.jsdelivr.net/gh/starfederation/datastar@{version}/bundles/datastar.js",
         type="module",
-        onerror=f"this.onerror=null;this.src='{fallback_path}'"
+        onerror=f"this.onerror=null;this.src='{fallback_path}'",
     )
-    
-    iconify = Script(
-        src=f"https://cdn.jsdelivr.net/npm/iconify-icon@{iconify_ver}/dist/iconify-icon.min.js",
-        type="module"
-    ) if include_iconify else None
-    
+
+    iconify = (
+        Script(src=f"https://cdn.jsdelivr.net/npm/iconify-icon@{iconify_ver}/dist/iconify-icon.min.js", type="module")
+        if include_iconify
+        else None
+    )
+
     viewport = Meta(name="viewport", content="width=device-width, initial-scale=1, viewport-fit=cover")
     charset = Meta(charset="utf-8")
-    
+
     base_headers = [charset, viewport, datastarsrc]
     if iconify:
         base_headers.append(iconify)
-    
+
     return base_headers
+
 
 class Beforeware:
     def __init__(self, f, skip=None):
         self.f, self.skip = f, skip or []
+
 
 class MiddlewareBase:
     async def __call__(self, scope, receive, send) -> None:
@@ -149,6 +154,7 @@ class MiddlewareBase:
             await self._app(scope, receive, send)
             return
         return HTTPConnection(scope)
+
 
 def _get_tbl(dt: Any, nm: str, schema: dict):
     schema_copy = schema.copy()
@@ -163,9 +169,10 @@ def _get_tbl(dt: Any, nm: str, schema: dict):
         dc.__ft__ = render
     return tbl, dc
 
+
 def _app_factory(*args, **kwargs):
     from .core import StarHTML
-    
+
     if kwargs.pop("live", False):
         return StarHTMLWithLiveReload(*args, **kwargs)
     kwargs.pop("reload_attempts", None)

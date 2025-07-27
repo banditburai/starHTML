@@ -10,8 +10,15 @@ from .tags import Link, Script
 
 __all__ = [
     "DatastarProc",
-    "marked_imp", "npmcdn", "light_media", "dark_media",
-    "MarkdownJS", "KatexMarkdownJS", "HighlightJS", "SortableJS", "MermaidJS",
+    "marked_imp",
+    "npmcdn",
+    "light_media",
+    "dark_media",
+    "MarkdownJS",
+    "KatexMarkdownJS",
+    "HighlightJS",
+    "SortableJS",
+    "MermaidJS",
 ]
 
 # ============================================================================
@@ -59,23 +66,28 @@ window.proc_dstar = function(selector, callback) {
 };
 """
 
+
 def DatastarProc():
     "Core MutationObserver-based processor for dynamic content. Include once per page."
     return Script(_proc_dstar_js, id="datastar-processor")
 
+
 # ============================================================================
 # Style and Utility Helpers
 # ============================================================================
+
 
 def light_media(
     css: str,  # CSS to be included in the light media query
 ):
     return Style(f"@media (prefers-color-scheme: light) {{{css}}}")
 
+
 def dark_media(
     css: str,  # CSS to be included in the dark media query
 ):
     return Style(f"@media (prefers-color-scheme:  dark) {{{css}}}")
+
 
 marked_imp = """import { marked } from "https://cdn.jsdelivr.net/npm/marked/lib/marked.esm.js";
 """
@@ -85,12 +97,14 @@ npmcdn = "https://cdn.jsdelivr.net/npm/"
 # External Library Components
 # ============================================================================
 
+
 def MarkdownJS(
     sel=".marked",  # CSS selector for markdown elements
 ):
     "Implements browser-based markdown rendering. Requires DatastarProc()."
     src = f"proc_dstar('{sel}', e => e.innerHTML = marked.parse(e.textContent));"
     return Script(marked_imp + src, type="module")
+
 
 def KatexMarkdownJS(
     sel=".marked",  # CSS selector for markdown elements
@@ -116,6 +130,7 @@ def KatexMarkdownJS(
         scr = Script(f"/* KatexMarkdownJS Error: Could not load {fn} */")
     css = Link(rel="stylesheet", href=npmcdn + "katex@0.16.11/dist/katex.min.css")
     return scr, css
+
 
 def HighlightJS(
     sel='pre code:not([data-highlighted="yes"])',  # CSS selector for code elements
@@ -153,6 +168,7 @@ proc_dstar('{sel}', highlightElement);
         Script(src, type="module"),
     ]
 
+
 def SortableJS(
     sel=".sortable",  # CSS selector for sortable elements
     ghost_class="blue-background-class",  # When an element is being dragged, this is the class used to distinguish it from the rest
@@ -163,6 +179,7 @@ import {{Sortable}} from 'https://cdn.jsdelivr.net/npm/sortablejs/+esm';
 proc_dstar('{sel}', el => Sortable.create(el, {{ghostClass: '{ghost_class}'}}));
 """
     return Script(src, type="module")
+
 
 def MermaidJS(
     sel=".language-mermaid",  # CSS selector for mermaid elements

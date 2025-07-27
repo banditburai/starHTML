@@ -9,8 +9,9 @@ app, rt = star_app(
     title="Async SSE Demo",
     hdrs=[
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
-    ]
+    ],
 )
+
 
 @rt("/")
 def home():

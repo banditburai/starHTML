@@ -19,7 +19,7 @@ from starhtml.realtime import elements, escape_newlines, json_dumps, signals
 
 class TestDatastarAttributes:
     """Test Datastar attribute processing and output."""
-    
+
     def test_ds_show_visibility_control(self):
         """Test ds_show for conditional visibility."""
         # Simple boolean expression
@@ -27,69 +27,69 @@ class TestDatastarAttributes:
         html = str(element)
         assert 'data-show="isVisible"' in html
         assert "Content" in html
-        
+
         # Complex expression with logic
         element = Div("Advanced", ds_show="user.isActive && user.role === 'admin'")
         html = str(element)
-        assert 'data-show="user.isActive &amp;&amp; user.role === \'admin\'"' in html
-        
+        assert "data-show=\"user.isActive &amp;&amp; user.role === 'admin'\"" in html
+
         # Numeric comparison
         element = Div("Count", ds_show="items.length > 0")
         html = str(element)
         assert 'data-show="items.length &gt; 0"' in html
-    
+
     def test_ds_text_dynamic_content(self):
         """Test ds_text for dynamic text content."""
         # Simple variable
         element = Span(ds_text="userName")
         html = str(element)
         assert 'data-text="userName"' in html
-        
+
         # Object property access
         element = P(ds_text="user.profile.displayName")
         html = str(element)
         assert 'data-text="user.profile.displayName"' in html
-        
+
         # Expression with formatting
         element = Div(ds_text="'Hello, ' + user.name + '!'")
         html = str(element)
-        assert 'data-text="\'Hello, \' + user.name + \'!\'"' in html
-    
+        assert "data-text=\"'Hello, ' + user.name + '!'\"" in html
+
     def test_ds_bind_two_way_binding(self):
         """Test ds_bind for two-way data binding."""
         # Simple input binding
         input_elem = Input(ds_bind="username")
         html = str(input_elem)
         assert 'data-bind="username"' in html
-        
+
         # Form field with type
         input_elem = Input(type="email", ds_bind="user.email", placeholder="Email")
         html = str(input_elem)
         assert 'data-bind="user.email"' in html
         assert 'type="email"' in html
-        
+
         # Textarea binding
         textarea = Textarea(ds_bind="message", placeholder="Enter message")
         html = str(textarea)
         assert 'data-bind="message"' in html
-    
+
     def test_ds_on_click_events(self):
         """Test ds_on_click event handling."""
         # Simple function call
         button = Button("Click", ds_on_click="handleClick()")
         html = str(button)
         assert 'data-on-click="handleClick()"' in html
-        
+
         # Event with parameters
         button = Button("Delete", ds_on_click="deleteItem(item.id)")
         html = str(button)
         assert 'data-on-click="deleteItem(item.id)"' in html
-        
+
         # Multiple statements
         button = Button("Save", ds_on_click="saveData(); showSuccess()")
         html = str(button)
         assert 'data-on-click="saveData(); showSuccess()"' in html
-    
+
     def test_multiple_datastar_attributes(self):
         """Test elements with multiple Datastar attributes."""
         element = Div(
@@ -97,7 +97,7 @@ class TestDatastarAttributes:
             ds_show="isVisible",
             ds_text="dynamicText",
             ds_on_click="onClick()",
-            ds_bind="value"
+            ds_bind="value",
         )
         html = str(element)
         assert 'data-show="isVisible"' in html
@@ -105,56 +105,56 @@ class TestDatastarAttributes:
         assert 'data-on-click="onClick()"' in html
         assert 'data-bind="value"' in html
         assert "Multi-attribute element" in html
-    
+
     def test_datastar_attributes_with_special_characters(self):
         """Test Datastar attributes with special characters and escaping."""
         # Quotes in expressions
         element = Div(ds_show="status === 'active'")
         html = str(element)
-        assert 'data-show="status === \'active\'"' in html
-        
+        assert "data-show=\"status === 'active'\"" in html
+
         # Complex expressions with ampersands
         element = Div(ds_show="user && user.active && user.role")
         html = str(element)
         assert 'data-show="user &amp;&amp; user.active &amp;&amp; user.role"' in html
-        
+
         # Unicode content (testing without id due to rendering bug)
         element = Div("测试内容", ds_text="user.name")
         html = str(element)
         assert 'data-text="user.name"' in html
-        assert '测试内容' in html
+        assert "测试内容" in html
 
 
 class TestEventHandling:
     """Test Datastar event handling and throttling."""
-    
+
     def test_basic_event_attribute_processing(self):
         """Test basic event attribute processing."""
         kwargs = {"ds_on_click": "handleClick()"}
         result = _process_datastar_attrs(kwargs)
         assert result == {"data-on-click": "handleClick()"}
-        
+
         kwargs = {"ds_on_submit": "submitForm()"}
         result = _process_datastar_attrs(kwargs)
         assert result == {"data-on-submit": "submitForm()"}
-    
+
     def test_throttling_transformation(self):
         """Test throttling syntax transformation."""
         # Resize throttling (special handler)
         kwargs = {"ds_on_resize_50ms": "handleResize()"}
         result = _process_datastar_attrs(kwargs)
         assert result == {"data-on-resize__throttle.50": "handleResize()"}
-        
+
         # Scroll throttling (special handler)
         kwargs = {"ds_on_scroll_100ms": "handleScroll()"}
         result = _process_datastar_attrs(kwargs)
         assert result == {"data-scroll__throttle.100": "handleScroll()"}
-        
+
         # Generic events with throttling
         kwargs = {"ds_on_mousemove_200ms": "trackMouse()"}
         result = _process_datastar_attrs(kwargs)
         assert result == {"data-on-mousemove.200ms": "trackMouse()"}
-    
+
     def test_various_throttle_values(self):
         """Test different throttle values and patterns."""
         test_cases = [
@@ -164,37 +164,37 @@ class TestEventHandling:
             ("ds_on_input_300ms", "data-on-input.300ms"),
             ("ds_on_keyup_1000ms", "data-on-keyup.1000ms"),
         ]
-        
+
         for ds_attr, expected_key in test_cases:
             kwargs = {ds_attr: "handleEvent()"}
             result = _process_datastar_attrs(kwargs)
             assert expected_key in result
             assert result[expected_key] == "handleEvent()"
-    
+
     def test_event_modifiers(self):
         """Test event modifiers like .once, .ms."""
         # Intersect with once modifier
         kwargs = {"ds_on_intersect_once": "loadContent()"}
         result = _process_datastar_attrs(kwargs)
         assert result == {"data-on-intersect.once": "loadContent()"}
-        
+
         # Interval with ms modifier
         kwargs = {"ds_on_interval_ms": "1000"}
         result = _process_datastar_attrs(kwargs)
         assert result == {"data-on-interval.ms": "1000"}
-        
+
         # Load event with once (doesn't have special handling)
         kwargs = {"ds_on_load_once": "initialize()"}
         result = _process_datastar_attrs(kwargs)
         assert result == {"data-on-load": "initialize()"}
-    
+
     def test_complex_event_expressions(self):
         """Test complex JavaScript expressions in events."""
         # Conditional execution
         kwargs = {"ds_on_click": "if (confirmed) { deleteItem(id) }"}
         result = _process_datastar_attrs(kwargs)
         assert result == {"data-on-click": "if (confirmed) { deleteItem(id) }"}
-        
+
         # Multiple statements
         kwargs = {"ds_on_submit": "validateForm(); if (valid) submitData(); else showErrors()"}
         result = _process_datastar_attrs(kwargs)
@@ -204,7 +204,7 @@ class TestEventHandling:
 
 class TestSSEHelpers:
     """Test SSE helper functions for creating signal and element data structures."""
-    
+
     def test_signals_helper_creates_correct_structure(self):
         """Test signals() helper function creates the expected data structure."""
         # Basic signal
@@ -213,12 +213,12 @@ class TestSSEHelpers:
         assert signal_type == "signals"
         assert signal_data["payload"]["count"] == 42
         assert signal_data["payload"]["status"] == "active"
-        
+
         # Signal with options
         result = signals(data="test", only_if_missing=True)
         assert result[1]["payload"]["data"] == "test"
         assert result[1]["options"]["only_if_missing"] is True
-    
+
     def test_elements_helper_creates_correct_structure(self):
         """Test elements() helper function creates the expected data structure."""
         # Basic element
@@ -227,11 +227,11 @@ class TestSSEHelpers:
         element_type, element_data = result
         assert element_type == "elements"
         assert element_data == (content, "#target", "inner", False)
-        
+
         # Element with defaults
         result = elements(content)
         assert result[1] == (content, None, "outer", False)
-        
+
         # Element with use_view_transition option
         result = elements(content, use_view_transition=True)
         assert result[1] == (content, None, "outer", True)
@@ -239,7 +239,7 @@ class TestSSEHelpers:
 
 class TestUtilityFunctions:
     """Test utility functions for Datastar."""
-    
+
     def test_json_dumps_functionality(self):
         """Test JSON serialization utility."""
         # Basic data types
@@ -247,22 +247,16 @@ class TestUtilityFunctions:
         result = json_dumps(data)
         parsed = json.loads(result)
         assert parsed == data
-        
+
         # Complex nested structure
         complex_data = {
-            "users": [
-                {"id": 1, "name": "Alice", "active": True},
-                {"id": 2, "name": "Bob", "active": False}
-            ],
-            "metadata": {
-                "total": 2,
-                "timestamp": "2023-12-25T10:30:00Z"
-            }
+            "users": [{"id": 1, "name": "Alice", "active": True}, {"id": 2, "name": "Bob", "active": False}],
+            "metadata": {"total": 2, "timestamp": "2023-12-25T10:30:00Z"},
         }
         result = json_dumps(complex_data)
         parsed = json.loads(result)
         assert parsed == complex_data
-    
+
     def test_escape_newlines_utility(self):
         """Test newline escaping utility."""
         # Single newline
@@ -270,13 +264,13 @@ class TestUtilityFunctions:
         result = escape_newlines(text)
         assert "&#10;" in result  # HTML entity encoding
         assert "\n" not in result
-        
+
         # Multiple newline types
         text = "Line 1\nLine 2\r\nLine 3\rLine 4"
         result = escape_newlines(text)
         assert "&#10;" in result
         assert "\n" not in result and "\r" not in result
-        
+
         # No newlines
         text = "Single line text"
         result = escape_newlines(text)
@@ -285,227 +279,227 @@ class TestUtilityFunctions:
 
 class TestDatastarHandlers:
     """Test specific Datastar attribute handlers."""
-    
+
     def test_signals_attribute_behavior(self):
         """Test that ds_signals attribute properly initializes reactive state."""
         # Test behavior: element with ds_signals initializes reactive data
         div = Div("Content", ds_signals={"user": "data", "count": 5})
         html = str(div)
-        
+
         # Verify the element can initialize reactive state
-        assert 'data-signals=' in html
+        assert "data-signals=" in html
         # The actual format doesn't matter, just that it contains the data
         assert '"user"' in html
         assert '"count"' in html
-        
+
         # Test with string value for backward compatibility
         div2 = Div("Content", ds_signals="simple_value")
         html2 = str(div2)
         assert 'data-signals="simple_value"' in html2
-    
+
     def test_persist_attribute_behavior(self):
         """Test that ds_persist attributes enable state persistence."""
         # Test behavior: element with ds_persist maintains state
         div = Div("Content", ds_persist=True)
         html = str(div)
-        
+
         # Verify persistence is enabled (exact format doesn't matter)
-        assert 'data-persist' in html
-        
+        assert "data-persist" in html
+
         # Test session-specific persistence
         div2 = Div("Content", ds_persist__session="signal1,signal2")
         html2 = str(div2)
         assert 'data-persist__session="signal1,signal2"' in html2
-    
+
     def test_dynamic_attribute_behavior(self):
         """Test that ds_attr_* attributes dynamically set element attributes."""
         # Test behavior: ds_attr_* dynamically sets attributes on elements
         div = Div("Content", ds_attr_data_value="test", ds_attr_custom_attr="value")
         html = str(div)
-        
+
         # Verify dynamic attributes are properly formatted
         assert 'data-attr-data-value="test"' in html
         assert 'data-attr-custom-attr="value"' in html
-    
+
     def test_handle_style(self):
         """Test _handle_style for ds_style_* attributes."""
         from starhtml.datastar import _handle_style
-        
+
         key, value = _handle_style("ds_style_background_color", "red")
         assert key == "data-style-background-color"
         assert value == "red"
-        
+
         key, value = _handle_style("ds_style_font_size", "16px")
         assert key == "data-style-font-size"
         assert value == "16px"
-    
+
     def test_handle_computed(self):
         """Test _handle_computed for ds_computed_* attributes."""
         from starhtml.datastar import _handle_computed
-        
+
         key, value = _handle_computed("ds_computed_fullName", "firstName + lastName")
         assert key == "data-computed-full-name"
         assert isinstance(value, NotStr)
-        
+
         key, value = _handle_computed("ds_computed_total", "")
         assert key == "data-computed-total"
         assert value == ""  # Empty strings not wrapped
-    
+
     def test_handle_cls(self):
         """Test _handle_cls for ds_cls attribute."""
         from starhtml.datastar import _handle_cls
-        
+
         key, value = _handle_cls("ds_cls", "active highlighted")
         assert key == "data-class"
         assert isinstance(value, NotStr)
-        
+
         key, value = _handle_cls("ds_cls", "")
         assert key == "data-class"
         assert value == ""  # Empty strings not wrapped
-    
+
     def test_handle_ignore(self):
         """Test _handle_ignore for ds_ignore attribute."""
         from starhtml.datastar import _handle_ignore
-        
+
         key, value = _handle_ignore("ds_ignore", True)
         assert key == "data-ignore"
         assert value == "true"
-        
+
         key, value = _handle_ignore("ds_ignore", False)
         assert key == "data-ignore"
         assert value == "false"
-    
+
     def test_handle_ignore_morph(self):
         """Test _handle_ignore_morph for ds_ignore_morph attribute."""
         from starhtml.datastar import _handle_ignore_morph
-        
+
         key, value = _handle_ignore_morph("ds_ignore_morph", True)
         assert key == "data-ignore-morph"
         assert value == "true"
-        
+
         key, value = _handle_ignore_morph("ds_ignore_morph", False)
         assert key == "data-ignore-morph"
         assert value == "false"
-    
+
     def test_handle_preserve_attr(self):
         """Test _handle_preserve_attr for ds_preserve_attr attribute."""
         from starhtml.datastar import _handle_preserve_attr
-        
+
         # Test with list
         key, value = _handle_preserve_attr("ds_preserve_attr", ["id", "class", "data-value"])
         assert key == "data-preserve-attr"
         assert value == "id,class,data-value"
-        
+
         # Test with string
         key, value = _handle_preserve_attr("ds_preserve_attr", "id,class")
         assert key == "data-preserve-attr"
         assert value == "id,class"
-    
+
     def test_handle_on_load(self):
         """Test _handle_on_load for ds_on_load* attributes."""
         from starhtml.datastar import _handle_on_load
-        
+
         # Basic on_load
         key, value = _handle_on_load("ds_on_load", "initialize()")
         assert key == "data-on-load"
         assert isinstance(value, NotStr)
-        
+
         # With modifiers
         key, value = _handle_on_load("ds_on_load__once", "initOnce()")
         assert key == "data-on-load.once"
         assert isinstance(value, NotStr)
-        
+
         # With multiple modifiers
         key, value = _handle_on_load("ds_on_load__once__defer", "deferredInit()")
         assert key == "data-on-load.once.defer"
         assert isinstance(value, NotStr)
-    
+
     def test_handle_json_signals(self):
         """Test _handle_json_signals for ds_json_signals* attributes."""
         from starhtml.datastar import _handle_json_signals
-        
+
         # Basic json_signals
         key, value = _handle_json_signals("ds_json_signals", True)
         assert key == "data-json-signals"
         assert value is True
-        
+
         # False value
         key, value = _handle_json_signals("ds_json_signals", False)
         assert key == "data-json-signals"
         assert value == "false"
-        
+
         # With modifier
         key, value = _handle_json_signals("ds_json_signals__terse", True)
         assert key == "data-json-signals__terse"
         assert value is True
-        
+
         # With string value
         key, value = _handle_json_signals("ds_json_signals", "custom")
         assert key == "data-json-signals"
         assert value == "custom"
-    
+
     def test_handle_on_scroll_variants(self):
         """Test _handle_on_scroll for various ds_on_scroll* attributes."""
         from starhtml.datastar import _handle_on_scroll
-        
+
         # Basic scroll
         key, value = _handle_on_scroll("ds_on_scroll", "handleScroll()")
         assert key == "data-scroll"
         assert isinstance(value, NotStr)
-        
+
         # Smooth scroll
         key, value = _handle_on_scroll("ds_on_scroll_smooth", "smoothScroll()")
         assert key == "data-scroll__smooth"
         assert isinstance(value, NotStr)
-        
+
         # Throttled scroll
         key, value = _handle_on_scroll("ds_on_scroll_25ms", "throttledScroll()")
         assert key == "data-scroll__throttle.25"
         assert isinstance(value, NotStr)
-        
+
         # Smooth throttled scroll (doesn't combine smooth + throttle - uses throttle pattern)
         key, value = _handle_on_scroll("ds_on_scroll_smooth_150ms", "smoothThrottled()")
         assert key == "data-scroll__throttle.150"
         assert isinstance(value, NotStr)
-    
+
     def test_handle_on_resize_variants(self):
         """Test _handle_on_resize for various ds_on_resize* attributes."""
         from starhtml.datastar import _handle_on_resize
-        
+
         # Basic resize
         key, value = _handle_on_resize("ds_on_resize", "handleResize()")
         assert key == "data-on-resize"
         assert isinstance(value, NotStr)
-        
+
         # Modern syntax with throttle
         key, value = _handle_on_resize("ds_on_resize__throttle_50ms", "throttledResize()")
         assert key == "data-on-resize__throttle.50"
         assert isinstance(value, NotStr)
-        
+
         # Modern syntax with debounce
         key, value = _handle_on_resize("ds_on_resize__debounce_150ms", "debouncedResize()")
         assert key == "data-on-resize__debounce.150"
         assert isinstance(value, NotStr)
-        
+
         # Legacy syntax
         key, value = _handle_on_resize("ds_on_resize_100ms", "legacyResize()")
         assert key == "data-on-resize__throttle.100"
         assert isinstance(value, NotStr)
-    
+
     def test_handle_default_with_effect_style(self):
         """Test _handle_default with ds_effect and ds_style."""
         from starhtml.datastar import _handle_default
-        
+
         # Test ds_effect wrapping
         key, value = _handle_default("ds_effect", "console.log('effect')")
         assert key == "data-effect"
         assert isinstance(value, NotStr)
-        
+
         # Test ds_style wrapping
         key, value = _handle_default("ds_style", "color: red;")
         assert key == "data-style"
         assert isinstance(value, NotStr)
-        
+
         # Test empty ds_effect (not wrapped)
         key, value = _handle_default("ds_effect", "")
         assert key == "data-effect"
@@ -515,159 +509,159 @@ class TestDatastarHandlers:
 
 class TestPersistValueProcessing:
     """Test persist value processing functionality."""
-    
+
     def test_process_persist_value_boolean(self):
         """Test _process_persist_value with boolean values."""
         from starhtml.datastar import _process_persist_value
-        
+
         assert _process_persist_value(True) == "*"
         assert _process_persist_value(False) == "false"
-    
+
     def test_process_persist_value_strings(self):
         """Test _process_persist_value with string values."""
         from starhtml.datastar import _process_persist_value
-        
+
         # Empty string
         assert _process_persist_value("") == "*"
         assert _process_persist_value("   ") == "*"
-        
+
         # Wildcard
         assert _process_persist_value("*") == "*"
-        
+
         # Valid signal names
         assert _process_persist_value("signal1") == "signal1"
         assert _process_persist_value("signal1,signal2") == "signal1,signal2"
         assert _process_persist_value("user_data,counter") == "user_data,counter"
-        
+
         # With spaces
         assert _process_persist_value("signal1, signal2 ") == "signal1,signal2"
-    
+
     def test_process_persist_value_invalid_signals(self):
         """Test _process_persist_value with invalid signal names."""
         from starhtml.datastar import _process_persist_value
-        
+
         # Invalid signal names should raise ValueError
         with pytest.raises(ValueError, match="Invalid signal name"):
             _process_persist_value("123invalid")  # Can't start with number
-        
+
         with pytest.raises(ValueError, match="Invalid signal name"):
             _process_persist_value("signal@invalid")  # Invalid character
-        
+
         with pytest.raises(ValueError, match="Invalid signal name"):
             _process_persist_value("signal.invalid")  # Invalid character
-    
+
     def test_validate_signal_name(self):
         """Test _validate_signal_name function."""
         from starhtml.datastar import _validate_signal_name
-        
+
         # Valid names should not raise
         _validate_signal_name("validSignal")
         _validate_signal_name("_underscore_start")
         _validate_signal_name("signal123")
         _validate_signal_name("kebab-case")
         _validate_signal_name("mixed_and-dashes123")
-        
+
         # Invalid names should raise ValueError
         with pytest.raises(ValueError):
             _validate_signal_name("123invalid")
-        
+
         with pytest.raises(ValueError):
             _validate_signal_name("signal@invalid")
-        
+
         with pytest.raises(ValueError):
             _validate_signal_name("signal.invalid")
-        
+
         with pytest.raises(ValueError):
             _validate_signal_name("")
 
 
 class TestEventKeyHandling:
     """Test event key transformation logic."""
-    
+
     def test_handle_event_key_double_underscore(self):
         """Test _handle_event_key with double underscore (dot notation)."""
         from starhtml.datastar import _handle_event_key
-        
+
         result = _handle_event_key("click__once")
         assert result == "data-on-click.once"
-        
+
         result = _handle_event_key("submit__prevent__once")
         assert result == "data-on-submit.prevent__once"
-    
+
     def test_handle_event_key_timing_modifiers(self):
         """Test _handle_event_key with timing modifiers."""
         from starhtml.datastar import _handle_event_key
-        
+
         # Simple timing
         result = _handle_event_key("input_250ms")
         assert result == "data-on-input.250ms"
-        
+
         # With middle parts
         result = _handle_event_key("mouse_move_100ms")
         assert result == "data-on-mouse_move.100ms"
-    
+
     def test_handle_event_key_special_events(self):
         """Test _handle_event_key with special events."""
         from starhtml.datastar import _handle_event_key
-        
+
         # Intersect events
         result = _handle_event_key("intersect_once")
         assert result == "data-on-intersect.once"
-        
+
         # Interval events
         result = _handle_event_key("interval_ms")
         assert result == "data-on-interval.ms"
-    
+
     def test_handle_event_key_default_dash_conversion(self):
         """Test _handle_event_key default underscore to dash conversion."""
         from starhtml.datastar import _handle_event_key
-        
+
         result = _handle_event_key("mouse_move")
         assert result == "data-on-mouse-move"
-        
+
         result = _handle_event_key("custom_event_name")
         assert result == "data-on-custom-event-name"
 
 
 class TestComputedKeyHandling:
     """Test computed key transformation logic."""
-    
+
     def test_handle_computed_key_basic(self):
         """Test _handle_computed_key with basic names."""
         from starhtml.datastar import _handle_computed_key
-        
+
         result = _handle_computed_key("fullName")
         assert result == "data-computed-full-name"
-        
+
         result = _handle_computed_key("userName")
         assert result == "data-computed-user-name"
-    
+
     def test_handle_computed_key_with_case(self):
         """Test _handle_computed_key with __case modifier."""
         from starhtml.datastar import _handle_computed_key
-        
+
         result = _handle_computed_key("displayName__case_upper")
         assert result == "data-computed-display-name__case.upper"
-        
+
         result = _handle_computed_key("userName__case_lower_trim")
         assert result == "data-computed-user-name__case.lower.trim"
 
 
 class TestEdgeCases:
     """Test edge cases and error conditions."""
-    
+
     def test_empty_datastar_attributes(self):
         """Test handling of empty Datastar attributes."""
         # Empty values
         kwargs = {"ds_show": "", "ds_text": ""}
         result = _process_datastar_attrs(kwargs)
         assert result == {"data-show": "", "data-text": ""}
-        
+
         # None values (should be filtered out)
         element = Div("Content", ds_show=None)
         html = str(element)
         assert "data-show" not in html
-    
+
     def test_invalid_throttle_values(self):
         """Test handling of invalid throttle values."""
         # Non-numeric throttle value
@@ -675,27 +669,25 @@ class TestEdgeCases:
         result = _process_datastar_attrs(kwargs)
         # Should still try to parse as throttle
         assert "data-on-resize__throttle.invalid" in result
-    
+
     def test_malformed_event_expressions(self):
         """Test handling of potentially malformed JavaScript expressions."""
         # Unclosed quotes (should be handled by HTML escaping)
         kwargs = {"ds_on_click": "alert('unclosed quote"}
         result = _process_datastar_attrs(kwargs)
         assert result["data-on-click"] == "alert('unclosed quote"
-        
+
         # Complex expression with mixed quotes
         kwargs = {"ds_on_click": "submitForm(\"test\", 'value')"}
         result = _process_datastar_attrs(kwargs)
         expected = "submitForm(&quot;test&quot;, 'value')"
         assert result["data-on-click"] == expected
-    
+
     def test_non_string_persist_values(self):
         """Test _process_persist_value with non-string values."""
         from starhtml.datastar import _process_persist_value
-        
+
         # Non-string values should return "false"
         assert _process_persist_value(123) == "false"
         assert _process_persist_value([]) == "false"
         assert _process_persist_value(None) == "false"
-
-

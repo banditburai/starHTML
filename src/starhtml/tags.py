@@ -5,65 +5,236 @@ from typing import Any
 from fastcore.xml import FT
 
 _HTML_TAG_NAMES = [
-    "A", "Abbr", "Address", "Area", "Article", "Aside", "Audio", "B", "Base",
-    "Bdi", "Bdo", "Blockquote", "Body", "Br", "Button", "Canvas", "Caption",
-    "Cite", "Code", "Col", "Colgroup", "Data", "Datalist", "Dd", "Del",
-    "Details", "Dfn", "Dialog", "Div", "Dl", "Dt", "Em", "Embed", "Fencedframe",
-    "Fieldset", "Figcaption", "Figure", "Footer", "Form", "H1", "H2", "H3",
-    "H4", "H5", "H6", "Head", "Header", "Hgroup", "Hr", "Html", "I", "Iframe",
-    "Img", "Input", "Ins", "Kbd", "Label", "Legend", "Li", "Link", "Main",
-    "Map", "Mark", "Menu", "Meta", "Meter", "Nav", "Noscript", "Object",
-    "Ol", "Optgroup", "Option", "Output", "P", "Picture", "PortalExperimental",
-    "Pre", "Progress", "Q", "Rp", "Rt", "Ruby", "S", "Samp", "Script",
-    "Search", "Section", "Select", "Slot", "Small", "Source", "Span", "Strong",
-    "Style", "Sub", "Summary", "Sup", "Table", "Tbody", "Td", "Template",
-    "Textarea", "Tfoot", "Th", "Thead", "Time", "Title", "Tr", "Track",
-    "U", "Ul", "Var", "Video", "Wbr",
+    "A",
+    "Abbr",
+    "Address",
+    "Area",
+    "Article",
+    "Aside",
+    "Audio",
+    "B",
+    "Base",
+    "Bdi",
+    "Bdo",
+    "Blockquote",
+    "Body",
+    "Br",
+    "Button",
+    "Canvas",
+    "Caption",
+    "Cite",
+    "Code",
+    "Col",
+    "Colgroup",
+    "Data",
+    "Datalist",
+    "Dd",
+    "Del",
+    "Details",
+    "Dfn",
+    "Dialog",
+    "Div",
+    "Dl",
+    "Dt",
+    "Em",
+    "Embed",
+    "Fencedframe",
+    "Fieldset",
+    "Figcaption",
+    "Figure",
+    "Footer",
+    "Form",
+    "H1",
+    "H2",
+    "H3",
+    "H4",
+    "H5",
+    "H6",
+    "Head",
+    "Header",
+    "Hgroup",
+    "Hr",
+    "Html",
+    "I",
+    "Iframe",
+    "Img",
+    "Input",
+    "Ins",
+    "Kbd",
+    "Label",
+    "Legend",
+    "Li",
+    "Link",
+    "Main",
+    "Map",
+    "Mark",
+    "Menu",
+    "Meta",
+    "Meter",
+    "Nav",
+    "Noscript",
+    "Object",
+    "Ol",
+    "Optgroup",
+    "Option",
+    "Output",
+    "P",
+    "Picture",
+    "PortalExperimental",
+    "Pre",
+    "Progress",
+    "Q",
+    "Rp",
+    "Rt",
+    "Ruby",
+    "S",
+    "Samp",
+    "Script",
+    "Search",
+    "Section",
+    "Select",
+    "Slot",
+    "Small",
+    "Source",
+    "Span",
+    "Strong",
+    "Style",
+    "Sub",
+    "Summary",
+    "Sup",
+    "Table",
+    "Tbody",
+    "Td",
+    "Template",
+    "Textarea",
+    "Tfoot",
+    "Th",
+    "Thead",
+    "Time",
+    "Title",
+    "Tr",
+    "Track",
+    "U",
+    "Ul",
+    "Var",
+    "Video",
+    "Wbr",
 ]
 
 _SVG_TAG_NAMES = [
     # Note: Custom-defined tags like Svg, Rect, Path, etc., are listed here
     # to be included in __all__, but their functions will be defined manually below.
-    "Svg", "G", "Rect", "Circle", "Ellipse", "Line", "Polyline", "Polygon",
-    "Text", "SvgPath", "AltGlyph", "AltGlyphDef", "AltGlyphItem", "Animate", "AnimateColor",
-    "AnimateMotion", "AnimateTransform", "ClipPath", "Color_profile", "Cursor",
-    "Defs", "Desc", "FeBlend", "FeColorMatrix", "FeComponentTransfer",
-    "FeComposite", "FeConvolveMatrix", "FeDiffuseLighting", "FeDisplacementMap",
-    "FeDistantLight", "FeFlood", "FeFuncA", "FeFuncB", "FeFuncG", "FeFuncR",
-    "FeGaussianBlur", "FeImage", "FeMerge", "FeMergeNode", "FeMorphology",
-    "FeOffset", "FePointLight", "FeSpecularLighting", "FeSpotLight", "FeTile",
-    "FeTurbulence", "Filter", "Font", "Font_face", "Font_face_format",
-    "Font_face_name", "Font_face_src", "Font_face_uri", "ForeignObject",
-    "Glyph", "GlyphRef", "Hkern", "Image", "LinearGradient", "Marker",
-    "Mask", "Metadata", "Missing_glyph", "Mpath", "Pattern", "RadialGradient",
-    "Set", "Stop", "Switch", "Symbol", "TextPath", "Tref", "Tspan", "Use",
-    "View", "Vkern", "Template",
+    "Svg",
+    "G",
+    "Rect",
+    "Circle",
+    "Ellipse",
+    "Line",
+    "Polyline",
+    "Polygon",
+    "Text",
+    "SvgPath",
+    "AltGlyph",
+    "AltGlyphDef",
+    "AltGlyphItem",
+    "Animate",
+    "AnimateColor",
+    "AnimateMotion",
+    "AnimateTransform",
+    "ClipPath",
+    "Color_profile",
+    "Cursor",
+    "Defs",
+    "Desc",
+    "FeBlend",
+    "FeColorMatrix",
+    "FeComponentTransfer",
+    "FeComposite",
+    "FeConvolveMatrix",
+    "FeDiffuseLighting",
+    "FeDisplacementMap",
+    "FeDistantLight",
+    "FeFlood",
+    "FeFuncA",
+    "FeFuncB",
+    "FeFuncG",
+    "FeFuncR",
+    "FeGaussianBlur",
+    "FeImage",
+    "FeMerge",
+    "FeMergeNode",
+    "FeMorphology",
+    "FeOffset",
+    "FePointLight",
+    "FeSpecularLighting",
+    "FeSpotLight",
+    "FeTile",
+    "FeTurbulence",
+    "Filter",
+    "Font",
+    "Font_face",
+    "Font_face_format",
+    "Font_face_name",
+    "Font_face_src",
+    "Font_face_uri",
+    "ForeignObject",
+    "Glyph",
+    "GlyphRef",
+    "Hkern",
+    "Image",
+    "LinearGradient",
+    "Marker",
+    "Mask",
+    "Metadata",
+    "Missing_glyph",
+    "Mpath",
+    "Pattern",
+    "RadialGradient",
+    "Set",
+    "Stop",
+    "Switch",
+    "Symbol",
+    "TextPath",
+    "Tref",
+    "Tspan",
+    "Use",
+    "View",
+    "Vkern",
+    "Template",
 ]
 
 __all__ = [
     *_HTML_TAG_NAMES,
     *_SVG_TAG_NAMES,
-    "ft_svg", "transformd", "SvgOob", "SvgInb", "PathFT",
+    "ft_svg",
+    "transformd",
+    "SvgOob",
+    "SvgInb",
+    "PathFT",
 ]
+
 
 def _get_ft_datastar():
     """Lazy import ft_datastar to avoid circular dependencies"""
     from .html import ft_datastar
+
     return ft_datastar
+
 
 def _create_tag_factory(tag_name: str, is_svg: bool = False):
     # SVG tags are camelCase, HTML tags are lowercase
     processed_tag = (tag_name[0].lower() + tag_name[1:]) if is_svg and len(tag_name) > 1 else tag_name.lower()
-    
+
     def _tag_func(*c: Any, **kwargs: Any) -> FT:
         ft_datastar = _get_ft_datastar()
         return ft_datastar(processed_tag, *c, **kwargs)
-    
+
     _tag_func.__name__ = tag_name
     _tag_func.__qualname__ = tag_name
     _tag_func.__doc__ = f"Create a <{processed_tag}> {'SVG' if is_svg else 'HTML'} element."
-    
+
     return _tag_func
+
 
 _g: dict[str, Any] = globals()
 
@@ -77,6 +248,7 @@ for tag_name in _SVG_TAG_NAMES:
 # ============================================================================
 # Enhanced SVG Components & Helpers
 # ============================================================================
+
 
 def ft_svg(
     tag: str,
@@ -105,6 +277,7 @@ def ft_svg(
         **kwargs,
     )
 
+
 def Svg(
     *args: Any,
     viewBox: str | None = None,
@@ -124,6 +297,7 @@ def Svg(
         viewBox = f"0 0 {width} {height}"
     return ft_svg("svg", *args, xmlns=xmlns, viewBox=viewBox, height=height, width=width, **kwargs)
 
+
 def Rect(width, height, x=0, y=0, fill=None, stroke=None, stroke_width=None, rx=None, ry=None, **kwargs):
     """A standard SVG `rect` element."""
     return ft_svg(
@@ -140,13 +314,16 @@ def Rect(width, height, x=0, y=0, fill=None, stroke=None, stroke_width=None, rx=
         **kwargs,
     )
 
+
 def Circle(r, cx=0, cy=0, fill=None, stroke=None, stroke_width=None, **kwargs):
     """A standard SVG `circle` element."""
     return ft_svg("circle", r=r, cx=cx, cy=cy, fill=fill, stroke=stroke, stroke_width=stroke_width, **kwargs)
 
+
 def Ellipse(rx, ry, cx=0, cy=0, fill=None, stroke=None, stroke_width=None, **kwargs):
     """A standard SVG `ellipse` element."""
     return ft_svg("ellipse", rx=rx, ry=ry, cx=cx, cy=cy, fill=fill, stroke=stroke, stroke_width=stroke_width, **kwargs)
+
 
 def Line(x1, y1, x2=0, y2=0, stroke="black", w=None, stroke_width=1, **kwargs):
     """A standard SVG `line` element."""
@@ -154,17 +331,20 @@ def Line(x1, y1, x2=0, y2=0, stroke="black", w=None, stroke_width=1, **kwargs):
         stroke_width = w
     return ft_svg("line", x1=x1, y1=y1, x2=x2, y2=y2, stroke=stroke, stroke_width=stroke_width, **kwargs)
 
+
 def Polyline(*args, points=None, fill=None, stroke=None, stroke_width=None, **kwargs):
     """A standard SVG `polyline` element."""
     if points is None:
         points = " ".join(f"{x},{y}" for x, y in args)
     return ft_svg("polyline", points=points, fill=fill, stroke=stroke, stroke_width=stroke_width, **kwargs)
 
+
 def Polygon(*args, points=None, fill=None, stroke=None, stroke_width=None, **kwargs):
     """A standard SVG `polygon` element."""
     if points is None:
         points = " ".join(f"{x},{y}" for x, y in args)
     return ft_svg("polygon", points=points, fill=fill, stroke=stroke, stroke_width=stroke_width, **kwargs)
+
 
 def Text(
     *args,
@@ -197,6 +377,7 @@ def Text(
         **kwargs,
     )
 
+
 def transformd(
     translate: tuple | None = None,
     scale: tuple | None = None,
@@ -221,14 +402,15 @@ def transformd(
         funcs.append(f"matrix{matrix}")
     return dict(transform=" ".join(funcs)) if funcs else {}
 
+
 class PathFT(FT):
     """A special FT class for SVG path elements with builder methods for both absolute and relative commands."""
-    
+
     def _append_cmd(self, cmd: str) -> "PathFT":
-        current_d = getattr(self, 'd', '')
+        current_d = getattr(self, "d", "")
         if not isinstance(current_d, str):
-            current_d = ''
-        
+            current_d = ""
+
         self.d = f"{current_d} {cmd}".strip()
         return self
 
@@ -336,21 +518,26 @@ class PathFT(FT):
         "Close path (relative, equivalent to Z)."
         return self._append_cmd("z")
 
+
 def SvgPath(d="", fill=None, stroke=None, stroke_width=None, **kwargs):
     """Creates a <path> SVG element, returning a powerful PathFT builder object."""
     return ft_svg("path", d=d, fill=fill, stroke=stroke, stroke_width=stroke_width, ft_cls=PathFT, **kwargs)
+
 
 def SvgOob(*args, **kwargs):
     """Wraps an SVG shape (simplified for Datastar)."""
     return Svg(*args, **kwargs)
 
+
 def SvgInb(*args, **kwargs):
     """Wraps an SVG shape (simplified for Datastar)."""
     return Svg(*args, **kwargs)
 
+
 # ============================================================================
 # Dynamic Fallback Tag Generation
 # ============================================================================
+
 
 def __getattr__(tag: str) -> Any:
     """
@@ -361,7 +548,7 @@ def __getattr__(tag: str) -> Any:
     if tag.startswith("_") or tag[0].islower():
         # This is required to allow Python to find internal names.
         raise AttributeError(f"'{__name__}' object has no attribute '{tag}'")
-    
+
     tag = tag.replace("_", "-")
 
     def _f(*c: Any, target_id: str | None = None, **kwargs: Any) -> Any:

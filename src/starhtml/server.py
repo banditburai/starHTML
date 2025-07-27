@@ -54,11 +54,19 @@ from .utils import (
 
 __all__ = [
     "all_meths",
-    "JSONResponse", "Redirect", "FtResponse",
-    "Client", "RouteFuncs", "APIRouter",
-    "serve", "cookie", "signal_shutdown",
-    "ResponseRenderer", "render_response",
-    "to_string", "url_path_for",
+    "JSONResponse",
+    "Redirect",
+    "FtResponse",
+    "Client",
+    "RouteFuncs",
+    "APIRouter",
+    "serve",
+    "cookie",
+    "signal_shutdown",
+    "ResponseRenderer",
+    "render_response",
+    "to_string",
+    "url_path_for",
 ]
 
 all_meths = "get post put delete patch head trace options".split()
@@ -76,12 +84,13 @@ _verbs = dict(
 # Public API: Routing & Server Utilities
 # ============================================================================
 
+
 class APIRouter:
     "Add routes to an app"
 
     def __init__(self, prefix: str | None = None, body_wrap=None):
         from .utils import noop_body
-        
+
         self.routes, self.wss = [], []
         self.rt_funcs = RouteFuncs()  # Store wrapped route function for discoverability
         self.prefix = prefix if prefix else ""
@@ -130,13 +139,15 @@ class APIRouter:
 
         return f
 
+
 # Add HTTP method shortcuts to APIRouter
 for o in all_meths:
     setattr(APIRouter, o, partialmethod(APIRouter.__call__, methods=o))
 
+
 class RouteFuncs:
     "Container for route functions"
-    
+
     def __init__(self):
         super().__setattr__("_funcs", {})
 
@@ -153,6 +164,7 @@ class RouteFuncs:
 
     def __dir__(self):
         return list(self._funcs.keys())
+
 
 def serve(
     appname=None,  # Name of the module
@@ -187,6 +199,7 @@ def serve(
             reload_excludes=reload_excludes,
         )
 
+
 def cookie(
     key: str,
     value="",
@@ -200,7 +213,7 @@ def cookie(
 ):
     "Create a 'set-cookie' `HttpHeader`"
     from .utils import HttpHeader
-    
+
     cookie = cookies.SimpleCookie()
     cookie[key] = value
     if max_age is not None:
@@ -229,6 +242,7 @@ def cookie(
     cookie_val = cookie.output(header="").strip()
     return HttpHeader("set-cookie", cookie_val)
 
+
 def signal_shutdown():
     "Create shutdown signal handler"
     from uvicorn.main import Server
@@ -243,6 +257,7 @@ def signal_shutdown():
 
     return event
 
+
 class Client:
     "A simple httpx ASGI client that doesn't require `async`"
 
@@ -256,6 +271,7 @@ class Client:
         with from_thread.start_blocking_portal() as portal:
             return portal.call(_request)
 
+
 # Add HTTP method shortcuts to Client
 for o in ("get", "post", "delete", "put", "patch", "options"):
     setattr(Client, o, partialmethod(Client._sync, o))
@@ -264,12 +280,14 @@ for o in ("get", "post", "delete", "put", "patch", "options"):
 # Public API: Custom Response Classes
 # ============================================================================
 
+
 class JSONResponse(JSONResponseOrig):
     "Same as starlette's version, but auto-stringifies non serializable types"
 
     def render(self, content: Any) -> bytes:
         res = json.dumps(content, ensure_ascii=False, allow_nan=False, indent=None, separators=(",", ":"), default=str)
         return res.encode("utf-8")
+
 
 class Redirect:
     "Redirect to `loc` using standard HTTP redirect"
@@ -279,6 +297,7 @@ class Redirect:
 
     def __response__(self, req):
         return RedirectResponse(self.loc, status_code=303)
+
 
 class FtResponse:
     "Wrap an FT response with any Starlette `Response`"
@@ -297,24 +316,20 @@ class FtResponse:
 
     def __response__(self, req):
         """Delegates rendering to the main ResponseRenderer."""
-        return render_response(
-            req,
-            self.content,
-            cls=self.cls,
-            status_code=self.status_code
-        )
+        return render_response(req, self.content, cls=self.cls, status_code=self.status_code)
+
 
 # ============================================================================
 # Internal: Request-to-Response Pipeline
 # ============================================================================
 
-class ResponseRenderer:
 
+class ResponseRenderer:
     def __init__(self, request):
         self.request = request
         self.headers = {}
         self.tasks = None
-    
+
     def process(self, user_response: Any, cls: type = None, status_code: int = 200) -> Response:
         """Main method that orchestrates the entire response processing pipeline."""
         if not user_response:
@@ -328,21 +343,21 @@ class ResponseRenderer:
                 raise HTTPException(404, user_response.path)
         if isinstance(user_response, Response):
             return user_response
-        
+
         body_content, kw = self._partition_response(user_response)
         self.headers.update(kw.get("headers", {}))
         self.tasks = kw.get("background")
         final_content, content_type = self._render_body(body_content)
-        
+
         return self._build_final_response(final_content, content_type, cls, status_code)
-    
+
     def _partition_response(self, resp):
         """Separates HttpHeader and BackgroundTask objects from the response body."""
         resp = flat_tuple(resp)
         resp = resp + tuple(getattr(self.request, "injects", ()))
         http_hdrs, resp = partition(resp, risinstance(HttpHeader))
         tasks, resp = partition(resp, risinstance(BackgroundTask))
-        
+
         kw = {"headers": {}}
         if http_hdrs:
             kw["headers"] |= {o.k: str(o.v) for o in http_hdrs}
@@ -351,48 +366,48 @@ class ResponseRenderer:
             for t in tasks:
                 ts.tasks.append(t)
             kw["background"] = ts
-            
+
         return resp[0] if len(resp) == 1 else resp, kw
-    
+
     def _render_body(self, body: Any) -> tuple[Any, str]:
         """Determines content type and renders body to final form."""
         if self._is_ft_response(body):
             processed_body = self._process_ft_objects(body)
             html_content = self._wrap_in_full_page(processed_body)
             return html_content, "html"
-        
+
         if isinstance(body, Mapping):
             return body, "json"
         if isinstance(body, str):
             return body, "html"
         return str(body), "html"  # Default to HTML
-    
+
     def _build_final_response(self, content: Any, content_type: str, cls: type, status_code: int) -> Response:
         """Selects the correct Response class and instantiates it."""
         if cls in (Any, FT, empty):
             cls = None
         if cls:
             return cls(content, status_code=status_code, headers=self.headers, background=self.tasks)
-        
+
         if content_type == "json":
             return JSONResponse(content, status_code=status_code, headers=self.headers, background=self.tasks)
         else:  # Default to HTML
             return HTMLResponse(content, status_code=status_code, headers=self.headers, background=self.tasks)
-    
+
     def _process_ft_objects(self, resp: Any) -> Any:
         """Recursively processes FT objects by applying __ft__ methods and transforming target attributes in a single pass."""
         if isinstance(resp, tuple):
             return tuple(self._process_ft_objects(o) for o in resp)
-        
+
         if hasattr(resp, "__ft__"):
             ft_method = resp.__ft__
             if callable(ft_method):
                 resp = ft_method()
-        
+
         if isinstance(resp, FT):
             # Process children first
             resp.children = tuple(self._process_ft_objects(c) for c in resp.children)
-            
+
             # Then process target attributes on this element
             for k, v in _verbs.items():
                 target_path = resp.attrs.pop(k, None)
@@ -402,55 +417,61 @@ class ResponseRenderer:
                         resp.attrs[v] = url
                     else:
                         resp.attrs[v] = f"@{k}('{url}')"
-            
+
         return resp
-    
+
     def _wrap_in_full_page(self, resp: Any) -> str:
         """Wraps response fragment in full HTML page if needed, returns HTML string."""
         from .html import fh_cfg
-        
+
         resp = tuplify(resp)
         if self._is_full_page(resp):
             return to_xml(resp, indent=fh_cfg.indent)
-        
+
         hdr_tags = "title", "meta", "link", "style", "base"
         heads, bdy = partition(resp, lambda o: getattr(o, "tag", "") in hdr_tags)
-        
+
         from .tags import Body, Head, Html, Link, Title
-        
+
         title = [] if any(getattr(o, "tag", "") == "title" for o in heads) else [Title(self.request.app.title)]
-        canonical = [Link(rel="canonical", href=getattr(self.request, "canonical", self.request.url))] if self.request.app.canonical else []
-        
+        canonical = (
+            [Link(rel="canonical", href=getattr(self.request, "canonical", self.request.url))]
+            if self.request.app.canonical
+            else []
+        )
+
         body_wrap = getattr(self.request, "body_wrap", noop_body)
         params = inspect.signature(body_wrap).parameters
         bw_args = (bdy, self.request) if len(params) > 1 else (bdy,)
         body = Body(body_wrap(*bw_args), *flat_xt(self.request.ftrs), **self.request.bodykw)
-        
+
         html_page = Html(Head(*heads, *title, *canonical, *flat_xt(self.request.hdrs)), body, **self.request.htmlkw)
-        
+
         return to_xml(html_page, indent=fh_cfg.indent)
-    
+
     def _is_ft_response(self, resp):
         """Check if response needs FT processing."""
         return isinstance(resp, _iter_typs + (HttpHeader, FT)) or hasattr(resp, "__ft__")
-    
+
     def _is_full_page(self, resp):
         """Check if response is already a full HTML page."""
         if not resp:
             return False
         return any(getattr(o, "tag", "") == "html" for o in resp)
 
+
 def render_response(request, user_response: Any, cls: type = None, status_code: int = 200) -> Response:
     """Main entry point for rendering a user's route return value into an HTTP response.
-    
+
     This is the clean, modern API for response processing.
     """
     renderer = ResponseRenderer(request)
     return renderer.process(user_response, cls, status_code)
 
+
 async def _find_p(req, arg: str, p):
     "In `req` find param named `arg` of type in `p` (`arg` is ignored for body types)"
-    
+
     anno = p.annotation
     # If there's an annotation of special types, return object of that type
     # GenericAlias is a type of typing for iterators like list[int] that is not a class
@@ -497,6 +518,7 @@ async def _find_p(req, arg: str, p):
     # Raise 400 error if the param does not include a default
     if (res in (empty, None)) and p.default is empty:
         from starlette.exceptions import HTTPException
+
         raise HTTPException(400, f"Missing required field: {arg}")
     # If we have a default, return that if we have no value
     if res in (empty, None):
@@ -508,47 +530,64 @@ async def _find_p(req, arg: str, p):
         return _fix_anno(anno, res)
     except ValueError:
         from starlette.exceptions import HTTPException
+
         raise HTTPException(404, req.url.path) from None
+
 
 async def _wrap_req(req, params):
     "Wrap request with parameters"
     return [await _find_p(req, arg, p) for arg, p in params.items()]
 
+
 async def _handle(f, args, **kwargs):
     "Handle function call (async or sync)"
     return (await f(*args, **kwargs)) if iscoroutinefunction(f) else await run_in_threadpool(f, *args, **kwargs)
+
 
 async def _wrap_call(f, req, params):
     "Wrap function call with request"
     wreq = await _wrap_req(req, params)
     return await _handle(f, wreq)
 
+
 def _wrap_ex(f, status_code, hdrs, ftrs, htmlkw, bodykw, body_wrap):
     "Wrap exception handler"
+
     async def _f(req, exc):
         req.hdrs, req.ftrs, req.htmlkw, req.bodykw = map(deepcopy, (hdrs, ftrs, htmlkw, bodykw))
         req.body_wrap = body_wrap
         res = await _handle(f, (req, exc))
         return render_response(req, res, status_code=status_code)
+
     return _f
+
 
 def _mk_locfunc(f, p):
     "Create a location function for a route"
     from .utils import qp
-    
+
     class _lf:
-        def __init__(self): update_wrapper(self, f)
-        def __call__(self, *args, **kw): return f(*args, **kw)
-        def to(self, **kw): return qp(p, **kw)
-        def __str__(self): return p
+        def __init__(self):
+            update_wrapper(self, f)
+
+        def __call__(self, *args, **kw):
+            return f(*args, **kw)
+
+        def to(self, **kw):
+            return qp(p, **kw)
+
+        def __str__(self):
+            return p
 
     return _lf()
+
 
 # ============================================================================
 # Internal: Patches & URL Convertors
 # ============================================================================
 
 StringConvertor.regex = "[^/]*"  # `+` replaced with `*`
+
 
 @patch
 def to_string(self: StringConvertor, value: str) -> str:
@@ -557,11 +596,13 @@ def to_string(self: StringConvertor, value: str) -> str:
     assert "/" not in value, "May not contain path separators"
     return value
 
+
 @patch
 def url_path_for(self: HTTPConnection, name: str, **path_params):
     "Generate URL path for named route"
     lp = self.scope["app"].url_path_for(name, **path_params)
     return URLPath(f"{self.scope['root_path']}{lp}", lp.protocol, lp.host)
+
 
 _static_exts = "ico gif jpg jpeg webm css js woff png svg mp4 webp ttf otf eot woff2 txt html map pdf zip tgz gz csv mp3 wav ogg flac aac doc docx xls xlsx ppt pptx epub mobi bmp tiff avi mov wmv mkv xml yaml yml rar 7z tar bz2 htm xhtml apk dmg exe msi swf iso".split()
 register_url_convertor("static", "|".join(_static_exts))

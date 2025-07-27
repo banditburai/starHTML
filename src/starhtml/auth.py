@@ -14,16 +14,25 @@ from .core import Beforeware, RedirectResponse
 
 __all__ = [
     "OAuth",
-    "GoogleAppClient", "GitHubAppClient", "HuggingFaceClient", "DiscordAppClient", "Auth0AppClient",
-    "load_creds", "url_match", "redir_url", "http_patterns",
+    "GoogleAppClient",
+    "GitHubAppClient",
+    "HuggingFaceClient",
+    "DiscordAppClient",
+    "Auth0AppClient",
+    "load_creds",
+    "url_match",
+    "redir_url",
+    "http_patterns",
 ]
 
 # ============================================================================
 # Base OAuth2 Client Infrastructure
 # ============================================================================
 
+
 class _AppClient(WebApplicationClient):
     """Base OAuth2 client with common functionality for all providers"""
+
     id_key: str = "sub"
     base_url: str
     token_url: str
@@ -40,9 +49,11 @@ class _AppClient(WebApplicationClient):
         super().__init__(client_id, code=code, scope=scope, **kwargs)
         self.client_secret = client_secret
 
+
 # ============================================================================
 # Provider-Specific OAuth2 Clients
 # ============================================================================
+
 
 class GoogleAppClient(_AppClient):
     """A `WebApplicationClient` for Google OAuth2"""
@@ -220,9 +231,11 @@ class Auth0AppClient(_AppClient):
         )
         return f"{self.base_url}?{urlencode(d)}"
 
+
 # ============================================================================
 # Client Extension Methods (via @patch)
 # ============================================================================
+
 
 @patch
 def login_link(
@@ -284,24 +297,26 @@ def retr_id(self: _AppClient, code: str, redirect_uri: str) -> Any:
     """Call `retr_info` and then return id/subscriber value"""
     return self.retr_info(code, redirect_uri)[self.id_key]
 
+
 # ============================================================================
 # OAuth2 Authentication Orchestrator
 # ============================================================================
 
+
 class OAuth:
     """
     OAuth2 authentication handler that integrates with StarHTML apps.
-    
+
     This class adds the necessary middleware and routes for login, logout,
     and the redirect callback. It orchestrates the complete authentication flow
     using one of the provider clients defined above.
-    
+
     Usage:
         client = GoogleAppClient("client_id", "client_secret")
         oauth = OAuth(app, client)
         # Now your app has OAuth2 authentication!
     """
-    
+
     def __init__(
         self,
         app: Any,
@@ -339,7 +354,7 @@ class OAuth:
             if not code:
                 session["oauth_error"] = error
                 return RedirectResponse(self.error_path, status_code=303)
-            
+
             try:
                 scheme = "http" if url_match(req.url, self.http_patterns) or not self.https else "https"
                 base_url = f"{scheme}://{req.url.netloc}"
@@ -387,11 +402,13 @@ class OAuth:
         """Override to customize auth result - must return response or None"""
         raise NotImplementedError("Subclass must implement get_auth method")
 
+
 # ============================================================================
 # Utility Functions
 # ============================================================================
 
 http_patterns = (r"^(localhost|127\.0\.0\.1)(:\d+)?$",)
+
 
 def url_match(url: Any, patterns: tuple[str, ...] = http_patterns) -> bool:
     return any(re.match(pattern, url.netloc.split(":")[0]) for pattern in patterns)
@@ -402,6 +419,7 @@ def redir_url(request: Any, redir_path: str, scheme: str | None = None) -> str:
     if scheme is None:
         scheme = "http" if request.url.hostname in ("localhost", "127.0.0.1") else "https"
     return f"{scheme}://{request.url.netloc}{redir_path}"
+
 
 # ============================================================================
 # Optional: Google Credentials Support
@@ -417,6 +435,7 @@ except ImportError:
 
     class Credentials:
         """Fallback Credentials class when google-auth not available"""
+
         pass
 
 

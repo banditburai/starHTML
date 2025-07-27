@@ -6,8 +6,9 @@ app, rt = star_app(
     title="StarHTML Syntax Patterns",
     hdrs=[
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
-    ]
+    ],
 )
+
 
 @rt("/")
 def home():
@@ -38,7 +39,6 @@ def home():
         ),
         # Pattern 3: Extract complex components
         example_component(),
-
         # Common Error Examples (commented out - would cause SyntaxError)
         Pre(
             Code("""

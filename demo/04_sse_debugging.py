@@ -7,8 +7,8 @@ app, rt = star_app(
     hdrs=[
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
     ],
-    
 )
+
 
 @rt("/")
 def home():
@@ -79,10 +79,8 @@ def home():
                 align-items: center;
             }
         """),
-        
         Div(
             H1("SSE Merge Elements Debugging", cls="text-3xl font-bold text-center mb-6"),
-            
             Div(
                 Button("Test Simple Element", ds_on_click="@get('/test-simple')", cls="btn btn-primary"),
                 Button("Test Multiple Elements", ds_on_click="@get('/test-multiple')", cls="btn btn-primary"),
@@ -91,21 +89,17 @@ def home():
                 Button("Reset All", ds_on_click="@get('/reset')", cls="btn btn-danger"),
                 style="display: flex; gap: 10px; margin: 20px 0; flex-wrap: wrap;",
             ),
-            
             Div(
                 P("Initial content - will be replaced"),
                 id="target",
                 cls="card",
             ),
-            
             Div(
                 P("Secondary target - for selector tests"),
                 id="target2",
                 style="border: 1px solid #00c853; padding: 20px; margin: 20px 0; border-radius: 8px; background: white;",
             ),
-            
             Div(P("Status: ", ds_text="$status"), cls="status-bar"),
-            
             Div(
                 Pre(
                     Code(ds_text="$lastAction", style="white-space: pre-wrap;"),
@@ -113,10 +107,8 @@ def home():
                 ),
                 cls="card",
             ),
-            
-            cls="container"
+            cls="container",
         ),
-        
         ds_signals={"status": "Ready", "lastAction": "No action yet"},
     )
 

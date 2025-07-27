@@ -15,10 +15,7 @@ from fastcore.xml import FT, attrmap, ft, to_xml, valmap, voids
 
 from .utils import unqid
 
-__all__ = [
-    "ft_html", "ft_datastar", "html2ft", "attrmap_x", "fh_cfg",
-    "named", "html_attrs", "js_evts"
-]
+__all__ = ["ft_html", "ft_datastar", "html2ft", "attrmap_x", "fh_cfg", "named", "html_attrs", "js_evts"]
 
 named = set("a button form frame iframe img input map meta object param select textarea".split())
 html_attrs = "id cls title style accesskey contenteditable dir draggable enterkeyhint hidden inert inputmode lang popover spellcheck tabindex translate".split()
@@ -31,18 +28,20 @@ def attrmap_x(o: str) -> str:
         o = "@" + o[4:]
     return attrmap(o)
 
+
 fh_cfg = AttrDict(
-    attrmap=attrmap_x,        # How to transform attribute names (e.g., cls -> class)
-    valmap=valmap,            # How to transform attribute values
-    ft_cls=FT,                # Which class to use for HTML elements
-    auto_id=False,            # Whether to auto-generate element IDs
-    auto_name=True,           # Whether to auto-generate name attributes
-    indent=True,              # Whether to indent HTML/XML output
+    attrmap=attrmap_x,  # How to transform attribute names (e.g., cls -> class)
+    valmap=valmap,  # How to transform attribute values
+    ft_cls=FT,  # Which class to use for HTML elements
+    auto_id=False,  # Whether to auto-generate element IDs
+    auto_name=True,  # Whether to auto-generate name attributes
+    indent=True,  # Whether to indent HTML/XML output
 )
 
 # ============================================================================
 # Core HTML Element Creation
 # ============================================================================
+
 
 def ft_html(
     tag: str,
@@ -77,6 +76,7 @@ def ft_html(
         kw["name"] = kw["id"]
     return ft_cls(tag, c, kw, void_=tag in voids)
 
+
 def ft_datastar(tag: str, *c: Any, **kwargs: Any) -> FT:
     """Create an HTML element with support for Datastar direct attributes.
 
@@ -84,11 +84,12 @@ def ft_datastar(tag: str, *c: Any, **kwargs: Any) -> FT:
     For example: ds_on_click="handler()" becomes data-on-click="handler()"
     """
     from .datastar import _process_datastar_attrs
-    
+
     kwargs = _process_datastar_attrs(kwargs)
     element = ft_html(tag, *c, **kwargs)
-    
+
     return element
+
 
 # ============================================================================
 # HTML Conversion Utility (html2ft)
@@ -97,15 +98,19 @@ def ft_datastar(tag: str, *c: Any, **kwargs: Any) -> FT:
 _re_h2x_attr_key = re.compile(r"^[A-Za-z_-][\w-]*$")
 _attr_cache: dict[str, bool] = {}
 
+
 def _is_valid_attr(key: str) -> bool:
     """Cached attribute validation"""
     return _attr_cache.setdefault(key, _re_h2x_attr_key.match(key) is not None)
 
+
 _tag_cache: dict[str, str] = {}
+
 
 def _get_tag_name(name: str) -> str:
     """Cached tag name transformation"""
     return _tag_cache.setdefault(name, "[document]" if name == "[document]" else name.capitalize().replace("-", "_"))
+
 
 def html2ft(html, attr1st=False):
     """Convert HTML to an `ft` expression - Optimized version with 2.52x speedup"""
@@ -164,17 +169,21 @@ def html2ft(html, attr1st=False):
     [comment.extract() for comment in soup.find_all(string=lambda text: isinstance(text, Comment))]
     return _parse(soup, 1)
 
+
 # ============================================================================
 # Internal Patches
 # ============================================================================
+
 
 @patch
 def __str__(self: "FT") -> str:
     return self.id if self.id else to_xml(self, indent=False)
 
+
 @patch
 def __radd__(self: "FT", b: Any) -> str:
     return f"{b}{self}"
+
 
 @patch
 def __add__(self: "FT", b: Any) -> str:

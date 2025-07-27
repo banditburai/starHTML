@@ -30,14 +30,23 @@ from .xtend import Script
 empty = Parameter.empty
 
 __all__ = [
-    "StarHTML", "Request", "Response", "Route", "WebSocketRoute",
-    "HTTPException", "RedirectResponse",
-    "serve", "setup_ws", "cookie", "nested_name",
+    "StarHTML",
+    "Request",
+    "Response",
+    "Route",
+    "WebSocketRoute",
+    "HTTPException",
+    "RedirectResponse",
+    "serve",
+    "setup_ws",
+    "cookie",
+    "nested_name",
 ]
 
 # ============================================================================
 # Main StarHTML Application Class
 # ============================================================================
+
 
 class StarHTML(Starlette):
     def __init__(
@@ -103,8 +112,10 @@ class StarHTML(Starlette):
             middleware.append(sess)
         exception_handlers = ifnone(exception_handlers, {})
         if 404 not in exception_handlers:
+
             def _not_found(req, exc):
                 return Response("404 Not Found", status_code=404)
+
             exception_handlers[404] = _not_found
         excs = {
             k: _wrap_ex(v, k, hdrs, ftrs, htmlkw, bodykw, body_wrap=body_wrap) for k, v in exception_handlers.items()
@@ -132,7 +143,7 @@ class StarHTML(Starlette):
             # Serve cached version if exists
             if datastar_path.exists():
                 return FileResponse(datastar_path, media_type="application/javascript")
-            
+
             # Download from CDN and cache
             try:
                 async with httpx.AsyncClient() as client:
@@ -145,9 +156,9 @@ class StarHTML(Starlette):
                 raise FileNotFoundError(f"datastar.js unavailable: {e}")
 
         self.route("/static/datastar.js")(serve_datastar_fallback)
-        
+
         static_js_dir = Path(__file__).parent / "static" / "js"
-        
+
         @self.route("/static/js/{filename:path}")
         async def serve_starhtml_js(filename: str):
             """Serve StarHTML's built-in JavaScript files (including subdirectories)."""
@@ -155,9 +166,9 @@ class StarHTML(Starlette):
             if js_file.exists() and js_file.is_file():
                 return FileResponse(js_file, media_type="application/javascript")
             return Response("Not Found", status_code=404)
-                
+
         static_css_dir = Path(__file__).parent / "static" / "css"
-        
+
         @self.route("/static/css/{filename}")
         async def serve_starhtml_css(filename: str):
             """Serve StarHTML's built-in CSS files."""
@@ -178,6 +189,7 @@ class StarHTML(Starlette):
             )
         ]
         self.router.routes.append(route)
+
 
 @patch
 def _endp(self: StarHTML, f, body_wrap):
@@ -209,6 +221,7 @@ def _endp(self: StarHTML, f, body_wrap):
 
     return _f
 
+
 @patch
 def _add_ws(self: StarHTML, func, path, conn, disconn, name, middleware):
     """Add a WebSocket route to the application"""
@@ -217,6 +230,7 @@ def _add_ws(self: StarHTML, func, path, conn, disconn, name, middleware):
     route.methods = ["ws"]
     self.add_route(route)
     return func
+
 
 @patch
 def ws(self: StarHTML, path: str, conn=None, disconn=None, name=None, middleware=None):
@@ -227,9 +241,11 @@ def ws(self: StarHTML, path: str, conn=None, disconn=None, name=None, middleware
 
     return f
 
+
 def nested_name(f):
     """Get name of function `f` using '_' to join nested function names"""
     return f.__qualname__.replace(".<locals>.", "_")
+
 
 @patch
 def _add_route(self: StarHTML, func, path, methods, name, include_in_schema, body_wrap):
@@ -257,6 +273,7 @@ def _add_route(self: StarHTML, func, path, methods, name, include_in_schema, bod
     lf.__routename__ = n
     return lf
 
+
 @patch
 def route(self: StarHTML, path: str = None, methods=None, name=None, include_in_schema=True, body_wrap=None):
     """Add a route at `path`"""
@@ -280,6 +297,7 @@ reg_re_param("path", ".*?")
 _static_exts = "ico gif jpg jpeg webm css js woff png svg mp4 webp ttf otf eot woff2 txt html map pdf zip tgz gz csv mp3 wav ogg flac aac doc docx xls xlsx ppt pptx epub mobi bmp tiff avi mov wmv mkv xml yaml yml rar 7z tar bz2 htm xhtml apk dmg exe msi swf iso".split()
 reg_re_param("static", "|".join(_static_exts))
 
+
 @patch
 def static_route_exts(self: StarHTML, prefix="/", static_path=".", exts="static"):
     """Add a static route at URL path `prefix` with files from `static_path` and `exts` defined by `reg_re_param()`"""
@@ -287,6 +305,7 @@ def static_route_exts(self: StarHTML, prefix="/", static_path=".", exts="static"
     @self.route(f"{prefix}{{fname:path}}.{{ext:{exts}}}")
     async def get(fname: str, ext: str):
         return FileResponse(f"{static_path}/{fname}.{ext}")
+
 
 @patch
 def static_route(self: StarHTML, ext="", prefix="/", static_path="."):
@@ -296,11 +315,13 @@ def static_route(self: StarHTML, ext="", prefix="/", static_path="."):
     async def get(fname: str):
         return FileResponse(f"{static_path}/{fname}{ext}")
 
+
 # ============================================================================
 # Development Tools Support
 # ============================================================================
 
 devtools_loc = "/.well-known/appspecific/com.chrome.devtools.json"
+
 
 @patch
 def devtools_json(self: StarHTML, path=None, uuid=None):
