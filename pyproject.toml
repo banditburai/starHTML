@@ -42,6 +42,10 @@ include = [
     "src/starhtml/static/**/*.css",
     "src/starhtml/**/*.py",
 ]
+# Include VCS-ignored build artifacts (the correct approach)
+artifacts = [
+    "src/starhtml/static/js/handlers/*.js",
+]
 # Exclude development files from the package  
 exclude = [
     "typescript/",
@@ -52,10 +56,6 @@ exclude = [
     "node_modules/",
 ]
 
-# Build hook to generate optimized JavaScript files
-# [tool.hatch.build.hooks.custom]
-# This will be executed before building the wheel
-# path = "scripts/build/hatch_build.py"
 
 [tool.pytest.ini_options]
 minversion = "7.0"
