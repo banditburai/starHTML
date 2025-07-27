@@ -90,6 +90,7 @@ exclude_lines = [
 line-length = 120
 target-version = "py312"
 src = ["src", "tests", "demo"]
+exclude = ["components"]
 
 [tool.ruff.lint]
 select = [
@@ -111,11 +112,15 @@ ignore = [
     "F403",     # Star imports - allowed for StarHTML demos
     "F405",     # May be undefined from star imports
     "N802",     # Function names should be lowercase - HTML components need capitals
+    "C901",     # Complex structure - acceptable for web framework core functions
+    "PLR0912",  # Too many branches - acceptable for framework parameter resolution
+    "N807",     # Dunder function names - valid magic methods being flagged incorrectly
+    "PLW2901",  # Redefined loop name - intentional data transformation in framework code
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"demo/*.py" = ["F403", "F405", "PLR2004", "N802"]  # Allow star imports, magic values, and capitalized function names in demos
-"tests/*.py" = ["F403", "F405", "PLR2004"]  # Allow star imports and magic values in tests
+"demo/*.py" = ["F403", "F405", "PLR2004", "N802", "PLW0603"]  # Allow star imports, magic values, capitalized function names, and global statements in demos
+"tests/*.py" = ["F403", "F405", "PLR2004", "N806"]  # Allow star imports, magic values, and constant naming in tests
 "src/starhtml/components.py" = ["N802", "N807", "C901", "PLR0912", "UP007", "PLW2901", "PLE0605"]  # Allow capitalized function names for HTML components and complexity
 "src/starhtml/xtend.py" = ["N802", "UP031"]  # Allow capitalized function names for extended components and % formatting
 "src/starhtml/core.py" = ["N813", "E721", "B904", "C901", "PLR0911", "PLR0912", "N802", "E402", "PLR2004", "N801"]  # Allow various patterns needed for StarHTML

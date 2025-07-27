@@ -148,8 +148,8 @@ class RouteFuncs:
             raise AttributeError("Route functions with HTTP Names are not accessible here")
         try:
             return self._funcs[name]
-        except KeyError:
-            raise AttributeError(f"No route named {name} found in route functions")
+        except KeyError as e:
+            raise AttributeError(f"No route named {name} found in route functions") from e
 
     def __dir__(self):
         return list(self._funcs.keys())

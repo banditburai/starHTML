@@ -22,7 +22,6 @@ from starhtml.tags import (
     Input,
     Line,
     P,
-    SvgPath,
     PathFT,
     Polygon,
     Polyline,
@@ -30,6 +29,7 @@ from starhtml.tags import (
     Svg,
     SvgInb,
     SvgOob,
+    SvgPath,
     Text,
     __getattr__,
     # Module functions

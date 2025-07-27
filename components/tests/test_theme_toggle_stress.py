@@ -1,17 +1,18 @@
 """Stress tests for theme toggle components with many instances."""
 
-import pytest
-import time
-import threading
 import gc
-from unittest.mock import Mock, patch
 import sys
+import threading
+import time
 from pathlib import Path
+
+import pytest
 
 # Add the project root to the path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from components.ui import ThemeToggle, ThemeToggleCompact
+
 from starhtml import *
 
 
@@ -111,8 +112,9 @@ class TestThemeToggleMemoryStress:
     
     def test_memory_usage_with_many_toggles(self):
         """Test memory usage with many theme toggles."""
-        import psutil
         import os
+
+        import psutil
         
         # Get initial memory usage
         process = psutil.Process(os.getpid())
@@ -321,7 +323,7 @@ class TestThemeTogglePerformanceStress:
             gc.collect()
         
         # Performance should scale reasonably
-        for i, (size, time_taken) in enumerate(zip(sizes, times)):
+        for i, (size, time_taken) in enumerate(zip(sizes, times, strict=False)):
             # Should be roughly linear scaling
             expected_max = size * 0.001  # 1ms per toggle
             assert time_taken < expected_max, f"Size {size} took {time_taken:.3f}s, expected < {expected_max:.3f}s"
@@ -468,8 +470,9 @@ class TestThemeToggleScalabilityLimits:
         
     def test_memory_usage_at_scale(self):
         """Test memory usage at large scale."""
-        import psutil
         import os
+
+        import psutil
         
         process = psutil.Process(os.getpid())
         initial_memory = process.memory_info().rss / 1024 / 1024  # MB

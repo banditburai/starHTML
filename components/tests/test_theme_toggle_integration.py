@@ -1,16 +1,15 @@
 """Integration tests for theme toggle in real-world scenarios."""
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
 import sys
 from pathlib import Path
+
+import pytest
 
 # Add the project root to the path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from components.ui import ThemeToggle, ThemeToggleCompact, Button
-from components.docs.layout import DocsLayout
-from components.docs.header import DocsHeader
+from components.ui import Button, ThemeToggle, ThemeToggleCompact
+
 from starhtml import *
 
 

@@ -6,8 +6,8 @@ from starlette.datastructures import UploadFile
 from starlette.testclient import TestClient
 
 from starhtml import *
-from starhtml.server import JSONResponse
 from starhtml.realtime import elements, format_element_event, format_signal_event, signals
+from starhtml.server import JSONResponse
 
 
 class TestDatastarIntegrationScenarios:

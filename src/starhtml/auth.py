@@ -82,7 +82,7 @@ class GoogleAppClient(_AppClient):
                 **kwargs,
             )
         except (KeyError, FileNotFoundError, ValueError) as e:
-            raise ValueError(f"Invalid Google credentials file {fname}: {e}")
+            raise ValueError(f"Invalid Google credentials file {fname}: {e}") from e
 
 
 class GitHubAppClient(_AppClient):
@@ -176,7 +176,7 @@ class DiscordAppClient(_AppClient):
             r.raise_for_status()
             self.parse_request_body_response(r.text)
         except httpx.HTTPError as e:
-            raise ValueError(f"Discord OAuth2 token exchange failed: {e}")
+            raise ValueError(f"Discord OAuth2 token exchange failed: {e}") from e
 
 
 class Auth0AppClient(_AppClient):
@@ -201,7 +201,7 @@ class Auth0AppClient(_AppClient):
                 config["userinfo_endpoint"],
             )
         except (httpx.HTTPError, KeyError) as e:
-            raise ValueError(f"Failed to fetch Auth0 configuration for {domain}: {e}")
+            raise ValueError(f"Failed to fetch Auth0 configuration for {domain}: {e}") from e
         super().__init__(client_id, client_secret, code=code, scope=scope, redirect_uri=redirect_uri, **kwargs)
 
     def _fetch_openid_config(self) -> dict[str, str]:
@@ -255,7 +255,7 @@ def parse_response(self: _AppClient, code: str, redirect_uri: str) -> None:
         r.raise_for_status()
         self.parse_request_body_response(r.text)
     except httpx.HTTPError as e:
-        raise ValueError(f"OAuth2 token exchange failed: {e}")
+        raise ValueError(f"OAuth2 token exchange failed: {e}") from e
 
 
 @patch
@@ -269,7 +269,7 @@ def get_info(self: _AppClient, token: str | None = None) -> dict[str, Any]:
         r.raise_for_status()
         return r.json()
     except httpx.HTTPError as e:
-        raise ValueError(f"Failed to fetch user info: {e}")
+        raise ValueError(f"Failed to fetch user info: {e}") from e
 
 
 @patch
@@ -447,8 +447,8 @@ def load_creds(fname: str) -> Any:
     """Load credentials from `fname`"""
     try:
         return load_pickle(fname).update()
-    except FileNotFoundError:
-        raise FileNotFoundError(f"Credentials file not found: {fname}")
+    except FileNotFoundError as e:
+        raise FileNotFoundError(f"Credentials file not found: {fname}") from e
 
 
 @patch

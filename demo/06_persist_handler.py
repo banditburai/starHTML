@@ -9,12 +9,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from starhtml import *
-from starhtml.xtend import Script, Link, Style
-from starhtml.handlers import persist_handler
 import json
-import os
 from pathlib import Path
+
+from starhtml import *
+from starhtml.handlers import persist_handler
+from starhtml.xtend import Script
 
 # Mocked Server-side todo state management
 TODOS_FILE = Path(__file__).parent / "todos.json"
@@ -23,9 +23,9 @@ def load_todos():
     """Load todos from persistent storage."""
     if TODOS_FILE.exists():
         try:
-            with open(TODOS_FILE, 'r') as f:
+            with open(TODOS_FILE) as f:
                 return json.load(f)
-        except (json.JSONDecodeError, IOError):
+        except (OSError, json.JSONDecodeError):
             return []
     return []
 
@@ -34,14 +34,14 @@ def save_todos(todos):
     try:
         with open(TODOS_FILE, 'w') as f:
             json.dump(todos, f)
-    except IOError:
+    except OSError:
         pass  # Graceful fallback
 
 def render_todo_list(todos):
     """Render the todo list as StarHTML elements."""
     if not todos:
         return Div(
-            P("No todos yet. Add some above!", 
+            P("No todos yet. Add some above!",
               cls="text-gray-500 italic text-center py-4"),
             id="todo-list"
         )
@@ -110,7 +110,7 @@ def home():
                             ds_bind="persistedText",
                             cls="w-full p-3 border-2 border-blue-200 rounded-lg mb-3"
                         ),
-                        P("Current value: ", 
+                        P("Current value: ",
                           Span(ds_text="$persistedText", cls="font-bold text-blue-600")
                         ),
                         P("💡 Try typing, then refresh the page!", cls="text-sm text-gray-600 mt-2"),
@@ -283,8 +283,8 @@ def home():
                     H3("Theme Preferences", cls="font-medium mb-4 text-indigo-800"),
                     Div(
                         Div(
-                            P("Current theme: ", 
-                              Span(ds_text="$isDarkMode ? 'Dark' : 'Light'", 
+                            P("Current theme: ",
+                              Span(ds_text="$isDarkMode ? 'Dark' : 'Light'",
                                    cls="font-bold",
                                    ds_class="$isDarkMode ? 'text-gray-200' : 'text-gray-800'")),
                             cls="mb-4"
@@ -310,7 +310,7 @@ def home():
                 H2("New API Features", cls="text-2xl font-semibold mb-4"),
                 P("Demonstrating different persistence patterns:", cls="mb-4 text-muted-foreground"),
                 
-                # Example with explicit "none" 
+                # Example with explicit "none"
                 Div(
                     H3("Disabled Persistence", cls="font-medium mb-4 text-gray-800"),
                     Div(
@@ -386,7 +386,7 @@ def home():
                 
                 Div(
                     H3("Clear Storage", cls="font-medium mb-4 text-red-800"),
-                    P("⚠️ These actions will only clear StarHTML persist data from this demo", 
+                    P("⚠️ These actions will only clear StarHTML persist data from this demo",
                       cls="text-sm text-amber-600 mb-4"),
                     Div(
                         Button(
@@ -399,7 +399,7 @@ def home():
                             cls="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded mr-2"
                         ),
                         Button(
-                            "Clear Demo sessionStorage", 
+                            "Clear Demo sessionStorage",
                             onclick="""
                                 const keys = Object.keys(sessionStorage).filter(k => k.startsWith('starhtml-persist'));
                                 keys.forEach(k => sessionStorage.removeItem(k));

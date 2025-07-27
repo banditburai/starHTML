@@ -100,8 +100,8 @@ async def parse_form(req: Request) -> FormData:
         return await req.form()
     try:
         boundary = ctype.split("boundary=")[1].strip()
-    except IndexError:
-        raise HTTPException(400, "Invalid form-data: no boundary")
+    except IndexError as e:
+        raise HTTPException(400, "Invalid form-data: no boundary") from e
     min_len = len(boundary) + 6
     clen = int(req.headers.get("Content-Length", "0"))
     if clen <= min_len:

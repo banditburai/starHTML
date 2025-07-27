@@ -51,8 +51,7 @@ def performance_context():
     try:
         yield monitor
     finally:
-        results = monitor.stop()
-        return results
+        monitor.stop()
 
 
 def benchmark_function(func: Callable, iterations: int = 1000) -> dict[str, Any]:

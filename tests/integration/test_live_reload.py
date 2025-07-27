@@ -486,9 +486,12 @@ class TestLiveReloadRealWorldScenarios:
         for config in configs:
             app = StarHTMLWithLiveReload(**config)
             
-            @app.route("/test")
-            def test_page():
-                return Div(H1(f"Config Test: {config}"))
+            def make_test_page(config_data):
+                def test_page():
+                    return Div(H1(f"Config Test: {config_data}"))
+                return test_page
+            
+            app.route("/test")(make_test_page(config))
             
             client = TestClient(app)
             response = client.get("/test")

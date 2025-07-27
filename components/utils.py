@@ -1,8 +1,8 @@
 """Utility functions for StarHTML UI components."""
-from typing import Optional, Dict, Any, List, Union
+from typing import Any
 
 
-def cn(*args: Union[str, Dict[str, bool], None]) -> str:
+def cn(*args: str | dict[str, bool] | None) -> str:
     """
     Conditionally join class names together.
     
@@ -34,7 +34,7 @@ def cn(*args: Union[str, Dict[str, bool], None]) -> str:
 
 def cva(
     base: str,
-    config: Dict[str, Dict[str, Any]]
+    config: dict[str, dict[str, Any]]
 ) -> callable:
     """
     Class Variance Authority - Create variant-based className strings.

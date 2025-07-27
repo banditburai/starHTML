@@ -1,5 +1,6 @@
 """Theme toggle component using Datastar for reactivity."""
 from starhtml import *
+
 from .button import Button
 from .iconify import Icon
 

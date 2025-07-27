@@ -25,6 +25,7 @@ from .realtime import _ws_endp, setup_ws
 from .server import _mk_locfunc, _wrap_call, _wrap_ex, _wrap_req, all_meths, cookie, render_response, serve
 from .starapp import DATASTAR_VERSION, Beforeware, def_hdrs
 from .utils import _list, _params, empty, get_key, noop_body, reg_re_param
+from .xtend import Script
 
 empty = Parameter.empty
 

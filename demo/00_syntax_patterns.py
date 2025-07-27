@@ -2,11 +2,10 @@
 
 from starhtml import *
 
-
 app, rt = star_app(
     title="StarHTML Syntax Patterns",
     hdrs=[
-        Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),      
+        Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
     ]
 )
 

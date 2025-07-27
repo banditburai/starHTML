@@ -224,7 +224,7 @@ def format_signal_event(signals_dict: dict[str, Any], only_if_missing: bool = Fa
     try:
         data = json_dumps(signals_dict)
     except (TypeError, ValueError) as e:
-        raise ValueError(f"Failed to serialize signals: {e}")
+        raise ValueError(f"Failed to serialize signals: {e}") from e
     
     data_lines.append(f"signals {escape_newlines(data)}")
     return format_sse_event("datastar-patch-signals", data_lines)

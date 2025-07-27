@@ -2,17 +2,16 @@
 
 from starhtml import *
 
-
 app, rt = star_app(
     title="Basic Signals Demo",
     hdrs=[
-        Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),      
+        Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
     ]
 )
 
 @rt("/")
 def home():
-    return Div(                
+    return Div(
         H1("Basic Datastar Signals", cls="text-3xl font-bold mb-6 text-center"),
         
         Div(
@@ -44,5 +43,5 @@ ds_signals={"counter": 0}''',
         cls="max-w-2xl mx-auto p-6"
     )
 
-if __name__ == "__main__":    
+if __name__ == "__main__":
     serve(port=5001)

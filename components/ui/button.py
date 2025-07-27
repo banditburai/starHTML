@@ -1,8 +1,10 @@
 """Button component matching shadcn/ui styling and behavior."""
-from typing import Literal, Optional, Any
-from starhtml import Button as BaseButton, FT
-from ..utils import cn, cva
+from typing import Literal
 
+from starhtml import FT
+from starhtml import Button as BaseButton
+
+from ..utils import cn, cva
 
 ButtonVariant = Literal["default", "destructive", "outline", "secondary", "ghost", "link"]
 ButtonSize = Literal["default", "sm", "lg", "icon"]

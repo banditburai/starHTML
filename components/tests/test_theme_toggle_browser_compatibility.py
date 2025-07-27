@@ -1,14 +1,14 @@
 """Cross-browser compatibility tests for theme toggle functionality."""
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
 import sys
 from pathlib import Path
+
+import pytest
 
 # Add the project root to the path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from components.ui import ThemeToggle, ThemeToggleCompact
+from components.ui import ThemeToggle
 
 
 class TestThemeToggleModernBrowsers:
@@ -41,7 +41,7 @@ class TestThemeToggleModernBrowsers:
         toggle = ThemeToggle()
         
         click_handler = toggle.attrs.get("data-on-click", "")
-        load_handler = toggle.attrs.get("data-on-load", "")
+        toggle.attrs.get("data-on-load", "")
         
         # Should work with Safari's WebKit implementation
         assert "classList.toggle" in click_handler, "Should use classList API"
@@ -111,7 +111,7 @@ class TestThemeToggleMobileBrowsers:
         toggle = ThemeToggle()
         
         click_handler = toggle.attrs.get("data-on-click", "")
-        load_handler = toggle.attrs.get("data-on-load", "")
+        toggle.attrs.get("data-on-load", "")
         
         # Should work with Mobile Safari's implementation
         assert "localStorage" in click_handler, "Should use localStorage"
@@ -215,7 +215,7 @@ class TestThemeToggleFeatureDetection:
         toggle = ThemeToggle()
         
         click_handler = toggle.attrs.get("data-on-click", "")
-        load_handler = toggle.attrs.get("data-on-load", "")
+        toggle.attrs.get("data-on-load", "")
         
         # Should handle feature unavailability gracefully
         assert "try {" in click_handler, "Should handle localStorage errors"

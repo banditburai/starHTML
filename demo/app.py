@@ -3,26 +3,25 @@
 StarHTML Demo Hub - One entry point for all demos
 Run with: uv run demo/app.py
 """
-import sys
-from pathlib import Path
-from dataclasses import dataclass
-from typing import Optional
 import importlib.util
+import sys
+from dataclasses import dataclass
+from pathlib import Path
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from starhtml import *
-from starlette.routing import Mount, Route
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
-from starlette.staticfiles import StaticFiles
+from starlette.routing import Mount
+
+from starhtml import *
 
 # Create the hub app
 app, rt = star_app(
     title="StarHTML Demo Hub",
     hdrs=[
-        Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),        
+        Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
     ]
 )
 
@@ -52,8 +51,8 @@ class BackButtonMiddleware(BaseHTTPMiddleware):
         
         # Only modify HTML responses from demo routes (pattern /XX-* where XX are digits)
         import re
-        if (re.match(r'^/\d{2}-', request.url.path) and 
-            request.url.path.endswith('/') and 
+        if (re.match(r'^/\d{2}-', request.url.path) and
+            request.url.path.endswith('/') and
             response.headers.get('content-type', '').startswith('text/html')):
             
             # Read the response body
@@ -73,11 +72,11 @@ class BackButtonMiddleware(BaseHTTPMiddleware):
             
             # Inject the back button after <body> tag with glassmorphism design
             back_button_html = '''
-                <a href="/" 
-                   class="fixed top-4 left-4 z-50 p-3 rounded-2xl transition-all duration-300 no-underline flex items-center justify-center group" 
+                <a href="/"
+                   class="fixed top-4 left-4 z-50 p-3 rounded-2xl transition-all duration-300 no-underline flex items-center justify-center group"
                    style="
-                       width: 48px; 
-                       height: 48px; 
+                       width: 48px;
+                       height: 48px;
                        background: rgba(59, 130, 246, 0.15);
                        backdrop-filter: blur(10px);
                        -webkit-backdrop-filter: blur(10px);
@@ -121,25 +120,25 @@ class BackButtonMiddleware(BaseHTTPMiddleware):
 
 # Demo metadata - ordered by learning progression
 DEMOS = [
-    Demo("00-syntax", "Syntax Patterns", "Learn StarHTML syntax patterns and best practices", 
+    Demo("00-syntax", "Syntax Patterns", "Learn StarHTML syntax patterns and best practices",
          "00_syntax_patterns.py", "Foundation", "5 min"),
-    Demo("01-signals", "Basic Signals", "Reactive data binding with Datastar signals", 
+    Demo("01-signals", "Basic Signals", "Reactive data binding with Datastar signals",
          "01_basic_signals.py", "Foundation", "5 min"),
-    Demo("02-sse", "Server-Sent Events", "Real-time updates with SSE elements", 
+    Demo("02-sse", "Server-Sent Events", "Real-time updates with SSE elements",
          "02_sse_elements.py", "Foundation", "10 min"),
-    Demo("03-forms", "Forms & Binding", "Form handling and data binding patterns", 
+    Demo("03-forms", "Forms & Binding", "Form handling and data binding patterns",
          "03_forms_binding.py", "Foundation", "10 min"),
-    Demo("04-debugging", "SSE Debugging", "Debug SSE merge elements and real-time updates", 
+    Demo("04-debugging", "SSE Debugging", "Debug SSE merge elements and real-time updates",
          "04_sse_debugging.py", "Intermediate", "15 min"),
-    Demo("05-async", "Async SSE", "Asynchronous SSE handlers and patterns", 
+    Demo("05-async", "Async SSE", "Asynchronous SSE handlers and patterns",
          "05_async_sse.py", "Intermediate", "15 min"),
-    Demo("06-persist", "Persist Handler", "Data persistence with localStorage and sessionStorage", 
+    Demo("06-persist", "Persist Handler", "Data persistence with localStorage and sessionStorage",
          "06_persist_handler.py", "Advanced", "20 min"),
-    Demo("07-scroll", "Scroll Handler", "Scroll detection and position tracking", 
+    Demo("07-scroll", "Scroll Handler", "Scroll detection and position tracking",
          "07_scroll_handler.py", "Advanced", "20 min"),
-    Demo("08-resize", "Resize Handler", "Window and element resize detection", 
+    Demo("08-resize", "Resize Handler", "Window and element resize detection",
          "08_resize_handler.py", "Advanced", "20 min"),
-    Demo("09-attributes", "New Datastar Attributes", "Explore data-ignore, data-on-load, and more", 
+    Demo("09-attributes", "New Datastar Attributes", "Explore data-ignore, data-on-load, and more",
          "09_new_attributes.py", "Advanced", "15 min"),
 ]
 
@@ -147,7 +146,7 @@ def demo_card(demo: Demo) -> A:
     """Create a demo card component."""
     level_colors = {
         "Foundation": "bg-green-100 text-green-800",
-        "Intermediate": "bg-blue-100 text-blue-800", 
+        "Intermediate": "bg-blue-100 text-blue-800",
         "Advanced": "bg-purple-100 text-purple-800"
     }
     
@@ -248,7 +247,7 @@ class DemoLoader:
     """Handles loading and mounting demo applications."""
     
     @staticmethod
-    def load_demo_module(demo: Demo) -> Optional[object]:
+    def load_demo_module(demo: Demo) -> object | None:
         """Load a demo module dynamically."""
         try:
             module_name = f"demo_{demo.id.replace('-', '_')}"
@@ -274,7 +273,7 @@ def setup_demo_routes(app) -> None:
             if demo_app:
                 # Prepare the demo mount
                 demo_mount = Mount(demo.route_path, demo_app)
-                demo_mounts.append((demo, demo_mount))                                                         
+                demo_mounts.append((demo, demo_mount))
             else:
                 print(f"❌ No app found in demo {demo.id}")
         else:
@@ -282,7 +281,7 @@ def setup_demo_routes(app) -> None:
 
     # Then mount demo apps
     for demo, demo_mount in demo_mounts:
-        app.router.routes.append(demo_mount)        
+        app.router.routes.append(demo_mount)
 
 # Set up middleware and routes
 app.add_middleware(BackButtonMiddleware)

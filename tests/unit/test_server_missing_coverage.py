@@ -230,7 +230,7 @@ class TestServeFunctionMissingCoverage:
         """Test that serve uses PORT environment variable."""
         # We can't easily test the full serve function, but we can test the PORT handling logic
         import os
-        expected_port = int(os.getenv("PORT", default=5001))
+        expected_port = int(os.getenv("PORT", "5001"))
         assert expected_port == 8080  # Should use env var
 
 

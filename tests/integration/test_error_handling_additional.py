@@ -16,8 +16,8 @@ from starlette.requests import Request
 from starlette.testclient import TestClient
 
 from starhtml import star_app
-from starhtml.server import JSONResponse
 from starhtml.realtime import signals, sse
+from starhtml.server import JSONResponse
 
 
 class TestDatabaseFailureHandling:

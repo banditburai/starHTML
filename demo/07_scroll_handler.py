@@ -6,8 +6,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from starhtml import *
-from starhtml.xtend import Script
 from starhtml.handlers import scroll_handler
+from starhtml.xtend import Script
 
 app, rt = star_app(
     title="Scroll Handler Demo",
@@ -39,10 +39,10 @@ def home():
                     H3("Scroll Monitor", cls="font-medium mb-4 text-blue-800"),
                     Div(
                         P("Scroll Position: ", Span(ds_text="$scrollPos", cls="font-bold text-blue-600"), " px", cls="text-lg"),
-                        P("Direction: ", 
-                          Span(ds_text="$scrollDir", 
+                        P("Direction: ",
+                          Span(ds_text="$scrollDir",
                                cls="font-bold",
-                               ds_class="$scrollDir === 'up' ? 'text-green-600' : $scrollDir === 'down' ? 'text-red-600' : 'text-gray-600'"), 
+                               ds_class="$scrollDir === 'up' ? 'text-green-600' : $scrollDir === 'down' ? 'text-red-600' : 'text-gray-600'"),
                           cls="text-lg"),
                         P("Velocity: ", Span(ds_text="$scrollVel", cls="font-bold text-purple-600"), "px/scroll", cls="text-lg"),
                         cls="space-y-2"
@@ -55,8 +55,8 @@ def home():
                         console.log('  arg[2] direction:', direction);
                         console.log('  arg[3] velocity:', velocity);
                         console.log('  arg[4] delta:', delta);
-                        $scrollPos = scrollY || 0; 
-                        $scrollDir = direction || 'none'; 
+                        $scrollPos = scrollY || 0;
+                        $scrollDir = direction || 'none';
                         $scrollVel = velocity || 0;
                         console.log('Assigned to signals:', {scrollPos: $scrollPos, scrollDir: $scrollDir, scrollVel: $scrollVel});
                     """,

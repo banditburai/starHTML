@@ -12,8 +12,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from starhtml import *
-from starhtml.xtend import Script
 from starhtml.handlers import resize_handler
+from starhtml.xtend import Script
 
 app, rt = star_app(
     title="Resize Handler Demo",
@@ -84,7 +84,7 @@ def home():
                         Div("Item 1", cls="p-4 bg-purple-100 border border-purple-300 rounded"),
                         Div("Item 2", cls="p-4 bg-purple-100 border border-purple-300 rounded"),
                         Div("Item 3", cls="p-4 bg-purple-100 border border-purple-300 rounded"),
-                        Div("Item 4", cls="p-4 bg-purple-100 border border-purple-300 rounded"),                       
+                        Div("Item 4", cls="p-4 bg-purple-100 border border-purple-300 rounded"),
                         ds_attr_class="$gridClass"
                     ),
                     P("Current layout: ", Span(ds_text="$layoutText"), cls="text-sm text-muted-foreground mt-4"),
@@ -92,7 +92,7 @@ def home():
                     ds_on_resize="""
                         $width = width;
                         $layoutText = width < 301 ? '1 column (narrow)' : width < 501 ? '2 columns (medium)' : '4 columns (wide)';
-                        $gridClass = width < 301 ? 'gap-4 grid grid-cols-1' : width < 501 ? 'gap-4 grid grid-cols-2' : 'gap-4 grid grid-cols-4';                        
+                        $gridClass = width < 301 ? 'gap-4 grid grid-cols-1' : width < 501 ? 'gap-4 grid grid-cols-2' : 'gap-4 grid grid-cols-4';
                     """,
                     ds_signals={"width": 0, "layoutText": "4 columns (wide)", "gridClass": "gap-4 grid grid-cols-4"},
                     cls="p-6 border-2 border-solid border-purple-400 bg-purple-50 overflow-auto min-h-64",

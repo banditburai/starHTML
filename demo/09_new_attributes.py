@@ -2,11 +2,10 @@
 
 from starhtml import *
 
-
 app, rt = star_app(
     title="New Datastar Attributes Demo",
     hdrs=[
-        Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),      
+        Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
     ]
 )
 
@@ -41,7 +40,7 @@ def home():
                 controls=True,
                 cls="w-full max-w-md"
             ),
-            Button("Update page (video keeps playing)", 
+            Button("Update page (video keeps playing)",
                    ds_on_click="$updateTime = new Date().toLocaleTimeString()",
                    cls="bg-green-600 text-white px-4 py-2 rounded mt-2"),
             P("Last update: ", ds_text="$updateTime", cls="mt-2"),
@@ -69,7 +68,7 @@ def home():
             H2("4. data-preserve-attr Demo", cls="text-2xl font-semibold mb-4"),
             P("Form values preserved during updates:", cls="mb-2"),
             Form(
-                Input(type="text", placeholder="Type here...", cls="border p-2 rounded", 
+                Input(type="text", placeholder="Type here...", cls="border p-2 rounded",
                       ds_preserve_attr="value"),
                 Textarea(placeholder="Write something...", cls="border p-2 rounded mt-2 w-full",
                          ds_preserve_attr="value"),
@@ -117,5 +116,5 @@ def home():
         cls="max-w-4xl mx-auto p-6"
     )
 
-if __name__ == "__main__":    
+if __name__ == "__main__":
     serve(port=5001)

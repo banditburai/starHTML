@@ -1,14 +1,14 @@
 """Edge case and error handling tests for theme toggle functionality."""
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
 import sys
 from pathlib import Path
+
+import pytest
 
 # Add the project root to the path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from components.ui import ThemeToggle, ThemeToggleCompact
+from components.ui import ThemeToggle
 
 
 class TestThemeToggleEdgeCases:
@@ -139,7 +139,7 @@ class TestThemeToggleErrorHandling:
         toggle = ThemeToggle()
         
         click_handler = toggle.attrs.get("data-on-click", "")
-        load_handler = toggle.attrs.get("data-on-load", "")
+        toggle.attrs.get("data-on-load", "")
         
         # Should handle DOM manipulation errors
         assert "document.documentElement" in click_handler, "Should access DOM"
@@ -361,7 +361,7 @@ class TestThemeToggleEnvironmentEdgeCases:
         toggle = ThemeToggle()
         
         click_handler = toggle.attrs.get("data-on-click", "")
-        load_handler = toggle.attrs.get("data-on-load", "")
+        toggle.attrs.get("data-on-load", "")
         
         # Should handle missing localStorage
         assert "try {" in click_handler, "Should handle localStorage errors"

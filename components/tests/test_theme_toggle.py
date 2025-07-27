@@ -1,15 +1,14 @@
 """Comprehensive tests for theme toggle functionality."""
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
 import sys
 from pathlib import Path
+
+import pytest
 
 # Add the project root to the path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from components.ui import ThemeToggle, ThemeToggleCompact
-from components.ui.theme_toggle import ThemeToggle as ThemeToggleFunc, ThemeToggleCompact as ThemeToggleCompactFunc
 
 
 class TestThemeToggleStructure:
@@ -108,6 +107,7 @@ class TestThemeToggleJavaScript:
     def test_error_handling_in_javascript(self):
         """Test error handling in JavaScript code."""
         toggle = ThemeToggle()
+        button = toggle.children[0]
         
         click_handler = button.attrs.get("data-on-click")
         load_handler = toggle.attrs.get("data-on-load")
@@ -359,6 +359,7 @@ class TestThemeToggleRobustness:
     def test_javascript_error_handling(self):
         """Test JavaScript error handling."""
         toggle = ThemeToggle()
+        button = toggle.children[0]
         
         click_handler = button.attrs.get("data-on-click")
         load_handler = toggle.attrs.get("data-on-load")

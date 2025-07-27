@@ -15,8 +15,8 @@ from starlette.requests import Request
 from starlette.testclient import TestClient
 
 from starhtml import H1, Div, star_app
-from starhtml.server import JSONResponse
 from starhtml.realtime import format_element_event, format_signal_event, signals, sse
+from starhtml.server import JSONResponse
 
 
 class TestMalformedInputHandling:
@@ -270,7 +270,7 @@ class TestResourceExhaustion:
         
         # TestClient processes requests sequentially
         responses = []
-        for i in range(3):
+        for _i in range(3):
             response = client.get("/concurrent")
             responses.append(response)
         

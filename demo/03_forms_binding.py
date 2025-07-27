@@ -2,7 +2,6 @@
 
 from starhtml import *
 
-
 app, rt = star_app(
     title="Forms and Binding Demo",
     hdrs=[
@@ -27,7 +26,7 @@ def create_form_field(label_text, input_type, placeholder, signal_name, validati
     
     label = Label(label_text, {"for": input_id})
     
-    required_indicator = Span(" *" if required else " (optional)", 
+    required_indicator = Span(" *" if required else " (optional)",
                             cls="required" if required else "text-gray-500 text-sm")
     
     input_attrs = {
@@ -53,8 +52,8 @@ def create_form_field(label_text, input_type, placeholder, signal_name, validati
 
 def create_name_field():
     return create_form_field(
-        "Full Name", 
-        "text", 
+        "Full Name",
+        "text",
         "Enter your full name",
         "name",
         "$nameError = $name.length < 2 ? 'Name must be at least 2 characters' : ''"
@@ -64,7 +63,7 @@ def create_name_field():
 def create_email_field():
     return create_form_field(
         "Email Address",
-        "email", 
+        "email",
         "Enter your email",
         "email",
         "$emailError = !$email ? 'Email is required' : !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test($email) ? 'Please enter a valid email' : ''"
@@ -75,7 +74,7 @@ def create_age_field():
     return create_form_field(
         "Age",
         "number",
-        "Enter your age", 
+        "Enter your age",
         "age",
         "$ageError = !$age ? 'Age is required' : $age < 18 || $age > 120 ? 'Age must be between 18 and 120' : ''"
     )
@@ -86,7 +85,7 @@ def create_phone_field():
         "Phone Number",
         "tel",
         "(555) 123-4567",
-        "phone", 
+        "phone",
         "$phoneError = $phone && !/^[\\+]?[\\d\\s\\-\\(\\)]{10,}$/.test($phone) ? 'Please enter a valid phone number' : ''",
         required=False
     )
@@ -150,7 +149,7 @@ def home():
             
             Form(
                 create_name_field(),
-                create_email_field(), 
+                create_email_field(),
                 create_age_field(),
                 create_phone_field(),
 

@@ -19,7 +19,6 @@ import tempfile
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
-from typing import Union
 from unittest.mock import Mock, patch
 
 import pytest
@@ -573,8 +572,8 @@ class TestHelperFunctions:
             field2: int
         
         annos = _annotations(MyClass)
-        assert annos["field1"] == str
-        assert annos["field2"] == int
+        assert annos["field1"] is str
+        assert annos["field2"] is int
     
     def test_annotations_namedtuple(self):
         """Test _annotations with namedtuple."""
@@ -790,11 +789,11 @@ class TestFixAnnoEdgeCases:
     def test_fix_anno_union_types(self):
         """Test _fix_anno with Union types."""
         # Union with None (Optional)
-        result = _fix_anno(Union[str, None], "test")
+        result = _fix_anno(str | None, "test")
         assert result == "test"
         
         # Union with multiple types
-        result = _fix_anno(Union[int, str], "42")
+        result = _fix_anno(int | str, "42")
         assert result == 42  # Should convert to first non-None type
     
     def test_fix_anno_list_type(self):

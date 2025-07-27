@@ -1,15 +1,16 @@
 """Performance benchmarks and tests for theme toggle functionality."""
 
-import pytest
-import time
-from unittest.mock import Mock, patch
 import sys
+import time
 from pathlib import Path
+
+import pytest
 
 # Add the project root to the path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from components.ui import ThemeToggle, ThemeToggleCompact
+
 from starhtml import *
 
 
@@ -22,7 +23,7 @@ class TestThemeToggleRenderingPerformance:
         
         # Render theme toggle multiple times
         for _ in range(1000):
-            toggle = ThemeToggle()
+            ThemeToggle()
             
         end_time = time.time()
         rendering_time = end_time - start_time
@@ -35,7 +36,7 @@ class TestThemeToggleRenderingPerformance:
         start_time = time.time()
         
         # Create layout with multiple toggles
-        layout = Div(
+        Div(
             *[ThemeToggle(id=f"toggle-{i}") for i in range(100)],
             cls="flex flex-wrap gap-2"
         )
@@ -51,13 +52,13 @@ class TestThemeToggleRenderingPerformance:
         # Test regular theme toggle
         start_time = time.time()
         for _ in range(500):
-            regular = ThemeToggle()
+            ThemeToggle()
         regular_time = time.time() - start_time
         
         # Test compact theme toggle
         start_time = time.time()
         for _ in range(500):
-            compact = ThemeToggleCompact()
+            ThemeToggleCompact()
         compact_time = time.time() - start_time
         
         # Both should be fast, and compact should not be significantly slower
@@ -132,7 +133,7 @@ class TestThemeToggleJavaScriptPerformance:
         toggle = ThemeToggle()
         
         click_handler = toggle.attrs.get("data-on-click", "")
-        load_handler = toggle.attrs.get("data-on-load", "")
+        toggle.attrs.get("data-on-load", "")
         
         # Should include performance optimizations
         assert "const html = document.documentElement" in click_handler, "Should cache DOM reference"
@@ -161,7 +162,7 @@ class TestThemeToggleScalabilityPerformance:
         start_time = time.time()
         
         # Create a large layout with many theme toggles
-        large_layout = Div(
+        Div(
             *[Div(
                 H3(f"Section {i}"),
                 ThemeToggle(id=f"section-toggle-{i}"),
@@ -181,7 +182,7 @@ class TestThemeToggleScalabilityPerformance:
         start_time = time.time()
         
         # Create nested structure
-        nested_layout = Div(
+        Div(
             *[Div(
                 ThemeToggle(id=f"outer-{i}"),
                 Div(
@@ -204,7 +205,7 @@ class TestThemeToggleScalabilityPerformance:
         start_time = time.time()
         
         # Create complex layout with theme toggles
-        complex_layout = Div(
+        Div(
             Header(
                 Nav(
                     *[A(f"Link {i}", href=f"/page{i}") for i in range(20)],
@@ -266,7 +267,7 @@ class TestThemeToggleDataStarPerformance:
         
         # Create theme toggles with many Datastar attributes
         for i in range(100):
-            toggle = ThemeToggle(
+            ThemeToggle(
                 ds_on_click="customHandler()",
                 ds_on_load="customInit()",
                 ds_bind_class="customClass",
@@ -307,12 +308,12 @@ class TestThemeToggleComparison:
         """Compare performance between regular and compact variants."""
         # Test regular variant
         start_time = time.time()
-        regular_toggles = [ThemeToggle(id=f"regular-{i}") for i in range(100)]
+        [ThemeToggle(id=f"regular-{i}") for i in range(100)]
         regular_time = time.time() - start_time
         
         # Test compact variant
         start_time = time.time()
-        compact_toggles = [ThemeToggleCompact(id=f"compact-{i}") for i in range(100)]
+        [ThemeToggleCompact(id=f"compact-{i}") for i in range(100)]
         compact_time = time.time() - start_time
         
         # Both should be reasonably fast
@@ -366,7 +367,7 @@ class TestThemeToggleStressTests:
         
         def create_toggles():
             start_time = time.time()
-            toggles = [ThemeToggle(id=f"concurrent-{i}") for i in range(100)]
+            [ThemeToggle(id=f"concurrent-{i}") for i in range(100)]
             end_time = time.time()
             results.append(end_time - start_time)
         
@@ -401,7 +402,7 @@ class TestThemeTogglePerformanceRegression:
         start_time = time.time()
         
         # Standard test: 50 theme toggles in a realistic layout
-        layout = Div(
+        Div(
             Header(
                 ThemeToggle(cls="header-toggle"),
                 cls="p-4 border-b"
@@ -432,12 +433,12 @@ class TestThemeTogglePerformanceRegression:
         """Test performance impact of various attributes."""
         # Test with minimal attributes
         start_time = time.time()
-        minimal_toggles = [ThemeToggle() for _ in range(100)]
+        [ThemeToggle() for _ in range(100)]
         minimal_time = time.time() - start_time
         
         # Test with many attributes
         start_time = time.time()
-        complex_toggles = [ThemeToggle(
+        [ThemeToggle(
             id=f"complex-{i}",
             cls="custom-class",
             title="Custom title",

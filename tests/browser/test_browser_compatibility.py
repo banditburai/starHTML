@@ -379,7 +379,7 @@ class TestBrowserCompatibility:
                 # Note: Resize handler might not trigger from viewport changes
                 # This tests that the handler loads without errors
                 console_errors = []
-                page.on("console", lambda msg: console_errors.append(msg.text) if msg.type == "error" else None)
+                page.on("console", lambda msg, errors=console_errors: errors.append(msg.text) if msg.type == "error" else None)
                 
                 # Wait a bit more to catch any errors
                 await page.wait_for_timeout(500)
@@ -439,7 +439,7 @@ class TestBrowserCompatibility:
             
             # Check for console errors
             console_errors = []
-            page.on("console", lambda msg: console_errors.append(msg.text) if msg.type == "error" else None)
+            page.on("console", lambda msg, errors=console_errors: errors.append(msg.text) if msg.type == "error" else None)
             await page.wait_for_timeout(500)
             
             js_errors = [err for err in console_errors if "error" in err.lower()]
@@ -497,7 +497,7 @@ class TestBrowserCompatibility:
                 
                 # Check for mobile-specific errors
                 console_errors = []
-                page.on("console", lambda msg: console_errors.append(msg.text) if msg.type == "error" else None)
+                page.on("console", lambda msg, errors=console_errors: errors.append(msg.text) if msg.type == "error" else None)
                 await page.wait_for_timeout(500)
                 
                 mobile_errors = [err for err in console_errors if any(keyword in err.lower() for keyword in ['touch', 'mobile', 'viewport'])]
@@ -546,7 +546,7 @@ class TestBrowserCompatibility:
             
             # Check for performance-related console warnings
             console_messages = []
-            page.on("console", lambda msg: console_messages.append(msg.text))
+            page.on("console", lambda msg, messages=console_messages: messages.append(msg.text))
             await page.wait_for_timeout(500)
             
             [msg for msg in console_messages if any(keyword in msg.lower() for keyword in ['slow', 'performance', 'lag'])]

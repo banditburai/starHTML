@@ -1,14 +1,15 @@
 """Comprehensive accessibility tests for theme toggle functionality."""
 
-import pytest
-from unittest.mock import Mock, patch
 import sys
 from pathlib import Path
+
+import pytest
 
 # Add the project root to the path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from components.ui import ThemeToggle
+
 from starhtml import *
 
 
@@ -276,7 +277,7 @@ class TestThemeToggleCognitiveLlAccessibility:
         toggle = ThemeToggle()
         
         click_handler = toggle.children[0].attrs.get("data-on-click", "")
-        load_handler = toggle.attrs.get("data-on-load", "")
+        toggle.attrs.get("data-on-load", "")
         
         # Should prevent and handle errors gracefully
         assert "try {" in click_handler, "Should prevent errors"

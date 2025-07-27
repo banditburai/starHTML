@@ -20,6 +20,7 @@ from starlette.testclient import TestClient
 
 from starhtml import H1, Button, Div, Li, P, Ul, star_app
 from starhtml.realtime import signals, sse
+from starhtml.server import JSONResponse
 
 
 class TestConcurrentUsers:

@@ -5,7 +5,7 @@ from starhtml import *
 app, rt = star_app(
     title="SSE Debugging Demo",
     hdrs=[
-        Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),      
+        Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
     ],
     
 )
@@ -14,15 +14,15 @@ app, rt = star_app(
 def home():
     return Div(
         Style("""
-            body { 
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
-                background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); 
-                margin: 0; 
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+                margin: 0;
                 min-height: 100vh;
             }
-            .container { 
-                max-width: 900px; 
-                margin: 0 auto; 
+            .container {
+                max-width: 900px;
+                margin: 0 auto;
                 padding: 2rem;
             }
             .card {
@@ -46,7 +46,7 @@ def home():
                 background: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%);
                 color: white;
             }
-            .btn-primary:hover { 
+            .btn-primary:hover {
                 background: linear-gradient(135deg, #2563eb 0%, #1e3a8a 100%);
                 transform: translateY(-1px);
                 box-shadow: 0 8px 15px rgba(59, 130, 246, 0.3);
@@ -55,7 +55,7 @@ def home():
                 background: linear-gradient(135deg, #10b981 0%, #047857 100%);
                 color: white;
             }
-            .btn-secondary:hover { 
+            .btn-secondary:hover {
                 background: linear-gradient(135deg, #059669 0%, #065f46 100%);
                 transform: translateY(-1px);
                 box-shadow: 0 8px 15px rgba(16, 185, 129, 0.3);
@@ -64,7 +64,7 @@ def home():
                 background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
                 color: white;
             }
-            .btn-danger:hover { 
+            .btn-danger:hover {
                 background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
                 transform: translateY(-1px);
                 box-shadow: 0 8px 15px rgba(239, 68, 68, 0.3);
