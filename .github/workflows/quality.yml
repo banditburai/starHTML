@@ -27,8 +27,8 @@ jobs:
         
     - name: Lint with ruff
       run: |
-        uv run ruff check src/ tests/ demo/
-        uv run ruff format --check src/ tests/ demo/
+        uv run ruff check
+        uv run ruff format --check
         
     - name: Type check with pyright
       run: uv run pyright

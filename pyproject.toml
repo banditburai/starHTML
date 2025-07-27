@@ -119,17 +119,21 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"demo/*.py" = ["F403", "F405", "PLR2004", "N802", "PLW0603"]  # Allow star imports, magic values, capitalized function names, and global statements in demos
+"demo/*.py" = ["F403", "F405", "PLR2004", "N802", "PLW0603", "N803", "B007"]  # Allow star imports, magic values, capitalized function names, global statements, argument naming, and unused loop vars in demos
 "tests/*.py" = ["F403", "F405", "PLR2004", "N806"]  # Allow star imports, magic values, and constant naming in tests
 "src/starhtml/components.py" = ["N802", "N807", "C901", "PLR0912", "UP007", "PLW2901", "PLE0605"]  # Allow capitalized function names for HTML components and complexity
-"src/starhtml/xtend.py" = ["N802", "UP031"]  # Allow capitalized function names for extended components and % formatting
-"src/starhtml/core.py" = ["N813", "E721", "B904", "C901", "PLR0911", "PLR0912", "N802", "E402", "PLR2004", "N801"]  # Allow various patterns needed for StarHTML
 "src/starhtml/svg.py" = ["N802", "N803", "N806"]  # Allow capitalized function names for SVG elements
 "src/starhtml/js.py" = ["N802"]  # Allow capitalized function names for JS components
 "src/starhtml/datastar.py" = ["B904", "PLR2004"]  # Allow datastar patterns
 "src/starhtml/live_reload.py" = ["N802"]  # Allow capitalized function names
 "src/starhtml/oauth.py" = ["C901"]  # Allow complexity in OAuth
 "src/starhtml/__init__.py" = ["F401"]  # Allow unused imports in __init__
+"src/starhtml/tags.py" = ["N803", "N806", "E743", "PLE0604"]  # Allow SVG naming conventions, ambiguous function names, and __all__ patterns
+"src/starhtml/realtime.py" = ["PLR0911", "PLR2004"]  # Allow complexity and magic values in realtime processing
+"src/starhtml/server.py" = ["PLR0911", "N801", "PLW1508"]  # Allow complexity, internal class naming, and env var patterns
+"src/starhtml/utils.py" = ["N813", "E721"]  # Allow CamelCase imports and type comparisons for compatibility
+"src/starhtml/xtend.py" = ["N802", "UP031", "F811"]  # Allow capitalized function names, % formatting, and Path redefinition
+"src/starhtml/core.py" = ["N813", "E721", "B904", "C901", "PLR0911", "PLR0912", "N802", "E402", "PLR2004", "N801", "F811"]  # Allow various patterns needed for StarHTML
 
 [tool.ruff.format]
 quote-style = "double"
