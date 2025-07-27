@@ -22,14 +22,29 @@ export default defineConfig({
         drop_console: true,
         drop_debugger: true,
         pure_funcs: ['console.log', 'console.debug'],
-        passes: 2
+        passes: 2,
+        unsafe: true,
+        unsafe_comps: true,
+        unsafe_math: true,
+        unsafe_methods: true,
+        reduce_vars: true,
+        collapse_vars: true,
+        hoist_funs: true,
+        hoist_vars: true
       },
       format: {
         comments: false,
-        ascii_only: true
+        ascii_only: true,
+        semicolons: false,
+        beautify: false,
+        preserve_line: false
       },
       mangle: {
-        safari10: true
+        safari10: true,
+        toplevel: true,
+        eval: true,
+        keep_fnames: false,
+        reserved: []
       }
     },
     rollupOptions: {

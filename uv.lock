@@ -1320,6 +1320,7 @@ dev = [
     { name = "brotli" },
     { name = "psutil" },
     { name = "pyright" },
+    { name = "ruff" },
 ]
 
 [package.metadata]
@@ -1358,6 +1359,7 @@ dev = [
     { name = "brotli", specifier = ">=1.1.0" },
     { name = "psutil", specifier = ">=7.0.0" },
     { name = "pyright", specifier = ">=1.1.403" },
+    { name = "ruff", specifier = ">=0.11.13" },
 ]
 
 [[package]]
