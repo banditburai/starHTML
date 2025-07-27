@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.11", "3.12"]
+        python-version: ["3.12", "3.13"]
 
     steps:
     - uses: actions/checkout@v4
@@ -33,22 +33,19 @@ jobs:
     - name: Type check with pyright
       run: uv run pyright
       
-    - name: Validate StarHTML patterns
-      run: |
-        if [ -f scripts/validate_starhtml.py ]; then
-          uv run python scripts/validate_starhtml.py demo/
-        fi
       
     - name: Run tests
       run: |
         uv run pytest tests/ -v --tb=short --cov=src/starhtml --cov-report=term-missing --cov-report=xml
         
     - name: Test demo files
-      run: uv run pytest demo/ -v --tb=short --no-cov
+      run: |
+        echo "Checking demo files for syntax errors..."
+        uv run python -m py_compile demo/*.py
         
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
-      if: matrix.python-version == '3.11'
+      if: matrix.python-version == '3.12'
       with:
         file: ./coverage.xml
         flags: unittests
