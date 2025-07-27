@@ -1,8 +1,7 @@
 """Theme toggle component using Datastar for reactivity."""
 from starhtml import *
-from starhtml.xtend import Script  # Use the Script that auto-wraps with NotStr
 from .button import Button
-from .iconify import IconifyIcon
+from .iconify import Icon
 
 
 def ThemeToggle(**attrs) -> Div:
@@ -10,24 +9,24 @@ def ThemeToggle(**attrs) -> Div:
     return Div(
         Button(
             # Sun icon (visible in light mode)
-            IconifyIcon(
+            Icon(
                 "ph:sun-bold",
                 ds_show="!$isDark",
-                cls="h-[1.2rem] w-[1.2rem]"
+                cls="h-4 w-4"
             ),
             # Moon icon (visible in dark mode)
-            IconifyIcon(
+            Icon(
                 "ph:moon-bold",
                 ds_show="$isDark",
-                cls="h-[1.2rem] w-[1.2rem]"
+                cls="h-4 w-4"
             ),
-            size="icon",
-            variant="outline",
+            variant="ghost",
             ds_on_click="$isDark = !$isDark; document.documentElement.classList.toggle('dark', $isDark); localStorage.setItem('theme', $isDark ? 'dark' : 'light')",
-            aria_label="Toggle theme"
+            aria_label="Toggle theme",
+            cls="h-9 px-4 py-2 flex-shrink-0"
         ),
         ds_signals={"isDark": False},
-        ds_init="""
+        ds_on_load="""
             // Initialize theme from localStorage or system preference
             const saved = localStorage.getItem('theme');
             const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;

@@ -2,39 +2,121 @@
 
 from starhtml import *
 
-app, rt = star_app(title="SSE Debugging Demo", debug=True)
-
+app, rt = star_app(
+    title="SSE Debugging Demo",
+    hdrs=[
+        Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),      
+    ],
+    
+)
 
 @rt("/")
 def home():
     return Div(
-        H1("SSE Merge Fragments Debugging"),
+        Style("""
+            body { 
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+                background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); 
+                margin: 0; 
+                min-height: 100vh;
+            }
+            .container { 
+                max-width: 900px; 
+                margin: 0 auto; 
+                padding: 2rem;
+            }
+            .card {
+                background: white;
+                border-radius: 12px;
+                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+                border: 1px solid #e5e7eb;
+                padding: 1.5rem;
+                margin-bottom: 1.5rem;
+            }
+            .btn {
+                padding: 0.75rem 1.5rem;
+                border-radius: 8px;
+                border: none;
+                font-weight: 500;
+                cursor: pointer;
+                transition: all 0.2s;
+                font-size: 0.9rem;
+            }
+            .btn-primary {
+                background: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%);
+                color: white;
+            }
+            .btn-primary:hover { 
+                background: linear-gradient(135deg, #2563eb 0%, #1e3a8a 100%);
+                transform: translateY(-1px);
+                box-shadow: 0 8px 15px rgba(59, 130, 246, 0.3);
+            }
+            .btn-secondary {
+                background: linear-gradient(135deg, #10b981 0%, #047857 100%);
+                color: white;
+            }
+            .btn-secondary:hover { 
+                background: linear-gradient(135deg, #059669 0%, #065f46 100%);
+                transform: translateY(-1px);
+                box-shadow: 0 8px 15px rgba(16, 185, 129, 0.3);
+            }
+            .btn-danger {
+                background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+                color: white;
+            }
+            .btn-danger:hover { 
+                background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+                transform: translateY(-1px);
+                box-shadow: 0 8px 15px rgba(239, 68, 68, 0.3);
+            }
+            .status-bar {
+                background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+                border: 1px solid #93c5fd;
+                border-radius: 8px;
+                padding: 1rem;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+        """),
+        
         Div(
-            Button("Test Simple Fragment", ds_on_click="@get('/test-simple')"),
-            Button("Test Multiple Fragments", ds_on_click="@get('/test-multiple')"),
-            Button("Test With Selector", ds_on_click="@get('/test-selector')"),
-            Button("Test Complex HTML", ds_on_click="@get('/test-complex')"),
-            Button("Reset All", ds_on_click="@get('/reset')", style="background: #ff5252; color: white;"),
-            style="display: flex; gap: 10px; margin: 20px 0; flex-wrap: wrap;",
-        ),
-        Div(
-            P("Initial content - will be replaced"),
-            id="target",
-            style="border: 1px solid #ccc; padding: 20px; margin: 20px 0;",
-        ),
-        Div(
-            P("Secondary target - for selector tests"),
-            id="target2",
-            style="border: 1px solid #00c853; padding: 20px; margin: 20px 0;",
-        ),
-        Div(P("Status: ", ds_text="$status"), style="font-weight: bold; margin: 20px 0;"),
-        Div(
-            Pre(
-                Code(ds_text="$lastAction", style="white-space: pre-wrap;"),
-                style="background: #f5f5f5; padding: 15px; overflow-x: auto;",
+            H1("SSE Merge Elements Debugging", cls="text-3xl font-bold text-center mb-6"),
+            
+            Div(
+                Button("Test Simple Element", ds_on_click="@get('/test-simple')", cls="btn btn-primary"),
+                Button("Test Multiple Elements", ds_on_click="@get('/test-multiple')", cls="btn btn-primary"),
+                Button("Test With Selector", ds_on_click="@get('/test-selector')", cls="btn btn-secondary"),
+                Button("Test Complex HTML", ds_on_click="@get('/test-complex')", cls="btn btn-secondary"),
+                Button("Reset All", ds_on_click="@get('/reset')", cls="btn btn-danger"),
+                style="display: flex; gap: 10px; margin: 20px 0; flex-wrap: wrap;",
             ),
-            style="margin-top: 20px;",
+            
+            Div(
+                P("Initial content - will be replaced"),
+                id="target",
+                cls="card",
+            ),
+            
+            Div(
+                P("Secondary target - for selector tests"),
+                id="target2",
+                style="border: 1px solid #00c853; padding: 20px; margin: 20px 0; border-radius: 8px; background: white;",
+            ),
+            
+            Div(P("Status: ", ds_text="$status"), cls="status-bar"),
+            
+            Div(
+                Pre(
+                    Code(ds_text="$lastAction", style="white-space: pre-wrap;"),
+                    style="background: #f5f5f5; padding: 15px; overflow-x: auto; border-radius: 8px;",
+                ),
+                cls="card",
+            ),
+            
+            cls="container"
         ),
+        
         ds_signals={"status": "Ready", "lastAction": "No action yet"},
     )
 
@@ -42,38 +124,38 @@ def home():
 @rt("/test-simple")
 @sse
 def test_simple(req):
-    yield signals(status="Testing simple fragment...")
+    yield signals(status="Testing simple element...")
     # Auto-detection: Since Div has id="target", selector "#target" is auto-detected
-    yield fragments(
+    yield elements(
         Div(
-            P("✅ Simple fragment replaced successfully!"),
+            P("✅ Simple element replaced successfully!"),
             P("Notice: No manual selector needed - auto-detected from id!"),
             id="target",
             style="border: 1px solid #ccc; padding: 20px; margin: 20px 0;",
         )
     )
-    yield signals(status="Simple fragment complete", lastAction="fragments(Div(id='target')) - auto-detected #target!")
+    yield signals(status="Simple element complete", lastAction="elements(Div(id='target')) - auto-detected #target!")
 
 
 @rt("/test-multiple")
 @sse
 def test_multiple(req):
-    yield signals(status="Testing multiple fragments...")
+    yield signals(status="Testing multiple elements...")
 
     fragments = [
-        P("Fragment 1: First paragraph"),
-        P("Fragment 2: Second paragraph", style="color: blue;"),
+        P("Element 1: First paragraph"),
+        P("Element 2: Second paragraph", style="color: blue;"),
         Div(
-            P("Fragment 3: Nested content"),
-            P("Fragment 3: More nested content"),
+            P("Element 3: Nested content"),
+            P("Element 4: More nested content"),
             style="background: #f0f0f0; padding: 10px; margin: 10px 0;",
         ),
     ]
 
     # Auto-detection: id="target" automatically becomes selector "#target"
-    yield fragments(Div(*fragments, id="target", style="border: 1px solid #ccc; padding: 20px; margin: 20px 0;"))
+    yield elements(Div(*fragments, id="target", style="border: 1px solid #ccc; padding: 20px; margin: 20px 0;"))
     yield signals(
-        status="Multiple fragments complete", lastAction="fragments(Div(*fragments, id='target')) - auto-detected!"
+        status="Multiple fragments complete", lastAction="elements(Div(*fragments, id='target')) - auto-detected!"
     )
 
 
@@ -83,7 +165,7 @@ def test_selector(req):
     yield signals(status="Testing auto-detection vs manual selectors...")
 
     # Auto-detection: id="target" automatically becomes "#target"
-    yield fragments(
+    yield elements(
         Div(
             P("✅ Auto-detected from id='target'"),
             id="target",
@@ -92,7 +174,7 @@ def test_selector(req):
     )
 
     # Manual override: explicitly specify different selector
-    yield fragments(
+    yield elements(
         Div(
             P("✅ Manual override: targeting #target2", style="color: green;"),
             P("(Even though this div has id='target2', we could target anywhere)"),
@@ -122,7 +204,7 @@ def test_complex(req):
     )
 
     # Auto-detection works with complex nested content too
-    yield fragments(Div(complex_content, id="target", style="border: 1px solid #ccc; padding: 20px; margin: 20px 0;"))
+    yield elements(Div(complex_content, id="target", style="border: 1px solid #ccc; padding: 20px; margin: 20px 0;"))
     yield signals(status="Complex HTML complete", lastAction="Complex HTML with auto-detected selector")
 
 
@@ -132,7 +214,7 @@ def reset(req):
     yield signals(status="Resetting...")
 
     # Both use auto-detection
-    yield fragments(
+    yield elements(
         Div(
             P("Initial content - will be replaced"),
             id="target",
@@ -140,7 +222,7 @@ def reset(req):
         )
     )
 
-    yield fragments(
+    yield elements(
         Div(
             P("Secondary target - for selector tests"),
             id="target2",
@@ -153,4 +235,4 @@ def reset(req):
 
 if __name__ == "__main__":
     print("SSE Debugging Demo running on http://localhost:5001")
-    serve()
+    serve(port=5001)

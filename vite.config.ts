@@ -1,0 +1,56 @@
+import { defineConfig } from 'vite'
+
+export default defineConfig({
+  build: {
+    lib: {
+      entry: {
+        'persist': './typescript/handlers/persist.ts',
+        'scroll': './typescript/handlers/scroll.ts', 
+        'resize': './typescript/handlers/resize.ts',
+        'throttle': './typescript/handlers/throttle.ts',
+        'smooth-scroll': './typescript/handlers/smooth-scroll.ts',
+        'index': './typescript/handlers/index.ts'
+      },
+      formats: ['es'],
+      fileName: (format, entryName) => `${entryName}.js`
+    },
+    outDir: './src/starhtml/static/js/handlers',
+    target: 'es2020',
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: true,
+        drop_debugger: true,
+        pure_funcs: ['console.log', 'console.debug'],
+        passes: 2
+      },
+      format: {
+        comments: false,
+        ascii_only: true
+      },
+      mangle: {
+        safari10: true
+      }
+    },
+    rollupOptions: {
+      external: [],
+      output: {
+        preserveModules: false,
+        compact: true,
+        generatedCode: {
+          constBindings: true,
+          arrowFunctions: true
+        }
+      }
+    },
+    sourcemap: false,
+    emptyOutDir: true,
+    reportCompressedSize: true
+  },
+  esbuild: {
+    target: 'es2020',
+    format: 'esm',
+    legalComments: 'none',
+    treeShaking: true
+  }
+})

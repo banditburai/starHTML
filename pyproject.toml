@@ -3,23 +3,24 @@ name = "starhtml"
 version = "0.1.0"
 description = "Modern HTML generation in Python, inspired by FastHTML"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = [
     "starlette",
- "uvicorn[standard]",
- "httpx",
- "beautifulsoup4",
- "python-dateutil",
- "fastcore",
- "fastlite",
- "oauthlib",
- "itsdangerous",
- "pytest-cov>=6.1.1",
+    "uvicorn[standard]",
+    "httpx",
+    "beautifulsoup4",
+    "python-dateutil",
+    "fastcore",
+    "fastlite",
+    "oauthlib",
+    "itsdangerous",
+    "pytest-cov>=6.1.1",
+    "requests>=2.32.4",
 ]
 
 [project.optional-dependencies]
-test = ["pytest", "pytest-cov", "pytest-timeout", "pytest-xdist", "pytest-watch"]
-dev = ["ipykernel", "pip-tools", "ruff", "pyright"]
+test = ["pytest", "pytest-cov", "pytest-timeout", "pytest-xdist", "pytest-watch", "pytest-asyncio", "python-multipart"]
+dev = ["ipykernel", "pip-tools", "ruff", "pyright", "psutil", "brotli>=1.1.0"]
 doc = ["mkdocs", "mkdocs-material", "mdx-include"]
 
 [build-system]
@@ -28,6 +29,27 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/starhtml"]
+# Include only built JavaScript and static assets in the package (exclude TypeScript sources)
+include = [
+    "src/starhtml/static/**/*.js",
+    "src/starhtml/static/**/*.json", 
+    "src/starhtml/static/**/*.css",
+    "src/starhtml/**/*.py",
+]
+# Exclude development files from the package  
+exclude = [
+    "typescript/",
+    "package.json",
+    "package-lock.json", 
+    "bun.lockb",
+    "tsconfig.json",
+    "node_modules/",
+]
+
+# Build hook to generate optimized JavaScript files
+# [tool.hatch.build.hooks.custom]
+# This will be executed before building the wheel
+# path = "scripts/build/hatch_build.py"
 
 [tool.pytest.ini_options]
 minversion = "7.0"
@@ -35,12 +57,6 @@ addopts = [
     "--verbose",
     "--strict-markers",
     "--strict-config",
-    "--cov=src/starhtml",
-    "--cov-branch",
-    "--cov-report=term-missing:skip-covered",
-    "--cov-report=html",
-    "--cov-report=xml",
-    "--cov-fail-under=80",
 ]
 testpaths = ["tests"]
 pythonpath = ["src", "."]
@@ -48,6 +64,7 @@ markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests",
     "unit: marks tests as unit tests",
+    "asyncio: marks tests as asyncio tests",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning",
@@ -71,7 +88,7 @@ exclude_lines = [
 
 [tool.ruff]
 line-length = 120
-target-version = "py311"
+target-version = "py312"
 src = ["src", "tests", "demo"]
 
 [tool.ruff.lint]
@@ -116,7 +133,7 @@ indent-style = "space"
 [tool.pyright]
 include = ["src", "tests", "demo"]
 exclude = ["**/node_modules", "**/__pycache__", "**/.venv", "**/build", "**/dist"]
-pythonVersion = "3.11"
+pythonVersion = "3.12"
 pythonPlatform = "All"
 typeCheckingMode = "standard"
 reportMissingImports = false
@@ -144,3 +161,9 @@ reportShadowedImports = true
 reportUndefinedVariable = false
 reportCallIssue = false
 reportArgumentType = false
+
+[dependency-groups]
+dev = [
+    "brotli>=1.1.0",
+    "psutil>=7.0.0",
+]

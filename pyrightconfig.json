@@ -1,7 +1,7 @@
 {
     "include": ["src", "tests", "demo"],
     "exclude": ["**/node_modules", "**/__pycache__", "**/.venv", "**/build", "**/dist", "**/reference"],
-    "pythonVersion": "3.11",
+    "pythonVersion": "3.12",
     "pythonPlatform": "All",
     "typeCheckingMode": "basic",
     "reportMissingImports": false,

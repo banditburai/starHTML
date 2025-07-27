@@ -1,0 +1,232 @@
+name: 🚀 Release to PyPI and GitHub
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 0.1.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-validate:
+    name: 🏗️ Build and Validate Package
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@v1
+      with:
+        bun-version: latest
+    
+    - name: Cache dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.bun/install/cache
+          node_modules
+        key: ${{ runner.os }}-bun-${{ hashFiles('package.json', 'bun.lockb') }}
+        restore-keys: |
+          ${{ runner.os }}-bun-
+    
+    - name: Install JavaScript dependencies
+      run: bun install --frozen-lockfile
+    
+    - name: Build JavaScript assets
+      run: bun run build:package
+    
+    - name: Validate JavaScript build outputs
+      run: |
+        echo "🔍 Validating JavaScript assets..."
+        required_files=(
+          "src/starhtml/static/js/handlers/persist.js"
+          "src/starhtml/static/js/handlers/scroll.js"
+          "src/starhtml/static/js/handlers/resize.js"
+          "src/starhtml/static/js/handlers/throttle.js"
+          "src/starhtml/static/js/handlers/index.js"
+          "src/starhtml/static/js/external/katex.js"
+        )
+        
+        for file in "${required_files[@]}"; do
+          if [ -f "$file" ]; then
+            size=$(stat -c%s "$file")
+            echo "✅ $file ($size bytes)"
+            # Verify file is not empty
+            if [ "$size" -eq 0 ]; then
+              echo "❌ Empty file: $file"
+              exit 1
+            fi
+          else
+            echo "❌ Missing: $file"
+            exit 1
+          fi
+        done
+        echo "🎉 All JavaScript assets validated!"
+    
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+        
+    - name: Install Python build dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install build twine check-wheel-contents validate-pyproject
+    
+    - name: Validate pyproject.toml
+      run: validate-pyproject pyproject.toml
+    
+    - name: Build Python package
+      run: python -m build
+    
+    - name: Validate package contents
+      run: |
+        echo "📦 Validating package structure..."
+        check-wheel-contents dist/*.whl --ignore W004
+        
+        echo "📋 Package contents summary:"
+        python -m zipfile -l dist/*.whl | grep -E "\.(js|py)$" | head -20
+        echo "..."
+        
+        # Verify JavaScript assets are included
+        if python -m zipfile -l dist/*.whl | grep -q "static/js/handlers/persist.js"; then
+          echo "✅ JavaScript handlers included in package"
+        else
+          echo "❌ JavaScript handlers missing from package"
+          exit 1
+        fi
+        
+        echo "✅ Package validation complete"
+    
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: python-package-distributions
+        path: dist/
+        retention-days: 7
+
+  publish-to-testpypi:
+    name: 🧪 Publish to TestPyPI
+    needs: [build-and-validate]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    environment:
+      name: test-pypi
+      url: https://test.pypi.org/p/starhtml
+    permissions:
+      id-token: write  # OIDC trusted publishing
+    
+    steps:
+    - name: Download package distributions
+      uses: actions/download-artifact@v4
+      with:
+        name: python-package-distributions
+        path: dist/
+    
+    - name: Publish to TestPyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        repository-url: https://test.pypi.org/legacy/
+        print-hash: true
+
+  publish-to-pypi:
+    name: 🚀 Publish to PyPI
+    needs: [build-and-validate]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    environment:
+      name: pypi
+      url: https://pypi.org/p/starhtml
+    permissions:
+      id-token: write  # OIDC trusted publishing
+      contents: write  # For GitHub release creation
+    
+    steps:
+    - name: Download package distributions
+      uses: actions/download-artifact@v4
+      with:
+        name: python-package-distributions
+        path: dist/
+    
+    - name: Publish to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        print-hash: true
+
+  create-github-release:
+    name: 📋 Create GitHub Release
+    needs: [publish-to-pypi]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Download package distributions
+      uses: actions/download-artifact@v4
+      with:
+        name: python-package-distributions
+        path: dist/
+    
+    - name: Determine release type
+      id: release-type
+      run: |
+        if [[ ${{ github.ref_name }} =~ -alpha|-beta|-rc ]]; then
+          echo "prerelease=true" >> $GITHUB_OUTPUT
+          echo "📦 Pre-release detected: ${{ github.ref_name }}"
+        else
+          echo "prerelease=false" >> $GITHUB_OUTPUT
+          echo "🚀 Stable release detected: ${{ github.ref_name }}"
+        fi
+    
+    - name: Create GitHub Release
+      run: |
+        gh release create ${{ github.ref_name }} \
+          --title "StarHTML ${{ github.ref_name }}" \
+          --generate-notes \
+          ${{ steps.release-type.outputs.prerelease == 'true' && '--prerelease' || '--latest' }} \
+          dist/*
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Update release description
+      run: |
+        gh release edit ${{ github.ref_name }} --notes "$(cat <<'EOF'
+        ## StarHTML Release ${{ github.ref_name }}
+        
+        ### 📦 What's Included
+        - ✅ Pre-built JavaScript handlers (TypeScript compiled & minified)
+        - ✅ All Python modules and utilities  
+        - ✅ Static assets and external scripts
+        - ✅ Cryptographic attestations (PEP 740)
+        
+        ### 🚀 Installation
+        \`\`\`bash
+        pip install starhtml
+        \`\`\`
+        
+        ### 📝 Changes
+        $(gh release view ${{ github.ref_name }} --json body --jq .body)
+        
+        ---
+        *Auto-generated release with built JavaScript assets and security attestations.*
+        EOF
+        )"
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

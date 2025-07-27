@@ -1,0 +1,43 @@
+name: Validate TypeScript
+
+on:
+  push:
+    branches: [ main ]
+    paths: 
+      - 'typescript/**/*.ts'
+      - 'tsconfig.json'
+      - 'package.json'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'typescript/**/*.ts'
+      - 'tsconfig.json'
+      - 'package.json'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@v1
+      with:
+        bun-version: latest
+    
+    - name: Install dependencies
+      run: bun install
+    
+    - name: Validate TypeScript compilation
+      run: tsc --noEmit
+      
+    - name: Test build process
+      run: bun run build
+    
+    - name: Verify build outputs
+      run: |
+        echo "✅ TypeScript validation and build test completed"
+        ls -la src/starhtml/static/js/handlers/
+        echo "Built handler files:"
+        find src/starhtml/static/js/handlers -name "*.js" -exec echo "  {}" \;

@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StarHTML Handler Benchmarks</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .results {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        .status {
+            margin: 20px 0;
+            padding: 10px;
+            border-radius: 4px;
+            display: none;
+        }
+        .status.running {
+            background: #fff3cd;
+            color: #856404;
+            display: block;
+        }
+        .status.complete {
+            background: #d4edda;
+            color: #155724;
+            display: block;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            display: block;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background: #f8f9fa;
+            font-weight: bold;
+        }
+        .improvement {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .overhead {
+            color: #dc3545;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>StarHTML Handler Performance Benchmarks</h1>
+        
+        <p>This benchmark tests the performance of StarHTML handlers including DOM queries, signal updates, and expression execution.</p>
+        
+        <div>
+            <button onclick="runBenchmark(100)">Run Small Test (100 elements)</button>
+            <button onclick="runBenchmark(1000)">Run Medium Test (1000 elements)</button>
+            <button onclick="runBenchmark(5000)">Run Large Test (5000 elements)</button>
+            <button onclick="runBenchmark(10000)">Run Stress Test (10000 elements)</button>
+            <button onclick="saveBaseline()">Save as Baseline</button>
+            <button onclick="compareWithBaseline()">Compare with Baseline</button>
+        </div>
+        
+        <div id="status" class="status"></div>
+        
+        <div id="results" class="results"></div>
+    </div>
+
+    <!-- Load the actual handlers to test real performance -->
+    <script src="../src/starhtml/static/js/starhtml-handlers.min.51882e85.js"></script>
+    
+    <!-- Load benchmark script -->
+    <script src="benchmark_handlers.js"></script>
+    
+    <script>
+        let currentResults = null;
+        let baselineResults = null;
+
+        // Load baseline from localStorage if exists
+        const stored = localStorage.getItem('starhtml-benchmark-baseline');
+        if (stored) {
+            baselineResults = JSON.parse(stored);
+        }
+
+        function updateStatus(message, type = 'running') {
+            const status = document.getElementById('status');
+            status.className = `status ${type}`;
+            status.textContent = message;
+        }
+
+        function formatResults(results) {
+            let html = '<h2>Benchmark Results</h2>\n\n';
+            
+            // DOM Queries
+            html += '<h3>DOM Query Performance</h3>\n';
+            html += '<table>';
+            html += '<tr><th>Method</th><th>Total Time (ms)</th><th>Avg Time (ms)</th></tr>';
+            html += `<tr><td>${results.domQueries.allElements.description}</td><td>${results.domQueries.allElements.time.toFixed(2)}</td><td>${results.domQueries.allElements.avgTime.toFixed(4)}</td></tr>`;
+            html += `<tr><td>${results.domQueries.specificSelector.description}</td><td>${results.domQueries.specificSelector.time.toFixed(2)}</td><td>${results.domQueries.specificSelector.avgTime.toFixed(4)}</td></tr>`;
+            html += `<tr><td colspan="3">Improvement: <span class="improvement">${results.domQueries.improvement}</span></td></tr>`;
+            html += '</table>\n';
+            
+            // Signal Updates
+            html += '<h3>Signal Update Performance</h3>\n';
+            html += '<table>';
+            html += '<tr><th>Method</th><th>Total Time (ms)</th><th>Avg Time (ms)</th></tr>';
+            html += `<tr><td>${results.signalUpdates.current.description}</td><td>${results.signalUpdates.current.time.toFixed(2)}</td><td>${results.signalUpdates.current.avgTime.toFixed(4)}</td></tr>`;
+            html += `<tr><td>${results.signalUpdates.optimized.description}</td><td>${results.signalUpdates.optimized.time.toFixed(2)}</td><td>${results.signalUpdates.optimized.avgTime.toFixed(4)}</td></tr>`;
+            html += `<tr><td colspan="3">Improvement: <span class="improvement">${results.signalUpdates.improvement}</span></td></tr>`;
+            html += '</table>\n';
+            
+            // Expression Execution
+            html += '<h3>Expression Execution Performance</h3>\n';
+            html += '<table>';
+            html += '<tr><th>Method</th><th>Total Time (ms)</th><th>Avg Time (ms)</th></tr>';
+            html += `<tr><td>${results.expressions.newFunction.description}</td><td>${results.expressions.newFunction.time.toFixed(2)}</td><td>${results.expressions.newFunction.avgTime.toFixed(4)}</td></tr>`;
+            html += `<tr><td>${results.expressions.safeEvaluator.description}</td><td>${results.expressions.safeEvaluator.time.toFixed(2)}</td><td>${results.expressions.safeEvaluator.avgTime.toFixed(4)}</td></tr>`;
+            html += `<tr><td colspan="3">Overhead: <span class="overhead">${results.expressions.overhead}</span></td></tr>`;
+            html += '</table>\n';
+            
+            // Memory Usage
+            if (results.memory && !results.memory.error) {
+                html += '<h3>Memory Usage</h3>\n';
+                html += '<table>';
+                html += '<tr><th>Metric</th><th>Value</th></tr>';
+                html += `<tr><td>Memory Difference</td><td>${results.memory.differenceKB}</td></tr>`;
+                html += '</table>\n';
+            }
+            
+            return html;
+        }
+
+        async function runBenchmark(elementCount) {
+            updateStatus(`Running benchmark with ${elementCount} elements...`, 'running');
+            
+            try {
+                const benchmark = new HandlerBenchmark();
+                const results = await benchmark.runAll(elementCount);
+                currentResults = results;
+                
+                // Display results
+                const resultsDiv = document.getElementById('results');
+                resultsDiv.innerHTML = formatResults(results);
+                
+                // Also log to console
+                benchmark.displayResults();
+                
+                updateStatus('Benchmark complete!', 'complete');
+            } catch (error) {
+                updateStatus(`Error: ${error.message}`, 'error');
+                console.error(error);
+            }
+        }
+
+        function saveBaseline() {
+            if (!currentResults) {
+                updateStatus('No results to save. Run a benchmark first.', 'error');
+                return;
+            }
+            
+            baselineResults = currentResults;
+            localStorage.setItem('starhtml-benchmark-baseline', JSON.stringify(baselineResults));
+            updateStatus('Baseline saved!', 'complete');
+        }
+
+        function compareWithBaseline() {
+            if (!currentResults) {
+                updateStatus('No current results. Run a benchmark first.', 'error');
+                return;
+            }
+            
+            if (!baselineResults) {
+                updateStatus('No baseline to compare against.', 'error');
+                return;
+            }
+            
+            // Calculate differences
+            const comparison = {
+                domQueries: {
+                    allElements: ((currentResults.domQueries.allElements.avgTime - baselineResults.domQueries.allElements.avgTime) / baselineResults.domQueries.allElements.avgTime * 100).toFixed(2),
+                    specificSelector: ((currentResults.domQueries.specificSelector.avgTime - baselineResults.domQueries.specificSelector.avgTime) / baselineResults.domQueries.specificSelector.avgTime * 100).toFixed(2)
+                },
+                signalUpdates: {
+                    current: ((currentResults.signalUpdates.current.avgTime - baselineResults.signalUpdates.current.avgTime) / baselineResults.signalUpdates.current.avgTime * 100).toFixed(2),
+                    optimized: ((currentResults.signalUpdates.optimized.avgTime - baselineResults.signalUpdates.optimized.avgTime) / baselineResults.signalUpdates.optimized.avgTime * 100).toFixed(2)
+                }
+            };
+            
+            console.log('Comparison with baseline:', comparison);
+            updateStatus('Comparison logged to console', 'complete');
+        }
+    </script>
+</body>
+</html>

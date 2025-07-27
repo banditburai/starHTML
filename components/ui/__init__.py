@@ -5,7 +5,7 @@ Inspired by shadcn/ui, these components maintain visual parity while using Pytho
 """
 
 from .button import Button, button, ButtonVariant, ButtonSize
-from .iconify import IconifyIcon, Icon
+from .iconify import Icon
 from .theme_toggle import ThemeToggle
 
 __all__ = [
@@ -13,7 +13,6 @@ __all__ = [
     "button", 
     "ButtonVariant",
     "ButtonSize",
-    "IconifyIcon",
     "Icon",
     "ThemeToggle"
 ]

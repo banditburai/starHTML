@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Attribute Selectors</title>
+</head>
+<body>
+    <div data-on-resize="width = 100">Base resize</div>
+    <div data-on-resize.100ms="width = 100">With modifier</div>
+    <div data-on-scroll="y = scrollY">Base scroll</div>
+    <div data-on-scroll.50ms="y = scrollY">With modifier</div>
+    
+    <script>
+        // Test different selector approaches
+        console.log('Testing attribute selectors...');
+        
+        // Test 1: Standard attribute selector
+        const test1 = document.querySelectorAll('[data-on-resize]');
+        console.log('Standard [data-on-resize]:', test1.length); // Should be 1
+        
+        // Test 2: Attribute starts with
+        const test2 = document.querySelectorAll('[data-on-resize^=""]');
+        console.log('Starts with [data-on-resize^=""]:', test2.length); // Should be 1
+        
+        // Test 3: Using attribute name starts with (not standard CSS)
+        // We need to check all elements
+        const allElements = document.querySelectorAll('*');
+        const resizeElements = Array.from(allElements).filter(el => 
+            Array.from(el.attributes).some(attr => attr.name.startsWith('data-on-resize'))
+        );
+        console.log('Elements with data-on-resize* attributes:', resizeElements.length); // Should be 2
+        
+        // Test 4: Let's try a custom approach
+        function getElementsByAttributePrefix(prefix) {
+            // Start with common semantic elements
+            const commonTags = 'div, span, p, section, article, aside, header, footer, main, button, input, textarea, select, form, a, img, h1, h2, h3, h4, h5, h6, ul, ol, li, table, tr, td, th';
+            const candidates = document.querySelectorAll(commonTags);
+            
+            return Array.from(candidates).filter(element => 
+                Array.from(element.attributes).some(attr => attr.name.startsWith(prefix))
+            );
+        }
+        
+        const optimizedResize = getElementsByAttributePrefix('data-on-resize');
+        console.log('Optimized search for data-on-resize*:', optimizedResize.length); // Should be 2
+        
+        // Test 5: Performance comparison
+        console.time('querySelectorAll(*)');
+        for (let i = 0; i < 100; i++) {
+            document.querySelectorAll('*');
+        }
+        console.timeEnd('querySelectorAll(*)');
+        
+        console.time('querySelectorAll(common tags)');
+        for (let i = 0; i < 100; i++) {
+            document.querySelectorAll(commonTags);
+        }
+        console.timeEnd('querySelectorAll(common tags)');
+    </script>
+</body>
+</html>

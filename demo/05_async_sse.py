@@ -5,8 +5,12 @@ import time
 
 from starhtml import *
 
-app, rt = star_app(title="Async SSE Demo")
-
+app, rt = star_app(
+    title="Async SSE Demo",
+    hdrs=[
+        Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),      
+    ]
+)
 
 @rt("/")
 def home():
@@ -81,7 +85,7 @@ def sync_handler(req):
     # This blocks the thread!
     result = slow_sync_operation(2)
 
-    yield fragments(
+    yield elements(
         Div(
             P("✅ Sync operation complete!", cls="font-semibold text-red-600"),
             P(f"Result: {result['data']}"),
@@ -102,7 +106,7 @@ async def async_handler(req):
     # This doesn't block - other requests can be handled!
     result = await slow_async_operation(2)
 
-    yield fragments(
+    yield elements(
         Div(
             P("✅ Async operation complete!", cls="font-semibold text-green-600"),
             P(f"Result: {result['data']}"),
@@ -140,7 +144,7 @@ async def multi_async_handler(req):
 
     yield signals(api1Status="✅ Complete", api2Status="✅ Complete", api3Status="✅ Complete")
 
-    yield fragments(
+    yield elements(
         Div(
             P("✅ All APIs fetched concurrently!", cls="font-semibold text-blue-600"),
             P(f"Total time: {total_time:.2f}s (not 3s!)"),
@@ -157,4 +161,4 @@ async def multi_async_handler(req):
 
 if __name__ == "__main__":
     print("Async SSE Demo running on http://localhost:5001")
-    serve()
+    serve(port=5001)

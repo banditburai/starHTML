@@ -1,0 +1,3 @@
+# StarHTML Development with Browser CDP Support
+web: uv run python demo/app.py 2>&1
+chrome: ./scripts/launch-chrome-cdp.sh 2>&1

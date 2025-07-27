@@ -1,45 +1,56 @@
-# StarHTML Demo Collection
+# StarHTML Demo Hub
 
-This demo collection showcases StarHTML's integration with Datastar v1 RC for reactive UI components and Server-Sent Events (SSE).
+Interactive examples to learn StarHTML step by step.
 
-## Running the Demos
+## Quick Start
 
-Run any individual demo:
 ```bash
-uv run demo/01_basic_signals.py
-uv run demo/02_sse_fragments.py
-uv run demo/03_forms_binding.py
-uv run demo/04_sse_debugging.py
+# Run all demos through the hub (recommended)
+uv run demo/hub.py
+
+# Visit http://localhost:5001
 ```
 
-Each demo runs on http://localhost:5001/
+## Individual Demos
 
-## Available Demos
+You can also run individual demos for development:
 
-1. **Basic Signals** (`01_basic_signals.py`)
-   - Client-side reactivity with counters
-   - Signal state management
-   - Simple click handlers
+```bash
+# Run individual demos
+uv run demo/01_basic_signals.py    # port 5002
+uv run demo/02_sse_elements.py     # port 5003
+uv run demo/06_persist_handler.py  # port 5004
+# ... etc
+```
 
-2. **SSE Fragments** (`02_sse_fragments.py`)
-   - Server-Sent Events for real-time updates
-   - Dynamic content loading
-   - Fragment append and clear operations
+## Learning Path
 
-3. **Forms & Binding** (`03_forms_binding.py`)
-   - Two-way data binding with form inputs
-   - Live preview of form data
-   - Form submission and clearing
+### 🚀 Foundation (Start Here)
+- **00_syntax_patterns.py** - StarHTML syntax patterns and best practices
+- **01_basic_signals.py** - Reactive data binding with Datastar signals
+- **02_sse_elements.py** - Real-time updates with Server-Sent Events
+- **03_forms_binding.py** - Form handling and data binding patterns
 
-4. **SSE Debugging** (`04_sse_debugging.py`)
-   - Test various SSE fragment scenarios
-   - Multiple target updates
-   - Complex HTML with special characters
+### 🔧 Intermediate
+- **04_sse_debugging.py** - Debug SSE merge elements and real-time updates
+- **05_async_sse.py** - Asynchronous SSE handlers and patterns
 
-5. **Syntax Helper** (`10_syntax_helper.py`)
-   - Common StarHTML patterns
-   - How to avoid positional/keyword argument errors
-   - Best practices for component structure
+### ⚡ Advanced
+- **06_persist_handler.py** - Data persistence with localStorage/sessionStorage
+- **07_scroll_handler.py** - Scroll detection and position tracking
+- **08_resize_handler.py** - Window and element resize detection
+
+## Features
+
+- **One Entry Point**: `uv run demo/hub.py` runs everything
+- **Separate Files**: Each demo is its own clean, copyable file
+- **Individual Testing**: Each demo can also run standalone
+- **Progressive Learning**: Organized by difficulty level
+- **Clear Examples**: Users can copy entire files as starting points
+
+## Copy-Paste Ready
+
+Each demo file is designed to be copied as a starting point for your own projects. They contain complete, working examples with minimal dependencies.
 
 ## Key Features Demonstrated
 
@@ -50,33 +61,5 @@ Each demo runs on http://localhost:5001/
 5. **Text Interpolation** - Using `ds_text()` for dynamic content
 6. **SSE Updates** - Real-time server-to-client updates
 7. **Fragment Merging** - Dynamic HTML injection via SSE
+8. **Handler Patterns** - Persist, scroll, and resize handlers
 
-## What Was Fixed
-
-The main fragment issue was in the SSE event format. The implementation now uses the correct Datastar v1 RC format:
-
-### Fixed Signal Format
-```
-event: datastar-merge-signals
-retry: 1000
-data: signals {"key": "value", "key2": "value2"}
-```
-
-### Fixed Fragment Format  
-```
-event: datastar-merge-fragments
-retry: 1000
-data: selector #target-element
-data: mergeMode morph
-data: fragments <div>HTML content</div>
-```
-
-## Changes Made
-
-- ✅ Updated event names from `datastar-signal` to `datastar-merge-signals`
-- ✅ Updated event names from `datastar-fragment` to `datastar-merge-fragments`  
-- ✅ Fixed data line format to match v1 RC specification
-- ✅ Cleaned up demo folder (removed debugging clutter)
-- ✅ Created comprehensive tests for SSE format
-- ✅ Added proper fragment merging with selectors and merge modes
-- ✅ **Baked Datastar into StarHTML** - Datastar v1 RC is now automatically included like HTMX in FastHTML

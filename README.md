@@ -1,6 +1,6 @@
 # StarHTML
 
-A streamlined Python-first HTML framework forked from FastHTML, built on [Datastar](https://data-star.dev/) instead of HTMX.
+A Python-first hypermedia framework, forked from FastHTML. Uses [Datastar](https://data-star.dev/) instead of HTMX for the same hypermedia-driven approach with a different flavor.
 
 ## Installation
 
@@ -11,22 +11,24 @@ pip install starhtml
 ## Quick Start
 
 ```python
-from starhtml.common import *
+from starhtml import *
 
-app, rt = fast_app()
+app, rt = star_app()
 
 @rt('/')
-def get(): 
+def home(): 
     return Div(
         H1("StarHTML Demo"),
         # Client-side reactivity with signals
-        Div(data_signals_count="0"),
-        P("Count: ", Span(data_text="$count")),
-        Button("++", data_on_click="$count++"),
-        Button("Reset", data_on_click="$count = 0"),
+        Div(
+            P("Count: ", Span(ds_text="$count")),
+            Button("++", ds_on_click="$count++"),
+            Button("Reset", ds_on_click="$count = 0"),
+            ds_signals={"count": 0}
+        ),
         
         # Server-side interactions
-        Button("Load Data", data_on_click="@get('/api/data')"),
+        Button("Load Data", ds_on_click="@get('/api/data')"),
         Div(id="content")
     )
 
@@ -43,10 +45,10 @@ Run with `python main.py` and visit `http://localhost:5001`.
 
 | FastHTML | StarHTML |
 |----------|----------|
-| HTMX | Datastar |
-| nbdev notebooks | Regular Python files |
-| Broader ecosystem | Minimal dependencies |
-| Jupyter integration | Standard development |
+| HTMX for server interactions | Datastar for reactive UI |
+| Built with nbdev notebooks | Standard Python modules |
+| Multiple JS extensions | Single reactive framework |
+| WebSockets for real-time | SSE for real-time |
 
 ## Development
 

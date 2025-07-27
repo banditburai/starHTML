@@ -1,177 +1,276 @@
-"""Datastar SSE functionality for StarHTML - Concise version."""
+"""Datastar integration for StarHTML - attribute processing and element creation."""
 
-import inspect
+import json
 import re
-from collections.abc import AsyncGenerator, Callable, Generator
-from functools import wraps
 from typing import Any
 
-from starlette.responses import StreamingResponse
+from fastcore.xml import NotStr
 
-try:
-    from orjson import dumps as _orjson_dumps
+from .utils import _camel_to_kebab
 
-    def json_dumps(obj):
-        return _orjson_dumps(obj).decode("utf-8")
-except ImportError:
-    from json import dumps as json_dumps
+__all__ = []
 
-from .components import to_xml
+# =============================================================================
+# Helper Functions - Extracted patterns for code reuse
+# =============================================================================
 
-# Configuration
-SSE_HEADERS = {
-    "Content-Type": "text/event-stream",
-    "Cache-Control": "no-cache",
-    "Connection": "keep-alive",
-    "X-Accel-Buffering": "no",  # Disable nginx buffering
-    "X-Content-Type-Options": "nosniff",
+def _convert_boolean_to_html_string(value: Any) -> str:
+    """Convert boolean values to HTML attribute strings."""
+    return "true" if value is True else "false" if value is False else str(value)
+
+def _wrap_nonempty_string(value: Any) -> Any:
+    """Wrap non-empty strings in NotStr, pass through other values."""
+    return NotStr(value) if isinstance(value, str) and value else value
+
+def _process_datastar_attrs(kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Process ds_* attributes and transform them to data-* attributes."""
+    processed = {}
+    for key, value in kwargs.items():
+        if not key.startswith("ds_"):
+            processed[key] = value
+            continue
+        
+        # Sort by length (longest first) to match most specific patterns first
+        handler = _handle_default
+        for prefix in sorted(_ATTR_HANDLERS.keys(), key=len, reverse=True):
+            if key.startswith(prefix):
+                handler = _ATTR_HANDLERS[prefix]
+                break
+        
+        data_key, data_value = handler(key, value)
+        processed[data_key] = data_value
+        
+    return processed
+
+def _handle_signals(key: str, value: Any) -> tuple[str, str]:
+    """Handler for ds_signals."""
+    if isinstance(value, dict):
+        return "data-signals", json.dumps(value)
+    # For backward compatibility, pass through non-dict values as-is
+    return "data-signals", value
+
+def _handle_persist(key: str, value: Any) -> tuple[str, str]:
+    """Handler for ds_persist and ds_persist__session."""
+    data_key = "data-persist__session" if "session" in key else "data-persist"
+    return data_key, _process_persist_value(value)
+
+def _handle_on(key: str, value: Any) -> tuple[str, Any]:
+    """Handler for ds_on_* events."""
+    event_part = key[len("ds_on_"):]
+    data_key = _handle_event_key(event_part)
+    # Only wrap non-empty strings in NotStr
+    return data_key, _wrap_nonempty_string(value)
+
+def _handle_attr(key: str, value: Any) -> tuple[str, Any]:
+    """Handler for ds_attr_*."""
+    attr_name = key[len("ds_attr_"):].replace("_", "-")
+    return f"data-attr-{attr_name}", value
+
+def _handle_style(key: str, value: Any) -> tuple[str, Any]:
+    """Handler for ds_style_*."""
+    style_name = key[len("ds_style_"):].replace("_", "-")
+    return f"data-style-{style_name}", value
+
+def _handle_computed(key: str, value: Any) -> tuple[str, Any]:
+    """Handler for ds_computed_*."""
+    computed_name = key[len("ds_computed_"):]
+    data_key = _handle_computed_key(computed_name)
+    # Only wrap non-empty strings in NotStr
+    return data_key, _wrap_nonempty_string(value)
+
+def _handle_cls(key: str, value: Any) -> tuple[str, Any]:
+    """Handler for ds_cls - converts to data-class."""
+    return "data-class", _wrap_nonempty_string(value)
+
+def _handle_ignore(key: str, value: Any) -> tuple[str, Any]:
+    """Handler for ds_ignore - skip processing element and children."""
+    return "data-ignore", _convert_boolean_to_html_string(value)
+
+def _handle_ignore_morph(key: str, value: Any) -> tuple[str, Any]:
+    """Handler for ds_ignore_morph - skip morphing element during updates."""
+    return "data-ignore-morph", _convert_boolean_to_html_string(value)
+
+def _handle_preserve_attr(key: str, value: Any) -> tuple[str, Any]:
+    """Handler for ds_preserve_attr - preserve attributes during morphing."""
+    if isinstance(value, list):
+        value = ",".join(value)
+    return "data-preserve-attr", str(value)
+
+def _handle_on_load(key: str, value: Any) -> tuple[str, Any]:
+    """Handler for ds_on_load - execute expression when element loads."""
+    parts = key.split("__")
+    data_key = "data-on-load"
+    if len(parts) > 1:
+        modifiers = ".".join(parts[1:])
+        data_key = f"{data_key}.{modifiers}"
+    return data_key, _wrap_nonempty_string(value)
+
+def _handle_json_signals(key: str, value: Any) -> tuple[str, Any]:
+    """Handler for ds_json_signals - display signals as JSON for debugging."""
+    # Handle modifiers (e.g., ds_json_signals__terse)
+    parts = key.split("__")
+    data_key = "data-json-signals"
+    if len(parts) > 1:
+        # Add modifiers (e.g., __terse becomes __terse)
+        modifiers = "__".join(parts[1:])
+        data_key = f"{data_key}__{modifiers}"
+    
+    if value is True:
+        return data_key, True
+    elif value is False:
+        return data_key, "false"
+    return data_key, str(value)
+
+def _handle_on_scroll(key: str, value: Any) -> tuple[str, Any]:
+    """Handler for ds_on_scroll* - generates data-scroll* attributes."""
+    parts = key.split("_")
+    
+    if key == "ds_on_scroll":
+        return "data-scroll", _wrap_nonempty_string(value)
+    
+    if key == "ds_on_scroll_smooth":
+        return "data-scroll__smooth", _wrap_nonempty_string(value)
+    
+    if "_" in key and key.count("_") >= 3:  # ds_on_scroll_25ms
+        parts = key.split("_")
+        if len(parts) >= 4 and parts[-1].endswith("ms"):
+            ms_value = parts[-1][:-2]
+            return f"data-scroll__throttle.{ms_value}", _wrap_nonempty_string(value)
+    
+    if len(parts) >= 5 and parts[3] == "smooth" and parts[-1].endswith("ms"):
+        ms_value = parts[-1][:-2]
+        return f"data-scroll__smooth.throttle.{ms_value}", _wrap_nonempty_string(value)
+    
+    return "data-scroll", _wrap_nonempty_string(value)
+
+def _handle_on_resize(key: str, value: Any) -> tuple[str, Any]:
+    """Handler for ds_on_resize* - generates data-on-resize* attributes."""
+    # Handle ds_on_resize__throttle_50ms -> data-on-resize__throttle.50
+    if "__" in key:
+        parts = key.split("__")
+        if len(parts) >= 2:
+            parts[0]  # ds_on_resize
+            modifier_part = parts[1]  # throttle_50ms or debounce_150ms
+            
+            # Check if modifier part contains throttle/debounce and ms
+            if "_" in modifier_part and modifier_part.endswith("ms"):
+                modifier_parts = modifier_part.split("_")
+                if len(modifier_parts) >= 2:
+                    modifier_type = modifier_parts[0]  # throttle or debounce
+                    ms_value = modifier_parts[1][:-2]  # Remove 'ms' suffix
+                    return f"data-on-resize__{modifier_type}.{ms_value}", _wrap_nonempty_string(value)
+    
+    # Handle legacy ds_on_resize_50ms -> data-on-resize__throttle.50 (backward compatibility)
+    if "_" in key and key.count("_") >= 3:  # ds_on_resize_50ms
+        parts = key.split("_")
+        if len(parts) >= 4 and parts[-1].endswith("ms"):
+            ms_value = parts[-1][:-2]
+            return f"data-on-resize__throttle.{ms_value}", _wrap_nonempty_string(value)
+    
+    return "data-on-resize", _wrap_nonempty_string(value)
+
+def _handle_default(key: str, value: Any) -> tuple[str, Any]:
+    """Default handler for simple ds_* attributes (e.g., ds_store, ds_effect)."""
+    data_key = key.replace("ds_", "data-", 1).replace("_", "-")
+    val = "true" if value is True else "false" if value is False else value
+    # Wrap ds_effect/ds_style in NotStr, but only if non-empty
+    if key in {"ds_effect", "ds_style"} and isinstance(val, str) and val:
+        val = NotStr(val)
+    return data_key, val
+
+_ATTR_HANDLERS = {
+    "ds_signals": _handle_signals,
+    "ds_persist": _handle_persist,
+    "ds_on_scroll": _handle_on_scroll,
+    "ds_on_resize": _handle_on_resize,
+    "ds_on_load": _handle_on_load,
+    "ds_on_": _handle_on,  # Generic handler must come after specific ones
+    "ds_attr_": _handle_attr,
+    "ds_style_": _handle_style,
+    "ds_computed_": _handle_computed,
+    "ds_cls": _handle_cls,
+    "ds_ignore": _handle_ignore,
+    "ds_ignore_morph": _handle_ignore_morph,
+    "ds_preserve_attr": _handle_preserve_attr,
+    "ds_json_signals": _handle_json_signals,
 }
 
-RETRY_DURATION = 1000
-DEFAULT_MERGE_MODE = "morph"
-VALID_MERGE_MODES = frozenset(["morph", "inner", "outer", "append", "prepend", "before", "after", "replace", "remove"])
+_VALID_SIGNAL_NAME_REGEX = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_-]*$")
 
-# Pre-compiled regex for newline replacement
-NEWLINE_REGEX = re.compile(r"\r\n|\r|\n")
+def _validate_signal_name(signal_name: str) -> None:
+    """Raise ValueError if a signal name is invalid."""
+    if not _VALID_SIGNAL_NAME_REGEX.match(signal_name):
+        raise ValueError(
+            f"Invalid signal name '{signal_name}'. Signal names must start with a letter "
+            "or underscore, and contain only letters, numbers, underscores, or dashes."
+        )
 
-
-def format_sse_event(
-    event_type: str, data_lines: list[str], event_id: str | None = None, retry: int = RETRY_DURATION
-) -> str:
-    """Format an SSE event efficiently."""
-    parts = [f"id: {event_id}"] if event_id else []
-    parts.extend([f"event: {event_type}", f"retry: {retry}"])
-    parts.extend(f"data: {line}" for line in data_lines)
-    return "\n".join(parts) + "\n\n"
-
-
-def escape_newlines(text: str) -> str:
-    """Escape newlines for SSE format using regex."""
-    return NEWLINE_REGEX.sub("&#10;", text)
-
-
-def format_signal_event(signals: dict[str, Any]) -> str:
-    """Format a datastar-merge-signals event."""
-    try:
-        return format_sse_event("datastar-merge-signals", [f"signals {json_dumps(signals)}"])
-    except (TypeError, ValueError) as e:
-        raise ValueError(f"Failed to serialize signals: {e}")
-
-
-def format_fragment_event(
-    fragments: Any | list[Any], selector: str | None = None, merge_mode: str = DEFAULT_MERGE_MODE
-) -> str:
-    """Format a datastar-merge-fragments event."""
-    # Validate inputs
-    if selector and not (selector := selector.strip()):
-        selector = None
-    if selector and not re.match(r"^[#.\[\]_\w:*-]+$", selector):
-        raise ValueError(f"Invalid selector: {selector}")
-    if merge_mode not in VALID_MERGE_MODES:
-        raise ValueError(f"Invalid merge mode: {merge_mode}. Valid: {', '.join(VALID_MERGE_MODES)}")
-
-    # Convert fragments to HTML
-    if not isinstance(fragments, list):
-        fragments = [fragments]
-
-    html_parts = []
-    for fragment in fragments:
-        # Check if it's a StarHTML component
-        if getattr(fragment, "__ft__", None) or getattr(fragment, "tag", None) or isinstance(fragment, list | tuple):  # type: ignore[misc]
-            html_parts.append(to_xml(fragment, indent=False))
-        else:
-            html_parts.append(str(fragment))
-
-    # Build data lines
-    all_html = escape_newlines("".join(html_parts))
-    data_lines = []
-    if selector:
-        data_lines.append(f"selector {selector}")
-    data_lines.append(f"mergeMode {merge_mode}")
-    data_lines.append(f"fragments {all_html}")
-
-    return format_sse_event("datastar-merge-fragments", data_lines)
-
-
-def process_sse_item(item_type: str, payload: Any) -> str | None:
-    """Process an SSE item and return the formatted output."""
-    if item_type == "signals":
-        return format_signal_event(payload)
-    elif item_type == "fragments":
-        # Unpack payload
-        if isinstance(payload, tuple):
-            parts = list(payload) + [None, DEFAULT_MERGE_MODE]
-            fragment, selector, merge_mode = parts[:3]
-        else:
-            fragment, selector, merge_mode = payload, None, DEFAULT_MERGE_MODE
-
-        # Auto-detect selector if not provided and fragment has id
-        if selector is None:
-            attrs = getattr(fragment, "attrs", {})  # type: ignore[misc]
-            if fragment_id := attrs.get("id"):
-                selector = f"#{fragment_id}"
-
-        return format_fragment_event(fragment, selector, merge_mode)
-    else:
-        raise ValueError(f"Unknown SSE item type: {item_type}")
-
-
-async def stream_sse_items(generator: Generator | AsyncGenerator) -> AsyncGenerator[str, None]:
-    """Stream SSE items from a generator (sync or async)."""
-    if inspect.isasyncgen(generator):
-        async for item in generator:
-            if isinstance(item, tuple) and len(item) == 2 and (result := process_sse_item(*item)):
-                yield result
-    else:
-        for item in generator:
-            if isinstance(item, tuple) and len(item) == 2 and (result := process_sse_item(*item)):
-                yield result
-
-
-def sse(handler: Callable) -> Callable:
-    """Decorator that handles sequential signal/fragment updates for Datastar.
-
-    Supports both sync and async handlers:
-
-        @sse
-        def sync_handler():
-            yield signals(status="Loading...")
-            yield fragments(Div("Done"))
-
-        @sse
-        async def async_handler():
-            yield signals(status="Loading...")
-            data = await fetch_data()
-            yield fragments(Div(data))
+def _process_persist_value(value: str | bool) -> str:
+    """Process ds_persist value according to hybrid API syntax.
+    
+    Supported formats:
+    - True -> persist all signals in element scope
+    - False -> disable persistence
+    - "" (empty string) -> persist all signals in element scope
+    - "*" -> persist all signals (wildcard)
+    - "signal1,signal2" -> persist specific signals by name
     """
+    if value is True:
+        return "*"
+    if value is False or not isinstance(value, str):
+        return "false"
 
-    @wraps(handler)
-    async def wrapped(*args, **kwargs) -> StreamingResponse:
-        """Wrapped SSE handler."""
-        generator = handler(*args, **kwargs)
-        return StreamingResponse(stream_sse_items(generator), headers=SSE_HEADERS)
+    stripped_value = value.strip()
+    if not stripped_value:
+        return "*"
+    
+    # Special case for wildcard
+    if stripped_value == "*":
+        return "*"
 
-    return wrapped
+    # Parse comma-separated signal names
+    signal_names = [s for s in (part.strip() for part in stripped_value.split(',')) if s]
+    for signal_name in signal_names:
+        _validate_signal_name(signal_name)
+    
+    return ",".join(signal_names)
 
+def _handle_event_key(event_part: str) -> str:
+    """Transform ds_on_* event keys using clear rules."""
+    # Rule 1: Double underscore -> dot notation
+    if "__" in event_part:
+        base_event, modifier = event_part.split("__", 1)
+        return f"data-on-{base_event}.{modifier}"
+    
+    # Rule 2: No underscores -> simple event
+    if "_" not in event_part:
+        return f"data-on-{event_part}"
+    
+    parts = event_part.split("_")
+    base_event = parts[0]
+    
+    # Rule 3: Timing modifiers (250ms -> .250ms)
+    if len(parts) >= 2 and parts[-1].endswith("ms"):
+        ms_part = parts[-1]
+        if len(parts) == 2:
+            return f"data-on-{base_event}.{ms_part}"
+        middle_parts = "_".join(parts[1:-1])
+        return f"data-on-{base_event}_{middle_parts}.{ms_part}"
+    
+    # Rule 4: Special events keep underscores as dots
+    if base_event in {"intersect", "interval"}:
+        modifier = "_".join(parts[1:])
+        return f"data-on-{base_event}.{modifier}"
+    
+    # Rule 5: Default - convert underscores to dashes
+    return f"data-on-{event_part.replace('_', '-')}"
 
-def signals(**signals: Any) -> tuple[str, dict[str, Any]]:
-    """Helper to create signal updates for SSE responses.
-
-    Example:
-        yield signals(count=5, message="Hello")
-    """
-    return "signals", signals
-
-
-def fragments(
-    content: Any, selector: str | None = None, mode: str = DEFAULT_MERGE_MODE
-) -> tuple[str, tuple[Any, str | None, str]]:
-    """Helper to create fragment updates for SSE responses.
-
-    Auto-detects selector from element id if not provided.
-
-    Examples:
-        yield fragments(Div("Hello", id="msg"))  # Auto-detects #msg selector
-        yield fragments(Div("Hello"), "#content", "append")  # Explicit selector and mode
-    """
-    return "fragments", (content, selector, mode)
+def _handle_computed_key(computed_name: str) -> str:
+    """Transform ds_computed_* keys to data-computed-* format."""
+    if "__case" in computed_name:
+        signal_name, modifier = computed_name.split("__case", 1)
+        signal_name_kebab = _camel_to_kebab(signal_name)
+        modifier = modifier.replace("_", ".")
+        return f"data-computed-{signal_name_kebab}__case{modifier}"
+    
+    return f"data-computed-{_camel_to_kebab(computed_name)}"
