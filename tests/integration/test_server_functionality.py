@@ -266,7 +266,7 @@ class TestFtResponseRendering:
         headers = {"X-Frame-Options": "DENY"}
         response = FtResponse(element, headers=headers)
 
-        assert response.headers["X-Frame-Options"] == "DENY"
+        assert response.headers is not None and response.headers["X-Frame-Options"] == "DENY"
         assert response.content == element
 
 

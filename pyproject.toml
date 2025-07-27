@@ -20,7 +20,13 @@ dependencies = [
 
 [project.optional-dependencies]
 test = ["pytest", "pytest-cov", "pytest-timeout", "pytest-xdist", "pytest-watch", "pytest-asyncio", "python-multipart"]
-dev = ["ipykernel", "pip-tools", "ruff", "pyright", "psutil", "brotli>=1.1.0"]
+dev = [
+    "ipykernel",
+ "pip-tools",
+ "ruff",
+ "psutil",
+ "brotli>=1.1.0",
+]
 doc = ["mkdocs", "mkdocs-material", "mdx-include"]
 
 [build-system]
@@ -58,6 +64,7 @@ addopts = [
     "--strict-markers",
     "--strict-config",
 ]
+asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = ["src", "."]
 markers = [
@@ -175,4 +182,5 @@ reportArgumentType = false
 dev = [
     "brotli>=1.1.0",
     "psutil>=7.0.0",
+    "pyright>=1.1.403",
 ]

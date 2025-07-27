@@ -570,7 +570,7 @@ class TestFileSecurityAndValidation:
 
                 # Check for suspicious patterns
                 suspicious_patterns = ["../", "..\\", "/etc/", "C:\\"]
-                is_suspicious = any(pattern in uploaded_file.filename for pattern in suspicious_patterns)
+                is_suspicious = any(pattern in (uploaded_file.filename or "") for pattern in suspicious_patterns)
 
                 return {
                     "original_filename": uploaded_file.filename,
@@ -906,7 +906,7 @@ class TestAdvancedFileHandlingScenarios:
 
             # Check for potentially dangerous characters
             dangerous_chars = ["../", "\\", "<", ">", "|", ":", "*", "?", '"']
-            has_dangerous = any(char in uploaded_file.filename for char in dangerous_chars)
+            has_dangerous = any(char in (uploaded_file.filename or "") for char in dangerous_chars)
 
             content = await uploaded_file.read()
 

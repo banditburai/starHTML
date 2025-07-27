@@ -345,23 +345,23 @@ class TestPathFT:
 
         # Test Move to (M)
         path.M(10, 20)
-        assert "M10,20" in path.d
+        assert "M10,20" in (path.d or "")
 
         # Test Line to (L)
         path.L(30, 40)
-        assert "L30,40" in path.d
+        assert "L30,40" in (path.d or "")
 
         # Test Horizontal line (H)
         path.H(50)
-        assert "H50" in path.d
+        assert "H50" in (path.d or "")
 
         # Test Vertical line (V)
         path.V(60)
-        assert "V60" in path.d
+        assert "V60" in (path.d or "")
 
         # Test Close path (Z)
         path.Z()
-        assert "Z" in path.d
+        assert "Z" in (path.d or "")
 
     def test_path_relative_commands(self):
         """Test PathFT relative command methods."""
@@ -369,23 +369,23 @@ class TestPathFT:
 
         # Test Move to relative (m)
         path.m(5, 10)
-        assert "m5,10" in path.d
+        assert "m5,10" in (path.d or "")
 
         # Test Line to relative (l)
         path.l(15, 20)
-        assert "l15,20" in path.d
+        assert "l15,20" in (path.d or "")
 
         # Test Horizontal line relative (h)
         path.h(25)
-        assert "h25" in path.d
+        assert "h25" in (path.d or "")
 
         # Test Vertical line relative (v)
         path.v(35)
-        assert "v35" in path.d
+        assert "v35" in (path.d or "")
 
         # Test Close path relative (z)
         path.z()
-        assert "z" in path.d
+        assert "z" in (path.d or "")
 
     def test_path_cubic_bezier_commands(self):
         """Test PathFT cubic Bézier curve commands."""
@@ -393,19 +393,19 @@ class TestPathFT:
 
         # Test Cubic Bézier absolute (C)
         path.C(10, 10, 20, 20, 30, 10)
-        assert "C10,10 20,20 30,10" in path.d
+        assert "C10,10 20,20 30,10" in (path.d or "")
 
         # Test Smooth cubic Bézier absolute (S)
         path.S(40, 20, 50, 10)
-        assert "S40,20 50,10" in path.d
+        assert "S40,20 50,10" in (path.d or "")
 
         # Test Cubic Bézier relative (c)
         path.c(5, 5, 10, 10, 15, 5)
-        assert "c5,5 10,10 15,5" in path.d
+        assert "c5,5 10,10 15,5" in (path.d or "")
 
         # Test Smooth cubic Bézier relative (s)
         path.s(20, 10, 25, 5)
-        assert "s20,10 25,5" in path.d
+        assert "s20,10 25,5" in (path.d or "")
 
     def test_path_quadratic_bezier_commands(self):
         """Test PathFT quadratic Bézier curve commands."""
@@ -413,19 +413,19 @@ class TestPathFT:
 
         # Test Quadratic Bézier absolute (Q)
         path.Q(10, 20, 30, 10)
-        assert "Q10,20 30,10" in path.d
+        assert "Q10,20 30,10" in (path.d or "")
 
         # Test Smooth quadratic Bézier absolute (T)
         path.T(50, 20)
-        assert "T50,20" in path.d
+        assert "T50,20" in (path.d or "")
 
         # Test Quadratic Bézier relative (q)
         path.q(5, 10, 15, 5)
-        assert "q5,10 15,5" in path.d
+        assert "q5,10 15,5" in (path.d or "")
 
         # Test Smooth quadratic Bézier relative (t)
         path.t(25, 10)
-        assert "t25,10" in path.d
+        assert "t25,10" in (path.d or "")
 
     def test_path_arc_commands(self):
         """Test PathFT arc commands."""
@@ -433,11 +433,11 @@ class TestPathFT:
 
         # Test Arc absolute (A)
         path.A(rx=25, ry=25, x_axis_rotation=0, large_arc_flag=0, sweep_flag=1, x=50, y=25)
-        assert "A25,25 0 0,1 50,25" in path.d
+        assert "A25,25 0 0,1 50,25" in (path.d or "")
 
         # Test Arc relative (a)
         path.a(rx=15, ry=15, x_axis_rotation=0, large_arc_flag=1, sweep_flag=0, dx=30, dy=15)
-        assert "a15,15 0 1,0 30,15" in path.d
+        assert "a15,15 0 1,0 30,15" in (path.d or "")
 
     def test_path_command_chaining(self):
         """Test chaining of PathFT commands."""
@@ -472,7 +472,7 @@ class TestPathFT:
         # Simulate non-string d attribute
         path.d = None
         path.M(10, 10)
-        assert "M10,10" in path.d
+        assert "M10,10" in (path.d or "")
 
 
 class TestSvgHelpers:
@@ -505,7 +505,7 @@ class TestTagFactoryFunction:
         assert div_element.children == ("content",)
         assert div_element.attrs["id"] == "test"
         assert div_factory.__name__ == "Div"
-        assert "HTML" in div_factory.__doc__
+        assert "HTML" in (div_factory.__doc__ or "")
 
     def test_create_svg_tag_factory(self):
         """Test creating SVG tag factory."""
@@ -515,7 +515,7 @@ class TestTagFactoryFunction:
         assert circle_element.tag == "circle"  # camelCase converted to lowercase
         assert circle_element.attrs["r"] == 25
         assert circle_factory.__name__ == "Circle"
-        assert "SVG" in circle_factory.__doc__
+        assert "SVG" in (circle_factory.__doc__ or "")
 
     def test_svg_camelcase_conversion(self):
         """Test SVG camelCase to lowercase conversion."""
@@ -663,7 +663,7 @@ class TestEdgeCases:
 
         # Adding commands should work normally
         path.M(0, 0)
-        assert "M0,0" in path.d
+        assert "M0,0" in (path.d or "")
 
     def test_polyline_with_no_points(self):
         """Test Polyline with no coordinate arguments."""

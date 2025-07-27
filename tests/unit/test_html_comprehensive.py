@@ -378,13 +378,13 @@ class TestFtPatches:
     def test_ft_radd(self):
         """Test FT __radd__ patch (right addition)."""
         element = ft_html("span", "text", id="span-id")
-        result = "prefix" + element
+        result = "prefix" + str(element)  # type: ignore
         assert result == "prefixspan-id"
 
     def test_ft_add(self):
         """Test FT __add__ patch (left addition)."""
         element = ft_html("span", "text", id="span-id")
-        result = element + "suffix"
+        result = str(element) + "suffix"  # type: ignore
         assert result == "span-idsuffix"
 
     def test_ft_string_concatenation_complex(self):
@@ -393,11 +393,11 @@ class TestFtPatches:
         element2 = ft_html("span", "content2", id="span2")
 
         # Element + Element (both have IDs)
-        result = element1 + element2
+        result = str(element1) + str(element2)  # type: ignore
         assert result == "div1span2"
 
         # String + Element + String
-        result = "start-" + element1 + "-end"
+        result = "start-" + str(element1) + "-end"  # type: ignore
         assert result == "start-div1-end"
 
 

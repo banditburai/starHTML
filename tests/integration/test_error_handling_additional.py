@@ -547,7 +547,7 @@ class TestInputValidationEdgeCases:
             text = form_data.get("text", "")
 
             # Check for null bytes
-            if "\x00" in text:
+            if isinstance(text, str) and "\x00" in text:
                 return JSONResponse(
                     {"error": "Invalid characters detected", "details": "Null bytes not allowed in text input"},
                     status_code=400,
