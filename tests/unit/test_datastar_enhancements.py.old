@@ -1,0 +1,556 @@
+"""Tests for enhanced Datastar functionality."""
+
+import json
+import pytest
+from fastcore.xml import NotStr
+from starhtml.datastar import _process_datastar_attrs
+
+
+class TestObjectSyntaxSupport:
+    """Test object syntax support for ds_attr, ds_cls, and ds_style."""
+
+    def test_ds_attr_object_syntax(self):
+        """Test ds_attr with object syntax."""
+        # Object syntax
+        kwargs = {"ds_attr": {"title": "$foo", "disabled": "$bar"}}
+        result = _process_datastar_attrs(kwargs)
+        expected_json = '{"title": "$foo", "disabled": "$bar"}'
+        assert result == {"data-attr": expected_json}
+        
+        # Verify it's valid JSON
+        parsed = json.loads(result["data-attr"])
+        assert parsed["title"] == "$foo"
+        assert parsed["disabled"] == "$bar"
+
+    def test_ds_attr_string_fallback(self):
+        """Test ds_attr with string value (fallback)."""
+        kwargs = {"ds_attr": "simple_value"}
+        result = _process_datastar_attrs(kwargs)
+        assert result == {"data-attr": "simple_value"}
+
+    def test_ds_attr_individual_still_works(self):
+        """Test individual ds_attr_* attributes still work."""
+        kwargs = {"ds_attr_title": "$foo", "ds_attr_data_value": "$bar"}
+        result = _process_datastar_attrs(kwargs)
+        assert result == {
+            "data-attr-title": "$foo",
+            "data-attr-data-value": "$bar"
+        }
+
+    def test_ds_style_object_syntax(self):
+        """Test ds_style with object syntax."""
+        # Object syntax
+        kwargs = {"ds_style": {"background_color": "$red", "display": "$show ? 'block' : 'none'"}}
+        result = _process_datastar_attrs(kwargs)
+        expected_json = '{"background_color": "$red", "display": "$show ? \'block\' : \'none\'"}'
+        assert result == {"data-style": expected_json}
+        
+        # Verify it's valid JSON
+        parsed = json.loads(result["data-style"])
+        assert parsed["background_color"] == "$red"
+        assert parsed["display"] == "$show ? 'block' : 'none'"
+
+    def test_ds_style_string_fallback(self):
+        """Test ds_style with string value (fallback)."""
+        from fastcore.xml import NotStr
+        kwargs = {"ds_style": "color: red; font-size: 16px;"}
+        result = _process_datastar_attrs(kwargs)
+        assert result["data-style"] == NotStr("color: red; font-size: 16px;")
+
+    def test_ds_style_individual_still_works(self):
+        """Test individual ds_style_* attributes still work."""
+        kwargs = {"ds_style_background_color": "red", "ds_style_font_size": "16px"}
+        result = _process_datastar_attrs(kwargs)
+        assert result == {
+            "data-style-background-color": "red",
+            "data-style-font-size": "16px"
+        }
+
+    def test_ds_cls_object_syntax(self):
+        """Test ds_cls with object syntax."""
+        # Object syntax
+        kwargs = {"ds_cls": {"hidden": "$foo", "active": "$bar", "highlight": "$baz"}}
+        result = _process_datastar_attrs(kwargs)
+        expected_json = '{"hidden": "$foo", "active": "$bar", "highlight": "$baz"}'
+        assert result == {"data-class": expected_json}
+        
+        # Verify it's valid JSON
+        parsed = json.loads(result["data-class"])
+        assert parsed["hidden"] == "$foo"
+        assert parsed["active"] == "$bar"
+        assert parsed["highlight"] == "$baz"
+
+    def test_ds_cls_string_fallback(self):
+        """Test ds_cls with string value (fallback)."""
+        from fastcore.xml import NotStr
+        kwargs = {"ds_cls": "active hidden"}
+        result = _process_datastar_attrs(kwargs)
+        assert result["data-class"] == NotStr("active hidden")
+
+
+class TestAdvancedEventHandlers:
+    """Test advanced event handlers: ds_on_intersect and ds_on_interval."""
+
+    def test_ds_on_intersect_basic(self):
+        """Test basic ds_on_intersect."""
+        kwargs = {"ds_on_intersect": "loadContent()"}
+        result = _process_datastar_attrs(kwargs)
+        assert result["data-on-intersect"] == "loadContent()"
+
+    def test_ds_on_intersect_with_modifiers(self):
+        """Test ds_on_intersect with modifiers."""
+        # Modern syntax with double underscore
+        kwargs = {"ds_on_intersect__once": "initOnce()"}
+        result = _process_datastar_attrs(kwargs)
+        assert result["data-on-intersect__once"] == "initOnce()"
+
+        # Multiple modifiers
+        kwargs = {"ds_on_intersect__once__half": "loadWhenHalfVisible()"}
+        result = _process_datastar_attrs(kwargs)
+        assert result["data-on-intersect__once__half"] == "loadWhenHalfVisible()"
+
+    def test_ds_on_intersect_legacy_format(self):
+        """Test ds_on_intersect with legacy underscore format."""
+        kwargs = {"ds_on_intersect_once": "legacyOnce()"}
+        result = _process_datastar_attrs(kwargs)
+        assert result["data-on-intersect.once"] == "legacyOnce()"
+
+        kwargs = {"ds_on_intersect_half_full": "legacyMultiple()"}
+        result = _process_datastar_attrs(kwargs)
+        assert result["data-on-intersect.half_full"] == "legacyMultiple()"
+
+    def test_ds_on_interval_basic(self):
+        """Test basic ds_on_interval."""
+        kwargs = {"ds_on_interval": "updateCounter()"}
+        result = _process_datastar_attrs(kwargs)
+        assert result["data-on-interval"] == "updateCounter()"
+
+    def test_ds_on_interval_with_duration(self):
+        """Test ds_on_interval with duration modifiers."""
+        # Modern syntax with double underscore
+        kwargs = {"ds_on_interval__duration_1s": "everySecond()"}
+        result = _process_datastar_attrs(kwargs)
+        assert result["data-on-interval__duration.1s"] == "everySecond()"
+
+        kwargs = {"ds_on_interval__duration_500ms": "rapidUpdate()"}
+        result = _process_datastar_attrs(kwargs)
+        assert result["data-on-interval__duration.500ms"] == "rapidUpdate()"
+
+    def test_ds_on_interval_single_modifier(self):
+        """Test ds_on_interval with single modifier."""
+        kwargs = {"ds_on_interval__leading": "leadingUpdate()"}
+        result = _process_datastar_attrs(kwargs)
+        assert result["data-on-interval__leading"] == "leadingUpdate()"
+
+    def test_ds_on_interval_legacy_format(self):
+        """Test ds_on_interval with legacy underscore format."""
+        kwargs = {"ds_on_interval_1s": "legacySecond()"}
+        result = _process_datastar_attrs(kwargs)
+        assert result["data-on-interval__duration.1s"] == "legacySecond()"
+
+        kwargs = {"ds_on_interval_250ms": "legacyQuarterSecond()"}
+        result = _process_datastar_attrs(kwargs)
+        assert result["data-on-interval__duration.250ms"] == "legacyQuarterSecond()"
+
+
+class TestComplexScenarios:
+    """Test complex combinations and edge cases."""
+
+    def test_mixed_object_and_individual_syntax(self):
+        """Test using both object and individual syntax together."""
+        kwargs = {
+            "ds_attr": {"title": "$globalTitle"},
+            "ds_attr_data_id": "$itemId",
+            "ds_style": {"color": "$themeColor"},
+            "ds_style_font_size": "16px",
+            "ds_cls": {"active": "$isActive"},
+        }
+        result = _process_datastar_attrs(kwargs)
+        
+        # Check object syntax results
+        attr_obj = json.loads(result["data-attr"])
+        assert attr_obj["title"] == "$globalTitle"
+        
+        style_obj = json.loads(result["data-style"])
+        assert style_obj["color"] == "$themeColor"
+        
+        cls_obj = json.loads(result["data-class"])
+        assert cls_obj["active"] == "$isActive"
+        
+        # Check individual syntax results
+        assert result["data-attr-data-id"] == "$itemId"
+        assert result["data-style-font-size"] == "16px"
+
+    def test_nested_expressions_in_objects(self):
+        """Test nested and complex expressions in object syntax."""
+        kwargs = {
+            "ds_attr": {
+                "title": "$user.name + ' - ' + $user.role",
+                "aria-expanded": "$menu.isOpen ? 'true' : 'false'",
+                "data-count": "$items.length"
+            },
+            "ds_style": {
+                "transform": "$isAnimating ? 'scale(1.1)' : 'scale(1)'",
+                "opacity": "$loading ? 0.5 : 1",
+                "background": "$theme === 'dark' ? '#333' : '#fff'"
+            },
+            "ds_cls": {
+                "loading": "$isLoading",
+                "error": "$hasError",
+                "success": "$isComplete && !$hasError"
+            }
+        }
+        result = _process_datastar_attrs(kwargs)
+        
+        # Verify all expressions are preserved correctly
+        attr_obj = json.loads(result["data-attr"])
+        assert attr_obj["title"] == "$user.name + ' - ' + $user.role"
+        assert attr_obj["aria-expanded"] == "$menu.isOpen ? 'true' : 'false'"
+        
+        style_obj = json.loads(result["data-style"])
+        assert style_obj["transform"] == "$isAnimating ? 'scale(1.1)' : 'scale(1)'"
+        assert style_obj["background"] == "$theme === 'dark' ? '#333' : '#fff'"
+        
+        cls_obj = json.loads(result["data-class"])
+        assert cls_obj["success"] == "$isComplete && !$hasError"
+
+    def test_empty_and_none_values(self):
+        """Test handling of empty and None values."""
+        # Empty objects
+        kwargs = {"ds_attr": {}, "ds_style": {}, "ds_cls": {}}
+        result = _process_datastar_attrs(kwargs)
+        assert result["data-attr"] == "{}"
+        assert result["data-style"] == "{}"
+        assert result["data-class"] == "{}"
+
+        # None values should be handled by framework (not our handler)
+        kwargs = {"ds_attr": None, "ds_style": None, "ds_cls": None}
+        result = _process_datastar_attrs(kwargs)
+        # None values typically get filtered out by the framework
+        assert "data-attr" not in result or result["data-attr"] is None
+        assert "data-style" not in result or result["data-style"] is None  
+        assert "data-class" not in result or result["data-class"] is None
+
+
+class TestBackwardCompatibility:
+    """Test that existing functionality still works."""
+
+    def test_existing_handlers_unchanged(self):
+        """Test that existing ds_* handlers work as before."""
+        test_cases = [
+            ("ds_show", "isVisible", "data-show", "isVisible"),
+            ("ds_text", "userName", "data-text", "userName"),
+            ("ds_bind", "formValue", "data-bind", "formValue"),
+            ("ds_ref", "myElement", "data-ref", "myElement"),
+            ("ds_effect", "console.log('effect')", "data-effect", None),  # NotStr wrapper
+            ("ds_ignore", True, "data-ignore", "true"),
+            ("ds_ignore_morph", False, "data-ignore-morph", "false"),
+        ]
+        
+        for ds_key, ds_value, expected_key, expected_value in test_cases:
+            kwargs = {ds_key: ds_value}
+            result = _process_datastar_attrs(kwargs)
+            assert expected_key in result
+            if expected_value is not None:
+                assert result[expected_key] == expected_value
+
+    def test_complex_expressions_still_work(self):
+        """Test that complex JavaScript expressions still work."""
+        kwargs = {
+            "ds_show": "user && user.active && user.role === 'admin'",
+            "ds_on_click": "if (confirmed) { deleteItem(id); refreshList(); }",
+            "ds_text": "`Hello, ${user.name}! You have ${messages.length} messages.`"
+        }
+        result = _process_datastar_attrs(kwargs)
+        
+        assert result["data-show"] == "user && user.active && user.role === 'admin'"
+        assert result["data-on-click"] == "if (confirmed) { deleteItem(id); refreshList(); }"
+        assert result["data-text"] == "`Hello, ${user.name}! You have ${messages.length} messages.`"
+
+
+class TestSignalPatchEvents:
+    """Test ds_on_signal_patch functionality."""
+
+    def test_ds_on_signal_patch_basic(self):
+        """Test basic ds_on_signal_patch."""
+        kwargs = {"ds_on_signal_patch": "console.log('signal changed')"}
+        result = _process_datastar_attrs(kwargs)
+        assert result["data-on-signal-patch"] == "console.log('signal changed')"
+
+    def test_ds_on_signal_patch_with_modifiers(self):
+        """Test ds_on_signal_patch with timing modifiers."""
+        # Modern syntax with debounce
+        kwargs = {"ds_on_signal_patch__debounce_500ms": "handleChange()"}
+        result = _process_datastar_attrs(kwargs)
+        assert result["data-on-signal-patch__debounce.500"] == "handleChange()"
+
+        # Modern syntax with throttle
+        kwargs = {"ds_on_signal_patch__throttle_250ms": "throttledChange()"}
+        result = _process_datastar_attrs(kwargs)
+        assert result["data-on-signal-patch__throttle.250"] == "throttledChange()"
+
+    def test_ds_on_signal_patch_single_modifier(self):
+        """Test ds_on_signal_patch with single modifier."""
+        kwargs = {"ds_on_signal_patch__delay": "delayedUpdate()"}
+        result = _process_datastar_attrs(kwargs)
+        assert result["data-on-signal-patch__delay"] == "delayedUpdate()"
+
+    def test_ds_on_signal_patch_legacy_format(self):
+        """Test ds_on_signal_patch with legacy underscore format."""
+        kwargs = {"ds_on_signal_patch_debounce_300ms": "legacyDebounce()"}
+        result = _process_datastar_attrs(kwargs)
+        assert result["data-on-signal-patch.debounce.300ms"] == "legacyDebounce()"
+
+
+class TestSignalsEnhancements:
+    """Test enhanced ds_signals functionality."""
+
+    def test_ds_signals_with_ifmissing_modifier(self):
+        """Test ds_signals with __ifmissing modifier."""
+        kwargs = {"ds_signals__ifmissing": {"user": "guest", "count": 0}}
+        result = _process_datastar_attrs(kwargs)
+        expected_json = '{"user": "guest", "count": 0}'
+        assert result["data-signals__ifmissing"] == expected_json
+
+    def test_ds_signals_basic_still_works(self):
+        """Test that basic ds_signals functionality is preserved."""
+        kwargs = {"ds_signals": {"count": 42, "name": "test"}}
+        result = _process_datastar_attrs(kwargs)
+        expected_json = '{"count": 42, "name": "test"}'
+        assert result["data-signals"] == expected_json
+
+
+class TestComprehensiveEventModifiers:
+    """Test comprehensive event modifier support with double underscore preservation."""
+
+    def test_single_event_modifiers(self):
+        """Test single event modifiers with double underscore syntax."""
+        test_cases = [
+            ("ds_on_click__once", "handleOnce()", "data-on-click__once"),
+            ("ds_on_click__passive", "passiveHandler()", "data-on-click__passive"),
+            ("ds_on_click__capture", "captureHandler()", "data-on-click__capture"),
+            ("ds_on_click__window", "windowHandler()", "data-on-click__window"),
+            ("ds_on_click__outside", "outsideHandler()", "data-on-click__outside"),
+            ("ds_on_click__prevent", "preventHandler()", "data-on-click__prevent"),
+            ("ds_on_click__stop", "stopHandler()", "data-on-click__stop"),
+            ("ds_on_click__trusted", "trustedHandler()", "data-on-click__trusted"),
+            ("ds_on_click__viewtransition", "transitionHandler()", "data-on-click__viewtransition"),
+        ]
+        
+        for ds_key, ds_value, expected_key in test_cases:
+            kwargs = {ds_key: ds_value}
+            result = _process_datastar_attrs(kwargs)
+            assert result[expected_key] == ds_value
+
+    def test_multiple_event_modifiers(self):
+        """Test multiple event modifiers chained together."""
+        test_cases = [
+            ("ds_on_click__once__prevent", "onceAndPrevent()", "data-on-click__once__prevent"),
+            ("ds_on_click__passive__capture", "passiveCapture()", "data-on-click__passive__capture"),
+            ("ds_on_click__window__stop__prevent", "windowStopPrevent()", "data-on-click__window__stop__prevent"),
+            ("ds_on_submit__prevent__stop__trusted", "secureSubmit()", "data-on-submit__prevent__stop__trusted"),
+        ]
+        
+        for ds_key, ds_value, expected_key in test_cases:
+            kwargs = {ds_key: ds_value}
+            result = _process_datastar_attrs(kwargs)
+            assert result[expected_key] == ds_value
+
+    def test_event_modifiers_with_different_events(self):
+        """Test event modifiers work with various event types."""
+        test_cases = [
+            ("ds_on_submit__prevent", "preventSubmit()", "data-on-submit__prevent"),
+            ("ds_on_keydown__window", "globalKeyHandler()", "data-on-keydown__window"),
+            ("ds_on_focus__capture", "captureFocus()", "data-on-focus__capture"),
+            ("ds_on_blur__once", "blurOnce()", "data-on-blur__once"),
+            ("ds_on_mousedown__trusted", "trustedMouse()", "data-on-mousedown__trusted"),
+            ("ds_on_keyup__viewtransition", "keyTransition()", "data-on-keyup__viewtransition"),
+        ]
+        
+        for ds_key, ds_value, expected_key in test_cases:
+            kwargs = {ds_key: ds_value}
+            result = _process_datastar_attrs(kwargs)
+            assert result[expected_key] == ds_value
+
+    def test_legacy_underscore_syntax_still_works(self):
+        """Test that legacy underscore syntax continues to work for backward compatibility."""
+        kwargs = {"ds_on_click_prevent": "legacyPrevent()"}
+        result = _process_datastar_attrs(kwargs)
+        assert result["data-on-click-prevent"] == "legacyPrevent()"
+
+    def test_timing_modifiers_preserved(self):
+        """Test that timing modifiers work correctly with the new system."""
+        test_cases = [
+            ("ds_on_click_250ms", "timedClick()", "data-on-click.250ms"),
+            ("ds_on_input_500ms", "debouncedInput()", "data-on-input.500ms"),
+            ("ds_on_keypress_100ms", "keyThrottle()", "data-on-keypress.100ms"),
+        ]
+        
+        for ds_key, ds_value, expected_key in test_cases:
+            kwargs = {ds_key: ds_value}
+            result = _process_datastar_attrs(kwargs)
+            assert result[expected_key] == ds_value
+
+    def test_mixed_modern_and_legacy_syntax(self):
+        """Test that both modern (__) and legacy (_) syntax work in the same context."""
+        kwargs = {
+            "ds_on_click__once__prevent": "modernHandler()",
+            "ds_on_submit_prevent": "legacyHandler()",
+            "ds_on_input_500ms": "timedHandler()",
+        }
+        result = _process_datastar_attrs(kwargs)
+        
+        assert result["data-on-click__once__prevent"] == "modernHandler()"
+        assert result["data-on-submit-prevent"] == "legacyHandler()"
+        assert result["data-on-input.500ms"] == "timedHandler()"
+
+
+class TestCaseModifiers:
+    """Test case modifier support for all relevant attributes."""
+
+    def test_ds_bind_case_modifiers(self):
+        """Test ds_bind with case modifiers."""
+        test_cases = [
+            ("ds_bind_userName__case_upper", "uppercase", "data-bind-user-name__case.upper"),
+            ("ds_bind_firstName__case_lower", "lowercase", "data-bind-first-name__case.lower"),
+            ("ds_bind_fullName__case_title", "titlecase", "data-bind-full-name__case.title"),
+            ("ds_bind_emailAddress__case_sentence", "sentence", "data-bind-email-address__case.sentence"),
+        ]
+        
+        for ds_key, ds_value, expected_key in test_cases:
+            kwargs = {ds_key: ds_value}
+            result = _process_datastar_attrs(kwargs)
+            assert result[expected_key] == ds_value
+
+    def test_ds_ref_case_modifiers(self):
+        """Test ds_ref with case modifiers."""
+        test_cases = [
+            ("ds_ref_myElement__case_upper", "uppercase", "data-ref-my-element__case.upper"),
+            ("ds_ref_inputField__case_lower", "lowercase", "data-ref-input-field__case.lower"),
+            ("ds_ref_submitButton__case_title", "titlecase", "data-ref-submit-button__case.title"),
+        ]
+        
+        for ds_key, ds_value, expected_key in test_cases:
+            kwargs = {ds_key: ds_value}
+            result = _process_datastar_attrs(kwargs)
+            assert result[expected_key] == ds_value
+
+    def test_ds_indicator_case_modifiers(self):
+        """Test ds_indicator with case modifiers."""
+        test_cases = [
+            ("ds_indicator_loadingState__case_upper", "loading", "data-indicator-loading-state__case.upper"),
+            ("ds_indicator_apiStatus__case_lower", "status", "data-indicator-api-status__case.lower"),
+            ("ds_indicator_userStatus__case_title", "online", "data-indicator-user-status__case.title"),
+        ]
+        
+        for ds_key, ds_value, expected_key in test_cases:
+            kwargs = {ds_key: ds_value}
+            result = _process_datastar_attrs(kwargs)
+            assert result[expected_key] == ds_value
+
+    def test_ds_signals_case_modifiers(self):
+        """Test ds_signals with case modifiers."""
+        test_cases = [
+            ("ds_signals_userName__case_upper", "john", "data-signals-user-name__case.upper"),
+            ("ds_signals_emailAddress__case_lower", "test@example.com", "data-signals-email-address__case.lower"),
+            ("ds_signals_displayName__case_title", "John Doe", "data-signals-display-name__case.title"),
+        ]
+        
+        for ds_key, ds_value, expected_key in test_cases:
+            kwargs = {ds_key: ds_value}
+            result = _process_datastar_attrs(kwargs)
+            assert result[expected_key] == ds_value
+
+    def test_case_modifiers_camelcase_conversion(self):
+        """Test that camelCase signal names are converted to kebab-case in case modifiers."""
+        kwargs = {"ds_bind_myVeryLongSignalName__case_upper": "test"}
+        result = _process_datastar_attrs(kwargs)
+        assert "data-bind-my-very-long-signal-name__case.upper" in result
+        assert result["data-bind-my-very-long-signal-name__case.upper"] == "test"
+
+    def test_case_modifiers_preserve_standard_behavior(self):
+        """Test that standard behavior is preserved when no case modifiers are used."""
+        kwargs = {
+            "ds_bind": "standardBind",
+            "ds_ref": "standardRef", 
+            "ds_indicator": "standardIndicator",
+            "ds_signals": {"count": 42},
+        }
+        result = _process_datastar_attrs(kwargs)
+        
+        assert result["data-bind"] == "standardBind"
+        assert result["data-ref"] == "standardRef"
+        assert result["data-indicator"] == "standardIndicator"
+        assert result["data-signals"] == '{"count": 42}'
+
+
+def test_ds_ignore_with_modifiers():
+    """Test ds_ignore with __self modifier."""
+    # Test basic ds_ignore
+    result = _process_datastar_attrs({"ds_ignore": True})
+    assert result == {"data-ignore": "true"}
+    
+    # Test ds_ignore__self modifier
+    result = _process_datastar_attrs({"ds_ignore__self": True})
+    assert result == {"data-ignore__self": "true"}
+    
+    # Test with string value
+    result = _process_datastar_attrs({"ds_ignore__self": "$condition"})
+    assert result == {"data-ignore__self": NotStr("$condition")}
+
+
+def test_ds_json_signals_filter_objects():
+    """Test ds_json_signals with filter object syntax."""
+    # Test filter object with include pattern
+    result = _process_datastar_attrs({"ds_json_signals": {"include": "/user/"}})
+    assert result == {"data-json-signals": '{"include": "/user/"}'}
+    
+    # Test filter object with exclude pattern
+    result = _process_datastar_attrs({"ds_json_signals": {"exclude": "/temp/"}})
+    assert result == {"data-json-signals": '{"exclude": "/temp/"}'}
+    
+    # Test filter object with both include and exclude
+    result = _process_datastar_attrs({"ds_json_signals": {"include": "/user/", "exclude": "/temp/"}})
+    assert result == {"data-json-signals": '{"include": "/user/", "exclude": "/temp/"}'}
+    
+    # Test filter object with __terse modifier
+    result = _process_datastar_attrs({"ds_json_signals__terse": {"include": "/counter/"}})
+    assert result == {"data-json-signals__terse": '{"include": "/counter/"}'}
+    
+    # Test normal boolean value still works
+    result = _process_datastar_attrs({"ds_json_signals": True})
+    assert result == {"data-json-signals": True}
+    
+    # Test normal dict without include/exclude is treated as string
+    result = _process_datastar_attrs({"ds_json_signals": {"other": "value"}})
+    assert result == {"data-json-signals": '{"other": "value"}'}
+
+
+def test_array_binding_support():
+    """Test array binding support for multiple inputs with same signal name."""
+    # Test individual signal initialization
+    result = _process_datastar_attrs({"ds_signals_foo": []})
+    assert result == {"data-signals-foo": []}
+    
+    # Test array binding scenario - multiple checkboxes
+    result = _process_datastar_attrs({
+        "ds_signals_foo": [],
+        "ds_bind_foo": True  # This would be used on multiple checkbox elements
+    })
+    assert result == {"data-signals-foo": [], "data-bind-foo": "true"}
+    
+    # Test individual signal with value
+    result = _process_datastar_attrs({"ds_signals_myList": ["item1", "item2"]})
+    assert result == {"data-signals-my-list": ["item1", "item2"]}
+    
+    # Test individual signal with modifiers
+    result = _process_datastar_attrs({"ds_signals_userName__case_upper": "john"})
+    assert result == {"data-signals-user-name__case.upper": NotStr("john")}
+    
+    # Test individual signal with __ifmissing
+    result = _process_datastar_attrs({"ds_signals_counter__ifmissing": 0})
+    assert result == {"data-signals-counter__ifmissing": 0}
+    
+    # Test camelCase to kebab-case conversion
+    result = _process_datastar_attrs({"ds_signals_myVeryLongSignalName": "test"})
+    assert result == {"data-signals-my-very-long-signal-name": NotStr("test")}

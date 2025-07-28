@@ -6,6 +6,17 @@ from starlette.datastructures import UploadFile
 from starlette.testclient import TestClient
 
 from starhtml import *
+from starhtml.datastar import (
+    ds_bind,
+    ds_class,
+    ds_on_blur,
+    ds_on_click,
+    ds_on_input,
+    ds_on_submit,
+    ds_show,
+    ds_signals,
+    ds_text,
+)
 from starhtml.realtime import elements, format_element_event, format_signal_event, signals
 from starhtml.server import JSONResponse
 
@@ -17,15 +28,20 @@ class TestDatastarIntegrationScenarios:
         """Test a complete reactive form with multiple Datastar features."""
         form = Form(
             Div(
-                Input(type="text", ds_bind="user.name", ds_on_input_300ms="validateName()", placeholder="Full Name"),
-                Div("Name is required", ds_show="errors.name", style="color: red"),
+                Input(
+                    ds_bind("user.name"),
+                    ds_on_input("validateName()", debounce="300ms"),
+                    type="text",
+                    placeholder="Full Name",
+                ),
+                Div("Name is required", ds_show("$errors.name"), style="color: red"),
             ),
             Div(
-                Input(type="email", ds_bind="user.email", ds_on_blur="validateEmail()", placeholder="Email"),
-                Div(ds_text="errors.email", ds_show="errors.email", style="color: red"),
+                Input(ds_bind("user.email"), ds_on_blur("validateEmail()"), type="email", placeholder="Email"),
+                Div(ds_text("$errors.email"), ds_show("$errors.email"), style="color: red"),
             ),
-            Button("Submit", type="submit", ds_on_click="submitForm()", ds_show="isFormValid"),
-            ds_on_submit="handleSubmit(event)",
+            Button("Submit", ds_on_click("submitForm()"), ds_show("$isFormValid"), type="submit"),
+            ds_on_submit("handleSubmit(event)"),
         )
 
         html = str(form)
@@ -69,7 +85,7 @@ class TestDatastarIntegrationScenarios:
             Div(
                 H2("Processing Complete"),
                 P("Data has been successfully processed."),
-                Button("Continue", ds_on_click="nextStep()"),
+                Button("Continue", ds_on_click("nextStep()")),
             ),
             "#main-content",
             "inner",
@@ -204,18 +220,18 @@ class TestAttributeHandling:
         """Test mixing regular and Datastar attributes."""
         element = Div(
             "Mixed attributes",
+            ds_show("$isVisible"),
+            ds_on_click("handleClick()"),
             id="test",
             cls="test-class",
             style="color: blue;",
-            ds_show="isVisible",
-            ds_on_click="handleClick()",
             data_custom="value",
         )
         # Test attributes directly
         assert element.get("id") == "test"
         assert element.get("class") == "test-class"
         assert element.get("style") == "color: blue;"
-        assert element.get("data-show") == "isVisible"
+        assert element.get("data-show") == "$isVisible"
         assert element.get("data-on-click") == "handleClick()"
         assert element.get("data-custom") == "value"
         assert element.children == ("Mixed attributes",)
@@ -237,7 +253,7 @@ class TestNestedStructures:
                         H2("Article Title"),
                         P("First paragraph"),
                         P("Second paragraph"),
-                        Div(Button("Action", ds_on_click="doAction()"), Span("Status", ds_text="status")),
+                        Div(Button("Action", ds_on_click("doAction()")), Span("Status", ds_text("$status"))),
                     )
                 )
             ),
@@ -260,7 +276,7 @@ class TestNestedStructures:
         assert "<p>First paragraph</p>" in html
         assert "<p>Second paragraph</p>" in html
         assert 'data-on-click="doAction()"' in html
-        assert 'data-text="status"' in html
+        assert 'data-text="$status"' in html
 
     def test_component_like_structure(self):
         """Test creating component-like structures."""
@@ -271,11 +287,13 @@ class TestNestedStructures:
                 Div(
                     H3(name, cls="user-name"),
                     P(email, cls="user-email"),
-                    Button("Follow", ds_on_click=f"followUser('{email}')", ds_class_active=f"isFollowing('{email}')"),
+                    Button(
+                        "Follow", ds_on_click(f"followUser('{email}')"), ds_class(active=f"$isFollowing('{email}')")
+                    ),
                     cls="user-info",
                 ),
+                ds_signals({"user": {"name": name, "email": email}}),
                 cls="user-card",
-                ds_signals=f'{{"user": {{"name": "{name}", "email": "{email}"}}}}',
             )
 
         card = UserCard("John Doe", "john@example.com", "/avatars/john.jpg")
@@ -290,8 +308,8 @@ class TestNestedStructures:
         assert "John Doe" in html
         assert "john@example.com" in html
         assert "data-on-click=\"followUser('john@example.com')\"" in html
-        assert "data-class-active=\"isFollowing('john@example.com')\"" in html
-        assert "data-signals=" in html
+        assert "data-class-active=\"$isFollowing('john@example.com')\"" in html
+        assert "data-signals-user=" in html
         assert '"name": "John Doe"' in html
         assert '"email": "john@example.com"' in html
 

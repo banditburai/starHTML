@@ -1321,6 +1321,9 @@ dev = [
     { name = "psutil" },
     { name = "pyright" },
 ]
+test = [
+    { name = "python-multipart" },
+]
 
 [package.metadata]
 requires-dist = [
@@ -1359,6 +1362,7 @@ dev = [
     { name = "psutil", specifier = ">=7.0.0" },
     { name = "pyright", specifier = ">=1.1.403" },
 ]
+test = [{ name = "python-multipart", specifier = ">=0.0.20" }]
 
 [[package]]
 name = "starlette"

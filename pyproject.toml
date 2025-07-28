@@ -64,7 +64,6 @@ addopts = [
     "--strict-markers",
     "--strict-config",
 ]
-asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = ["src", "."]
 markers = [
@@ -183,4 +182,7 @@ dev = [
     "brotli>=1.1.0",
     "psutil>=7.0.0",
     "pyright>=1.1.403",
+]
+test = [
+    "python-multipart>=0.0.20",
 ]
