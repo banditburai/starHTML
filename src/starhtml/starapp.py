@@ -48,6 +48,7 @@ def star_app(
     reload_interval: int = 1000,
     static_path: str = ".",
     body_wrap: Callable = None,
+    auto_unpack: bool = True,
     **kwargs: Any,
 ):
     from .core import noop_body
@@ -85,6 +86,7 @@ def star_app(
         reload_attempts=reload_attempts,
         reload_interval=reload_interval,
         body_wrap=body_wrap,
+        auto_unpack=auto_unpack,
         **(bodykw or {}),
     )
     app.static_route_exts(static_path=static_path)

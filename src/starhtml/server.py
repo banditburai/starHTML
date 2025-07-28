@@ -469,6 +469,37 @@ def render_response(request, user_response: Any, cls: type = None, status_code: 
     return renderer.process(user_response, cls, status_code)
 
 
+def _should_extract_datastar_signals(req):
+    """Check if datastar signal extraction is enabled for this request."""
+    if not (hasattr(req, "scope") and req.scope):
+        return False
+    app = req.scope.get("app")
+    return app and hasattr(app, "state") and getattr(app.state, "auto_unpack", True)
+
+
+def _extract_from_datastar_query(req, arg):
+    """Extract parameter from datastar query parameter."""
+    datastar_query = req.query_params.get("datastar")
+    if not datastar_query:
+        return None
+    try:
+        return json.loads(datastar_query).get(arg)
+    except (json.JSONDecodeError, AttributeError):
+        return None
+
+
+async def _extract_from_datastar_body(req, arg):
+    """Extract parameter from datastar signals in request body."""
+    if req.method not in {"POST", "PUT", "PATCH", "DELETE"}:
+        return None
+
+    form_data = form2dict(await parse_form(req))
+    if not (isinstance(form_data, dict) and all(k.startswith("$") or k == "datastar" for k in form_data.keys())):
+        return None
+
+    return form_data.get(f"${arg}") or form_data.get(arg)
+
+
 async def _find_p(req, arg: str, p):
     "In `req` find param named `arg` of type in `p` (`arg` is ignored for body types)"
 
@@ -515,15 +546,17 @@ async def _find_p(req, arg: str, p):
         res = None
     if res in (empty, None):
         res = form2dict(await parse_form(req)).get(arg, None)
-    # Raise 400 error if the param does not include a default
+    if res in (empty, None) and _should_extract_datastar_signals(req):
+        res = _extract_from_datastar_query(req, arg) or await _extract_from_datastar_body(req, arg)
+
     if (res in (empty, None)) and p.default is empty:
         from starlette.exceptions import HTTPException
 
         raise HTTPException(400, f"Missing required field: {arg}")
-    # If we have a default, return that if we have no value
+
     if res in (empty, None):
         res = p.default
-    # We can cast str and list[str] to types; otherwise just return what we have
+
     if anno is empty:
         return res
     try:

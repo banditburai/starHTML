@@ -80,6 +80,7 @@ class StarHTML(Starlette):
         datastar_version=None,
         include_iconify=True,
         iconify_version=None,
+        auto_unpack=True,
         **bodykw,
     ):
         middleware, before, after = map(_list, (middleware, before, after))
@@ -129,6 +130,7 @@ class StarHTML(Starlette):
             on_shutdown=on_shutdown,
             lifespan=lifespan,
         )
+        self.state.auto_unpack = auto_unpack
 
         # Serve datastar.js fallback (CDN-first approach in headers)
         from pathlib import Path
