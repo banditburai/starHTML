@@ -62,6 +62,10 @@ __all__ = [
     "ds_preserve_attr",
 ]
 
+# ============================================================================
+# Helper Functions & Expression Utilities
+# ============================================================================
+
 
 def t(template: str) -> str:
     """JavaScript template literal using Python f-string style."""
@@ -99,6 +103,10 @@ def if_(condition: str | dict[str, str], *args, **kwargs) -> str:
 
     raise ValueError("if_ requires either 2 positional args or keyword args with conditions")
 
+
+# ============================================================================
+# Internal Utilities
+# ============================================================================
 
 def _make_comparison(op: str):
     def compare(signal: str, value: Any) -> str:
@@ -151,6 +159,10 @@ def _process_patterns(patterns: str | list[str | Pattern]) -> str | list[str]:
     return result[0] if len(result) == 1 else result
 
 
+# ============================================================================
+# Core Datastar Attributes
+# ============================================================================
+
 def ds_show(value: bool | str) -> DatastarAttr:
     return DatastarAttr({"data-show": _normalize_value(value)})
 
@@ -196,6 +208,10 @@ def ds_computed(name: str, expression: str, case: str | None = None) -> Datastar
     return DatastarAttr({key: expression})
 
 
+# ============================================================================
+# Conditional Attributes (class, style, attr)
+# ============================================================================
+
 def _make_attr_func(prefix: str):
     def attr_func(**kwargs) -> DatastarAttr:
         return DatastarAttr(
@@ -209,6 +225,10 @@ ds_class = _make_attr_func("data-class")
 ds_style = _make_attr_func("data-style")
 ds_attr = _make_attr_func("data-attr")
 
+
+# ============================================================================
+# Signals & State Management
+# ============================================================================
 
 def ds_signals(*args, **kwargs) -> DatastarAttr:
     ifmissing = kwargs.pop("ifmissing", None)
@@ -256,6 +276,10 @@ def ds_json_signals(show=True, include=None, exclude=None, terse=False):
     return DatastarAttr({key: value})
 
 
+# ============================================================================
+# Event Handlers
+# ============================================================================
+
 def _build_event_key(base: str, modifiers: list[str], value_mods: dict[str, str]) -> str:
     parts = [base] + modifiers
 
@@ -302,6 +326,10 @@ def ds_on(event: str, expression: str, *modifiers, **kwargs) -> DatastarAttr:
     key = _build_event_key(f"data-on-{event}", list(modifiers), kwargs)
     return DatastarAttr({key: NotStr(expression)})
 
+
+# ============================================================================
+# Special Attributes
+# ============================================================================
 
 def ds_disabled(value: bool | str) -> DatastarAttr:
     return DatastarAttr({"data-disabled": _normalize_value(value)})
