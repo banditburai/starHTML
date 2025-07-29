@@ -481,23 +481,31 @@ def _extract_from_datastar_query(req, arg):
     """Extract parameter from datastar query parameter."""
     datastar_query = req.query_params.get("datastar")
     if not datastar_query:
-        return None
+        return empty  # Use empty sentinel to indicate not found
     try:
-        return json.loads(datastar_query).get(arg)
+        data = json.loads(datastar_query)
+        if arg in data:
+            return data[arg]  # Return the value even if it's None
+        return empty  # Key not found
     except (json.JSONDecodeError, AttributeError):
-        return None
+        return empty  # Invalid JSON
 
 
 async def _extract_from_datastar_body(req, arg):
     """Extract parameter from datastar signals in request body."""
     if req.method not in {"POST", "PUT", "PATCH", "DELETE"}:
-        return None
+        return empty  # Use empty sentinel to indicate not found
 
     form_data = form2dict(await parse_form(req))
     if not (isinstance(form_data, dict) and all(k.startswith("$") or k == "datastar" for k in form_data.keys())):
-        return None
+        return empty  # Not a datastar request
 
-    return form_data.get(f"${arg}") or form_data.get(arg)
+    # Check with $ prefix first, then without
+    if f"${arg}" in form_data:
+        return form_data[f"${arg}"]  # Return the value even if it's None
+    elif arg in form_data:
+        return form_data[arg]  # Return the value even if it's None
+    return empty  # Key not found
 
 
 async def _find_p(req, arg: str, p):
@@ -546,17 +554,30 @@ async def _find_p(req, arg: str, p):
         res = None
     if res in (empty, None) and req.method in {"POST", "PUT", "PATCH", "DELETE"}:
         res = form2dict(await parse_form(req)).get(arg, None)
+    # Track if we found a value in datastar (even if it's None)
+    found_in_datastar = False
+    
     if res in (empty, None) and _should_extract_datastar_signals(req):
-        res = _extract_from_datastar_query(req, arg) or await _extract_from_datastar_body(req, arg)
+        # Try query first
+        query_res = _extract_from_datastar_query(req, arg)
+        if query_res is not empty:
+            res = query_res
+            found_in_datastar = True
+        else:
+            # Try body if query didn't find it
+            body_res = await _extract_from_datastar_body(req, arg)
+            if body_res is not empty:
+                res = body_res
+                found_in_datastar = True
 
-    if (res in (empty, None)) and p.default is empty:
+    if (res in (empty, None)) and p.default is empty and not found_in_datastar:
         from starlette.exceptions import HTTPException
 
         raise HTTPException(400, f"Missing required field: {arg}")
 
-    if res in (empty, None):
+    # Only use default if we didn't find the parameter anywhere (including datastar)
+    if res in (empty, None) and not found_in_datastar:
         res = p.default
-
     if anno is empty:
         return res
     try:
