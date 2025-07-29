@@ -174,6 +174,7 @@ def home():
             # Items Container
             Div(
                 H3("Items", style="color: #374151; margin-bottom: 1rem; font-size: 1.2rem; font-weight: 600;"),
+                # Empty state - visible when itemCount is 0
                 Div(
                     Div("📦", cls="empty-icon", style="font-size: 4rem;"),
                     P("No items yet", style="font-weight: 500; font-size: 1.1rem; margin-bottom: 0.5rem;"),
