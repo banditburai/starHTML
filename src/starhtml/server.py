@@ -556,7 +556,7 @@ async def _find_p(req, arg: str, p):
         res = form2dict(await parse_form(req)).get(arg, None)
     # Track if we found a value in datastar (even if it's None)
     found_in_datastar = False
-    
+
     if res in (empty, None) and _should_extract_datastar_signals(req):
         # Try query first
         query_res = _extract_from_datastar_query(req, arg)
