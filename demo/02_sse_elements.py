@@ -4,6 +4,7 @@ import random
 import time
 
 from starhtml import *
+from starhtml.datastar import ds_indicator, ds_on_click, ds_show, ds_signals, ds_text
 
 app, rt = star_app(
     title="SSE Elements Demo",
@@ -145,15 +146,15 @@ def home():
                 H2("Controls", style="color: #374151; margin-bottom: 1rem; font-size: 1.3rem; font-weight: 600;"),
                 Div(
                     Button(
-                        Span("🔄", ds_show="$loading", cls="loading-spinner"),
-                        Span("Load Sample Data", ds_show="!$loading"),
-                        Span("Loading...", ds_show="$loading"),
-                        ds_on_click="@get('/api/load-data')",
-                        ds_indicator="loading",
+                        Span("🔄", ds_show("$loading"), cls="loading-spinner"),
+                        Span("Load Sample Data", ds_show("!$loading")),
+                        Span("Loading...", ds_show("$loading")),
+                        ds_on_click("@get('/api/load-data')"),
+                        ds_indicator("loading"),
                         cls="btn btn-primary",
                     ),
-                    Button("➕ Add Random Item", ds_on_click="@get('/api/add-item')", cls="btn btn-secondary"),
-                    Button("🗑️ Clear All", ds_on_click="@get('/api/clear')", cls="btn btn-danger"),
+                    Button("➕ Add Random Item", ds_on_click("@get('/api/add-item')"), cls="btn btn-secondary"),
+                    Button("🗑️ Clear All", ds_on_click("@get('/api/clear')"), cls="btn btn-danger"),
                     cls="controls",
                 ),
                 cls="card",
@@ -162,11 +163,11 @@ def home():
             Div(
                 Div(
                     Span("📊 Status: ", style="font-weight: 500; color: #374151;"),
-                    Span(ds_text="$status", style="color: #1f2937; font-weight: 600;"),
+                    Span(ds_text("$status"), style="color: #1f2937; font-weight: 600;"),
                 ),
                 Div(
                     Span("📦 Items: ", style="font-weight: 500; color: #374151;"),
-                    Span(ds_text="$itemCount", style="color: #2563eb; font-weight: 700; font-size: 1.1rem;"),
+                    Span(ds_text("$itemCount"), style="color: #2563eb; font-weight: 700; font-size: 1.1rem;"),
                 ),
                 cls="status-bar",
             ),
@@ -177,8 +178,8 @@ def home():
                     Div("📦", cls="empty-icon", style="font-size: 4rem;"),
                     P("No items yet", style="font-weight: 500; font-size: 1.1rem; margin-bottom: 0.5rem;"),
                     P("Click 'Load Sample Data' to get started", style="font-size: 0.9rem; opacity: 0.7;"),
+                    ds_show("$itemCount === 0"),
                     cls="empty-state",
-                    ds_show="$itemCount === 0",
                 ),
                 Div(id="items"),
                 cls="card",
@@ -190,7 +191,7 @@ def home():
                     style="text-align: center; color: #9ca3af; font-size: 0.9rem; margin-top: 2rem;",
                 ),
             ),
-            ds_signals={"status": "Ready", "loading": False, "itemCount": 0},
+            ds_signals(status="Ready", loading=False, itemCount=0),
             cls="container",
         ),
     )

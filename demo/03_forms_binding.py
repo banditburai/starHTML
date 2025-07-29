@@ -1,6 +1,19 @@
 """Clean Forms and Binding Demo - Simple reactive forms with Datastar"""
 
 from starhtml import *
+from starhtml.datastar import (
+    ds_bind,
+    ds_class,
+    ds_computed,
+    ds_disabled,
+    ds_json_signals,
+    ds_on_click,
+    ds_on_input,
+    ds_on_submit,
+    ds_show,
+    ds_signals,
+    ds_text,
+)
 
 app, rt = star_app(
     title="Forms and Binding Demo",
@@ -34,19 +47,21 @@ def create_form_field(label_text, input_type, placeholder, signal_name, validati
         "type": input_type,
         "placeholder": placeholder,
         "id": input_id,
-        "ds_bind": signal_name,
-        "ds_on_input": validation_expr,
         "cls": "form-input w-full p-3 border rounded-lg mt-1",
-        "ds_class": f"${error_signal} ? 'error' : ''",
     }
 
     if input_type == "number":
         input_attrs["min"] = "18"
         input_attrs["max"] = "120"
 
-    input_elem = Input(**input_attrs)
+    input_elem = Input(
+        ds_bind(signal_name),
+        ds_on_input(validation_expr),
+        ds_class(**{f"${error_signal} ? 'error' : ''": True}),
+        **input_attrs,
+    )
 
-    error_text = Span(ds_text=f"${error_signal}", cls="error-text", ds_show=f"${error_signal}")
+    error_text = Span(ds_text(f"${error_signal}"), ds_show(f"${error_signal}"), cls="error-text")
 
     return Div(label, required_indicator, input_elem, error_text, cls="mb-4")
 
@@ -96,10 +111,12 @@ def create_form_status():
     return Div(
         Span("📝 "),
         Span(
-            ds_text="$submitted ? 'Form has been submitted' : $is_valid ? 'Form is ready to submit' : 'Please complete all required fields'"
+            ds_text(
+                "$submitted ? 'Form has been submitted' : $is_valid ? 'Form is ready to submit' : 'Please complete all required fields'"
+            )
         ),
+        ds_class(**{"$submitted ? 'valid' : $is_valid ? 'valid' : 'invalid'": True}),
         cls="form-status",
-        ds_class="$submitted ? 'valid' : $is_valid ? 'valid' : 'invalid'",
     )
 
 
@@ -107,10 +124,10 @@ def create_live_preview():
     return Div(
         H3("Live Preview", cls="text-lg font-semibold mb-4"),
         Div(
-            P("Name: ", Span(ds_text="$name || 'Not provided'"), cls="py-2"),
-            P("Email: ", Span(ds_text="$email || 'Not provided'"), cls="py-2"),
-            P("Age: ", Span(ds_text="$age || 'Not provided'"), cls="py-2"),
-            P("Phone: ", Span(ds_text="$phone || 'Not provided'"), cls="py-2"),
+            P("Name: ", Span(ds_text("$name || 'Not provided'")), cls="py-2"),
+            P("Email: ", Span(ds_text("$email || 'Not provided'")), cls="py-2"),
+            P("Age: ", Span(ds_text("$age || 'Not provided'")), cls="py-2"),
+            P("Phone: ", Span(ds_text("$phone || 'Not provided'")), cls="py-2"),
         ),
         cls="bg-white p-6 rounded-lg shadow mb-6",
     )
@@ -119,7 +136,7 @@ def create_live_preview():
 def create_debug_panel():
     return Div(
         H3("Debug Info", cls="text-lg font-semibold mb-4"),
-        Pre(ds_json_signals=True, cls="bg-gray-100 p-3 rounded text-sm overflow-auto"),
+        Pre(ds_json_signals(), cls="bg-gray-100 p-3 rounded text-sm overflow-auto"),
         cls="bg-white p-6 rounded-lg shadow",
     )
 
@@ -158,34 +175,36 @@ def home():
                 Div(
                     Button(
                         "Submit Form",
+                        ds_on_click("@post('/submit')"),
+                        ds_disabled("!$is_valid || $submitting"),
                         type="button",
-                        ds_on_click="@post('/submit')",
-                        ds_disabled="!$is_valid || $submitting",
                         cls="bg-blue-600 text-white px-6 py-3 rounded-lg mr-3 disabled:opacity-50",
                     ),
                     Button(
                         "Clear Form",
+                        ds_on_click(
+                            "$name = ''; $email = ''; $age = ''; $phone = ''; $nameError = ''; $emailError = ''; $ageError = ''; $phoneError = ''; $submitted = false"
+                        ),
                         type="button",
-                        ds_on_click="$name = ''; $email = ''; $age = ''; $phone = ''; $nameError = ''; $emailError = ''; $ageError = ''; $phoneError = ''; $submitted = false",
                         cls="bg-gray-500 text-white px-6 py-3 rounded-lg",
                     ),
                     cls="border-t pt-6",
                 ),
-                ds_on_submit="event.preventDefault()",
+                ds_on_submit("event.preventDefault()"),
             ),
             cls="bg-white p-6 rounded-lg shadow mb-6",
         ),
         # Success Message
         Div(
             "✅ Success! Your information has been submitted.",
+            ds_show("$submitted"),
             cls="bg-green-50 border border-green-200 text-green-800 p-4 rounded-lg mb-6",
-            ds_show="$submitted",
         ),
         create_live_preview(),
         create_debug_panel(),
+        ds_signals(**get_initial_signals()),
+        ds_computed("is_valid", "!$nameError && !$emailError && !$ageError && !$phoneError && $name && $email && $age"),
         cls="max-w-2xl mx-auto p-6",
-        ds_signals=get_initial_signals(),
-        ds_computed_is_valid="!$nameError && !$emailError && !$ageError && !$phoneError && $name && $email && $age",
     )
 
 

@@ -1,6 +1,7 @@
 """Debug SSE merge fragments - test different scenarios"""
 
 from starhtml import *
+from starhtml.datastar import ds_on_click, ds_signals, ds_text
 
 app, rt = star_app(
     title="SSE Debugging Demo",
@@ -82,11 +83,11 @@ def home():
         Div(
             H1("SSE Merge Elements Debugging", cls="text-3xl font-bold text-center mb-6"),
             Div(
-                Button("Test Simple Element", ds_on_click="@get('/test-simple')", cls="btn btn-primary"),
-                Button("Test Multiple Elements", ds_on_click="@get('/test-multiple')", cls="btn btn-primary"),
-                Button("Test With Selector", ds_on_click="@get('/test-selector')", cls="btn btn-secondary"),
-                Button("Test Complex HTML", ds_on_click="@get('/test-complex')", cls="btn btn-secondary"),
-                Button("Reset All", ds_on_click="@get('/reset')", cls="btn btn-danger"),
+                Button("Test Simple Element", ds_on_click("@get('/test-simple')"), cls="btn btn-primary"),
+                Button("Test Multiple Elements", ds_on_click("@get('/test-multiple')"), cls="btn btn-primary"),
+                Button("Test With Selector", ds_on_click("@get('/test-selector')"), cls="btn btn-secondary"),
+                Button("Test Complex HTML", ds_on_click("@get('/test-complex')"), cls="btn btn-secondary"),
+                Button("Reset All", ds_on_click("@get('/reset')"), cls="btn btn-danger"),
                 style="display: flex; gap: 10px; margin: 20px 0; flex-wrap: wrap;",
             ),
             Div(
@@ -99,17 +100,17 @@ def home():
                 id="target2",
                 style="border: 1px solid #00c853; padding: 20px; margin: 20px 0; border-radius: 8px; background: white;",
             ),
-            Div(P("Status: ", ds_text="$status"), cls="status-bar"),
+            Div(P("Status: ", ds_text("$status")), cls="status-bar"),
             Div(
                 Pre(
-                    Code(ds_text="$lastAction", style="white-space: pre-wrap;"),
+                    Code(ds_text("$lastAction"), style="white-space: pre-wrap;"),
                     style="background: #f5f5f5; padding: 15px; overflow-x: auto; border-radius: 8px;",
                 ),
                 cls="card",
             ),
             cls="container",
         ),
-        ds_signals={"status": "Ready", "lastAction": "No action yet"},
+        ds_signals(status="Ready", lastAction="No action yet"),
     )
 
 
@@ -189,8 +190,8 @@ def test_complex(req):
         P("This has special characters: < > & \" '"),
         Pre("Code block with\nmultiple lines\n    and indentation"),
         Div(
-            Button("Nested button", ds_on_click="alert('Clicked!')"),
-            P("With dynamic content", ds_text="'[dynamic text here]'"),
+            Button("Nested button", ds_on_click("alert('Clicked!')")),
+            P("With dynamic content", ds_text("'[dynamic text here]'")),
             style="background: #e3f2fd; padding: 10px;",
         ),
     )

@@ -13,6 +13,15 @@ import json
 from pathlib import Path
 
 from starhtml import *
+from starhtml.datastar import (
+    ds_bind,
+    ds_class,
+    ds_on_click,
+    ds_on_keyup,
+    ds_persist,
+    ds_signals,
+    ds_text,
+)
 from starhtml.handlers import persist_handler
 from starhtml.xtend import Script
 
@@ -52,7 +61,7 @@ def render_todo_list(todos):
                 Span(todo, cls="flex-1"),
                 Button(
                     "×",
-                    ds_on_click=f"@delete('todos/{i}')",
+                    ds_on_click(f"@delete('todos/{i}')"),
                     cls="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded text-sm ml-2",
                 ),
                 cls="flex items-center justify-between p-2 bg-purple-50 border border-purple-200 rounded mb-2",
@@ -64,7 +73,7 @@ def render_todo_list(todos):
         todo_items.append(
             Button(
                 "Clear All Todos",
-                ds_on_click="@delete('todos/all')",
+                ds_on_click("@delete('todos/all')"),
                 cls="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm mt-2",
             )
         )
@@ -106,16 +115,16 @@ def home():
                     H3("Text Input Persistence", cls="font-medium mb-4 text-blue-800"),
                     Div(
                         Input(
+                            ds_bind("persistedText"),
                             placeholder="Type something and reload the page...",
-                            ds_bind="persistedText",
                             cls="w-full p-3 border-2 border-blue-200 rounded-lg mb-3",
                         ),
-                        P("Current value: ", Span(ds_text="$persistedText", cls="font-bold text-blue-600")),
+                        P("Current value: ", Span(ds_text("$persistedText"), cls="font-bold text-blue-600")),
                         P("💡 Try typing, then refresh the page!", cls="text-sm text-gray-600 mt-2"),
                         cls="space-y-2",
                     ),
-                    ds_signals={"persistedText": ""},
-                    ds_persist="persistedText",  # Persist the text signal
+                    ds_signals(persistedText=""),
+                    ds_persist("persistedText"),  # Persist the text signal
                     cls="p-6 bg-white border-2 border-blue-300 rounded-lg shadow-lg mb-8",
                 ),
                 cls="mb-12",
@@ -132,31 +141,31 @@ def home():
                     Div(
                         Div(
                             Span("Count: ", cls="text-lg"),
-                            Span(ds_text="$counter || 0", cls="text-2xl font-bold text-green-600"),
+                            Span(ds_text("$counter || 0"), cls="text-2xl font-bold text-green-600"),
                             cls="mb-4",
                         ),
                         Div(
                             Button(
                                 "Increment (+1)",
-                                ds_on_click="$counter = Number($counter ?? 0) + 1",
+                                ds_on_click("$counter = Number($counter ?? 0) + 1"),
                                 cls="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded mr-2",
                             ),
                             Button(
                                 "Add 5 (+5)",
-                                ds_on_click="$counter = Number($counter ?? 0) + 5",
+                                ds_on_click("$counter = Number($counter ?? 0) + 5"),
                                 cls="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded mr-2",
                             ),
                             Button(
                                 "Reset to 0",
-                                ds_on_click="$counter = 0",
+                                ds_on_click("$counter = 0"),
                                 cls="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded",
                             ),
                             cls="space-x-2",
                         ),
                         cls="space-y-3",
                     ),
-                    ds_signals={"counter": 0},  # Provide fallback value
-                    ds_persist="counter",  # Persist the counter signal
+                    ds_signals(counter=0),  # Provide fallback value
+                    ds_persist("counter"),  # Persist the counter signal
                     cls="p-6 bg-white border-2 border-green-300 rounded-lg shadow-lg mb-8",
                 ),
                 cls="mb-12",
@@ -174,15 +183,15 @@ def home():
                     Div(
                         Div(
                             Input(
+                                ds_bind("newTodo"),
+                                ds_on_keyup("if($newTodo.trim()) { @post('/todos/add'); $newTodo = ''; }", "enter"),
                                 name="todo_text",
                                 placeholder="Add a todo item...",
-                                ds_bind="newTodo",
-                                ds_on_keyup__enter="if($newTodo.trim()) { @post('/todos/add'); $newTodo = ''; }",
                                 cls="flex-1 p-2 border-2 border-purple-200 rounded-l-lg",
                             ),
                             Button(
                                 "Add Todo",
-                                ds_on_click="if($newTodo.trim()) { @post('/todos/add'); $newTodo = ''; }",
+                                ds_on_click("if($newTodo.trim()) { @post('/todos/add'); $newTodo = ''; }"),
                                 cls="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-r-lg",
                             ),
                             cls="flex mb-4",
@@ -193,7 +202,7 @@ def home():
                         render_todo_list(load_todos()),  # Load persisted todos
                         id="todo-list",
                     ),
-                    ds_signals={"newTodo": ""},
+                    ds_signals(newTodo=""),
                     cls="p-6 bg-white border-2 border-purple-300 rounded-lg shadow-lg mb-8",
                 ),
                 cls="mb-12",
@@ -209,17 +218,17 @@ def home():
                     H3("Session-Only Data", cls="font-medium mb-4 text-orange-800"),
                     Div(
                         Input(
+                            ds_bind("sessionValue"),
                             placeholder="Tab-specific data...",
-                            ds_bind="sessionValue",
                             cls="w-full p-3 border-2 border-orange-200 rounded-lg mb-3",
                         ),
-                        P("Session value: ", Span(ds_text="$sessionValue", cls="font-bold text-orange-600")),
+                        P("Session value: ", Span(ds_text("$sessionValue"), cls="font-bold text-orange-600")),
                         P("🔄 Refresh this tab: data persists", cls="text-sm text-green-600"),
                         P("🆕 Open in new tab: data doesn't persist", cls="text-sm text-red-600"),
                         cls="space-y-2",
                     ),
-                    ds_signals={"sessionValue": ""},
-                    ds_persist__session="*",  # Use sessionStorage instead of localStorage
+                    ds_signals(sessionValue=""),
+                    ds_persist("*", session=True),  # Use sessionStorage instead of localStorage
                     cls="p-6 bg-white border-2 border-orange-300 rounded-lg shadow-lg mb-8",
                 ),
                 cls="mb-12",
@@ -232,24 +241,24 @@ def home():
                     H3("Mixed Persistence", cls="font-medium mb-4 text-teal-800"),
                     Div(
                         Div(
-                            P("Persistent Score: ", Span(ds_text="$persistentScore", cls="font-bold text-teal-600")),
-                            P("Temporary Lives: ", Span(ds_text="$temporaryLives", cls="font-bold text-red-600")),
+                            P("Persistent Score: ", Span(ds_text("$persistentScore"), cls="font-bold text-teal-600")),
+                            P("Temporary Lives: ", Span(ds_text("$temporaryLives"), cls="font-bold text-red-600")),
                             cls="mb-4 space-y-2",
                         ),
                         Div(
                             Button(
                                 "Add Score (+10)",
-                                ds_on_click="$persistentScore += 10",
+                                ds_on_click("$persistentScore += 10"),
                                 cls="bg-teal-500 hover:bg-teal-600 text-white px-3 py-2 rounded mr-2",
                             ),
                             Button(
                                 "Lose Life (-1)",
-                                ds_on_click="$temporaryLives = Math.max(0, $temporaryLives - 1)",
+                                ds_on_click("$temporaryLives = Math.max(0, $temporaryLives - 1)"),
                                 cls="bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded mr-2",
                             ),
                             Button(
                                 "Reset Lives",
-                                ds_on_click="$temporaryLives = 3",
+                                ds_on_click("$temporaryLives = 3"),
                                 cls="bg-gray-500 hover:bg-gray-600 text-white px-3 py-2 rounded",
                             ),
                             cls="space-x-2",
@@ -257,8 +266,8 @@ def home():
                         P("💡 Reload the page: score persists, lives reset to 3", cls="text-sm text-gray-600 mt-4"),
                         cls="space-y-3",
                     ),
-                    ds_signals={"persistentScore": 0, "temporaryLives": 3},
-                    ds_persist="persistentScore",  # Only persist the score, not lives
+                    ds_signals(persistentScore=0, temporaryLives=3),
+                    ds_persist("persistentScore"),  # Only persist the score, not lives
                     cls="p-6 bg-white border-2 border-teal-300 rounded-lg shadow-lg mb-8",
                 ),
                 cls="mb-12",
@@ -277,23 +286,25 @@ def home():
                             P(
                                 "Current theme: ",
                                 Span(
-                                    ds_text="$isDarkMode ? 'Dark' : 'Light'",
+                                    ds_text("$isDarkMode ? 'Dark' : 'Light'"),
+                                    ds_class(**{"$isDarkMode ? 'text-gray-200' : 'text-gray-800'": True}),
                                     cls="font-bold",
-                                    ds_class="$isDarkMode ? 'text-gray-200' : 'text-gray-800'",
                                 ),
                             ),
                             cls="mb-4",
                         ),
                         Button(
-                            Span(ds_text="$isDarkMode ? '☀️ Switch to Light' : '🌙 Switch to Dark'"),
-                            ds_on_click="$isDarkMode = !$isDarkMode; document.body.classList.toggle('dark', $isDarkMode);",
+                            Span(ds_text("$isDarkMode ? '☀️ Switch to Light' : '🌙 Switch to Dark'")),
+                            ds_on_click(
+                                "$isDarkMode = !$isDarkMode; document.body.classList.toggle('dark', $isDarkMode);"
+                            ),
                             cls="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded transition-colors",
                         ),
                         P("🔄 Your theme choice persists across page reloads!", cls="text-sm text-gray-600 mt-4"),
                         cls="space-y-3",
                     ),
-                    ds_signals={"isDarkMode": False},
-                    ds_persist="isDarkMode",
+                    ds_signals(isDarkMode=False),
+                    ds_persist("isDarkMode"),
                     cls="p-6 bg-white border-2 border-indigo-300 rounded-lg shadow-lg mb-8",
                 ),
                 cls="mb-12",
@@ -306,19 +317,19 @@ def home():
                 Div(
                     H3("Disabled Persistence", cls="font-medium mb-4 text-gray-800"),
                     Div(
-                        P("Temp counter: ", Span(ds_text="$tempCounter", cls="font-bold text-gray-600")),
+                        P("Temp counter: ", Span(ds_text("$tempCounter"), cls="font-bold text-gray-600")),
                         P(
                             "This counter will reset on every page reload (persistence disabled).",
                             cls="text-sm text-gray-500 mb-3",
                         ),
                         Button(
                             "Increment (No Persistence)",
-                            ds_on_click="$tempCounter++",
+                            ds_on_click("$tempCounter++"),
                             cls="bg-gray-500 hover:bg-gray-600 text-white px-3 py-2 rounded",
                         ),
                         cls="space-y-2",
                     ),
-                    ds_signals={"tempCounter": 0},
+                    ds_signals(tempCounter=0),
                     # No persistence - omit ds_persist attribute
                     cls="p-6 bg-white border-2 border-gray-300 rounded-lg shadow-lg mb-6",
                 ),
@@ -326,52 +337,52 @@ def home():
                 Div(
                     H3("Custom Storage Key", cls="font-medium mb-4 text-indigo-800"),
                     Div(
-                        P("App Version: ", Span(ds_text="$appVersion", cls="font-bold text-indigo-600")),
-                        P("User Preference: ", Span(ds_text="$userPref", cls="font-bold text-indigo-600")),
+                        P("App Version: ", Span(ds_text("$appVersion"), cls="font-bold text-indigo-600")),
+                        P("User Preference: ", Span(ds_text("$userPref"), cls="font-bold text-indigo-600")),
                         P(
                             "These values use a custom storage key: 'starhtml-persist-myapp'",
                             cls="text-sm text-gray-500 mb-3",
                         ),
                         Button(
                             "Update Version",
-                            ds_on_click="$appVersion = 'v' + Math.floor(Math.random() * 100)",
+                            ds_on_click("$appVersion = 'v' + Math.floor(Math.random() * 100)"),
                             cls="bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-2 rounded mr-2",
                         ),
                         Button(
                             "Toggle Preference",
-                            ds_on_click="$userPref = $userPref === 'compact' ? 'expanded' : 'compact'",
+                            ds_on_click("$userPref = $userPref === 'compact' ? 'expanded' : 'compact'"),
                             cls="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded",
                         ),
                         cls="space-y-2",
                     ),
-                    ds_signals={"appVersion": "v1.0", "userPref": "compact"},
-                    ds_persist__as_myapp="*",  # Custom storage key
+                    ds_signals(appVersion="v1.0", userPref="compact"),
+                    ds_persist("*", key="myapp"),  # Custom storage key
                     cls="p-6 bg-white border-2 border-indigo-300 rounded-lg shadow-lg mb-6",
                 ),
                 # Example with session storage for specific signal
                 Div(
                     H3("Session-Only Specific Signal", cls="font-medium mb-4 text-pink-800"),
                     Div(
-                        P("Tab ID: ", Span(ds_text="$tabId", cls="font-bold text-pink-600")),
-                        P("Page views: ", Span(ds_text="$pageViews", cls="font-bold text-gray-600")),
+                        P("Tab ID: ", Span(ds_text("$tabId"), cls="font-bold text-pink-600")),
+                        P("Page views: ", Span(ds_text("$pageViews"), cls="font-bold text-gray-600")),
                         P(
                             "Only tabId persists in this tab session. Page views reset every reload.",
                             cls="text-sm text-gray-500 mb-3",
                         ),
                         Button(
                             "New Tab ID",
-                            ds_on_click="$tabId = Math.random().toString(36).substr(2, 9)",
+                            ds_on_click("$tabId = Math.random().toString(36).substr(2, 9)"),
                             cls="bg-pink-500 hover:bg-pink-600 text-white px-3 py-2 rounded mr-2",
                         ),
                         Button(
                             "Add Page View",
-                            ds_on_click="$pageViews++",
+                            ds_on_click("$pageViews++"),
                             cls="bg-gray-500 hover:bg-gray-600 text-white px-3 py-2 rounded",
                         ),
                         cls="space-y-2",
                     ),
-                    ds_signals={"tabId": "abc123", "pageViews": 1},
-                    ds_persist__session="tabId",  # Persist only tabId signal in session storage
+                    ds_signals(tabId="abc123", pageViews=1),
+                    ds_persist("tabId", session=True),  # Persist only tabId signal in session storage
                     cls="p-6 bg-white border-2 border-pink-300 rounded-lg shadow-lg mb-6",
                 ),
                 cls="mb-12",
@@ -465,10 +476,10 @@ def home():
                     Div(
                         H3("🔧 Persistence Options", cls="font-medium mb-2"),
                         Ul(
-                            Li('ds_persist="*" - Persist all signals in localStorage'),
-                            Li('ds_persist="signal1,signal2" - Persist specific signals only'),
-                            Li('ds_persist__session="*" - Use sessionStorage (tab-only)'),
-                            Li('ds_persist__as_mykey="*" - Use custom storage key'),
+                            Li('ds_persist("*") - Persist all signals in localStorage'),
+                            Li('ds_persist("signal1,signal2") - Persist specific signals only'),
+                            Li('ds_persist("*", session=True) - Use sessionStorage (tab-only)'),
+                            Li('ds_persist("*", key="mykey") - Use custom storage key'),
                             Li("Preprocessing phase updates data-signals before Datastar init"),
                             Li("Runtime phase handles dynamic updates and saves"),
                             Li("MutationObserver catches dynamically added elements"),

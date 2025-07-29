@@ -12,6 +12,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from starhtml import *
+from starhtml.datastar import ds_attr, ds_on, ds_on_resize, ds_signals, ds_text
 from starhtml.handlers import resize_handler
 from starhtml.xtend import Script
 
@@ -45,21 +46,21 @@ def home():
                 Div(
                     Div(
                         H3("Resizable Box 1", cls="font-medium mb-2"),
-                        P("Width: ", Span(ds_text="$box1Width"), "px", cls="text-sm"),
-                        P("Height: ", Span(ds_text="$box1Height"), "px", cls="text-sm"),
+                        P("Width: ", Span(ds_text("$box1Width")), "px", cls="text-sm"),
+                        P("Height: ", Span(ds_text("$box1Height")), "px", cls="text-sm"),
                         P("💡 Drag the resize handle in the bottom-right corner", cls="text-xs text-gray-600 mt-2"),
-                        ds_on_resize="$box1Width = width; $box1Height = height;",
-                        ds_signals={"box1Width": 0, "box1Height": 0},
+                        ds_on_resize("$box1Width = width; $box1Height = height;"),
+                        ds_signals(box1Width=0, box1Height=0),
                         cls="p-4 border-2 border-solid border-blue-400 bg-blue-50 overflow-auto min-h-32 min-w-48",
                         style="resize: both; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);",
                     ),
                     Div(
                         H3("Resizable Box 2", cls="font-medium mb-2"),
-                        P("Width: ", Span(ds_text="$box2Width"), "px", cls="text-sm"),
-                        P("Height: ", Span(ds_text="$box2Height"), "px", cls="text-sm"),
+                        P("Width: ", Span(ds_text("$box2Width")), "px", cls="text-sm"),
+                        P("Height: ", Span(ds_text("$box2Height")), "px", cls="text-sm"),
                         P("💡 Drag the resize handle in the bottom-right corner", cls="text-xs text-gray-600 mt-2"),
-                        ds_on_resize="$box2Width = width; $box2Height = height;",
-                        ds_signals={"box2Width": 0, "box2Height": 0},
+                        ds_on_resize("$box2Width = width; $box2Height = height;"),
+                        ds_signals(box2Width=0, box2Height=0),
                         cls="p-4 border-2 border-solid border-green-400 bg-green-50 overflow-auto min-h-32 min-w-48",
                         style="resize: both; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);",
                     ),
@@ -81,16 +82,16 @@ def home():
                         Div("Item 2", cls="p-4 bg-purple-100 border border-purple-300 rounded"),
                         Div("Item 3", cls="p-4 bg-purple-100 border border-purple-300 rounded"),
                         Div("Item 4", cls="p-4 bg-purple-100 border border-purple-300 rounded"),
-                        ds_attr_class="$gridClass",
+                        ds_attr(**{"class": "$gridClass"}),
                     ),
-                    P("Current layout: ", Span(ds_text="$layoutText"), cls="text-sm text-muted-foreground mt-4"),
+                    P("Current layout: ", Span(ds_text("$layoutText")), cls="text-sm text-muted-foreground mt-4"),
                     P("💡 Drag the right edge to change container width", cls="text-xs text-gray-600 mt-2"),
-                    ds_on_resize="""
+                    ds_on_resize("""
                         $width = width;
                         $layoutText = width < 301 ? '1 column (narrow)' : width < 501 ? '2 columns (medium)' : '4 columns (wide)';
                         $gridClass = width < 301 ? 'gap-4 grid grid-cols-1' : width < 501 ? 'gap-4 grid grid-cols-2' : 'gap-4 grid grid-cols-4';
-                    """,
-                    ds_signals={"width": 0, "layoutText": "4 columns (wide)", "gridClass": "gap-4 grid grid-cols-4"},
+                    """),
+                    ds_signals(width=0, layoutText="4 columns (wide)", gridClass="gap-4 grid grid-cols-4"),
                     cls="p-6 border-2 border-solid border-purple-400 bg-purple-50 overflow-auto min-h-64",
                     style="resize: horizontal; min-width: 200px; width: 100%; max-width: 100%; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);",
                 ),
@@ -103,28 +104,28 @@ def home():
                 Div(
                     Div(
                         H3("Throttle (50ms)", cls="font-medium mb-2"),
-                        P("Updates: ", Span(ds_text="$throttleCount"), cls="text-sm font-mono"),
+                        P("Updates: ", Span(ds_text("$throttleCount")), cls="text-sm font-mono"),
                         P("💡 Drag corner to resize - updates every 50ms", cls="text-xs text-gray-600 mt-2"),
-                        ds_on_resize__throttle_50ms="$throttleCount++;",
-                        ds_signals={"throttleCount": 0},
+                        ds_on("resize", "$throttleCount++;", throttle="50"),
+                        ds_signals(throttleCount=0),
                         cls="p-4 border-2 border-solid border-red-400 bg-red-50 overflow-auto min-h-32 min-w-48",
                         style="resize: both; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);",
                     ),
                     Div(
                         H3("Debounce (150ms)", cls="font-medium mb-2"),
-                        P("Updates: ", Span(ds_text="$debounceCount"), cls="text-sm font-mono"),
+                        P("Updates: ", Span(ds_text("$debounceCount")), cls="text-sm font-mono"),
                         P("💡 Drag corner to resize - updates after 150ms pause", cls="text-xs text-gray-600 mt-2"),
-                        ds_on_resize__debounce_150ms="$debounceCount++;",
-                        ds_signals={"debounceCount": 0},
+                        ds_on("resize", "$debounceCount++;", debounce="150"),
+                        ds_signals(debounceCount=0),
                         cls="p-4 border-2 border-solid border-yellow-400 bg-yellow-50 overflow-auto min-h-32 min-w-48",
                         style="resize: both; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);",
                     ),
                     Div(
                         H3("Throttle (500ms)", cls="font-medium mb-2"),
-                        P("Updates: ", Span(ds_text="$slowThrottleCount"), cls="text-sm font-mono"),
+                        P("Updates: ", Span(ds_text("$slowThrottleCount")), cls="text-sm font-mono"),
                         P("💡 Drag corner to resize - updates every 500ms", cls="text-xs text-gray-600 mt-2"),
-                        ds_on_resize__throttle_500ms="$slowThrottleCount++;",
-                        ds_signals={"slowThrottleCount": 0},
+                        ds_on("resize", "$slowThrottleCount++;", throttle="500"),
+                        ds_signals(slowThrottleCount=0),
                         cls="p-4 border-2 border-solid border-blue-400 bg-blue-50 overflow-auto min-h-32 min-w-48",
                         style="resize: both; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);",
                     ),
@@ -139,27 +140,27 @@ def home():
                 Div(
                     H3("Dimension Reporter", cls="font-medium mb-4"),
                     Div(
-                        P("Element Width: ", Span(ds_text="$elWidth"), "px", cls="text-sm"),
-                        P("Element Height: ", Span(ds_text="$elHeight"), "px", cls="text-sm"),
-                        P("Window Width: ", Span(ds_text="$winWidth"), "px", cls="text-sm"),
-                        P("Window Height: ", Span(ds_text="$winHeight"), "px", cls="text-sm"),
+                        P("Element Width: ", Span(ds_text("$elWidth")), "px", cls="text-sm"),
+                        P("Element Height: ", Span(ds_text("$elHeight")), "px", cls="text-sm"),
+                        P("Window Width: ", Span(ds_text("$winWidth")), "px", cls="text-sm"),
+                        P("Window Height: ", Span(ds_text("$winHeight")), "px", cls="text-sm"),
                         P(
                             "Element vs Window: ",
-                            Span(ds_text="$sizeRatio"),
+                            Span(ds_text("$sizeRatio")),
                             "% of window width",
                             cls="text-sm font-medium",
                         ),
                         cls="space-y-2",
                     ),
                     P("💡 Drag corners to resize this container", cls="text-xs text-gray-600 mt-2"),
-                    ds_on_resize="""
+                    ds_on_resize("""
                         $elWidth = width;
                         $elHeight = height;
                         $winWidth = windowWidth;
                         $winHeight = windowHeight;
                         $sizeRatio = Math.round((width / windowWidth) * 100);
-                    """,
-                    ds_signals={"elWidth": 0, "elHeight": 0, "winWidth": 0, "winHeight": 0, "sizeRatio": 0},
+                    """),
+                    ds_signals(elWidth=0, elHeight=0, winWidth=0, winHeight=0, sizeRatio=0),
                     cls="p-6 border-2 border-solid border-indigo-400 bg-indigo-50 overflow-auto min-h-32 min-w-48",
                     style="resize: both; min-width: 300px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);",
                 ),
@@ -172,7 +173,7 @@ def home():
                 Div(
                     Button(
                         "Add Resizable Box",
-                        ds_on_click="@get('/add-box')",
+                        ds_on_click("@get('/add-box')"),
                         cls="mb-4 px-4 py-2 bg-teal-600 text-white rounded hover:bg-teal-700",
                     ),
                     # Dynamic boxes container
@@ -200,9 +201,9 @@ def home():
                     Div(
                         H3("📊 Usage Patterns", cls="font-medium mb-2"),
                         Ul(
-                            Li('ds_on_resize="code" - Default behavior'),
-                            Li('ds_on_resize__throttle_50ms="code" - Throttle (50ms)'),
-                            Li('ds_on_resize__debounce_150ms="code" - Debounce (150ms)'),
+                            Li('ds_on_resize("code") - Default behavior'),
+                            Li('ds_on("resize", "code", throttle="50") - Throttle (50ms)'),
+                            Li('ds_on("resize", "code", debounce="150") - Debounce (150ms)'),
                             Li("Variables: $el, width, height, windowWidth, windowHeight"),
                             Li("Automatic execution on element creation"),
                             Li("Works with dynamically added elements"),
@@ -242,16 +243,16 @@ def add_box(req):
             H4(f"Dynamic Box {box_id}", cls="font-medium mb-2"),
             P(
                 "Size: ",
-                Span(ds_text=f"$dynamicWidth{box_id}"),
+                Span(ds_text(f"$dynamicWidth{box_id}")),
                 "x",
-                Span(ds_text=f"$dynamicHeight{box_id}"),
+                Span(ds_text(f"$dynamicHeight{box_id}")),
                 "px",
                 cls="text-sm",
             ),
+            ds_on_resize(f"$dynamicWidth{box_id} = width; $dynamicHeight{box_id} = height;"),
+            ds_signals(**{f"dynamicWidth{box_id}": 0, f"dynamicHeight{box_id}": 0}),
             cls="p-4 border-2 border-dashed border-teal-300 bg-teal-50 resize overflow-auto min-h-32 min-w-48 mb-4",
             style="resize: both;",
-            ds_on_resize=f"$dynamicWidth{box_id} = width; $dynamicHeight{box_id} = height;",
-            ds_signals={f"dynamicWidth{box_id}": 0, f"dynamicHeight{box_id}": 0},
         ),
         "#dynamic-boxes",
         "append",

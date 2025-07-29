@@ -108,6 +108,7 @@ def if_(condition: str | dict[str, str], *args, **kwargs) -> str:
 # Internal Utilities
 # ============================================================================
 
+
 def _make_comparison(op: str):
     def compare(signal: str, value: Any) -> str:
         sig = signal if signal.startswith("$") else f"${{{signal}}}"
@@ -163,6 +164,7 @@ def _process_patterns(patterns: str | list[str | Pattern]) -> str | list[str]:
 # Core Datastar Attributes
 # ============================================================================
 
+
 def ds_show(value: bool | str) -> DatastarAttr:
     return DatastarAttr({"data-show": _normalize_value(value)})
 
@@ -212,6 +214,7 @@ def ds_computed(name: str, expression: str, case: str | None = None) -> Datastar
 # Conditional Attributes (class, style, attr)
 # ============================================================================
 
+
 def _make_attr_func(prefix: str):
     def attr_func(**kwargs) -> DatastarAttr:
         return DatastarAttr(
@@ -229,6 +232,7 @@ ds_attr = _make_attr_func("data-attr")
 # ============================================================================
 # Signals & State Management
 # ============================================================================
+
 
 def ds_signals(*args, **kwargs) -> DatastarAttr:
     ifmissing = kwargs.pop("ifmissing", None)
@@ -280,6 +284,7 @@ def ds_json_signals(show=True, include=None, exclude=None, terse=False):
 # Event Handlers
 # ============================================================================
 
+
 def _build_event_key(base: str, modifiers: list[str], value_mods: dict[str, str]) -> str:
     parts = [base] + modifiers
 
@@ -330,6 +335,7 @@ def ds_on(event: str, expression: str, *modifiers, **kwargs) -> DatastarAttr:
 # ============================================================================
 # Special Attributes
 # ============================================================================
+
 
 def ds_disabled(value: bool | str) -> DatastarAttr:
     return DatastarAttr({"data-disabled": _normalize_value(value)})

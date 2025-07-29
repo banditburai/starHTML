@@ -6,6 +6,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from starhtml import *
+from starhtml.datastar import ds_class, ds_on, ds_on_scroll, ds_signals, ds_style, ds_text
 from starhtml.handlers import scroll_handler
 from starhtml.xtend import Script
 
@@ -41,29 +42,33 @@ def home():
                     Div(
                         P(
                             "Scroll Position: ",
-                            Span(ds_text="$scrollPos", cls="font-bold text-blue-600"),
+                            Span(ds_text("$scrollPos"), cls="font-bold text-blue-600"),
                             " px",
                             cls="text-lg",
                         ),
                         P(
                             "Direction: ",
                             Span(
-                                ds_text="$scrollDir",
+                                ds_text("$scrollDir"),
+                                ds_class(
+                                    **{
+                                        "$scrollDir === 'up' ? 'text-green-600' : $scrollDir === 'down' ? 'text-red-600' : 'text-gray-600'": True
+                                    }
+                                ),
                                 cls="font-bold",
-                                ds_class="$scrollDir === 'up' ? 'text-green-600' : $scrollDir === 'down' ? 'text-red-600' : 'text-gray-600'",
                             ),
                             cls="text-lg",
                         ),
                         P(
                             "Velocity: ",
-                            Span(ds_text="$scrollVel", cls="font-bold text-purple-600"),
+                            Span(ds_text("$scrollVel"), cls="font-bold text-purple-600"),
                             "px/scroll",
                             cls="text-lg",
                         ),
                         cls="space-y-2",
                     ),
                     # Safe assignment with fallbacks
-                    ds_on_scroll="""
+                    ds_on_scroll("""
                         console.log('JavaScript receives arguments in order:');
                         console.log('  arg[0] scrollX:', scrollX);
                         console.log('  arg[1] scrollY:', scrollY);
@@ -74,8 +79,8 @@ def home():
                         $scrollDir = direction || 'none';
                         $scrollVel = velocity || 0;
                         console.log('Assigned to signals:', {scrollPos: $scrollPos, scrollDir: $scrollDir, scrollVel: $scrollVel});
-                    """,
-                    ds_signals={"scrollPos": 0, "scrollDir": "none", "scrollVel": 0},
+                    """),
+                    ds_signals(scrollPos=0, scrollDir="none", scrollVel=0),
                     cls="p-6 bg-white border-2 border-blue-300 rounded-lg shadow-lg sticky top-24 z-5 mb-8",
                 ),
                 cls="mb-12",
@@ -102,21 +107,21 @@ def home():
                         H3("Scroll Progress", cls="font-medium mb-2"),
                         Div(
                             Div(
+                                ds_style(width="$pageProgress + '%'"),
                                 id="progress-fill",
                                 cls="h-3 bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-150 rounded-full",
-                                ds_style_width="$pageProgress + '%'",
                             ),
                             cls="w-full h-3 bg-gray-200 rounded-full overflow-hidden",
                         ),
                         P(
                             "Page Progress: ",
-                            Span(ds_text="$pageProgress", cls="font-bold text-purple-600"),
+                            Span(ds_text("$pageProgress"), cls="font-bold text-purple-600"),
                             "%",
                             cls="text-sm mt-2",
                         ),
                         # Use proper JavaScript expressions
-                        ds_on_scroll="$pageProgress = pageProgress || 0;",
-                        ds_signals={"pageProgress": 0},
+                        ds_on_scroll("$pageProgress = pageProgress || 0;"),
+                        ds_signals(pageProgress=0),
                         cls="p-6 bg-white border-2 border-purple-200 rounded-lg shadow-md sticky top-24 z-5",
                     ),
                     cls="mb-8",
@@ -132,36 +137,36 @@ def home():
                         H3("High Frequency (25ms)", cls="font-bold text-red-700 mb-2"),
                         P(
                             "Updates: ",
-                            Span(ds_text="$fastCount", cls="text-2xl font-bold text-red-600"),
+                            Span(ds_text("$fastCount"), cls="text-2xl font-bold text-red-600"),
                             cls="font-mono text-lg",
                         ),
                         P("Very responsive, updates frequently", cls="text-sm text-gray-600 mt-2"),
-                        ds_on_scroll_25ms="$fastCount++;",
-                        ds_signals={"fastCount": 0},
+                        ds_on("scroll", "$fastCount++;", throttle="25"),
+                        ds_signals(fastCount=0),
                         cls="p-6 bg-red-50 border-2 border-red-300 rounded-lg shadow-md transform transition-transform hover:scale-105",
                     ),
                     Div(
                         H3("Medium Frequency (100ms)", cls="font-bold text-yellow-700 mb-2"),
                         P(
                             "Updates: ",
-                            Span(ds_text="$mediumCount", cls="text-2xl font-bold text-yellow-600"),
+                            Span(ds_text("$mediumCount"), cls="text-2xl font-bold text-yellow-600"),
                             cls="font-mono text-lg",
                         ),
                         P("Balanced performance", cls="text-sm text-gray-600 mt-2"),
-                        ds_on_scroll_100ms="$mediumCount++;",
-                        ds_signals={"mediumCount": 0},
+                        ds_on("scroll", "$mediumCount++;", throttle="100"),
+                        ds_signals(mediumCount=0),
                         cls="p-6 bg-yellow-50 border-2 border-yellow-300 rounded-lg shadow-md transform transition-transform hover:scale-105",
                     ),
                     Div(
                         H3("Low Frequency (250ms)", cls="font-bold text-blue-700 mb-2"),
                         P(
                             "Updates: ",
-                            Span(ds_text="$slowCount", cls="text-2xl font-bold text-blue-600"),
+                            Span(ds_text("$slowCount"), cls="text-2xl font-bold text-blue-600"),
                             cls="font-mono text-lg",
                         ),
                         P("Best for performance", cls="text-sm text-gray-600 mt-2"),
-                        ds_on_scroll_250ms="$slowCount++;",
-                        ds_signals={"slowCount": 0},
+                        ds_on("scroll", "$slowCount++;", throttle="250"),
+                        ds_signals(slowCount=0),
                         cls="p-6 bg-blue-50 border-2 border-blue-300 rounded-lg shadow-md transform transition-transform hover:scale-105",
                     ),
                     cls="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 sticky top-96 z-4 bg-white p-4 rounded-lg shadow-lg",
@@ -190,11 +195,15 @@ def home():
                     Div(
                         H3("Slow Parallax (0.8x speed)", cls="font-medium text-white relative z-10"),
                         P("Moves slower than scroll", cls="text-white/80"),
-                        P("Y Offset: ", Span(ds_text="$parallax1.toFixed(1)"), "px", cls="text-sm text-white/70"),
+                        P("Y Offset: ", Span(ds_text("$parallax1.toFixed(1)")), "px", cls="text-sm text-white/70"),
                         # Smooth parallax using the scroll handler's smooth modifier
-                        ds_on_scroll_smooth="$parallax1 = visible ? Math.max(-100, Math.min(100, (scrollY - elementTop + 300) * -0.2)) : $parallax1;",
-                        ds_style_transform="'translateY(' + $parallax1 + 'px)'",
-                        ds_signals={"parallax1": 0},
+                        ds_on(
+                            "scroll",
+                            "$parallax1 = visible ? Math.max(-100, Math.min(100, (scrollY - elementTop + 300) * -0.2)) : $parallax1;",
+                            "smooth",
+                        ),
+                        ds_style(transform="'translateY(' + $parallax1 + 'px)'"),
+                        ds_signals(parallax1=0),
                         id="parallax-box-1",
                         cls="parallax-smooth p-6 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg mb-8 shadow-lg",
                         style="min-height: 120px;",
@@ -202,11 +211,11 @@ def home():
                     Div(
                         H3("Normal Parallax (1.0x speed)", cls="font-medium text-white relative z-10"),
                         P("Moves with normal scroll", cls="text-white/80"),
-                        P("Y Offset: ", Span(ds_text="$parallax2.toFixed(1)"), "px", cls="text-sm text-white/70"),
+                        P("Y Offset: ", Span(ds_text("$parallax2.toFixed(1)")), "px", cls="text-sm text-white/70"),
                         # No parallax effect - stays at base position
-                        ds_on_scroll_smooth="$parallax2 = 0;",
-                        ds_style_transform="'translateY(' + $parallax2 + 'px)'",
-                        ds_signals={"parallax2": 0},
+                        ds_on("scroll", "$parallax2 = 0;", "smooth"),
+                        ds_style(transform="'translateY(' + $parallax2 + 'px)'"),
+                        ds_signals(parallax2=0),
                         id="parallax-box-2",
                         cls="parallax-smooth p-6 bg-gradient-to-r from-green-600 to-blue-600 rounded-lg mb-8 shadow-lg",
                         style="min-height: 120px;",
@@ -214,11 +223,15 @@ def home():
                     Div(
                         H3("Fast Parallax (1.2x speed)", cls="font-medium text-white relative z-10"),
                         P("Moves faster than scroll", cls="text-white/80"),
-                        P("Y Offset: ", Span(ds_text="$parallax3.toFixed(1)"), "px", cls="text-sm text-white/70"),
+                        P("Y Offset: ", Span(ds_text("$parallax3.toFixed(1)")), "px", cls="text-sm text-white/70"),
                         # Smooth parallax using the scroll handler's smooth modifier
-                        ds_on_scroll_smooth="$parallax3 = visible ? Math.max(-100, Math.min(100, (scrollY - elementTop + 300) * 0.2)) : $parallax3;",
-                        ds_style_transform="'translateY(' + $parallax3 + 'px)'",
-                        ds_signals={"parallax3": 0},
+                        ds_on(
+                            "scroll",
+                            "$parallax3 = visible ? Math.max(-100, Math.min(100, (scrollY - elementTop + 300) * 0.2)) : $parallax3;",
+                            "smooth",
+                        ),
+                        ds_style(transform="'translateY(' + $parallax3 + 'px)'"),
+                        ds_signals(parallax3=0),
                         id="parallax-box-3",
                         cls="parallax-smooth p-6 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg mb-8 shadow-lg",
                         style="min-height: 120px;",
@@ -235,10 +248,12 @@ def home():
                     Div(
                         H3("Fade In Animation", cls="font-medium mb-2"),
                         P("This box fades in when you scroll to it."),
-                        ds_on_scroll="$fadeVisible = visible;",
-                        ds_signals={"fadeVisible": False},
-                        ds_style_opacity="$fadeVisible ? '1' : '0'",
-                        ds_style_transform="$fadeVisible ? 'translateY(0)' : 'translateY(20px)'",
+                        ds_on_scroll("$fadeVisible = visible;"),
+                        ds_signals(fadeVisible=False),
+                        ds_style(
+                            opacity="$fadeVisible ? '1' : '0'",
+                            transform="$fadeVisible ? 'translateY(0)' : 'translateY(20px)'",
+                        ),
                         cls="p-6 bg-orange-100 border border-orange-300 rounded transition-all duration-500",
                     ),
                     # Reduced spacer
@@ -246,10 +261,11 @@ def home():
                     Div(
                         H3("Scale In Animation", cls="font-medium mb-2"),
                         P("This box scales in when visible."),
-                        ds_on_scroll="$scaleVisible = visible;",
-                        ds_signals={"scaleVisible": False},
-                        ds_style_opacity="$scaleVisible ? '1' : '0'",
-                        ds_style_transform="$scaleVisible ? 'scale(1)' : 'scale(0.8)'",
+                        ds_on_scroll("$scaleVisible = visible;"),
+                        ds_signals(scaleVisible=False),
+                        ds_style(
+                            opacity="$scaleVisible ? '1' : '0'", transform="$scaleVisible ? 'scale(1)' : 'scale(0.8)'"
+                        ),
                         cls="p-6 bg-teal-100 border border-teal-300 rounded transition-all duration-500",
                     ),
                     # Reduced spacer
@@ -257,10 +273,12 @@ def home():
                     Div(
                         H3("Slide In Animation", cls="font-medium mb-2"),
                         P("This box slides in from the side."),
-                        ds_on_scroll="$slideVisible = visible;",
-                        ds_signals={"slideVisible": False},
-                        ds_style_opacity="$slideVisible ? '1' : '0'",
-                        ds_style_transform="$slideVisible ? 'translateX(0)' : 'translateX(-100px)'",
+                        ds_on_scroll("$slideVisible = visible;"),
+                        ds_signals(slideVisible=False),
+                        ds_style(
+                            opacity="$slideVisible ? '1' : '0'",
+                            transform="$slideVisible ? 'translateX(0)' : 'translateX(-100px)'",
+                        ),
                         cls="p-6 bg-pink-100 border border-pink-300 rounded transition-all duration-500",
                     ),
                     cls="space-y-32 mb-8",
@@ -287,12 +305,12 @@ def home():
                     Div(
                         H3("📊 Usage Patterns", cls="font-medium mb-2"),
                         Ul(
-                            Li('ds_on_scroll="$signal = value" - Default 100ms throttle'),
-                            Li('ds_on_scroll_50ms="$signal++" - Custom throttle'),
+                            Li('ds_on_scroll("$signal = value") - Default 100ms throttle'),
+                            Li('ds_on("scroll", "$signal++", throttle="50") - Custom throttle'),
                             Li("Available context: direction, scrollY, velocity, visible, progress, etc."),
                             Li("Direction: 'up', 'down', or 'none'"),
-                            Li("Use ds_signals for reactive state"),
-                            Li("Use ds_attr_style_* for dynamic styling"),
+                            Li("Use ds_signals() for reactive state"),
+                            Li("Use ds_style() for dynamic styling"),
                             Li("Avoid complex JavaScript - use context variables"),
                             Li("Works with dynamically added elements"),
                             Li("Automatic initial execution on page load"),
@@ -312,21 +330,25 @@ def home():
             Div(
                 H4("Scrolling UP", cls="font-bold text-sm text-green-700"),
                 P("Scroll up detected", cls="text-xs text-green-600"),
-                ds_style_opacity="$currentScrollDirection === 'up' ? '1' : '0'",
-                ds_style_transform="$currentScrollDirection === 'up' ? 'translateY(0)' : 'translateY(-20px)'",
+                ds_style(
+                    opacity="$currentScrollDirection === 'up' ? '1' : '0'",
+                    transform="$currentScrollDirection === 'up' ? 'translateY(0)' : 'translateY(-20px)'",
+                ),
                 cls="p-3 bg-green-100 border-2 border-green-300 rounded shadow-lg mb-3 transition-all duration-300",
             ),
             # DOWN indicator
             Div(
                 H4("Scrolling DOWN", cls="font-bold text-sm text-red-700"),
                 P("Scroll down detected", cls="text-xs text-red-600"),
-                ds_style_opacity="$currentScrollDirection === 'down' ? '1' : '0'",
-                ds_style_transform="$currentScrollDirection === 'down' ? 'translateY(0)' : 'translateY(20px)'",
+                ds_style(
+                    opacity="$currentScrollDirection === 'down' ? '1' : '0'",
+                    transform="$currentScrollDirection === 'down' ? 'translateY(0)' : 'translateY(20px)'",
+                ),
                 cls="p-3 bg-red-100 border-2 border-red-300 rounded shadow-lg transition-all duration-300",
             ),
             # Only update direction when actively scrolling (ignore 'none')
-            ds_on_scroll="if (direction !== 'none') { $currentScrollDirection = direction; }",
-            ds_signals={"currentScrollDirection": "down"},  # Start with DOWN
+            ds_on_scroll("if (direction !== 'none') { $currentScrollDirection = direction; }"),
+            ds_signals(currentScrollDirection="down"),  # Start with DOWN
             cls="fixed top-20 right-6 w-48 z-50",
         ),
         # Footer
