@@ -544,7 +544,7 @@ async def _find_p(req, arg: str, p):
         res = req.query_params.getlist(arg)
     if res == []:
         res = None
-    if res in (empty, None):
+    if res in (empty, None) and req.method in {"POST", "PUT", "PATCH", "DELETE"}:
         res = form2dict(await parse_form(req)).get(arg, None)
     if res in (empty, None) and _should_extract_datastar_signals(req):
         res = _extract_from_datastar_query(req, arg) or await _extract_from_datastar_body(req, arg)

@@ -169,5 +169,80 @@ def test_datastar_unpacking_form_data():
     assert response.text == "Name: Form User, Email: form@example.com"
 
 
+def test_get_request_no_body_parsing():
+    """Test GET request doesn't try to parse body"""
+    app, rt = star_app()
+
+    @rt("/test")
+    def test_route(name: str = "default"):
+        return f"Name: {name}"
+
+    client = TestClient(app)
+    # GET request should not attempt to parse body
+    response = client.get("/test")
+    assert response.status_code == 200
+    assert response.text == "Name: default"
+
+
+def test_post_empty_body_with_defaults():
+    """Test POST with empty body uses parameter defaults"""
+    app, rt = star_app()
+
+    @rt("/test")
+    def test_route(name: str = "default", age: int = 25):
+        return {"name": name, "age": age}
+
+    client = TestClient(app)
+    # Empty POST should use defaults
+    response = client.post("/test")
+    assert response.status_code == 200
+    assert response.json() == {"name": "default", "age": 25}
+
+
+def test_put_empty_body_with_datastar():
+    """Test PUT with empty body but datastar in query"""
+    app, rt = star_app()
+
+    @rt("/test", methods=["PUT"])
+    def test_route(name: str):
+        return f"Name: {name}"
+
+    client = TestClient(app)
+    # Empty PUT body but datastar in query should work
+    datastar_data = {"name": "DatastarName"}
+    response = client.put(f"/test?datastar={json.dumps(datastar_data)}")
+    assert response.status_code == 200
+    assert response.text == "Name: DatastarName"
+
+
+def test_head_request_ignored():
+    """Test HEAD request doesn't parse body or cause errors"""
+    app, rt = star_app()
+
+    @rt("/test")
+    def test_route(name: str = "default"):
+        return f"Name: {name}"
+
+    client = TestClient(app)
+    # HEAD request should work without parsing body
+    response = client.head("/test")
+    assert response.status_code == 200
+
+
+def test_malformed_content_type():
+    """Test request with malformed content-type header"""
+    app, rt = star_app()
+
+    @rt("/test")
+    def test_route(name: str = "default"):
+        return f"Name: {name}"
+
+    client = TestClient(app)
+    # Malformed content-type should be handled gracefully
+    response = client.post("/test", data=b"", headers={"Content-Type": "application/json; charset=broken"})
+    assert response.status_code == 200
+    assert response.text == "Name: default"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
