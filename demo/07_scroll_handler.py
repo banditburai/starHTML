@@ -1,6 +1,5 @@
 """Comprehensive demo showcasing the scroll handler capabilities."""
 
-
 from starhtml import *
 
 app, rt = star_app(
