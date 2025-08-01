@@ -16,10 +16,42 @@ from starhtml.datastar import (
     ds_json_signals,
     ds_on,
     ds_on_click,
+    ds_on_contextmenu,
+    ds_on_dblclick,
+    ds_on_drag,
+    ds_on_dragend,
+    ds_on_dragenter,
+    ds_on_dragleave,
+    ds_on_dragover,
+    # New drag event handlers
+    ds_on_dragstart,
+    ds_on_drop,
     ds_on_input,
     ds_on_intersect,
     ds_on_interval,
+    # New mouse event handlers
+    ds_on_mousedown,
+    ds_on_mouseenter,
+    ds_on_mouseleave,
+    ds_on_mousemove,
+    ds_on_mouseout,
+    ds_on_mouseover,
+    ds_on_mouseup,
+    ds_on_pointerdown,
+    ds_on_pointerenter,
+    ds_on_pointerleave,
+    ds_on_pointermove,
+    ds_on_pointerup,
+    # Additional event handlers
+    ds_on_reset,
+    ds_on_select,
     ds_on_submit,
+    ds_on_touchcancel,
+    ds_on_touchend,
+    ds_on_touchmove,
+    # New touch event handlers
+    ds_on_touchstart,
+    ds_on_wheel,
     ds_persist,
     ds_preserve_attr,
     ds_show,
@@ -312,6 +344,120 @@ class TestEventHandlers:
         """Test generic ds_on for custom events."""
         result = attrs_of(ds_on("custom-event", "handleCustom()", "once"))
         assert "data-on-custom-event__once" in result
+
+    def test_mouse_event_handlers(self):
+        """Test mouse event handler generation."""
+        # Basic mouse events
+        result = attrs_of(ds_on_mousedown("handleMouseDown()"))
+        assert "data-on-mousedown" in result
+        assert "handleMouseDown()" in str(result["data-on-mousedown"])
+
+        result = attrs_of(ds_on_mouseup("handleMouseUp()"))
+        assert "data-on-mouseup" in result
+
+        result = attrs_of(ds_on_mousemove("handleMouseMove()"))
+        assert "data-on-mousemove" in result
+
+        # Mouse enter/leave events
+        result = attrs_of(ds_on_mouseenter("showTooltip()"))
+        assert "data-on-mouseenter" in result
+
+        result = attrs_of(ds_on_mouseleave("hideTooltip()"))
+        assert "data-on-mouseleave" in result
+
+        # Mouse over/out events
+        result = attrs_of(ds_on_mouseover("handleOver()"))
+        assert "data-on-mouseover" in result
+
+        result = attrs_of(ds_on_mouseout("handleOut()"))
+        assert "data-on-mouseout" in result
+
+        # Special mouse events
+        result = attrs_of(ds_on_contextmenu("showContextMenu()", prevent=True))
+        assert "data-on-contextmenu__prevent" in result
+
+        result = attrs_of(ds_on_dblclick("handleDoubleClick()"))
+        assert "data-on-dblclick" in result
+
+        result = attrs_of(ds_on_wheel("handleWheel()", prevent=True))
+        assert "data-on-wheel__prevent" in result
+
+    def test_touch_event_handlers(self):
+        """Test touch event handler generation."""
+        result = attrs_of(ds_on_touchstart("handleTouchStart()"))
+        assert "data-on-touchstart" in result
+        assert "handleTouchStart()" in str(result["data-on-touchstart"])
+
+        result = attrs_of(ds_on_touchmove("handleTouchMove()"))
+        assert "data-on-touchmove" in result
+
+        result = attrs_of(ds_on_touchend("handleTouchEnd()"))
+        assert "data-on-touchend" in result
+
+        result = attrs_of(ds_on_touchcancel("handleTouchCancel()"))
+        assert "data-on-touchcancel" in result
+
+    def test_drag_event_handlers(self):
+        """Test drag and drop event handlers."""
+        result = attrs_of(ds_on_dragstart("handleDragStart()"))
+        assert "data-on-dragstart" in result
+
+        result = attrs_of(ds_on_drag("handleDrag()"))
+        assert "data-on-drag" in result
+
+        result = attrs_of(ds_on_dragenter("handleDragEnter()"))
+        assert "data-on-dragenter" in result
+
+        result = attrs_of(ds_on_dragover("handleDragOver()", prevent=True))
+        assert "data-on-dragover__prevent" in result
+
+        result = attrs_of(ds_on_dragleave("handleDragLeave()"))
+        assert "data-on-dragleave" in result
+
+        result = attrs_of(ds_on_drop("handleDrop()", prevent=True))
+        assert "data-on-drop__prevent" in result
+
+        result = attrs_of(ds_on_dragend("handleDragEnd()"))
+        assert "data-on-dragend" in result
+
+    def test_additional_event_handlers(self):
+        """Test additional form and pointer event handlers."""
+        # Additional form events
+        result = attrs_of(ds_on_reset("handleReset()"))
+        assert "data-on-reset" in result
+
+        result = attrs_of(ds_on_select("handleSelect()"))
+        assert "data-on-select" in result
+
+        # Pointer events
+        result = attrs_of(ds_on_pointerdown("handlePointerDown()"))
+        assert "data-on-pointerdown" in result
+
+        result = attrs_of(ds_on_pointerup("handlePointerUp()"))
+        assert "data-on-pointerup" in result
+
+        result = attrs_of(ds_on_pointermove("handlePointerMove()"))
+        assert "data-on-pointermove" in result
+
+        result = attrs_of(ds_on_pointerenter("handlePointerEnter()"))
+        assert "data-on-pointerenter" in result
+
+        result = attrs_of(ds_on_pointerleave("handlePointerLeave()"))
+        assert "data-on-pointerleave" in result
+
+    def test_new_event_handlers_with_modifiers(self):
+        """Test new event handlers with various modifiers."""
+        # Mouse event with multiple modifiers
+        result = attrs_of(ds_on_mousedown("startDrag()", "once", prevent=True))
+        assert "data-on-mousedown__once.prevent" in result
+
+        # Touch event with debounce
+        result = attrs_of(ds_on_touchmove("handleSwipe()", debounce="100ms"))
+        assert "data-on-touchmove__debounce.100ms" in result
+
+        # Drag event with stop propagation
+        result = attrs_of(ds_on_drop("handleFileDrop()", "stop", prevent=True))
+        assert "data-on-drop__stop.prevent" in result
 
 
 class TestOtherAttributes:

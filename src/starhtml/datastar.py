@@ -267,6 +267,44 @@ ds_on_load = _create_event_handler("load")
 ds_on_interval = _create_event_handler("interval")
 ds_on_intersect = _create_event_handler("intersect")
 
+# Mouse Events
+ds_on_mousedown = _create_event_handler("mousedown")
+ds_on_mouseup = _create_event_handler("mouseup")
+ds_on_mousemove = _create_event_handler("mousemove")
+ds_on_mouseenter = _create_event_handler("mouseenter")
+ds_on_mouseleave = _create_event_handler("mouseleave")
+ds_on_mouseover = _create_event_handler("mouseover")
+ds_on_mouseout = _create_event_handler("mouseout")
+ds_on_contextmenu = _create_event_handler("contextmenu")
+ds_on_dblclick = _create_event_handler("dblclick")
+ds_on_wheel = _create_event_handler("wheel")
+
+# Touch Events
+ds_on_touchstart = _create_event_handler("touchstart")
+ds_on_touchmove = _create_event_handler("touchmove")
+ds_on_touchend = _create_event_handler("touchend")
+ds_on_touchcancel = _create_event_handler("touchcancel")
+
+# Drag and Drop Events
+ds_on_dragstart = _create_event_handler("dragstart")
+ds_on_drag = _create_event_handler("drag")
+ds_on_dragenter = _create_event_handler("dragenter")
+ds_on_dragover = _create_event_handler("dragover")
+ds_on_dragleave = _create_event_handler("dragleave")
+ds_on_drop = _create_event_handler("drop")
+ds_on_dragend = _create_event_handler("dragend")
+
+# Additional Form Events
+ds_on_reset = _create_event_handler("reset")
+ds_on_select = _create_event_handler("select")
+
+# Pointer Events
+ds_on_pointerdown = _create_event_handler("pointerdown")
+ds_on_pointerup = _create_event_handler("pointerup")
+ds_on_pointermove = _create_event_handler("pointermove")
+ds_on_pointerenter = _create_event_handler("pointerenter")
+ds_on_pointerleave = _create_event_handler("pointerleave")
+
 
 def ds_on(event: str, expression: str, *modifiers, **kwargs) -> DatastarAttr:
     key = _build_event_key(f"data-on-{event}", list(modifiers), kwargs)
@@ -330,6 +368,38 @@ __all__ = [
     "ds_on_load",
     "ds_on_interval",
     "ds_on_intersect",
+    # Mouse Events
+    "ds_on_mousedown",
+    "ds_on_mouseup",
+    "ds_on_mousemove",
+    "ds_on_mouseenter",
+    "ds_on_mouseleave",
+    "ds_on_mouseover",
+    "ds_on_mouseout",
+    "ds_on_contextmenu",
+    "ds_on_dblclick",
+    "ds_on_wheel",
+    # Touch Events
+    "ds_on_touchstart",
+    "ds_on_touchmove",
+    "ds_on_touchend",
+    "ds_on_touchcancel",
+    # Drag Events
+    "ds_on_dragstart",
+    "ds_on_drag",
+    "ds_on_dragenter",
+    "ds_on_dragover",
+    "ds_on_dragleave",
+    "ds_on_drop",
+    "ds_on_dragend",
+    # Additional Events
+    "ds_on_reset",
+    "ds_on_select",
+    "ds_on_pointerdown",
+    "ds_on_pointerup",
+    "ds_on_pointermove",
+    "ds_on_pointerenter",
+    "ds_on_pointerleave",
     "ds_on",
     "ds_disabled",
     "ds_ignore",
