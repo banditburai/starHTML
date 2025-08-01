@@ -23,19 +23,17 @@ js_evts = "blur change contextmenu focus input invalid reset select submit keydo
 
 
 def attrmap_x(o: str) -> str:
-    """Extended attribute mapping for StarHTML (e.g., `_at_` -> `@`)."""
-    if o.startswith("_at_"):
-        o = "@" + o[4:]
-    return attrmap(o)
+    """Extended attribute mapping for StarHTML."""
+    return attrmap("@" + o[4:] if o.startswith("_at_") else o)
 
 
 fh_cfg = AttrDict(
-    attrmap=attrmap_x,  # How to transform attribute names (e.g., cls -> class)
-    valmap=valmap,  # How to transform attribute values
-    ft_cls=FT,  # Which class to use for HTML elements
-    auto_id=False,  # Whether to auto-generate element IDs
-    auto_name=True,  # Whether to auto-generate name attributes
-    indent=True,  # Whether to indent HTML/XML output
+    attrmap=attrmap_x,
+    valmap=valmap,
+    ft_cls=FT,
+    auto_id=False,
+    auto_name=True,
+    indent=True,
 )
 
 # ============================================================================
@@ -55,44 +53,45 @@ def ft_html(
     ft_cls: type | None = None,
     **kwargs: Any,
 ) -> FT:
-    "Create a basic HTML element using fastcore's ft system"
+    """Create a basic HTML element using fastcore's ft system."""
     ds, c = partition(c, risinstance(dict))
     for d in ds:
         kwargs = {**kwargs, **d}
-    if ft_cls is None:
-        ft_cls = fh_cfg.ft_cls
-    if attrmap is None:
-        attrmap = fh_cfg.attrmap
-    if valmap is None:
-        valmap = fh_cfg.valmap
+
+    ft_cls = ft_cls or fh_cfg.ft_cls
+    attrmap = attrmap or fh_cfg.attrmap
+    valmap = valmap or fh_cfg.valmap
+
     if not id and fh_cfg.auto_id:
         id = True
     if id and isinstance(id, bool):
         id = unqid()
-    kwargs["id"] = id.id if isinstance(id, FT) else id
-    kwargs["cls"], kwargs["title"], kwargs["style"] = cls, title, style
+
+    kwargs.update({"id": id.id if isinstance(id, FT) else id, "cls": cls, "title": title, "style": style})
     tag, c, kw = ft(tag, *c, attrmap=attrmap, valmap=valmap, **kwargs).list
-    if fh_cfg["auto_name"] and tag in named and id and "name" not in kw:
+
+    if fh_cfg.auto_name and tag in named and id and "name" not in kw:
         kw["name"] = kw["id"]
+
     return ft_cls(tag, c, kw, void_=tag in voids)
 
 
 def ft_datastar(tag: str, *c: Any, **kwargs: Any) -> FT:
-    """Create an HTML element with support for Datastar direct attributes.
+    """Create an HTML element with support for Datastar attributes."""
+    from .datastar import DatastarAttr
 
-    This function processes ds_* attributes and transforms them to data-* attributes.
-    For example: ds_on_click="handler()" becomes data-on-click="handler()"
-    """
-    from .datastar import _process_datastar_attrs
+    new_children = []
+    for child in c:
+        if isinstance(child, DatastarAttr):
+            kwargs.update(child.attrs)
+        else:
+            new_children.append(child)
 
-    kwargs = _process_datastar_attrs(kwargs)
-    element = ft_html(tag, *c, **kwargs)
-
-    return element
+    return ft_html(tag, *new_children, **kwargs)
 
 
 # ============================================================================
-# HTML Conversion Utility (html2ft)
+# HTML Conversion Utility
 # ============================================================================
 
 _re_h2x_attr_key = re.compile(r"^[A-Za-z_-][\w-]*$")
@@ -100,7 +99,7 @@ _attr_cache: dict[str, bool] = {}
 
 
 def _is_valid_attr(key: str) -> bool:
-    """Cached attribute validation"""
+    """Cached attribute validation."""
     return _attr_cache.setdefault(key, _re_h2x_attr_key.match(key) is not None)
 
 
@@ -108,12 +107,12 @@ _tag_cache: dict[str, str] = {}
 
 
 def _get_tag_name(name: str) -> str:
-    """Cached tag name transformation"""
+    """Cached tag name transformation."""
     return _tag_cache.setdefault(name, "[document]" if name == "[document]" else name.capitalize().replace("-", "_"))
 
 
 def html2ft(html, attr1st=False):
-    """Convert HTML to an `ft` expression - Optimized version with 2.52x speedup"""
+    """Convert HTML to an `ft` expression."""
     rev_map = {"class": "cls", "for": "fr"}
 
     def _parse(elm, lvl=0, indent=4):

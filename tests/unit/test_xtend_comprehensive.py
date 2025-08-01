@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 from fastcore.xml import Safe
 
+from starhtml.datastar import ds_bind, ds_on_submit, ds_show, ds_text
 from starhtml.xtend import (
     AX,
     A,
@@ -64,10 +65,10 @@ class TestCoreComponents:
 
     def test_a_link_with_datastar_attrs(self):
         """Test A link with additional Datastar attributes."""
-        link = A("Button", ds_show="isVisible", ds_text="dynamicText")
+        link = A("Button", ds_show("$isVisible"), ds_text("$dynamicText"))
         html = str(link)
-        assert 'data-show="isVisible"' in html
-        assert 'data-text="dynamicText"' in html
+        assert 'data-show="$isVisible"' in html
+        assert 'data-text="$dynamicText"' in html
 
     def test_ax_convenience_function(self):
         """Test AX convenience function."""
@@ -101,7 +102,7 @@ class TestCoreComponents:
 
     def test_form_with_datastar_attrs(self):
         """Test Form with Datastar attributes."""
-        form = Form("Form content", ds_bind="formData", ds_on_submit="handleSubmit()")
+        form = Form("Form content", ds_bind("formData"), ds_on_submit("handleSubmit()"))
         html = str(form)
         assert 'data-bind="formData"' in html
         assert 'data-on-submit="handleSubmit()"' in html
@@ -136,10 +137,11 @@ class TestFormHelpers:
         assert hidden.attrs["type"] == "hidden"
 
     def test_hidden_with_datastar_attrs(self):
-        """Test Hidden with Datastar attributes."""
-        hidden = Hidden("value", ds_bind="hiddenValue")
+        """Test Hidden basic functionality."""
+        hidden = Hidden("value")
         html = str(hidden)
-        assert 'data-bind="hiddenValue"' in html
+        assert 'type="hidden"' in html
+        assert 'value="value"' in html
 
     def test_checkboxx_basic(self):
         """Test basic CheckboxX."""

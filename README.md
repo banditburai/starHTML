@@ -12,6 +12,7 @@ pip install starhtml
 
 ```python
 from starhtml import *
+from starhtml.datastar import ds_text, ds_on_click, ds_signals
 
 app, rt = star_app()
 
@@ -21,14 +22,14 @@ def home():
         H1("StarHTML Demo"),
         # Client-side reactivity with signals
         Div(
-            P("Count: ", Span(ds_text="$count")),
-            Button("++", ds_on_click="$count++"),
-            Button("Reset", ds_on_click="$count = 0"),
-            ds_signals={"count": 0}
+            P("Count: ", Span(ds_text("$count"))),
+            Button("++", ds_on_click("$count++")),
+            Button("Reset", ds_on_click("$count = 0")),
+            ds_signals(count=0)
         ),
         
         # Server-side interactions
-        Button("Load Data", ds_on_click="@get('/api/data')"),
+        Button("Load Data", ds_on_click("@get('/api/data')")),
         Div(id="content")
     )
 

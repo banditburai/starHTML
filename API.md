@@ -1,0 +1,290 @@
+# StarHTML Datastar API Reference
+
+## Quick Start
+
+StarHTML provides a Pythonic interface for creating reactive web applications using Datastar attributes. Every `ds_*` attribute is a function that returns a DatastarAttr object:
+
+```python
+from starhtml import Div, Button, Input, Form
+from starhtml.datastar import ds_show, ds_on_click, ds_bind, ds_signals
+
+# Basic reactive example
+Div(
+    Button("Toggle", ds_on_click("$show = !$show")),
+    Div("Hello!", ds_show("$show")),
+    ds_signals(show=True)
+)
+```
+
+## Core Concepts
+
+### 1. Signals and State
+
+Signals are reactive variables that automatically update the UI:
+
+```python
+# Define initial signals
+ds_signals(count=0, user="", active=True)
+
+# Reference signals with $ prefix in expressions
+ds_text("$count")
+ds_show("$active")
+ds_class(highlight="$count > 10")
+```
+
+### 2. Event Handling
+
+Handle user interactions with event functions:
+
+```python
+# Basic click handler
+Button("Click me", ds_on_click("$count++"))
+
+# With modifiers
+Form(
+    ds_on_submit("handleSubmit()", "prevent"),
+    Input(ds_on_input("search()", debounce="300ms"))
+)
+
+# Custom events
+Div(ds_on("mouseenter", "$hovered = true"))
+```
+
+### 3. Two-Way Binding
+
+Bind form inputs to signals:
+
+```python
+# Simple binding
+Input(type="text", ds_bind("username"))
+
+# With transformation
+Input(type="email", ds_bind("email", case="lower"))
+```
+
+## Essential Helpers
+
+### Template Literals with `t()`
+
+Use Python f-string style for JavaScript template literals:
+
+```python
+from starhtml.datastar import t, ds_text
+
+# Python f-string style → JavaScript template literal
+Span(ds_text(t("Hello {$name}! You have {$count} messages.")))
+# Outputs: data-text="`Hello ${$name}! You have ${$count} messages.`"
+```
+
+### Conditionals with `if_()`
+
+```python
+from starhtml.datastar import if_, ds_style, ds_class
+
+# Simple ternary
+Div(ds_class(active=if_("$selected", "bg-blue-500", "bg-gray-200")))
+
+# Pattern matching
+Div(ds_style(
+    color=if_("$status",
+        success="green",
+        error="red",
+        warning="orange",
+        _="gray"  # default case
+    )
+))
+```
+
+### Comparison Helpers
+
+```python
+from starhtml.datastar import equals, gt, lt, gte, lte
+
+Div(
+    ds_show(gt("$count", 0)),           # $count > 0
+    ds_class(warn=gte("$temp", 80)),    # $temp >= 80
+    ds_disabled(equals("$status", "locked"))  # $status === 'locked'
+)
+```
+
+## Common Patterns
+
+### Form with Validation
+
+```python
+Form(
+    Input(type="email", ds_bind("email", case="lower")),
+    Input(type="password", ds_bind("password")),
+    Button("Login", ds_disabled("!$email || !$password")),
+    ds_signals(email="", password=""),
+    ds_on_submit("login()", "prevent")
+)
+```
+
+### Interactive Elements
+
+```python
+# Hover effects
+Div(
+    "Hover me!",
+    ds_signals(hovered=False),
+    ds_style(
+        background=if_("$hovered", "#e3f2fd", "#fff"),
+        transform=if_("$hovered", "scale(1.05)", "scale(1)")
+    ),
+    ds_on("mouseenter", "$hovered = true"),
+    ds_on("mouseleave", "$hovered = false")
+)
+
+# Toggle visibility
+Div(
+    Button("Toggle Details", ds_on_click("$showDetails = !$showDetails")),
+    Div(
+        "Detailed information here...",
+        ds_show("$showDetails")
+    ),
+    ds_signals(showDetails=False)
+)
+```
+
+## Event Modifiers
+
+Pass modifiers as positional arguments or kwargs:
+
+```python
+# Positional (HTML-style)
+Button("Submit", ds_on_click("submit()", "once", "prevent"))
+
+# Keyword arguments
+Button("Submit", ds_on_click("submit()", once=True, prevent=True))
+
+# Common modifiers
+Input(ds_on_input("search()", debounce="300ms"))     # Debounce
+Div(ds_on_scroll("handleScroll()", throttle="100ms")) # Throttle
+Button(ds_on_click("save()", "prevent", "stop"))      # Prevent & stop propagation
+```
+
+## Type Conversions
+
+Python types automatically convert to JavaScript:
+
+```python
+ds_show(True)                    # → data-show="true"
+ds_signals(count=0, active=True) # → data-signals-count="0" data-signals-active="true"
+ds_style(opacity=0.5)            # → data-style-opacity="0.5"
+ds_signals(items=[1, 2, 3])      # → data-signals-items="[1,2,3]"
+```
+
+## Understanding Quotes
+
+JavaScript expressions are passed as Python strings:
+
+```python
+# Expressions need quotes (they're Python strings containing JS code)
+ds_on_click("$count++")              # JS expression
+ds_text("$username || 'Anonymous'")  # JS expression with literal
+ds_show("$items.length > 0")         # JS expression
+
+# Signal definitions use Python syntax (no $ prefix)
+ds_signals(count=0, username="")     # Python kwargs
+ds_bind("email")                     # Python string
+```
+
+## Complete API Reference
+
+### Core Attributes
+
+| Function | Purpose | Example |
+|----------|---------|----------|
+| `ds_show(value)` | Show/hide element | `ds_show("$visible")` |
+| `ds_text(value)` | Set text content | `ds_text("$message")` |
+| `ds_bind(signal, case)` | Two-way binding | `ds_bind("email", case="lower")` |
+| `ds_ref(name)` | Element reference | `ds_ref("myInput")` |
+| `ds_indicator(name)` | Loading indicator | `ds_indicator("saving")` |
+| `ds_effect(expr)` | Side effects | `ds_effect("console.log($count)")` |
+| `ds_disabled(value)` | Disable element | `ds_disabled("$loading")` |
+
+### Conditional Attributes
+
+| Function | Purpose | Example |
+|----------|---------|----------|
+| `ds_class(**classes)` | Conditional classes | `ds_class(active="$selected", error="$invalid")` |
+| `ds_style(**styles)` | Inline styles | `ds_style(opacity=if_("$loading", 0.5, 1))` |
+| `ds_attr(**attrs)` | Element attributes | `ds_attr(title="$tooltip", href="$link")` |
+
+### Signals & State
+
+| Function | Purpose | Example |
+|----------|---------|----------|
+| `ds_signals(**kwargs)` | Define signals | `ds_signals(count=0, user="")` |
+| `ds_computed(name, expr)` | Computed signals | `ds_computed("total", "$price * $quantity")` |
+| `ds_persist(*signals)` | Persist to storage | `ds_persist("theme", "user")` |
+| `ds_json_signals()` | JSON state sync | `ds_json_signals(include="user")` |
+
+### Event Handlers
+
+| Function | Purpose | Common Modifiers |
+|----------|---------|------------------|
+| `ds_on_click(expr)` | Click handler | `once`, `prevent`, `stop` |
+| `ds_on_input(expr)` | Input handler | `debounce`, `lazy` |
+| `ds_on_submit(expr)` | Form submit | `prevent` |
+| `ds_on_keydown(expr)` | Key down | `enter`, `escape`, `ctrl` |
+| `ds_on_scroll(expr)` | Scroll handler | `throttle`, `passive` |
+| `ds_on(event, expr)` | Custom events | Any modifiers |
+
+### Special Attributes
+
+| Function | Purpose | Example |
+|----------|---------|----------|
+| `ds_ignore()` | Skip processing | `ds_ignore("self")` |
+| `ds_preserve_attr(*attrs)` | Keep during morph | `ds_preserve_attr("style", "class")` |
+
+## Advanced Patterns
+
+### Persistent State
+
+```python
+# Persist specific signals
+ds_persist("theme", "userPreferences")
+
+# Persist with patterns
+ds_persist(include=["user", "settings"], exclude=["temp"])
+
+# Session storage
+ds_persist("currentTab", session=True)
+```
+
+### Computed Values
+
+```python
+ds_computed("fullName", "$firstName + ' ' + $lastName")
+ds_computed("isValid", "$email && $password.length >= 8")
+ds_computed("subtotal", "$items.reduce((sum, item) => sum + item.price, 0)")
+```
+
+### Complex Event Handling
+
+```python
+# Keyboard shortcuts
+Input(ds_on_keydown("handleKey($event)", "ctrl.enter"))
+
+# Intersection observer
+Div(
+    "Lazy loaded content",
+    ds_on_intersect("loadContent()", once=True)
+)
+
+# Intervals
+Div(
+    ds_text("$time"),
+    ds_on_interval("$time = new Date().toLocaleTimeString()", duration="1000ms")
+)
+```
+
+## Best Practices
+
+1. **Use $ prefix only in expressions** - Not in signal definitions
+2. **Leverage helper functions** - `t()`, `if_()`, and comparison helpers
+3. **Group related attributes** - Use `ds_class()`, `ds_style()` for multiple values
+4. **Consistent naming** - Use `snake_case` for Python/JavaScript compatibility
+5. **Type safety** - The API is fully typed for better IDE support

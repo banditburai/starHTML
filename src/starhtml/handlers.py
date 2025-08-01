@@ -1,7 +1,6 @@
 """StarHTML Datastar plugin handlers for signal persistence, scrolling, and resizing."""
 
 import json
-import os
 from functools import cached_property
 from pathlib import Path
 
@@ -128,7 +127,8 @@ class PackageAssetManager:
 
     @cached_property
     def is_development(self) -> bool:
-        return os.environ.get("STARHTML_ENV") == "development" or not self.js_dir.exists()
+        """Check if we're in development mode based on whether JS bundles exist."""
+        return not self.js_dir.exists()
 
     def _load_manifest(self) -> dict:
         """Load asset manifest for cache-busted filenames."""

@@ -21,7 +21,6 @@ interface RuntimeContext {
   mods: Map<string, any>;
   effect: (fn: () => void) => () => void;
   getPath: (path: string) => any;
-  hasPath: (path: string) => boolean;
   mergePatch: (patch: Record<string, any>) => void;
   startBatch: () => void;
   endBatch: () => void;
@@ -38,7 +37,6 @@ interface PersistConfig {
 
 const DEFAULT_STORAGE_KEY = "starhtml-persist";
 const DEFAULT_THROTTLE = 500;
-const WILDCARD = "*";
 
 function getStorage(isSession: boolean): Storage | null {
   try {
@@ -59,28 +57,22 @@ function parseConfig(ctx: RuntimeContext): PersistConfig | null {
   const storage = getStorage(isSession);
   if (!storage) return null;
 
-  const customKey = mods.get("as");
-  const storageKey = customKey ? `${DEFAULT_STORAGE_KEY}-${customKey}` : DEFAULT_STORAGE_KEY;
+  // v1.0.0-RC.3: Custom keys come as data-persist-mykey, so the key is in ctx.key
+  const storageKey = key ? `${DEFAULT_STORAGE_KEY}-${key}` : DEFAULT_STORAGE_KEY;
 
   let signals: string[] = [];
   let isWildcard = false;
 
-  if (key) {
-    signals = [key];
-  } else if (value) {
-    const trimmed = value.trim();
-    if (trimmed === WILDCARD) {
-      isWildcard = true;
-    } else if (trimmed) {
-      signals = trimmed
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean);
-    }
-  }
-
-  // Default to wildcard if nothing specified
-  if (signals.length === 0 && !isWildcard) {
+  // Parse value for signals to persist
+  const trimmedValue = value?.trim();
+  if (trimmedValue) {
+    // If value is provided and not empty, parse it as comma-separated signals
+    signals = trimmedValue
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+  } else {
+    // No value (boolean attribute) or empty value means persist all signals
     isWildcard = true;
   }
 
@@ -117,15 +109,20 @@ function loadFromStorage(config: PersistConfig, ctx: RuntimeContext): void {
 }
 
 function getSignalsFromElement(el: HTMLElement): string[] {
-  const signalsAttr = el.getAttribute("data-signals");
-  if (!signalsAttr) return [];
+  const signals: string[] = [];
 
-  try {
-    const signals = JSON.parse(signalsAttr);
-    return Object.keys(signals);
-  } catch {
-    return [];
+  // Scan all attributes for data-signals-* pattern
+  for (const attr of el.attributes) {
+    if (attr.name.startsWith("data-signals-")) {
+      // Extract signal name from attribute name: data-signals-mySignal -> mySignal
+      const signalName = attr.name.substring("data-signals-".length);
+      if (signalName) {
+        signals.push(signalName);
+      }
+    }
   }
+
+  return signals;
 }
 
 function saveToStorage(
@@ -181,8 +178,10 @@ const persistAttributePlugin: AttributePlugin = {
 
       // Single pass: create dependencies and collect values
       for (const signal of signals) {
-        if (ctx.hasPath(signal)) {
+        try {
           data[signal] = ctx.getPath(signal);
+        } catch {
+          // Signal doesn't exist, skip it
         }
       }
 

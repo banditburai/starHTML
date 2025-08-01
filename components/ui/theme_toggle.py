@@ -2,7 +2,6 @@
 from starhtml import *
 
 from .button import Button
-from .iconify import Icon
 
 
 def ThemeToggle(**attrs) -> Div:

@@ -1323,6 +1323,9 @@ dev = [
     { name = "pyright" },
     { name = "ruff" },
 ]
+test = [
+    { name = "python-multipart" },
+]
 
 [package.metadata]
 requires-dist = [
@@ -1363,6 +1366,7 @@ dev = [
     { name = "pyright", specifier = ">=1.1.403" },
     { name = "ruff", specifier = ">=0.11.13" },
 ]
+test = [{ name = "python-multipart", specifier = ">=0.0.20" }]
 
 [[package]]
 name = "starlette"

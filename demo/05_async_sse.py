@@ -24,17 +24,17 @@ def home():
             Div(
                 Button(
                     "Test Sync Handler (blocks)",
-                    ds_on_click="@get('/sync-sse')",
+                    ds_on_click("@get('/sync-sse')"),
                     cls="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600",
                 ),
                 Button(
                     "Test Async Handler (non-blocking)",
-                    ds_on_click="@get('/async-sse')",
+                    ds_on_click("@get('/async-sse')"),
                     cls="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 ml-4",
                 ),
                 cls="mb-4",
             ),
-            Div(P("Status: ", ds_text="$status", cls="font-semibold"), cls="mb-4"),
+            Div(P("Status: ", ds_text("$status"), cls="font-semibold"), cls="mb-4"),
             Div(id="result", cls="p-4 bg-gray-100 rounded min-h-[100px]"),
             cls="mb-8",
         ),
@@ -43,23 +43,23 @@ def home():
             H2("Multiple Async Operations", cls="text-2xl font-semibold mb-4"),
             Button(
                 "Fetch Multiple APIs",
-                ds_on_click="@get('/multi-async')",
+                ds_on_click("@get('/multi-async')"),
                 cls="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 mb-4",
             ),
             Div(
-                P("API 1: ", ds_text="$api1Status", cls="mb-2"),
-                P("API 2: ", ds_text="$api2Status", cls="mb-2"),
-                P("API 3: ", ds_text="$api3Status", cls="mb-2"),
+                P("API 1: ", ds_text("$api1_status"), cls="mb-2"),
+                P("API 2: ", ds_text("$api2_status"), cls="mb-2"),
+                P("API 3: ", ds_text("$api3_status"), cls="mb-2"),
                 cls="mb-4",
             ),
             Div(id="multi-result", cls="p-4 bg-gray-100 rounded min-h-[100px]"),
         ),
-        ds_signals={
-            "status": "Ready",
-            "api1Status": "Not started",
-            "api2Status": "Not started",
-            "api3Status": "Not started",
-        },
+        ds_signals(
+            status="Ready",
+            api1_status="Not started",
+            api2_status="Not started",
+            api3_status="Not started",
+        ),
         cls="max-w-4xl mx-auto p-8",
     )
 
@@ -123,12 +123,12 @@ async def async_handler(req):
 @sse
 async def multi_async_handler(req):
     """Handle multiple async operations concurrently"""
-    yield signals(api1Status="Starting...", api2Status="Starting...", api3Status="Starting...")
+    yield signals(api1_status="Starting...", api2_status="Starting...", api3_status="Starting...")
 
     # Update status for all APIs
-    yield signals(api1Status="Fetching API 1...")
-    yield signals(api2Status="Fetching API 2...")
-    yield signals(api3Status="Fetching API 3...")
+    yield signals(api1_status="Fetching API 1...")
+    yield signals(api2_status="Fetching API 2...")
+    yield signals(api3_status="Fetching API 3...")
 
     # Simulate concurrent API calls
     start_time = asyncio.get_event_loop().time()
@@ -143,7 +143,7 @@ async def multi_async_handler(req):
 
     total_time = asyncio.get_event_loop().time() - start_time
 
-    yield signals(api1Status="✅ Complete", api2Status="✅ Complete", api3Status="✅ Complete")
+    yield signals(api1_status="✅ Complete", api2_status="✅ Complete", api3_status="✅ Complete")
 
     yield elements(
         Div(

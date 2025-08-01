@@ -39,6 +39,8 @@ __all__ = [
     "find_inputs",
     "form2dict",
     "parse_form",
+    "clear_form_signals",
+    "to_js",
     "unqid",
     "parsed_date",
     "snake2hyphens",
@@ -180,6 +182,39 @@ def find_inputs(e, tags="input", **kw):
     for o in cs:
         inputs += find_inputs(o, tags, **kw)
     return inputs
+
+
+def to_js(value):
+    """Convert Python value to safe JavaScript literal."""
+    import json
+
+    match value:
+        case bool():
+            return "true" if value else "false"
+        case str():
+            return json.dumps(value)
+        case int() | float():
+            return str(value)
+        case None:
+            return "null"
+        case dict() | list() | tuple():
+            return json.dumps(value)
+        case _:
+            return json.dumps(str(value))
+
+
+def clear_form_signals(*signals, **kwargs):
+    """Generate JavaScript to clear form signals to empty strings or specified values."""
+
+    # Auto-detect dict passed as first argument (no ** required)
+    if len(signals) == 1 and isinstance(signals[0], dict) and not kwargs:
+        kwargs = signals[0]
+        signals = ()
+
+    assignments = [f"${s} = ''" for s in signals]
+    assignments.extend(f"${k} = {to_js(v)}" for k, v in kwargs.items())
+
+    return "; ".join(assignments)
 
 
 def File(fname: str):

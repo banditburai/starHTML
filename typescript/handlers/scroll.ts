@@ -19,18 +19,19 @@ interface RuntimeContext {
   key: string;
   value: string;
   mods: Map<string, any>;
-  rx: (expression: string, ...args: any[]) => any;
+  rx: (...args: any[]) => any;
   mergePatch: (patch: Record<string, any>) => void;
   startBatch: () => void;
   endBatch: () => void;
-  hasPath: (path: string) => boolean;
   getPath: (path: string) => any;
 }
 
 type OnRemovalFn = () => void;
 
+const DEFAULT_THROTTLE = 100;
+const DIRECTION_THRESHOLD = 5;
+
 const SCROLL_ARG_NAMES = [
-  "value", // This represents the expression itself
   "scrollX",
   "scrollY",
   "direction",
@@ -44,11 +45,7 @@ const SCROLL_ARG_NAMES = [
   "elementBottom",
   "isTop",
   "isBottom",
-  "$el",
-];
-
-const DEFAULT_THROTTLE = 100;
-const DIRECTION_THRESHOLD = 5;
+] as const;
 
 interface ScrollData {
   scrollX: number;
@@ -131,14 +128,16 @@ function getThrottleMs(mods: Map<string, any>): number {
 
 const scrollAttributePlugin: AttributePlugin = {
   type: "attribute",
-  name: "scroll",
+  name: "onScroll",
   keyReq: "starts",
   argNames: [...SCROLL_ARG_NAMES],
 
   onLoad(ctx: RuntimeContext): OnRemovalFn | void {
-    const { el, value, mods, rx, startBatch, endBatch } = ctx;
+    const { el, value, mods, rx, mergePatch, startBatch, endBatch } = ctx;
 
-    if (!value?.trim()) return;
+    if (!value?.trim()) {
+      return;
+    }
 
     const throttleMs = getThrottleMs(mods);
 
@@ -156,7 +155,9 @@ const scrollAttributePlugin: AttributePlugin = {
     }
 
     const updateScroll = () => {
-      if (isUpdating) return;
+      if (isUpdating) {
+        return;
+      }
       isUpdating = true;
 
       const rawScrollData = getScrollData(el, lastScrollY);
@@ -183,8 +184,22 @@ const scrollAttributePlugin: AttributePlugin = {
 
       startBatch();
       try {
+        mergePatch({
+          scrollX: scrollData.scrollX,
+          scrollY: scrollData.scrollY,
+          direction: scrollData.direction,
+          velocity: scrollData.velocity,
+          delta: scrollData.delta,
+          visible: scrollData.visible,
+          visiblePercent: scrollData.visiblePercent,
+          progress: scrollData.progress,
+          pageProgress: scrollData.pageProgress,
+          elementTop: scrollData.elementTop,
+          elementBottom: scrollData.elementBottom,
+          isTop: scrollData.isTop,
+          isBottom: scrollData.isBottom,
+        });
         rx(
-          value,
           scrollData.scrollX,
           scrollData.scrollY,
           scrollData.direction,
@@ -197,9 +212,10 @@ const scrollAttributePlugin: AttributePlugin = {
           scrollData.elementTop,
           scrollData.elementBottom,
           scrollData.isTop,
-          scrollData.isBottom,
-          el
+          scrollData.isBottom
         );
+      } catch (error) {
+        console.error("Error executing scroll handler:", error);
       } finally {
         endBatch();
         lastScrollY = rawScrollData.scrollY; // Use raw value for direction calculation
@@ -214,7 +230,9 @@ const scrollAttributePlugin: AttributePlugin = {
 
     updateScroll();
 
-    const handleScroll = () => throttledUpdate();
+    const handleScroll = () => {
+      throttledUpdate();
+    };
     window.addEventListener("scroll", handleScroll, { passive: true });
 
     let elementScrollCleanup: (() => void) | null = null;
@@ -231,5 +249,6 @@ const scrollAttributePlugin: AttributePlugin = {
     };
   },
 };
+
 
 export default scrollAttributePlugin;

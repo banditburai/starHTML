@@ -1,6 +1,6 @@
 [project]
 name = "starhtml"
-version = "0.1.0"
+version = "0.1.1"
 description = "Modern HTML generation in Python, inspired by FastHTML"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -66,7 +66,6 @@ addopts = [
     "--strict-markers",
     "--strict-config",
 ]
-asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = ["src", "."]
 markers = [
@@ -186,4 +185,7 @@ dev = [
     "psutil>=7.0.0",
     "pyright>=1.1.403",
     "ruff>=0.11.13",
+]
+test = [
+    "python-multipart>=0.0.20",
 ]

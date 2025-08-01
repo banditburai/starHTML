@@ -14,6 +14,7 @@ import json
 from starlette.testclient import TestClient
 
 from starhtml import Button, Div, Form, Input, Script, star_app
+from starhtml.datastar import ds_on_click, ds_text
 from starhtml.realtime import format_element_event, format_signal_event, signals
 
 
@@ -51,7 +52,7 @@ class TestXSSPrevention:
     def test_javascript_injection_in_datastar_attrs(self):
         """Test prevention of JavaScript injection in Datastar attributes."""
         malicious_js = "'; alert('xss'); //"
-        element = Div("Content", ds_on_click=f"handleClick('{malicious_js}')")
+        element = Div("Content", ds_on_click(f"handleClick('{malicious_js}')"))
         html = str(element)
 
         # Test that Datastar attribute is properly converted
@@ -250,7 +251,7 @@ class TestInjectionPrevention:
     def test_expression_injection_in_datastar(self):
         """Test prevention of expression injection in Datastar."""
         malicious_expr = "user.name; alert('injection')"
-        element = Div(ds_text=malicious_expr)
+        element = Div(ds_text(malicious_expr))
         html = str(element)
 
         # Should preserve the expression as-is (Datastar will handle safely)
@@ -418,7 +419,7 @@ class TestContentSecurityPolicy:
 
     def test_datastar_attribute_safety(self):
         """Test that Datastar attributes don't create CSP violations."""
-        element = Div("Content", ds_on_click="handleClick()", ds_text="user.name")
+        element = Div("Content", ds_on_click("handleClick()"), ds_text("user.name"))
         html = str(element)
 
         # Test that Datastar attributes are properly converted to data- attributes
