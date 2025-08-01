@@ -48,7 +48,6 @@ dmypy.json
 .ruff_cache
 
 # pyenv
-.python-version
 
 # Environments
 .env
