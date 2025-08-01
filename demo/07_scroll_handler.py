@@ -1,9 +1,5 @@
 """Comprehensive demo showcasing the scroll handler capabilities."""
 
-import os
-import sys
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from starhtml import *
 
@@ -11,7 +7,7 @@ app, rt = star_app(
     title="Scroll Handler Demo",
     hdrs=[
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
-        scroll_handler(),  # Enable scroll tracking
+        scroll_handler(),
     ],
 )
 

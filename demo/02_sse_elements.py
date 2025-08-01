@@ -5,7 +5,6 @@ import time
 
 from starhtml import *
 
-# Simple app configuration - no session complexity
 app, rt = star_app(
     title="SSE Elements Demo",
     hdrs=[

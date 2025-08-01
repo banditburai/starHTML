@@ -1,9 +1,5 @@
 """Improved Forms and Binding Demo - Native form handling with Datastar validation"""
 
-import os
-import sys
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 from starhtml import *
 
 app, rt = star_app(

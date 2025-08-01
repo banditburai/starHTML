@@ -4,11 +4,6 @@ This demo shows how to use the persist handler to automatically save and restore
 signal values across page reloads using localStorage and sessionStorage.
 """
 
-import os
-import sys
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-
 from starhtml import *
 
 app, rt = star_app(

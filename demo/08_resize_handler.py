@@ -6,11 +6,6 @@ Available variables in ds_on_resize expressions:
   width, height, windowWidth, windowHeight, aspectRatio, breakpoints, isMobile, isTablet, isDesktop, currentBreakpoint
 """
 
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 from starhtml import *
 
 app, rt = star_app(
