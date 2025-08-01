@@ -182,11 +182,14 @@ def home():
                     cls="border-t pt-6",
                 ),
                 # Proper form submission handling
-                ds_on_submit("""
+                ds_on_submit(
+                    """
                     if($is_valid && !$submitting) {
                         @post('/submit')
                     }
-                """, "prevent"),
+                """,
+                    "prevent",
+                ),
                 action="/submit",
                 method="post",
             ),

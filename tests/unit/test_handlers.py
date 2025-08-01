@@ -125,22 +125,17 @@ class TestPackageAssetManagerBehavior:
 
     def test_asset_manager_development_mode_detection(self):
         """Test development mode detection logic."""
-        # Test with environment variable
-        with patch.dict("os.environ", {"STARHTML_ENV": "development"}):
-            manager = PackageAssetManager()
-            assert manager.is_development is True
+        # Development mode is now based solely on js_dir existence
 
-        # Test with production environment
-        with patch.dict("os.environ", {"STARHTML_ENV": "production"}):
-            manager = PackageAssetManager()
-            assert manager.is_development is False
+        # Create manager and check it returns a boolean
+        manager = PackageAssetManager()
+        assert isinstance(manager.is_development, bool)
 
-        # Test with no environment variable - depends on js_dir existence
-        with patch.dict("os.environ", {}, clear=True):
-            # Create a new manager to test fallback logic
-            manager = PackageAssetManager()
-            # Should be boolean regardless of environment
-            assert isinstance(manager.is_development, bool)
+        # The actual value depends on whether src/starhtml/static/js exists
+        # We can't easily mock Path.exists(), so just verify the logic works
+        # by checking that it's the opposite of js_dir.exists()
+        expected_dev_mode = not manager.js_dir.exists()
+        assert manager.is_development == expected_dev_mode
 
     def test_manifest_handling_behavior(self):
         """Test manifest handling behavior."""

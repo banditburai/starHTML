@@ -78,7 +78,7 @@ gte = _make_comparison(">=")
 lte = _make_comparison("<=")
 
 
-def _to_js_value(value: Any) -> str:
+def _to_js_value(value: Any) -> str:  # noqa: PLR0911
     match value:
         case bool():
             return "true" if value else "false"
