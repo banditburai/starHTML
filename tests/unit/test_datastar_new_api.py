@@ -290,8 +290,10 @@ class TestSignalsAndPersistence:
         # Filters
         result = attrs_of(ds_json_signals(include="user", exclude="temp"))
         data = str(result["data-json-signals"])
-        assert '"/user/"' in data
-        assert '"/temp/"' in data
+        assert "/user/" in data
+        assert "/temp/" in data
+        assert "include:" in data
+        assert "exclude:" in data
 
 
 class TestEventHandlers:

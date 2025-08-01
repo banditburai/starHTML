@@ -208,15 +208,15 @@ def ds_persist(*signals, include=None, exclude=None, session=False, key=None):
 
 
 def ds_json_signals(show=True, include=None, exclude=None, terse=False):
-    key = "data-json-signals" + ("__terse" if terse else "")
+    key = f"data-json-signals{'__terse' if terse else ''}"
 
-    value = (
-        json.dumps({k: _process_patterns(v) for k, v in [("include", include), ("exclude", exclude)] if v})
-        if include or exclude
-        else "false"
-        if show is False
-        else True
-    )
+    if show is False:
+        value = "false"
+    elif include or exclude:
+        filters = [f"{k}: {_process_patterns(v)}" for k, v in [("include", include), ("exclude", exclude)] if v]
+        value = f"{{{', '.join(filters)}}}"
+    else:
+        value = True
 
     return DatastarAttr({key: value})
 
