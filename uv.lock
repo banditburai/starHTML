@@ -1287,6 +1287,7 @@ dependencies = [
     { name = "oauthlib" },
     { name = "pytest-cov" },
     { name = "python-dateutil" },
+    { name = "python-multipart" },
     { name = "requests" },
     { name = "starlette" },
     { name = "uvicorn", extra = ["standard"] },
@@ -1320,6 +1321,7 @@ dev = [
     { name = "brotli" },
     { name = "psutil" },
     { name = "pyright" },
+    { name = "ruff" },
 ]
 test = [
     { name = "python-multipart" },
@@ -1348,6 +1350,7 @@ requires-dist = [
     { name = "pytest-watch", marker = "extra == 'test'" },
     { name = "pytest-xdist", marker = "extra == 'test'" },
     { name = "python-dateutil" },
+    { name = "python-multipart", specifier = ">=0.0.20" },
     { name = "python-multipart", marker = "extra == 'test'" },
     { name = "requests", specifier = ">=2.32.4" },
     { name = "ruff", marker = "extra == 'dev'" },
@@ -1361,6 +1364,7 @@ dev = [
     { name = "brotli", specifier = ">=1.1.0" },
     { name = "psutil", specifier = ">=7.0.0" },
     { name = "pyright", specifier = ">=1.1.403" },
+    { name = "ruff", specifier = ">=0.11.13" },
 ]
 test = [{ name = "python-multipart", specifier = ">=0.0.20" }]
 

@@ -75,21 +75,22 @@ jobs:
         done
         echo "🎉 All JavaScript assets validated!"
     
-    - name: Setup Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.12'
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+      
+    - name: Set up Python
+      run: uv python install 3.12
         
     - name: Install Python build dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install build twine check-wheel-contents validate-pyproject
+        pip install twine check-wheel-contents validate-pyproject
     
     - name: Validate pyproject.toml
       run: validate-pyproject pyproject.toml
     
     - name: Build Python package
-      run: python -m build
+      run: uv build
     
     - name: Validate package contents
       run: |

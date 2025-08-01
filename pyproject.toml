@@ -16,6 +16,7 @@ dependencies = [
     "itsdangerous",
     "pytest-cov>=6.1.1",
     "requests>=2.32.4",
+    "python-multipart>=0.0.20",
 ]
 
 [project.optional-dependencies]
@@ -33,6 +34,9 @@ doc = ["mkdocs", "mkdocs-material", "mdx-include"]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.hatch.build.hooks.custom]
+path = "scripts/hatch_build_hook.py"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/starhtml"]
 # Include only built JavaScript and static assets in the package (exclude TypeScript sources)
@@ -42,6 +46,8 @@ include = [
     "src/starhtml/static/**/*.css",
     "src/starhtml/**/*.py",
 ]
+# Build artifacts (JavaScript handlers) will be added dynamically by the build hook
+artifacts = []
 # Exclude development files from the package  
 exclude = [
     "typescript/",
@@ -52,10 +58,6 @@ exclude = [
     "node_modules/",
 ]
 
-# Build hook to generate optimized JavaScript files
-# [tool.hatch.build.hooks.custom]
-# This will be executed before building the wheel
-# path = "scripts/build/hatch_build.py"
 
 [tool.pytest.ini_options]
 minversion = "7.0"
@@ -182,6 +184,7 @@ dev = [
     "brotli>=1.1.0",
     "psutil>=7.0.0",
     "pyright>=1.1.403",
+    "ruff>=0.11.13",
 ]
 test = [
     "python-multipart>=0.0.20",
