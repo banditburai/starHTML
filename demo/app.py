@@ -8,10 +8,6 @@ import importlib.util
 from dataclasses import dataclass
 from pathlib import Path
 
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import Response
-from starlette.routing import Mount
-
 from starhtml import *
 
 # Create the hub app - simple and clean

@@ -50,6 +50,7 @@ from starlette.datastructures import FormData, Headers, QueryParams, State, Uplo
 from starlette.endpoints import HTTPEndpoint, WebSocketEndpoint
 from starlette.exceptions import HTTPException, WebSocketException
 from starlette.middleware import Middleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.requests import HTTPConnection, Request
 from starlette.responses import (
