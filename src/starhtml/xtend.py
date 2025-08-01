@@ -31,6 +31,7 @@ __all__ = [
     "Favicon",
     "YouTubeEmbed",
     "Nbsp",
+    "Icon",
     "loose_format",
     "double_braces",
     "undouble_braces",
@@ -96,7 +97,7 @@ def CheckboxX(checked: bool = False, label=None, value="1", id=None, name=None, 
 
 
 # ============================================================================
-# Script and Style Helpers
+# Script, Style, Icon Helpers
 # ============================================================================
 
 
@@ -177,6 +178,11 @@ def jsd(org, repo, root, path, prov="gh", typ="script", ver=None, esm=False, **k
 def Nbsp() -> Safe:
     "A non-breaking space"
     return Safe("&nbsp;")
+
+
+def Icon(icon: str, **attrs) -> FT:
+    """Iconify icon element. Usage: Icon("lucide:home", cls="h-4 w-4")"""
+    return ft_datastar("iconify-icon", icon=icon, **attrs)
 
 
 # ============================================================================

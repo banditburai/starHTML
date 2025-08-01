@@ -1,7 +1,6 @@
 """Debug SSE merge fragments - test different scenarios"""
 
 from starhtml import *
-from starhtml.datastar import ds_on_click, ds_signals, ds_text
 
 app, rt = star_app(
     title="SSE Debugging Demo",
@@ -103,14 +102,14 @@ def home():
             Div(P("Status: ", ds_text("$status")), cls="status-bar"),
             Div(
                 Pre(
-                    Code(ds_text("$lastAction"), style="white-space: pre-wrap;"),
+                    Code(ds_text("$last_action"), style="white-space: pre-wrap;"),
                     style="background: #f5f5f5; padding: 15px; overflow-x: auto; border-radius: 8px;",
                 ),
                 cls="card",
             ),
             cls="container",
         ),
-        ds_signals(status="Ready", lastAction="No action yet"),
+        ds_signals(status="Ready", last_action="No action yet"),
     )
 
 
@@ -127,7 +126,7 @@ def test_simple(req):
             style="border: 1px solid #ccc; padding: 20px; margin: 20px 0;",
         )
     )
-    yield signals(status="Simple element complete", lastAction="elements(Div(id='target')) - auto-detected #target!")
+    yield signals(status="Simple element complete", last_action="elements(Div(id='target')) - auto-detected #target!")
 
 
 @rt("/test-multiple")
@@ -148,7 +147,7 @@ def test_multiple(req):
     # Auto-detection: id="target" automatically becomes selector "#target"
     yield elements(Div(*fragments, id="target", style="border: 1px solid #ccc; padding: 20px; margin: 20px 0;"))
     yield signals(
-        status="Multiple fragments complete", lastAction="elements(Div(*fragments, id='target')) - auto-detected!"
+        status="Multiple fragments complete", last_action="elements(Div(*fragments, id='target')) - auto-detected!"
     )
 
 
@@ -177,7 +176,7 @@ def test_selector(req):
         "#target2",  # Manual selector (could be different from id)
     )
 
-    yield signals(status="Selector test complete", lastAction="Auto-detected #target + manual #target2")
+    yield signals(status="Selector test complete", last_action="Auto-detected #target + manual #target2")
 
 
 @rt("/test-complex")
@@ -198,7 +197,7 @@ def test_complex(req):
 
     # Auto-detection works with complex nested content too
     yield elements(Div(complex_content, id="target", style="border: 1px solid #ccc; padding: 20px; margin: 20px 0;"))
-    yield signals(status="Complex HTML complete", lastAction="Complex HTML with auto-detected selector")
+    yield signals(status="Complex HTML complete", last_action="Complex HTML with auto-detected selector")
 
 
 @rt("/reset")
@@ -223,7 +222,7 @@ def reset(req):
         )
     )
 
-    yield signals(status="Ready", lastAction="Reset with auto-detected selectors")
+    yield signals(status="Ready", last_action="Reset with auto-detected selectors")
 
 
 if __name__ == "__main__":

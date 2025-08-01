@@ -18,7 +18,7 @@ from starlette.routing import Mount
 
 from starhtml import *
 
-# Create the hub app
+# Create the hub app - simple and clean
 app, rt = star_app(
     title="StarHTML Demo Hub",
     hdrs=[
@@ -77,7 +77,7 @@ class BackButtonMiddleware(BaseHTTPMiddleware):
             html_content = html_content.replace("'/api/", "'api/")
             html_content = html_content.replace('"/api/', '"api/')
 
-            # Inject the back button after <body> tag with glassmorphism design
+            # Inject the back button after <body> tag
             back_button_html = """
                 <a href="/"
                    class="fixed top-4 left-4 z-50 p-3 rounded-2xl transition-all duration-300 no-underline flex items-center justify-center group"
@@ -198,6 +198,14 @@ DEMOS = [
         "Advanced",
         "15 min",
     ),
+    Demo(
+        "10-todo",
+        "Todo List CRUD",
+        "Server-driven todo list with session storage and validation",
+        "10_todo_list.py",
+        "Advanced",
+        "25 min",
+    ),
 ]
 
 
@@ -310,10 +318,8 @@ class DemoLoader:
 
 
 def setup_demo_routes(app) -> None:
-    """Mount complete demo applications at their respective routes."""
+    """Mount demo applications with proper session middleware sharing."""
     loader = DemoLoader()
-
-    demo_mounts = []
 
     for demo in DEMOS:
         module = loader.load_demo_module(demo)
@@ -321,17 +327,13 @@ def setup_demo_routes(app) -> None:
         if module:
             demo_app = getattr(module, "app", None)
             if demo_app:
-                # Prepare the demo mount
+                # Mount the demo app at its route path
                 demo_mount = Mount(demo.route_path, demo_app)
-                demo_mounts.append((demo, demo_mount))
+                app.router.routes.append(demo_mount)
             else:
-                print(f"❌ No app found in demo {demo.id}")
+                pass  # Demo app not found
         else:
-            print(f"❌ Failed to load demo {demo.id}")
-
-    # Then mount demo apps
-    for demo, demo_mount in demo_mounts:
-        app.router.routes.append(demo_mount)
+            pass  # Failed to load demo
 
 
 # Set up middleware and routes

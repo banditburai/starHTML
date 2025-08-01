@@ -115,15 +115,12 @@ const resizeAttributePlugin: AttributePlugin = {
   onLoad(ctx: RuntimeContext): OnRemovalFn | void {
     const { el, value, mods, rx, mergePatch, startBatch, endBatch } = ctx;
 
-    if (!value) return;
+    if (!value) {
+      return;
+    }
 
     const { throttle, isDebounce } = parseModifiers(mods);
 
-    if (globalConfig.debug ?? (throttle !== DEFAULT_THROTTLE || isDebounce)) {
-      console.log(
-        `[Resize] Element configured with ${isDebounce ? "debounce" : "throttle"}: ${throttle}ms`
-      );
-    }
 
     const handleResize = () => {
       const context = createResizeContext(el, window.innerWidth, window.innerHeight);
@@ -142,6 +139,8 @@ const resizeAttributePlugin: AttributePlugin = {
           context.isDesktop,
           context.currentBreakpoint
         );
+      } catch (error) {
+        console.error("Error during resize handler:", error);
       } finally {
         endBatch();
       }

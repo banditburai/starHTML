@@ -1,22 +1,13 @@
-"""Clean Forms and Binding Demo - Simple reactive forms with Datastar"""
+"""Improved Forms and Binding Demo - Native form handling with Datastar validation"""
 
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 from starhtml import *
-from starhtml.datastar import (
-    ds_bind,
-    ds_class,
-    ds_computed,
-    ds_disabled,
-    ds_json_signals,
-    ds_on_click,
-    ds_on_input,
-    ds_on_submit,
-    ds_show,
-    ds_signals,
-    ds_text,
-)
 
 app, rt = star_app(
-    title="Forms and Binding Demo",
+    title="Forms and Binding Demo (Improved)",
     hdrs=[
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
         Style("""
@@ -35,7 +26,7 @@ app, rt = star_app(
 def create_form_field(label_text, input_type, placeholder, signal_name, validation_expr, required=True):
     """Create a standardized form field with validation"""
     input_id = f"{signal_name}_input"
-    error_signal = f"{signal_name}Error"
+    error_signal = f"{signal_name}error"
 
     label = Label(label_text, {"for": input_id})
 
@@ -47,8 +38,12 @@ def create_form_field(label_text, input_type, placeholder, signal_name, validati
         "type": input_type,
         "placeholder": placeholder,
         "id": input_id,
+        "name": signal_name,  # Add name for native form handling
         "cls": "form-input w-full p-3 border rounded-lg mt-1",
     }
+
+    if required:
+        input_attrs["required"] = True
 
     if input_type == "number":
         input_attrs["min"] = "18"
@@ -57,7 +52,7 @@ def create_form_field(label_text, input_type, placeholder, signal_name, validati
     input_elem = Input(
         ds_bind(signal_name),
         ds_on_input(validation_expr),
-        ds_class(**{f"${error_signal} ? 'error' : ''": True}),
+        ds_class(error=if_(f"${error_signal}", True, False)),
         **input_attrs,
     )
 
@@ -72,7 +67,7 @@ def create_name_field():
         "text",
         "Enter your full name",
         "name",
-        "$nameError = $name.length < 2 ? 'Name must be at least 2 characters' : ''",
+        "name_error = $name.length < 2 ? 'Name must be at least 2 characters' : ''",
     )
 
 
@@ -82,7 +77,7 @@ def create_email_field():
         "email",
         "Enter your email",
         "email",
-        "$emailError = !$email ? 'Email is required' : !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test($email) ? 'Please enter a valid email' : ''",
+        "email_error = !$email ? 'Email is required' : !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test($email) ? 'Please enter a valid email' : ''",
     )
 
 
@@ -92,7 +87,7 @@ def create_age_field():
         "number",
         "Enter your age",
         "age",
-        "$ageError = !$age ? 'Age is required' : $age < 18 || $age > 120 ? 'Age must be between 18 and 120' : ''",
+        "age_error = !$age ? 'Age is required' : $age < 18 || $age > 120 ? 'Age must be between 18 and 120' : ''",
     )
 
 
@@ -102,7 +97,7 @@ def create_phone_field():
         "tel",
         "(555) 123-4567",
         "phone",
-        "$phoneError = $phone && !/^[\\+]?[\\d\\s\\-\\(\\)]{10,}$/.test($phone) ? 'Please enter a valid phone number' : ''",
+        "phone_error = $phone && !/^[\\+]?[\\d\\s\\-\\(\\)]{10,}$/.test($phone) ? 'Please enter a valid phone number' : ''",
         required=False,
     )
 
@@ -115,7 +110,7 @@ def create_form_status():
                 "$submitted ? 'Form has been submitted' : $is_valid ? 'Form is ready to submit' : 'Please complete all required fields'"
             )
         ),
-        ds_class(**{"$submitted ? 'valid' : $is_valid ? 'valid' : 'invalid'": True}),
+        ds_class(valid="$is_valid"),
         cls="form-status",
     )
 
@@ -147,21 +142,20 @@ def get_initial_signals():
         "email": "",
         "age": "",
         "phone": "",
-        "nameError": "",
-        "emailError": "",
-        "ageError": "",
-        "phoneError": "",
+        "name_error": "",
+        "email_error": "",
+        "age_error": "",
+        "phone_error": "",
         "submitting": False,
         "submitted": False,
-        "is_valid": False,
     }
 
 
 @rt("/")
 def home():
     return Div(
-        H1("Forms and Binding Demo", cls="text-3xl font-bold mb-6 text-center"),
-        P("Reactive form validation with Datastar", cls="text-gray-600 mb-8 text-center"),
+        H1("Forms and Binding Demo (Improved)", cls="text-3xl font-bold mb-6 text-center"),
+        P("Native form handling with Datastar validation", cls="text-gray-600 mb-8 text-center"),
         # Main Form
         Div(
             H2("Contact Information", cls="text-xl font-semibold mb-4"),
@@ -175,22 +169,26 @@ def home():
                 Div(
                     Button(
                         "Submit Form",
-                        ds_on_click("@post('/submit')"),
                         ds_disabled("!$is_valid || $submitting"),
-                        type="button",
+                        type="submit",
                         cls="bg-blue-600 text-white px-6 py-3 rounded-lg mr-3 disabled:opacity-50",
                     ),
                     Button(
                         "Clear Form",
-                        ds_on_click(
-                            "$name = ''; $email = ''; $age = ''; $phone = ''; $nameError = ''; $emailError = ''; $ageError = ''; $phoneError = ''; $submitted = false"
-                        ),
+                        ds_on_click(clear_form_signals(get_initial_signals())),
                         type="button",
                         cls="bg-gray-500 text-white px-6 py-3 rounded-lg",
                     ),
                     cls="border-t pt-6",
                 ),
-                ds_on_submit("event.preventDefault()"),
+                # Proper form submission handling
+                ds_on_submit("""
+                    if($is_valid && !$submitting) {
+                        @post('/submit')
+                    }
+                """, "prevent"),
+                action="/submit",
+                method="post",
             ),
             cls="bg-white p-6 rounded-lg shadow mb-6",
         ),
@@ -202,8 +200,12 @@ def home():
         ),
         create_live_preview(),
         create_debug_panel(),
-        ds_signals(**get_initial_signals()),
-        ds_computed("is_valid", "!$nameError && !$emailError && !$ageError && !$phoneError && $name && $email && $age"),
+        # Initialize signals
+        ds_signals(get_initial_signals()),
+        # Computed signal for form validity - check both required fields AND no errors
+        ds_computed(
+            "is_valid", "$name && $email && $age && !$name_error && !$email_error && !$age_error && !$phone_error"
+        ),
         cls="max-w-2xl mx-auto p-6",
     )
 
@@ -213,24 +215,22 @@ def home():
 def submit_form(req):
     import time
 
-    print("SSE /submit: Starting")
+    print("SSE /submit: Form submission received")
     yield signals(submitting=True)
-    print("SSE /submit: Sent submitting=True")
 
     time.sleep(0.5)  # Simulate processing
 
-    print("SSE /submit: About to send submitted=True")
     yield signals(submitting=False, submitted=True)
-    print("SSE /submit: Sent submitted=True - DONE")
+    print("SSE /submit: Form submission complete")
 
 
 if __name__ == "__main__":
-    print("Forms and Binding Demo")
+    print("Improved Forms and Binding Demo")
     print("=" * 30)
     print("🚀 Running on http://localhost:5001")
     print("✨ Features:")
-    print("   - Real-time form validation")
-    print("   - Two-way data binding")
-    print("   - Live preview")
-    print("   - Clean reactive patterns")
+    print("   - Native HTML5 form validation")
+    print("   - Datastar reactive validation")
+    print("   - Validation runs on mount")
+    print("   - Proper form submission handling")
     serve(port=5001)

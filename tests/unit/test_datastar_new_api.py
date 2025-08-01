@@ -9,7 +9,6 @@ from starhtml.datastar import (
     ds_attr,
     ds_bind,
     ds_class,
-    ds_cloak,
     ds_computed,
     # Other attributes
     ds_disabled,
@@ -184,13 +183,13 @@ class TestSignalsAndPersistence:
     def test_ds_signals_kwargs(self):
         """Test ds_signals with kwargs."""
         result = attrs_of(ds_signals(count=0, name="John", active=True))
-        assert result == {"data-signals-count": "0", "data-signals-name": "'John'", "data-signals-active": "true"}
+        assert result == {"data-signals-count": "0", "data-signals-name": '"John"', "data-signals-active": "true"}
 
     def test_ds_signals_dict(self):
         """Test ds_signals with dict argument."""
         signals = {"count": 0, "name": "John"}
         result = attrs_of(ds_signals(signals))
-        assert result == {"data-signals-count": "0", "data-signals-name": "'John'"}
+        assert result == {"data-signals-count": "0", "data-signals-name": '"John"'}
 
     def test_ds_signals_with_modifiers(self):
         """Test ds_signals with ifmissing modifier."""
@@ -236,11 +235,11 @@ class TestSignalsAndPersistence:
 
         # Custom key
         result = attrs_of(ds_persist(key="myapp"))
-        assert result == {"data-persist__key.myapp": None}
+        assert result == {"data-persist-myapp": None}
 
-        # Combined
+        # Combined (key takes precedence over session)
         result = attrs_of(ds_persist("name", session=True, key="app-v2"))
-        assert result == {"data-persist__session__key.app-v2": "name"}
+        assert result == {"data-persist-app-v2": "name"}
 
     def test_ds_json_signals(self):
         """Test ds_json_signals function."""
@@ -275,44 +274,44 @@ class TestEventHandlers:
     def test_ds_on_click_html_modifiers(self):
         """Test ds_on_click with HTML-style modifiers."""
         result = attrs_of(ds_on_click("submit()", "once", "prevent"))
-        assert "data-on-click.once.prevent" in result
+        assert "data-on-click__once.prevent" in result
 
     def test_ds_on_click_kwargs_modifiers(self):
         """Test ds_on_click with kwargs modifiers."""
         result = attrs_of(ds_on_click("submit()", once=True, prevent=True))
-        assert "data-on-click.once.prevent" in result
+        assert "data-on-click__once.prevent" in result
 
     def test_ds_on_input_with_debounce(self):
         """Test ds_on_input with debounce."""
         result = attrs_of(ds_on_input("search()", debounce="500ms"))
-        assert "data-on-input.debounce.500" in result
+        assert "data-on-input__debounce.500ms" in result
 
         # Without ms
         result = attrs_of(ds_on_input("search()", debounce="300"))
-        assert "data-on-input.debounce.300" in result
+        assert "data-on-input__debounce.300ms" in result
 
     def test_mixed_modifiers(self):
         """Test mixed positional and keyword modifiers."""
         result = attrs_of(ds_on_input("search()", "prevent", debounce="500ms"))
-        assert "data-on-input.prevent.debounce.500" in result
+        assert "data-on-input__prevent.debounce.500ms" in result
 
     def test_ds_on_interval(self):
         """Test ds_on_interval with duration."""
         result = attrs_of(ds_on_interval("tick()", duration="1s"))
-        assert "data-on-interval.duration.1s" in result
+        assert "data-on-interval__duration.1s" in result
 
         result = attrs_of(ds_on_interval("update()", duration="500ms"))
-        assert "data-on-interval.duration.500" in result
+        assert "data-on-interval__duration.500ms" in result
 
     def test_ds_on_intersect(self):
         """Test ds_on_intersect with modifiers."""
         result = attrs_of(ds_on_intersect("loadMore()", "once", "half"))
-        assert "data-on-intersect.once.half" in result
+        assert "data-on-intersect__once.half" in result
 
     def test_generic_ds_on(self):
         """Test generic ds_on for custom events."""
         result = attrs_of(ds_on("custom-event", "handleCustom()", "once"))
-        assert "data-on-custom-event.once" in result
+        assert "data-on-custom-event__once" in result
 
 
 class TestOtherAttributes:
@@ -323,10 +322,6 @@ class TestOtherAttributes:
         assert attrs_of(ds_disabled(True)) == {"data-disabled": "true"}
         assert attrs_of(ds_disabled(False)) == {"data-disabled": "false"}
         assert attrs_of(ds_disabled("$isSubmitting")) == {"data-disabled": "$isSubmitting"}
-
-    def test_ds_cloak(self):
-        """Test ds_cloak function."""
-        assert attrs_of(ds_cloak()) == {"data-cloak": None}
 
     def test_ds_ignore(self):
         """Test ds_ignore function."""
@@ -359,7 +354,7 @@ class TestIntegration:
         )
 
         html = str(btn)
-        assert "data-on-click.once.prevent" in html
+        assert "data-on-click__once.prevent" in html
         assert "data-class-active" in html
         assert "data-class-loading" in html
         assert "data-disabled" in html
@@ -379,7 +374,7 @@ class TestIntegration:
         assert "data-signals-email" in html
         assert "data-signals-password" in html
         assert "data-persist" in html
-        assert "data-on-submit.prevent" in html
+        assert "data-on-submit__prevent" in html
         assert "data-bind-email__case.lower" in html
 
     def test_conditional_styling(self):

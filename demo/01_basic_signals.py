@@ -1,7 +1,6 @@
 """Basic Datastar signals demo - minimal example using new function-based API"""
 
 from starhtml import *
-from starhtml.datastar import ds_on_click, ds_signals, ds_text
 
 app, rt = star_app(
     title="Basic Signals Demo",

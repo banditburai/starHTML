@@ -4,16 +4,16 @@ import random
 import time
 
 from starhtml import *
-from starhtml.datastar import ds_indicator, ds_on_click, ds_show, ds_signals, ds_text
 
+# Simple app configuration - no session complexity
 app, rt = star_app(
     title="SSE Elements Demo",
     hdrs=[
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
     ],
 )
-# Demo state - in production use database/session
-item_count = 0
+
+items_store = []
 
 
 @rt("/")
@@ -167,7 +167,7 @@ def home():
                 ),
                 Div(
                     Span("📦 Items: ", style="font-weight: 500; color: #374151;"),
-                    Span(ds_text("$itemCount"), style="color: #2563eb; font-weight: 700; font-size: 1.1rem;"),
+                    Span(ds_text("$itemcount"), style="color: #2563eb; font-weight: 700; font-size: 1.1rem;"),
                 ),
                 cls="status-bar",
             ),
@@ -179,7 +179,7 @@ def home():
                     Div("📦", cls="empty-icon", style="font-size: 4rem;"),
                     P("No items yet", style="font-weight: 500; font-size: 1.1rem; margin-bottom: 0.5rem;"),
                     P("Click 'Load Sample Data' to get started", style="font-size: 0.9rem; opacity: 0.7;"),
-                    ds_show("$itemCount === 0"),
+                    ds_show("$itemcount === 0"),
                     cls="empty-state",
                 ),
                 Div(id="items"),
@@ -192,7 +192,7 @@ def home():
                     style="text-align: center; color: #9ca3af; font-size: 0.9rem; margin-top: 2rem;",
                 ),
             ),
-            ds_signals(status="Ready", loading=False, itemCount=0),
+            ds_signals(status="Ready", loading=False, itemcount=0),
             cls="container",
         ),
     )
@@ -201,49 +201,68 @@ def home():
 @rt("/api/load-data")
 @sse
 def load_data(req):
-    global item_count
+    # Use in-memory storage
+
     yield signals(status="Loading sample data...", loading=True)
     time.sleep(0.5)  # simulate network latency
 
     # Add some sample items (append to existing)
-    items = ["🍎 Apple", "🍌 Banana", "🍒 Cherry", "🥝 Kiwi", "🫐 Elderberry"]
-    for item in items:
-        item_count += 1
-        yield elements(Div(f"📋 {item}", cls="item"), "#items", "append")
-        yield signals(itemCount=item_count)
+    sample_items = ["🍎 Apple", "🍌 Banana", "🍒 Cherry", "🥝 Kiwi", "🫐 Elderberry"]
+    for item_text in sample_items:
+        # Create item with unique ID
+        new_item = {"id": len(items_store) + 1, "text": f"📋 {item_text}", "created_at": time.strftime("%H:%M:%S")}
+        items_store.append(new_item)
+
+        # Send element to DOM
+        yield elements(Div(new_item["text"], cls="item", **{"data-id": str(new_item["id"])}), "#items", "append")
+        # Update count from actual storage
+        yield signals(itemcount=len(items_store))
         time.sleep(0.3)
 
-    yield signals(status=f"Added {len(items)} sample items", loading=False)
+    yield signals(status=f"Added {len(sample_items)} sample items", loading=False)
 
 
 @rt("/api/add-item")
 @sse
 def add_item(req):
-    global item_count
+    # Use in-memory storage
+
     yield signals(status="Adding new item...")
     time.sleep(0.4)
 
     # Add a random item
-    items = ["🍊 Orange", "🍇 Grape", "🥭 Mango", "🍍 Pineapple", "🍓 Strawberry", "🫐 Blueberry"]
-    item = random.choice(items)
+    fruits = ["🍊 Orange", "🍇 Grape", "🥭 Mango", "🍍 Pineapple", "🍓 Strawberry", "🫐 Blueberry"]
+    item_text = random.choice(fruits)
 
-    item_count += 1
-    yield elements(Div(f"🆕 {item}", cls="item item-new"), "#items", "append")
+    # Create new item with unique ID
+    new_item = {
+        "id": max([item["id"] for item in items_store], default=0) + 1,
+        "text": f"🆕 {item_text}",
+        "created_at": time.strftime("%H:%M:%S"),
+    }
+    items_store.append(new_item)
 
-    yield signals(status=f"Added {item.split(' ')[1]}", itemCount=item_count)
+    # Send element to DOM
+    yield elements(Div(new_item["text"], cls="item item-new", **{"data-id": str(new_item["id"])}), "#items", "append")
+
+    yield signals(status=f"Added {item_text.split(' ')[1]}", itemcount=len(items_store))
 
 
 @rt("/api/clear")
 @sse
 def clear(req):
-    global item_count
     yield signals(status="Clearing all items...")
     time.sleep(0.3)
 
-    # Clear all items
+    # Clear in-memory storage
+    global items_store
+    items_store = []
+
+    # Clear DOM
     yield elements(Div(), "#items", "inner")
-    item_count = 0
-    yield signals(status="All items cleared", itemCount=item_count)
+
+    # Update count from actual storage
+    yield signals(status="All items cleared", itemcount=0)
 
 
 if __name__ == "__main__":

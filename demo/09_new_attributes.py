@@ -1,15 +1,6 @@
 """Demo of newly implemented Datastar attributes"""
 
 from starhtml import *
-from starhtml.datastar import (
-    ds_ignore,
-    ds_json_signals,
-    ds_on_click,
-    ds_on_load,
-    ds_preserve_attr,
-    ds_signals,
-    ds_text,
-)
 
 app, rt = star_app(
     title="New Datastar Attributes Demo",
@@ -28,7 +19,7 @@ def home():
             H2("1. data-ignore Demo", cls="text-2xl font-semibold mb-4"),
             P("The section below is ignored by Datastar (no reactivity):", cls="mb-2"),
             Div(
-                P("This content is ignored", ds_text("$ignoredSignal")),
+                P("This content is ignored", ds_text("$ignored_signal")),
                 Button("Won't work", ds_on_click("$counter++")),
                 ds_ignore(),
                 cls="border p-4 bg-gray-100 rounded",
@@ -50,10 +41,10 @@ def home():
             ),
             Button(
                 "Update page (video keeps playing)",
-                ds_on_click("$updateTime = new Date().toLocaleTimeString()"),
+                ds_on_click("$update_time = new Date().toLocaleTimeString()"),
                 cls="bg-green-600 text-white px-4 py-2 rounded mt-2",
             ),
-            P("Last update: ", ds_text("$updateTime"), cls="mt-2"),
+            P("Last update: ", ds_text("$update_time"), cls="mt-2"),
             cls="mb-8",
         ),
         # data-on-load demo
@@ -63,8 +54,8 @@ def home():
             Div(
                 P(
                     "Loading...",
-                    ds_text("$loadMessage"),
-                    ds_on_load("$loadMessage = 'Component loaded at ' + new Date().toLocaleTimeString()"),
+                    ds_text("$load_message"),
+                    ds_on_load("$load_message = 'Component loaded at ' + new Date().toLocaleTimeString()"),
                 ),
                 cls="border p-4 bg-blue-50 rounded",
             ),
@@ -72,8 +63,8 @@ def home():
             Div(
                 P(
                     "Loading...",
-                    ds_text("$onceMessage"),
-                    ds_on_load("$onceMessage = 'Loaded once at ' + new Date().toLocaleTimeString()", "once"),
+                    ds_text("$once_message"),
+                    ds_on_load("$once_message = 'Loaded once at ' + new Date().toLocaleTimeString()", "once"),
                 ),
                 cls="border p-4 bg-green-50 rounded",
             ),
@@ -99,10 +90,10 @@ def home():
             ),
             Button(
                 "Update page (form values preserved)",
-                ds_on_click("$preserveUpdate = new Date().toLocaleTimeString()"),
+                ds_on_click("$preserve_update = new Date().toLocaleTimeString()"),
                 cls="bg-purple-600 text-white px-4 py-2 rounded mt-4",
             ),
-            P("Last update: ", ds_text("$preserveUpdate"), cls="mt-2"),
+            P("Last update: ", ds_text("$preserve_update"), cls="mt-2"),
             cls="mb-8",
         ),
         # data-json-signals demo
@@ -112,7 +103,7 @@ def home():
             Pre(ds_json_signals(), cls="bg-gray-900 text-green-400 p-4 rounded font-mono text-sm overflow-auto"),
             P("Filtered signals (only those containing 'counter' or 'Time'):", cls="mb-2 mt-4"),
             Pre(
-                ds_json_signals(include="/(counter|Time)/"),
+                ds_json_signals(include="(counter|Time)"),
                 cls="bg-gray-900 text-blue-400 p-4 rounded font-mono text-sm overflow-auto",
             ),
             cls="mb-8",
@@ -120,11 +111,11 @@ def home():
         # Initialize signals
         ds_signals(
             counter=0,
-            ignoredSignal="This won't update!",
-            updateTime="Not updated yet",
-            loadMessage="Loading...",
-            onceMessage="Loading...",
-            preserveUpdate="Not updated yet",
+            ignored_signal="This won't update!",
+            update_time="Not updated yet",
+            load_message="Loading...",
+            once_message="Loading...",
+            preserve_update="Not updated yet",
         ),
         cls="max-w-4xl mx-auto p-6",
     )

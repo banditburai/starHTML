@@ -18,50 +18,6 @@ class DatastarAttr:
         return f"DatastarAttr({self.attrs})"
 
 
-__all__ = [
-    "t",
-    "if_",
-    "equals",
-    "gt",
-    "lt",
-    "gte",
-    "lte",
-    "ds_show",
-    "ds_text",
-    "ds_html",
-    "ds_bind",
-    "ds_ref",
-    "ds_indicator",
-    "ds_effect",
-    "ds_for",
-    "ds_key",
-    "ds_computed",
-    "ds_class",
-    "ds_style",
-    "ds_attr",
-    "ds_signals",
-    "ds_persist",
-    "ds_json_signals",
-    "ds_on_click",
-    "ds_on_input",
-    "ds_on_change",
-    "ds_on_submit",
-    "ds_on_keydown",
-    "ds_on_keyup",
-    "ds_on_focus",
-    "ds_on_blur",
-    "ds_on_scroll",
-    "ds_on_resize",
-    "ds_on_load",
-    "ds_on_interval",
-    "ds_on_intersect",
-    "ds_on",
-    "ds_disabled",
-    "ds_cloak",
-    "ds_ignore",
-    "ds_preserve_attr",
-]
-
 # ============================================================================
 # Helper Functions & Expression Utilities
 # ============================================================================
@@ -69,7 +25,7 @@ __all__ = [
 
 def t(template: str) -> str:
     """JavaScript template literal using Python f-string style."""
-    return f"`{re.sub(r'\{([^}]+)\}', lambda m: f'${{{m.group(1).strip()}}}', template)}`"
+    return f"`{re.sub(r'{([^}]+)}', r'${\1}', template)}`"
 
 
 def if_(condition: str | dict[str, str], *args, **kwargs) -> str:
@@ -80,7 +36,6 @@ def if_(condition: str | dict[str, str], *args, **kwargs) -> str:
     if kwargs:
         default = kwargs.pop("_", "null")
         result = _to_js_value(default)
-
         for pattern, value in reversed(kwargs.items()):
             check = (
                 condition
@@ -90,13 +45,11 @@ def if_(condition: str | dict[str, str], *args, **kwargs) -> str:
                 else f"{condition} === {_to_js_value(pattern)}"
             )
             result = f"{check} ? {_to_js_value(value)} : {result}"
-
         return result
 
     if isinstance(condition, dict):
         conditions = [(c, v) for c, v in condition.items() if c != "_"]
         result = _to_js_value(condition.get("_", "null"))
-
         for cond, val in reversed(conditions):
             result = f"{cond} ? {_to_js_value(val)} : {result}"
         return result
@@ -126,29 +79,35 @@ lte = _make_comparison("<=")
 
 
 def _to_js_value(value: Any) -> str:
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    if isinstance(value, str):
-        return value if value.startswith(("$", "`")) else json.dumps(value)
-    if isinstance(value, int | float):
-        return str(value)
-    if value is None:
-        return "null"
-    if isinstance(value, dict | list | tuple):
-        return json.dumps(value)
-    return json.dumps(str(value))
+    match value:
+        case bool():
+            return "true" if value else "false"
+        case str() if value.startswith(("$", "`")):
+            return value
+        case str():
+            return json.dumps(value)
+        case int() | float():
+            return str(value)
+        case None:
+            return "null"
+        case dict() | list() | tuple():
+            return json.dumps(value)
+        case _:
+            return json.dumps(str(value))
 
 
 def _normalize_value(value: Any, wrap_strings: bool = False) -> Any:
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    if isinstance(value, int | float):
-        return value
-    if isinstance(value, str):
-        return NotStr(value) if wrap_strings else value
-    if isinstance(value, dict | list | tuple):
-        return json.dumps(value)
-    return str(value)
+    match value:
+        case bool():
+            return "true" if value else "false"
+        case int() | float():
+            return value
+        case str():
+            return NotStr(value) if wrap_strings else value
+        case dict() | list() | tuple():
+            return json.dumps(value)
+        case _:
+            return str(value)
 
 
 def _process_patterns(patterns: str | list[str | Pattern]) -> str | list[str]:
@@ -173,10 +132,6 @@ def ds_text(value: str) -> DatastarAttr:
     return DatastarAttr({"data-text": _normalize_value(value)})
 
 
-def ds_html(value: str) -> DatastarAttr:
-    return DatastarAttr({"data-html": _normalize_value(value)})
-
-
 def ds_bind(signal: str, case: str | None = None) -> DatastarAttr:
     if case:
         return DatastarAttr({f"data-bind-{signal}__case.{case}": True})
@@ -195,18 +150,8 @@ def ds_effect(expression: str) -> DatastarAttr:
     return DatastarAttr({"data-effect": NotStr(expression)})
 
 
-def ds_for(expression: str) -> DatastarAttr:
-    return DatastarAttr({"data-for": expression})
-
-
-def ds_key(expression: str) -> DatastarAttr:
-    return DatastarAttr({"data-key": expression})
-
-
 def ds_computed(name: str, expression: str, case: str | None = None) -> DatastarAttr:
-    key = f"data-computed-{name}"
-    if case:
-        key += f"__case.{case}"
+    key = f"data-computed-{name}" + (f"__case.{case}" if case else "")
     return DatastarAttr({key: expression})
 
 
@@ -243,28 +188,21 @@ def ds_signals(*args, **kwargs) -> DatastarAttr:
         result["data-signals__ifmissing"] = ifmissing
 
     for name, value in signals.items():
-        if isinstance(value, bool):
-            result[f"data-signals-{name}"] = "true" if value else "false"
-        elif isinstance(value, str) and not value.startswith(("'", '"')):
-            result[f"data-signals-{name}"] = f"'{value}'"
-        elif isinstance(value, int | float):
-            result[f"data-signals-{name}"] = str(value)
-        else:
-            result[f"data-signals-{name}"] = _normalize_value(value)
+        result[f"data-signals-{name}"] = _to_js_value(value)
 
     return DatastarAttr(result)
 
 
 def ds_persist(*signals, include=None, exclude=None, session=False, key=None):
-    parts = ["data-persist"] + (["session"] if session else []) + ([f"key.{key}"] if key else [])
-    attr_key = "__".join(parts)
+    attr_key = f"data-persist-{key}" if key else "data-persist" + ("__session" if session else "")
 
-    if signals:
-        value = ",".join(signals)
-    elif include or exclude:
-        value = json.dumps({k: _process_patterns(v) for k, v in [("include", include), ("exclude", exclude)] if v})
-    else:
-        value = None
+    value = (
+        ",".join(signals)
+        if signals
+        else json.dumps({k: _process_patterns(v) for k, v in [("include", include), ("exclude", exclude)] if v})
+        if include or exclude
+        else None
+    )
 
     return DatastarAttr({attr_key: value})
 
@@ -272,10 +210,13 @@ def ds_persist(*signals, include=None, exclude=None, session=False, key=None):
 def ds_json_signals(show=True, include=None, exclude=None, terse=False):
     key = "data-json-signals" + ("__terse" if terse else "")
 
-    if include or exclude:
-        value = json.dumps({k: _process_patterns(v) for k, v in [("include", include), ("exclude", exclude)] if v})
-    else:
-        value = "false" if show is False else True
+    value = (
+        json.dumps({k: _process_patterns(v) for k, v in [("include", include), ("exclude", exclude)] if v})
+        if include or exclude
+        else "false"
+        if show is False
+        else True
+    )
 
     return DatastarAttr({key: value})
 
@@ -286,22 +227,22 @@ def ds_json_signals(show=True, include=None, exclude=None, terse=False):
 
 
 def _build_event_key(base: str, modifiers: list[str], value_mods: dict[str, str]) -> str:
-    parts = [base] + modifiers
+    modifier_parts = modifiers.copy()
 
     for name, value in value_mods.items():
         if value is True:
-            parts.append(name)
+            modifier_parts.append(name)
         elif name in ("debounce", "throttle"):
             if match := re.search(r"(\d+)", str(value)):
-                parts.append(f"{name}.{match.group(1)}")
+                modifier_parts.append(f"{name}.{match.group(1)}ms")
         elif name == "duration":
             if match := re.search(r"(\d+)(ms|s)?", str(value)):
                 num, unit = match.groups()
-                parts.append(f"duration.{num}{'s' if unit == 's' else ''}")
+                modifier_parts.append(f"duration.{num}{'s' if unit == 's' else 'ms'}")
         else:
-            parts.append(f"{name}.{value}")
+            modifier_parts.append(f"{name}.{value}")
 
-    return ".".join(parts)
+    return f"{base}__{'.'.join(modifier_parts)}" if modifier_parts else base
 
 
 def _create_event_handler(event_name: str):
@@ -341,10 +282,6 @@ def ds_disabled(value: bool | str) -> DatastarAttr:
     return DatastarAttr({"data-disabled": _normalize_value(value)})
 
 
-def ds_cloak() -> DatastarAttr:
-    return DatastarAttr({"data-cloak": None})
-
-
 def ds_ignore(*modifiers) -> DatastarAttr:
     if "self" in modifiers:
         return DatastarAttr({"data-ignore__self": ""})
@@ -353,3 +290,48 @@ def ds_ignore(*modifiers) -> DatastarAttr:
 
 def ds_preserve_attr(*attrs) -> DatastarAttr:
     return DatastarAttr({"data-preserve-attr": ",".join(attrs) if attrs else "*"})
+
+
+# ============================================================================
+# Module Exports
+# ============================================================================
+
+__all__ = [
+    "t",
+    "if_",
+    "equals",
+    "gt",
+    "lt",
+    "gte",
+    "lte",
+    "ds_show",
+    "ds_text",
+    "ds_bind",
+    "ds_ref",
+    "ds_indicator",
+    "ds_effect",
+    "ds_computed",
+    "ds_class",
+    "ds_style",
+    "ds_attr",
+    "ds_signals",
+    "ds_persist",
+    "ds_json_signals",
+    "ds_on_click",
+    "ds_on_input",
+    "ds_on_change",
+    "ds_on_submit",
+    "ds_on_keydown",
+    "ds_on_keyup",
+    "ds_on_focus",
+    "ds_on_blur",
+    "ds_on_scroll",
+    "ds_on_resize",
+    "ds_on_load",
+    "ds_on_interval",
+    "ds_on_intersect",
+    "ds_on",
+    "ds_disabled",
+    "ds_ignore",
+    "ds_preserve_attr",
+]
