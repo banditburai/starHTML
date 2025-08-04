@@ -27,18 +27,31 @@ jobs:
     
     - name: Configure Git
       run: |
-        git config user.name "GitHub Action"
-        git config user.email "action@github.com"
+        # Use the person who triggered the workflow
+        git config user.name "${{ github.actor }}"
+        git config user.email "${{ github.actor }}@users.noreply.github.com"
     
     - name: Get current version and calculate next version
       id: version
       run: |
         # Get current version from pyproject.toml
         CURRENT_VERSION=$(grep "^version = " pyproject.toml | cut -d'"' -f2)
-        echo "Current version: $CURRENT_VERSION"
+        echo "Current version from pyproject.toml: '$CURRENT_VERSION'"
+        
+        # Validate current version format
+        if [ -z "$CURRENT_VERSION" ]; then
+          echo "❌ Error: Could not extract version from pyproject.toml"
+          exit 1
+        fi
+        
+        if ! [[ "$CURRENT_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          echo "❌ Error: Current version '$CURRENT_VERSION' is not in X.Y.Z format"
+          exit 1
+        fi
         
         # Split version into components
         IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+        echo "Version components: MAJOR=$MAJOR, MINOR=$MINOR, PATCH=$PATCH"
         
         # Calculate new version based on release type
         RELEASE_TYPE="${{ inputs.release_type }}"
