@@ -139,3 +139,5 @@ cdp-output/
 .pre-commit-config.yaml
 
 DATASTAR_DOCS.md
+stash/
+backup_before_merge/

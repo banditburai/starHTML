@@ -281,6 +281,150 @@ Div(
 )
 ```
 
+## Handlers
+
+StarHTML provides specialized handlers for complex interactions like drag-and-drop and infinite canvas functionality.
+
+### Canvas Handler
+
+Enable infinite canvas with pan/zoom functionality:
+
+```python
+from starhtml.handlers import canvas_handler
+from starhtml.datastar import ds_canvas_viewport, ds_canvas_container, ds_on_canvas
+
+# Basic canvas setup
+canvas_handler(
+    signal="canvas",              # Signal prefix (default: "canvas")
+    enable_pan=True,              # Enable click-drag panning
+    enable_zoom=True,             # Enable mouse wheel/pinch zoom
+    min_zoom=0.1,                 # Minimum zoom level
+    max_zoom=10.0,                # Maximum zoom level
+    touch_enabled=True,           # Enable touch gestures
+    enable_grid=True,             # Show grid background
+    grid_size=100,                # Major grid line spacing
+    grid_color="#e0e0e0",         # Major grid line color
+    minor_grid_size=20,           # Minor grid line spacing
+    minor_grid_color="#f0f0f0"    # Minor grid line color
+)
+```
+
+**Reactive Signals Created:**
+- `${signal}_pan_x`: number - Pan X offset in pixels
+- `${signal}_pan_y`: number - Pan Y offset in pixels  
+- `${signal}_zoom`: number - Current zoom level (1.0 = 100%)
+- `${signal}_is_panning`: bool - Whether currently panning
+
+**Helper Functions Created:**
+- `${signal}_reset_view()` - Reset to initial pan and zoom
+- `${signal}_zoom_in()` - Zoom in by 20%
+- `${signal}_zoom_out()` - Zoom out by 20%
+
+**HTML Attributes:**
+- `ds_canvas_viewport()` - Mark element as canvas viewport (handles events)
+- `ds_canvas_container()` - Mark element as canvas container (gets transformed)
+- `ds_on_canvas("expression")` - Handler for canvas events
+
+**Usage Example:**
+```python
+@rt("/canvas")
+def canvas_demo():
+    return Div(
+        canvas_handler("canvas"),
+        Div(
+            # Content that can be panned/zoomed
+            Div("Canvas content here", ds_canvas_container()),
+            ds_canvas_viewport(),
+            ds_on_canvas("console.log('Pan:', $canvas_pan_x, $canvas_pan_y)"),
+            cls="viewport"
+        ),
+        # Controls
+        Button("Reset", ds_on_click("$canvas_reset_view()")),
+        Button("Zoom In", ds_on_click("$canvas_zoom_in()")),
+        Button("Zoom Out", ds_on_click("$canvas_zoom_out()")),
+    )
+```
+
+### Drag Handler
+
+Enable drag-and-drop with reactive state management:
+
+```python
+from starhtml.handlers import drag_handler
+from starhtml.datastar import ds_draggable, ds_drop_zone
+
+# Basic drag setup
+drag_handler(
+    signal="drag",                    # Signal prefix (default: "drag")
+    mode="freeform",                  # "freeform" or "sortable"
+    throttle_ms=16,                   # Throttle updates (16ms = 60fps)
+    constrain_to_parent=False,        # Keep within parent bounds
+    touch_enabled=True                # Enable touch/mobile dragging
+)
+```
+
+**Reactive Signals Created:**
+- `${signal}_is_dragging`: bool - Whether any element is being dragged
+- `${signal}_element_id`: string|null - ID of currently dragged element
+- `${signal}_x`: number - X position (relative to container or screen)
+- `${signal}_y`: number - Y position (relative to container or screen)
+- `${signal}_drop_zone`: string|null - Name of current drop zone
+- `${signal}_zone_[name]_items`: array - Items in/over each drop zone
+
+**HTML Attributes:**
+- `ds_draggable()` - Mark element as draggable
+- `ds_drop_zone("zone-name")` - Mark element as drop zone
+- `ds_on_drag("expression")` - Handler expression for drag events
+
+**Drag Modes:**
+- `freeform`: Free positioning, tracks drop zone overlap
+- `sortable`: List reordering, moves items between zones
+
+**Usage Example:**
+```python
+@rt("/drag-drop")
+def drag_drop():
+    return Div(
+        drag_handler("drag", mode="freeform", constrain_to_parent=True),
+        
+        # Draggable items
+        Div("Drag me!", ds_draggable(), id="item1", cls="draggable"),
+        Div("Me too!", ds_draggable(), id="item2", cls="draggable"),
+        
+        # Drop zones
+        Div("Drop here", ds_drop_zone("inbox"), cls="drop-zone"),
+        Div("Or here", ds_drop_zone("archive"), cls="drop-zone"),
+        
+        # Status display
+        P(f"Dragging: ", ds_text("$drag_is_dragging ? $drag_element_id : 'none'")),
+        P(f"Drop zone: ", ds_text("$drag_drop_zone || 'none'")),
+        
+        ds_signals(drag_is_dragging=False, drag_element_id=None)
+    )
+```
+
+**Canvas + Drag Integration:**
+```python
+@rt("/canvas-drag")
+def canvas_with_draggable_nodes():
+    return Div(
+        # Both handlers work together
+        canvas_handler("canvas", enable_grid=True),
+        drag_handler("node", mode="freeform"),
+        
+        Div(
+            # Draggable nodes on canvas
+            Div("Node 1", ds_draggable(), id="node1", cls="node"),
+            Div("Node 2", ds_draggable(), id="node2", cls="node"),
+            
+            ds_canvas_container(),
+            cls="canvas-content"
+        ),
+        ds_canvas_viewport(),
+        cls="canvas-viewport"
+    )
+```
+
 ## Best Practices
 
 1. **Use $ prefix only in expressions** - Not in signal definitions

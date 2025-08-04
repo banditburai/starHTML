@@ -198,6 +198,46 @@ DEMOS = [
         "Advanced",
         "25 min",
     ),
+    Demo(
+        "11-drag",
+        "Drag Handler",
+        "Drag-and-drop sortable lists with reactive state management",
+        "11_drag_handler.py",
+        "Advanced",
+        "15 min",
+    ),
+    Demo(
+        "12-freeform-drag",
+        "🎯 Freeform Drag with Zones",
+        "Drag items anywhere while zones track what's over them",
+        "12_freeform_drag.py",
+        "Advanced",
+        "15 min",
+    ),
+    Demo(
+        "13-canvas",
+        "Canvas Handler",
+        "Infinite pannable/zoomable canvas with touch support",
+        "13_canvas_handler.py",
+        "Advanced",
+        "15 min",
+    ),
+    Demo(
+        "14-canvas-fullpage",
+        "Full-Page Canvas",
+        "Full viewport infinite canvas with keyboard shortcuts",
+        "14_canvas_fullpage.py",
+        "Advanced",
+        "20 min",
+    ),
+    Demo(
+        "15-nodegraph",
+        "🔗 Composable Node Graph",
+        "Build a node graph by combining canvas + drag handlers",
+        "15_nodegraph_demo.py",
+        "Advanced",
+        "25 min",
+    ),
 ]
 
 

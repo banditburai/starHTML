@@ -7,6 +7,8 @@ export default defineConfig({
         'persist': './typescript/handlers/persist.ts',
         'scroll': './typescript/handlers/scroll.ts', 
         'resize': './typescript/handlers/resize.ts',
+        'drag': './typescript/handlers/drag.ts',
+        'canvas': './typescript/handlers/canvas.ts',
         'throttle': './typescript/handlers/throttle.ts',
         'smooth-scroll': './typescript/handlers/smooth-scroll.ts',
         'index': './typescript/handlers/index.ts'
