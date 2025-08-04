@@ -23,7 +23,7 @@ jobs:
     - uses: actions/checkout@v4
       with:
         fetch-depth: 0  # Full history for version validation
-        token: ${{ secrets.GITHUB_TOKEN }}
+        token: ${{ secrets.RELEASE_TOKEN }}
     
     - name: Configure Git
       run: |
