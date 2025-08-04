@@ -1276,7 +1276,7 @@ wheels = [
 
 [[package]]
 name = "starhtml"
-version = "0.1.3"
+version = "0.1.4"
 source = { editable = "." }
 dependencies = [
     { name = "beautifulsoup4" },
@@ -1321,6 +1321,7 @@ dev = [
     { name = "brotli" },
     { name = "psutil" },
     { name = "pyright" },
+    { name = "pytest-asyncio" },
     { name = "ruff" },
 ]
 test = [
@@ -1364,6 +1365,7 @@ dev = [
     { name = "brotli", specifier = ">=1.1.0" },
     { name = "psutil", specifier = ">=7.0.0" },
     { name = "pyright", specifier = ">=1.1.403" },
+    { name = "pytest-asyncio", specifier = ">=1.1.0" },
     { name = "ruff", specifier = ">=0.11.13" },
 ]
 test = [{ name = "python-multipart", specifier = ">=0.0.20" }]

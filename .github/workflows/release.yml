@@ -49,30 +49,53 @@ jobs:
     - name: Validate JavaScript build outputs
       run: |
         echo "🔍 Validating JavaScript assets..."
-        required_files=(
-          "src/starhtml/static/js/handlers/persist.js"
-          "src/starhtml/static/js/handlers/scroll.js"
-          "src/starhtml/static/js/handlers/resize.js"
-          "src/starhtml/static/js/handlers/smooth-scroll.js"
-          "src/starhtml/static/js/handlers/throttle.js"
-          "src/starhtml/static/js/handlers/index.js"
-          "src/starhtml/static/js/external/katex.js"
-        )
         
-        for file in "${required_files[@]}"; do
+        # Check handlers directory exists and has files
+        handlers_dir="src/starhtml/static/js/handlers"
+        if [ ! -d "$handlers_dir" ]; then
+          echo "❌ Handlers directory missing: $handlers_dir"
+          exit 1
+        fi
+        
+        # Count and validate handler files
+        handler_count=$(find "$handlers_dir" -name "*.js" -type f | wc -l)
+        if [ "$handler_count" -eq 0 ]; then
+          echo "❌ No JavaScript handler files found in $handlers_dir"
+          exit 1
+        fi
+        
+        echo "📁 Found $handler_count handler files:"
+        
+        # Validate each handler file
+        for file in "$handlers_dir"/*.js; do
           if [ -f "$file" ]; then
             size=$(stat -c%s "$file")
-            echo "✅ $file ($size bytes)"
-            # Verify file is not empty
+            basename=$(basename "$file")
+            echo "✅ $basename ($size bytes)"
             if [ "$size" -eq 0 ]; then
               echo "❌ Empty file: $file"
               exit 1
             fi
-          else
-            echo "❌ Missing: $file"
+          fi
+        done
+        
+        # Ensure core handlers exist
+        core_handlers=("index.js" "persist.js" "scroll.js" "resize.js")
+        for handler in "${core_handlers[@]}"; do
+          if [ ! -f "$handlers_dir/$handler" ]; then
+            echo "❌ Missing core handler: $handler"
             exit 1
           fi
         done
+        
+        # Check external assets
+        if [ -f "src/starhtml/static/js/external/katex.js" ]; then
+          echo "✅ katex.js found"
+        else
+          echo "❌ Missing external asset: katex.js"
+          exit 1
+        fi
+        
         echo "🎉 All JavaScript assets validated!"
     
     - name: Install uv

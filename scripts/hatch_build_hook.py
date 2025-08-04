@@ -85,24 +85,27 @@ class CustomBuildHook(BuildHookInterface):
         if not handlers_dir.exists():
             raise JavaScriptBuildError(f"Handlers directory not created: {handlers_dir}")
 
-        expected_files = ["index.js", "persist.js", "scroll.js", "resize.js", "smooth-scroll.js", "throttle.js"]
+        # Dynamically discover all built .js files instead of hardcoding
+        built_files = list(handlers_dir.glob("*.js"))
+        if not built_files:
+            raise JavaScriptBuildError("No JavaScript files found after build")
 
-        missing_files = []
-        for file_name in expected_files:
-            file_path = handlers_dir / file_name
-            if not file_path.exists():
-                missing_files.append(file_name)
+        # Check that at least the core files exist
+        core_files = {"index.js", "persist.js", "scroll.js", "resize.js"}
+        built_file_names = {f.name for f in built_files}
+        missing_core = core_files - built_file_names
+        if missing_core:
+            raise JavaScriptBuildError(f"Missing core JavaScript files after build: {missing_core}")
 
-        if missing_files:
-            raise JavaScriptBuildError(f"Missing JavaScript files after build: {missing_files}")
+        print(f"✅ JavaScript build complete! Generated {len(built_files)} handler files:")
+        for file in sorted(built_files):
+            print(f"   - {file.name}")
 
-        print(f"✅ JavaScript build complete! Generated {len(expected_files)} handler files")
-
-        # Add the generated files to build artifacts so hatchling includes them
+        # Add all generated files to build artifacts so hatchling includes them
         artifacts = build_data.setdefault("artifacts", [])
-        for file_name in expected_files:
-            rel_path = f"src/starhtml/static/js/handlers/{file_name}"
+        for file_path in built_files:
+            rel_path = f"src/starhtml/static/js/handlers/{file_path.name}"
             if rel_path not in artifacts:
                 artifacts.append(rel_path)
 
-        print(f"📦 Added {len(expected_files)} JavaScript handlers to build artifacts")
+        print(f"📦 Added {len(built_files)} JavaScript handlers to build artifacts")

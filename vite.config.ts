@@ -38,8 +38,7 @@ export default defineConfig({
         comments: false,
         ascii_only: true,
         semicolons: false,
-        beautify: false,
-        preserve_line: false
+        beautify: false
       },
       mangle: {
         safari10: true,
