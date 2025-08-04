@@ -86,6 +86,10 @@ jobs:
         # Output for later steps
         echo "current=$CURRENT_VERSION" >> $GITHUB_OUTPUT
         echo "new=$NEW_VERSION" >> $GITHUB_OUTPUT
+        
+        # Also set as environment variables as backup
+        echo "CURRENT_VERSION=$CURRENT_VERSION" >> $GITHUB_ENV
+        echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
     
     - name: Check if version already exists
       run: |
@@ -139,8 +143,22 @@ jobs:
     
     - name: Create and push tag
       run: |
-        VERSION="v${{ inputs.version }}"
+        VERSION="v${{ steps.version.outputs.new }}"
         TYPE="${{ inputs.release_type }}"
+        
+        # Fallback to environment variable if output is empty
+        if [ -z "${VERSION#v}" ]; then
+          echo "⚠️ Using environment variable fallback"
+          VERSION="v$NEW_VERSION"
+        fi
+        
+        # Final validation
+        if [ -z "${VERSION#v}" ]; then
+          echo "❌ Error: Version is still empty!"
+          exit 1
+        fi
+        
+        echo "Creating tag: $VERSION"
         
         # Create annotated tag with generated release notes
         git tag -a "$VERSION" -m "Release $VERSION ($TYPE release)
