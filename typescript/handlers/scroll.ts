@@ -250,5 +250,4 @@ const scrollAttributePlugin: AttributePlugin = {
   },
 };
 
-
 export default scrollAttributePlugin;

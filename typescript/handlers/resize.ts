@@ -121,7 +121,6 @@ const resizeAttributePlugin: AttributePlugin = {
 
     const { throttle, isDebounce } = parseModifiers(mods);
 
-
     const handleResize = () => {
       const context = createResizeContext(el, window.innerWidth, window.innerHeight);
 

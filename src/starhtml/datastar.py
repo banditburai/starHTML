@@ -305,10 +305,38 @@ ds_on_pointermove = _create_event_handler("pointermove")
 ds_on_pointerenter = _create_event_handler("pointerenter")
 ds_on_pointerleave = _create_event_handler("pointerleave")
 
+# Custom handler events
+ds_on_canvas = _create_event_handler("canvas")
+
 
 def ds_on(event: str, expression: str, *modifiers, **kwargs) -> DatastarAttr:
     key = _build_event_key(f"data-on-{event}", list(modifiers), kwargs)
     return DatastarAttr({key: NotStr(expression)})
+
+
+# ============================================================================
+# Custom Data Attributes
+# ============================================================================
+
+
+def ds_canvas_viewport(value: Any = True) -> DatastarAttr:
+    """Mark element as canvas viewport."""
+    return DatastarAttr({"data-canvas-viewport": value})
+
+
+def ds_canvas_container(value: Any = True) -> DatastarAttr:
+    """Mark element as canvas container."""
+    return DatastarAttr({"data-canvas-container": value})
+
+
+def ds_draggable(value: Any = True) -> DatastarAttr:
+    """Mark element as draggable."""
+    return DatastarAttr({"data-draggable": value})
+
+
+def ds_drop_zone(zone_id: str) -> DatastarAttr:
+    """Mark element as drop zone with identifier."""
+    return DatastarAttr({"data-drop-zone": zone_id})
 
 
 # ============================================================================
@@ -404,4 +432,11 @@ __all__ = [
     "ds_disabled",
     "ds_ignore",
     "ds_preserve_attr",
+    # Custom Data Attributes
+    "ds_canvas_viewport",
+    "ds_canvas_container",
+    "ds_draggable",
+    "ds_drop_zone",
+    # Custom handler events
+    "ds_on_canvas",
 ]
