@@ -61,8 +61,12 @@ jobs:
         cd demo
         VERSION="${{ steps.get-version.outputs.version }}"
         
+        # First, ensure we have a clean state (in case of previous failures)
+        git checkout pyproject.toml 2>/dev/null || true
+        
         # Update pyproject.toml to use the exact version
-        sed -i "s/\"starhtml[^\"]*\"/\"starhtml>=$VERSION\"/" pyproject.toml
+        # Only match starhtml in the dependencies array (with leading spaces)
+        sed -i "s/    \"starhtml[^\"]*\"/    \"starhtml>=$VERSION\"/" pyproject.toml
         
         # Update the lock file
         uv lock --upgrade-package starhtml
