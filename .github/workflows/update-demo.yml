@@ -1,17 +1,16 @@
-name: Update Demo After Release
+name: Update Demo Dependencies
 
 on:
-  workflow_run:
-    workflows: ["🚀 Release to PyPI and GitHub"]
-    types:
-      - completed
-    branches:
-      - main
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'StarHTML version to update to (leave empty for latest)'
+        required: false
+        type: string
 
 jobs:
   update-demo:
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     permissions:
       contents: write
     
@@ -22,39 +21,38 @@ jobs:
     
     - name: Configure Git
       run: |
-        # Use the release workflow's actor
         git config user.name "${{ github.actor }}"
         git config user.email "${{ github.actor }}@users.noreply.github.com"
     
     - name: Install uv
       uses: astral-sh/setup-uv@v4
     
-    - name: Get latest version from PyPI
+    - name: Get version to update to
       id: get-version
       run: |
-        echo "⏳ Waiting for new package to be available on PyPI..."
-        
-        # Get current version from main pyproject.toml
-        EXPECTED_VERSION=$(grep "^version = " pyproject.toml | cut -d'"' -f2)
-        echo "Expected version from pyproject.toml: $EXPECTED_VERSION"
-        
-        # Poll PyPI until the version is available (max 10 minutes)
-        for i in {1..20}; do
-          LATEST_VERSION=$(curl -s https://pypi.org/pypi/starhtml/json | python -c "import sys, json; print(json.load(sys.stdin)['info']['version'])" 2>/dev/null || echo "")
+        # Check if version was provided as input
+        if [ -n "${{ inputs.version }}" ]; then
+          VERSION="${{ inputs.version }}"
+          echo "Using specified version: $VERSION"
+        else
+          # Get latest version from PyPI
+          echo "Fetching latest version from PyPI..."
+          VERSION=$(curl -s https://pypi.org/pypi/starhtml/json | python -c "import sys, json; print(json.load(sys.stdin)['info']['version'])" 2>/dev/null || echo "")
           
-          if [ "$LATEST_VERSION" = "$EXPECTED_VERSION" ]; then
-            echo "✅ Version $EXPECTED_VERSION is available on PyPI"
-            echo "version=$EXPECTED_VERSION" >> $GITHUB_OUTPUT
-            break
+          if [ -z "$VERSION" ]; then
+            echo "❌ Failed to fetch latest version from PyPI"
+            exit 1
           fi
           
-          echo "Attempt $i/20: Latest PyPI version is $LATEST_VERSION, waiting for $EXPECTED_VERSION..."
-          sleep 30
-        done
+          echo "Latest PyPI version: $VERSION"
+        fi
         
-        if [ "$LATEST_VERSION" != "$EXPECTED_VERSION" ]; then
-          echo "⚠️  Warning: Expected version $EXPECTED_VERSION not found on PyPI after 10 minutes"
-          echo "⚠️  Latest PyPI version is $LATEST_VERSION"
+        # Verify the version exists on PyPI
+        if curl -s https://pypi.org/pypi/starhtml/$VERSION/json > /dev/null 2>&1; then
+          echo "✅ Version $VERSION is available on PyPI"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+        else
+          echo "❌ Version $VERSION not found on PyPI"
           exit 1
         fi
     
