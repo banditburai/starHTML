@@ -1,0 +1,79 @@
+name: Update Demo After Release
+
+on:
+  workflow_run:
+    workflows: ["🚀 Release to PyPI and GitHub"]
+    types:
+      - completed
+    branches:
+      - main
+
+jobs:
+  update-demo:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    permissions:
+      contents: write
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: main
+    
+    - name: Configure Git
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+    
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+    
+    - name: Get latest version from PyPI
+      id: get-version
+      run: |
+        echo "⏳ Waiting for new package to be available on PyPI..."
+        
+        # Get current version from main pyproject.toml
+        EXPECTED_VERSION=$(grep "^version = " pyproject.toml | cut -d'"' -f2)
+        echo "Expected version from pyproject.toml: $EXPECTED_VERSION"
+        
+        # Poll PyPI until the version is available (max 10 minutes)
+        for i in {1..20}; do
+          LATEST_VERSION=$(curl -s https://pypi.org/pypi/starhtml/json | python -c "import sys, json; print(json.load(sys.stdin)['info']['version'])" 2>/dev/null || echo "")
+          
+          if [ "$LATEST_VERSION" = "$EXPECTED_VERSION" ]; then
+            echo "✅ Version $EXPECTED_VERSION is available on PyPI"
+            echo "version=$EXPECTED_VERSION" >> $GITHUB_OUTPUT
+            break
+          fi
+          
+          echo "Attempt $i/20: Latest PyPI version is $LATEST_VERSION, waiting for $EXPECTED_VERSION..."
+          sleep 30
+        done
+        
+        if [ "$LATEST_VERSION" != "$EXPECTED_VERSION" ]; then
+          echo "⚠️  Warning: Expected version $EXPECTED_VERSION not found on PyPI after 10 minutes"
+          echo "⚠️  Latest PyPI version is $LATEST_VERSION"
+          exit 1
+        fi
+    
+    - name: Update demo requirements
+      run: |
+        cd demo
+        VERSION="${{ steps.get-version.outputs.version }}"
+        
+        # Update pyproject.toml to use the exact version
+        sed -i "s/starhtml.*/starhtml>=$VERSION\",/" pyproject.toml
+        
+        # Update the lock file
+        uv lock --upgrade-package starhtml
+        
+        echo "✅ Updated demo to use starhtml $VERSION"
+    
+    - name: Commit and push changes
+      run: |
+        VERSION="${{ steps.get-version.outputs.version }}"
+        
+        git add demo/pyproject.toml demo/uv.lock
+        git commit -m "chore: update demo to use starhtml $VERSION [skip ci]"
+        git push origin main

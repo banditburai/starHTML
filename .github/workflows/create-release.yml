@@ -1,0 +1,135 @@
+name: Create Release Tag
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: 'Release type'
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+        default: patch
+
+jobs:
+  create-tag:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Full history for version validation
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Configure Git
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+    
+    - name: Get current version and calculate next version
+      id: version
+      run: |
+        # Get current version from pyproject.toml
+        CURRENT_VERSION=$(grep "^version = " pyproject.toml | cut -d'"' -f2)
+        echo "Current version: $CURRENT_VERSION"
+        
+        # Split version into components
+        IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+        
+        # Calculate new version based on release type
+        RELEASE_TYPE="${{ inputs.release_type }}"
+        case $RELEASE_TYPE in
+          major)
+            NEW_MAJOR=$((MAJOR + 1))
+            NEW_MINOR=0
+            NEW_PATCH=0
+            ;;
+          minor)
+            NEW_MAJOR=$MAJOR
+            NEW_MINOR=$((MINOR + 1))
+            NEW_PATCH=0
+            ;;
+          patch)
+            NEW_MAJOR=$MAJOR
+            NEW_MINOR=$MINOR
+            NEW_PATCH=$((PATCH + 1))
+            ;;
+        esac
+        
+        NEW_VERSION="$NEW_MAJOR.$NEW_MINOR.$NEW_PATCH"
+        
+        echo "╔════════════════════════════════════════╗"
+        echo "║          Release Summary               ║"
+        echo "╠════════════════════════════════════════╣"
+        echo "║ Current version: $CURRENT_VERSION"
+        echo "║ Release type:    $RELEASE_TYPE"
+        echo "║ New version:     $NEW_VERSION"
+        echo "╚════════════════════════════════════════╝"
+        
+        # Output for later steps
+        echo "current=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+        echo "new=$NEW_VERSION" >> $GITHUB_OUTPUT
+    
+    - name: Check if version already exists
+      run: |
+        VERSION="v${{ steps.version.outputs.new }}"
+        if git rev-parse "$VERSION" >/dev/null 2>&1; then
+          echo "❌ Tag $VERSION already exists!"
+          exit 1
+        fi
+        echo "✅ Tag $VERSION does not exist yet"
+    
+    - name: Update version in pyproject.toml
+      run: |
+        VERSION="${{ steps.version.outputs.new }}"
+        sed -i "s/^version = .*/version = \"$VERSION\"/" pyproject.toml
+        
+        # Verify the change
+        echo "Updated pyproject.toml:"
+        grep "^version = " pyproject.toml
+    
+    - name: Commit version bump
+      run: |
+        git add pyproject.toml
+        git commit -m "chore: bump version to ${{ steps.version.outputs.new }}"
+        git push origin main
+    
+    - name: Generate release notes
+      id: release_notes
+      run: |
+        # Get the previous tag
+        PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+        VERSION="v${{ steps.version.outputs.new }}"
+        
+        if [ -z "$PREV_TAG" ]; then
+          echo "First release"
+          NOTES="Initial release of StarHTML"
+        else
+          echo "Previous tag: $PREV_TAG"
+          # Get commit messages since last tag
+          NOTES="### Changes since $PREV_TAG\n\n"
+          NOTES+=$(git log $PREV_TAG..HEAD --pretty=format:"- %s" --no-merges | grep -v "chore: " | head -20)
+        fi
+        
+        # Save for the tag message
+        echo "RELEASE_NOTES<<EOF" >> $GITHUB_ENV
+        echo -e "$NOTES" >> $GITHUB_ENV
+        echo "EOF" >> $GITHUB_ENV
+    
+    - name: Create and push tag
+      run: |
+        VERSION="v${{ inputs.version }}"
+        TYPE="${{ inputs.release_type }}"
+        
+        # Create annotated tag with generated release notes
+        git tag -a "$VERSION" -m "Release $VERSION ($TYPE release)
+        
+        $RELEASE_NOTES"
+        git push origin "$VERSION"
+        
+        echo "✅ Created and pushed tag $VERSION"
+        echo "🚀 This will trigger the release workflow to publish to PyPI"
