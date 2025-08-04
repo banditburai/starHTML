@@ -27,8 +27,8 @@ jobs:
     
     - name: Configure Git
       run: |
-        git config user.name "github-actions[bot]"
-        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git config user.name "GitHub Action"
+        git config user.email "action@github.com"
     
     - name: Get current version and calculate next version
       id: version
@@ -77,6 +77,10 @@ jobs:
     - name: Check if version already exists
       run: |
         VERSION="v${{ steps.version.outputs.new }}"
+        if [ -z "${{ steps.version.outputs.new }}" ]; then
+          echo "❌ Error: Version is empty!"
+          exit 1
+        fi
         if git rev-parse "$VERSION" >/dev/null 2>&1; then
           echo "❌ Tag $VERSION already exists!"
           exit 1
