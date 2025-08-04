@@ -62,7 +62,7 @@ jobs:
         VERSION="${{ steps.get-version.outputs.version }}"
         
         # Update pyproject.toml to use the exact version
-        sed -i "s/\"starhtml.*/\"starhtml>=$VERSION\",/" pyproject.toml
+        sed -i "s/\"starhtml[^\"]*\"/\"starhtml>=$VERSION\"/" pyproject.toml
         
         # Update the lock file
         uv lock --upgrade-package starhtml
