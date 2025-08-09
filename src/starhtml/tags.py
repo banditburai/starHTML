@@ -200,7 +200,6 @@ _SVG_TAG_NAMES = [
     "Use",
     "View",
     "Vkern",
-    "Template",
 ]
 
 __all__ = [

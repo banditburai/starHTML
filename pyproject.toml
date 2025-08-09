@@ -50,6 +50,8 @@ include = [
     "src/starhtml/static/**/*.json", 
     "src/starhtml/static/**/*.css",
     "src/starhtml/**/*.py",
+    "src/starhtml/**/*.pyi",
+    "src/starhtml/py.typed",
 ]
 # Build artifacts (JavaScript handlers) will be added dynamically by the build hook
 artifacts = []
@@ -142,6 +144,8 @@ ignore = [
 "src/starhtml/oauth.py" = ["C901"]  # Allow complexity in OAuth
 "src/starhtml/__init__.py" = ["F401"]  # Allow unused imports in __init__
 "src/starhtml/tags.py" = ["N803", "N806", "E743", "PLE0604"]  # Allow SVG naming conventions, ambiguous function names, and __all__ patterns
+"src/starhtml/tags.pyi" = ["E743", "N803"]  # Allow ambiguous I function and camelCase SVG attrs like viewBox
+"src/starhtml/types.py" = []  # Type definitions file
 "src/starhtml/realtime.py" = ["PLR0911", "PLR2004"]  # Allow complexity and magic values in realtime processing
 "src/starhtml/server.py" = ["PLR0911", "N801", "PLW1508"]  # Allow complexity, internal class naming, and env var patterns
 "src/starhtml/utils.py" = ["N813", "E721"]  # Allow CamelCase imports and type comparisons for compatibility
