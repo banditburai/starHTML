@@ -81,6 +81,7 @@ class StarHTML(Starlette):
         include_iconify=True,
         iconify_version=None,
         auto_unpack=True,
+        static_path=None,
         **bodykw,
     ):
         middleware, before, after = map(_list, (middleware, before, after))
@@ -169,15 +170,8 @@ class StarHTML(Starlette):
                 return FileResponse(js_file, media_type="application/javascript")
             return Response("Not Found", status_code=404)
 
-        static_css_dir = Path(__file__).parent / "static" / "css"
-
-        @self.route("/static/css/{filename}")
-        async def serve_starhtml_css(filename: str):
-            """Serve StarHTML's built-in CSS files."""
-            css_file = static_css_dir / filename
-            if css_file.exists() and css_file.is_file():
-                return FileResponse(css_file, media_type="text/css")
-            return Response("Not Found", status_code=404)
+        if static_path:
+            self.static_route_exts(static_path=static_path)
 
     def add_route(self, route) -> None:
         route.methods = [m.upper() if isinstance(m, str) else m for m in listify(route.methods)]
