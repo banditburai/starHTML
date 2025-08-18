@@ -340,6 +340,42 @@ def ds_drop_zone(zone_id: str) -> DatastarAttr:
 
 
 # ============================================================================
+# Datastar Action Plugins
+# ============================================================================
+
+
+CLIPBOARD_ACTION = """{
+    type: 'action',
+    name: 'clipboard',
+    fn: ({ peek, mergePatch }, text, signal, timeout = 2000) => {
+        navigator.clipboard.writeText(text).then(() => {
+            if (signal) {
+                peek(() => mergePatch({ [signal]: true }));
+                setTimeout(() => peek(() => mergePatch({ [signal]: false })), timeout);
+            }
+        }).catch(() => {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.cssText = 'position:fixed;left:-9999px';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            if (signal) {
+                peek(() => mergePatch({ [signal]: true }));
+                setTimeout(() => peek(() => mergePatch({ [signal]: false })), timeout);
+            }
+        });
+    }
+}"""
+
+
+def get_starhtml_action_plugins() -> list[dict]:
+    """StarHTML's custom Datastar action plugins."""
+    return [{"type": "action", "name": "clipboard", "code": CLIPBOARD_ACTION}]
+
+
+# ============================================================================
 # Special Attributes
 # ============================================================================
 
