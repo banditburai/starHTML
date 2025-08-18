@@ -474,23 +474,25 @@ class StarHTMLWithLiveReload:
     """
 
     def __new__(cls, *args, **kwargs):
-        """
-        Factory using __new__ to dynamically create a StarHTML subclass.
-
-        This pattern is used to inject live-reload routes and headers into the
-        StarHTML application at instantiation time without requiring the user
-        to manually inherit from StarHTML or configure live-reload manually.
-        """
+        """Factory using __new__ to dynamically inject live-reload into StarHTML."""
         from .core import StarHTML
+
+        bodykw = kwargs.pop("bodykw", {})
+        reload_attempts = kwargs.pop("reload_attempts", 1)
+        reload_interval = kwargs.pop("reload_interval", 1000)
 
         class _StarHTMLWithLiveReload(StarHTML):
             def __init__(self, *args, **kwargs):
-                # "hdrs" and "routes" can be missing, None, a list or a tuple.
-                kwargs["hdrs"] = [*(kwargs.get("hdrs") or []), LiveReloadJs(**kwargs)]
+                kwargs["hdrs"] = [
+                    *(kwargs.get("hdrs") or []),
+                    LiveReloadJs(reload_attempts=reload_attempts, reload_interval=reload_interval),
+                ]
                 kwargs["routes"] = [
                     *(kwargs.get("routes") or []),
                     WebSocketRoute("/live-reload", endpoint=live_reload_ws),
                 ]
+                if bodykw:
+                    kwargs.update(bodykw)
                 super().__init__(*args, **kwargs)
 
         return _StarHTMLWithLiveReload(*args, **kwargs)
