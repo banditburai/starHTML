@@ -83,11 +83,11 @@ def star_app(
         key_fname=key_fname,
         exts=exts,
         htmlkw=htmlkw,
+        bodykw=bodykw,
         reload_attempts=reload_attempts,
         reload_interval=reload_interval,
         body_wrap=body_wrap,
         auto_unpack=auto_unpack,
-        **(bodykw or {}),
     )
     app.static_route_exts(static_path=static_path)
 
@@ -177,6 +177,10 @@ def _app_factory(*args, **kwargs):
 
     if kwargs.pop("live", False):
         return StarHTMLWithLiveReload(*args, **kwargs)
+
     kwargs.pop("reload_attempts", None)
     kwargs.pop("reload_interval", None)
+    bodykw = kwargs.pop("bodykw", {})
+    if bodykw:
+        kwargs.update(bodykw)
     return StarHTML(*args, **kwargs)
