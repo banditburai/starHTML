@@ -4,8 +4,10 @@ from typing import Any, Literal, Protocol, TypeVar
 
 from fastcore.xml import FT
 
+from starhtml.datastar import DatastarAttr
+
 # Core HTML content types
-HTMLContent = str | int | float | FT | None
+HTMLContent = str | int | float | FT | DatastarAttr | None
 HTMLChildren = HTMLContent | tuple[HTMLContent, ...] | list[HTMLContent]
 
 # CSS and style types
