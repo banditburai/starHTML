@@ -9,7 +9,7 @@ from starlette.requests import HTTPConnection
 
 from .realtime import StarHTMLWithLiveReload
 
-__all__ = ["star_app", "DATASTAR_VERSION", "ICONIFY_VERSION", "def_hdrs", "Beforeware", "MiddlewareBase"]
+__all__ = ["star_app", "DATASTAR_VERSION", "ICONIFY_VERSION", "def_hdrs", "fouc_script", "Beforeware", "MiddlewareBase"]
 
 # ============================================================================
 # Main Application Factory
@@ -49,6 +49,7 @@ def star_app(
     static_path: str = ".",
     body_wrap: Callable = None,
     auto_unpack: bool = True,
+    fouc: str | dict = None,
     **kwargs: Any,
 ):
     from .core import noop_body
@@ -117,32 +118,78 @@ DATASTAR_VERSION = "release-candidate"
 ICONIFY_VERSION = "2.3.0"
 
 
-def def_hdrs(datastar_version=None, include_iconify=True, iconify_version=None, fallback_path="/static/datastar.js"):
-    from .tags import Meta, Script
+def def_hdrs(
+    datastar_version=None,
+    include_iconify=True,
+    iconify_version=None,
+    fallback_path="/static/datastar.js",
+    include_starhtml_plugins=True,
+):
+    """Generate default headers for StarHTML apps."""
+    from .datastar import get_starhtml_action_plugins
+    from .tags import Meta
+    from .xtend import Script
 
     version = datastar_version or DATASTAR_VERSION
     iconify_ver = iconify_version or ICONIFY_VERSION
 
-    datastarsrc = Script(
-        src=f"https://cdn.jsdelivr.net/gh/starfederation/datastar@{version}/bundles/datastar.js",
-        type="module",
-        onerror=f"this.onerror=null;this.src='{fallback_path}'",
-    )
+    headers = [
+        Meta(charset="utf-8"),
+        Meta(name="viewport", content="width=device-width, initial-scale=1, viewport-fit=cover"),
+    ]
 
-    iconify = (
-        Script(src=f"https://cdn.jsdelivr.net/npm/iconify-icon@{iconify_ver}/dist/iconify-icon.min.js", type="module")
-        if include_iconify
-        else None
-    )
+    if include_starhtml_plugins:
+        plugins = get_starhtml_action_plugins()
+        plugin_js = ",\n".join(p["code"] for p in plugins)
+        headers.append(
+            Script(
+                f"import {{load, apply}} from 'https://cdn.jsdelivr.net/gh/starfederation/datastar@{version}/bundles/datastar.js';\n"
+                f"[{plugin_js}].forEach(p => load(p));\n"
+                f"apply();",
+                type="module",
+            )
+        )
+    else:
+        headers.append(
+            Script(
+                src=f"https://cdn.jsdelivr.net/gh/starfederation/datastar@{version}/bundles/datastar.js",
+                type="module",
+                onerror=f"this.onerror=null;this.src='{fallback_path}'",
+            )
+        )
 
-    viewport = Meta(name="viewport", content="width=device-width, initial-scale=1, viewport-fit=cover")
-    charset = Meta(charset="utf-8")
+    if include_iconify:
+        headers.append(
+            Script(
+                src=f"https://cdn.jsdelivr.net/npm/iconify-icon@{iconify_ver}/dist/iconify-icon.min.js", type="module"
+            )
+        )
 
-    base_headers = [charset, viewport, datastarsrc]
-    if iconify:
-        base_headers.append(iconify)
+    return headers
 
-    return base_headers
+
+def fouc_script(
+    storage_key="theme",
+    cls="dark",
+    system_match="(prefers-color-scheme: dark)",
+    use_data_theme=False,
+    default_theme="light",
+):
+    """Generate theme FOUC prevention script."""
+    from .xtend import Script
+
+    if use_data_theme:
+        return Script(
+            f"const useAlt=localStorage.{storage_key}==='{cls}'||"
+            f"(!('{storage_key}' in localStorage)&&window.matchMedia('{system_match}').matches);"
+            f"document.documentElement.setAttribute('data-theme',useAlt?'{cls}':'{default_theme}');"
+        )
+    else:
+        return Script(
+            f"document.documentElement.classList.toggle('{cls}',"
+            f"localStorage.{storage_key}==='{cls}'||"
+            f"(!('{storage_key}' in localStorage)&&window.matchMedia('{system_match}').matches));"
+        )
 
 
 class Beforeware:
