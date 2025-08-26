@@ -223,14 +223,73 @@ ds_bind("email")                     # Python string
 
 ### Event Handlers
 
+#### Core Interaction Events
+
 | Function | Purpose | Common Modifiers |
 |----------|---------|------------------|
 | `ds_on_click(expr)` | Click handler | `once`, `prevent`, `stop` |
 | `ds_on_input(expr)` | Input handler | `debounce`, `lazy` |
 | `ds_on_submit(expr)` | Form submit | `prevent` |
-| `ds_on_keydown(expr)` | Key down | `enter`, `escape`, `ctrl` |
+| `ds_on_change(expr)` | Value change | - |
+| `ds_on_invalid(expr)` | Form validation | - |
+| `ds_on_keydown(expr)` | Key down | `enter`, `escape`, `ctrl`, `window` |
+| `ds_on_keyup(expr)` | Key up | `enter`, `escape`, `ctrl` |
 | `ds_on_scroll(expr)` | Scroll handler | `throttle`, `passive` |
+| `ds_on_resize(expr)` | Window resize | `throttle` |
 | `ds_on(event, expr)` | Custom events | Any modifiers |
+
+#### Dialog & Popover Events
+
+| Function | Purpose | Use Case |
+|----------|---------|----------|
+| `ds_on_toggle(expr)` | Element toggled | `<details>`, `<dialog>`, popovers |
+| `ds_on_beforetoggle(expr)` | Before toggle | Pre-toggle validation/animation |
+
+#### Clipboard Events
+
+| Function | Purpose | Common Modifiers |
+|----------|---------|------------------|
+| `ds_on_copy(expr)` | Content copied | `prevent` |
+| `ds_on_cut(expr)` | Content cut | `prevent` |
+| `ds_on_paste(expr)` | Content pasted | `prevent` |
+
+#### Animation & Transition Events
+
+| Function | Purpose | Use Case |
+|----------|---------|----------|
+| `ds_on_animationstart(expr)` | CSS animation starts | Track animation state |
+| `ds_on_animationend(expr)` | CSS animation ends | Cleanup after animation |
+| `ds_on_animationiteration(expr)` | Animation iteration | Loop tracking |
+| `ds_on_transitionstart(expr)` | CSS transition starts | Track transition state |
+| `ds_on_transitionend(expr)` | CSS transition ends | Post-transition actions |
+
+#### Media Events
+
+| Function | Purpose | Use Case |
+|----------|---------|----------|
+| `ds_on_play(expr)` | Media starts playing | Video/audio controls |
+| `ds_on_pause(expr)` | Media paused | Update UI state |
+| `ds_on_ended(expr)` | Media finished | Next track, replay |
+| `ds_on_volumechange(expr)` | Volume changed | Volume UI update |
+| `ds_on_timeupdate(expr)` | Playback position update | Progress bar |
+| `ds_on_canplay(expr)` | Media can start | Enable play button |
+| `ds_on_loadedmetadata(expr)` | Metadata loaded | Display duration |
+| `ds_on_progress(expr)` | Download progress | Loading indicator |
+
+#### Page & Network Events
+
+| Function | Purpose | Use Case |
+|----------|---------|----------|
+| `ds_on_online(expr)` | Network reconnected | Sync data |
+| `ds_on_offline(expr)` | Network lost | Show offline mode |
+| `ds_on_error(expr)` | Error occurred | Error handling |
+| `ds_on_message(expr)` | postMessage received | Cross-origin comm |
+| `ds_on_storage(expr)` | Storage changed | Cross-tab sync |
+| `ds_on_popstate(expr)` | History navigation | SPA routing |
+| `ds_on_hashchange(expr)` | URL hash changed | Anchor navigation |
+| `ds_on_visibilitychange(expr)` | Tab visibility changed | Pause/resume |
+| `ds_on_beforeunload(expr)` | Before page unload | Save confirmation |
+| `ds_on_fullscreenchange(expr)` | Fullscreen toggled | UI adjustments |
 
 ### Special Attributes
 

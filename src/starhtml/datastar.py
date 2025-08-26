@@ -297,6 +297,7 @@ ds_on_dragend = _create_event_handler("dragend")
 # Additional Form Events
 ds_on_reset = _create_event_handler("reset")
 ds_on_select = _create_event_handler("select")
+ds_on_invalid = _create_event_handler("invalid")
 
 # Pointer Events
 ds_on_pointerdown = _create_event_handler("pointerdown")
@@ -307,6 +308,59 @@ ds_on_pointerleave = _create_event_handler("pointerleave")
 
 # Custom handler events
 ds_on_canvas = _create_event_handler("canvas")
+
+# Dialog/Popover Events
+ds_on_toggle = _create_event_handler("toggle")
+ds_on_beforetoggle = _create_event_handler("beforetoggle")
+
+# Clipboard Events
+ds_on_copy = _create_event_handler("copy")
+ds_on_cut = _create_event_handler("cut")
+ds_on_paste = _create_event_handler("paste")
+
+# Animation Events
+ds_on_animationstart = _create_event_handler("animationstart")
+ds_on_animationend = _create_event_handler("animationend")
+ds_on_animationiteration = _create_event_handler("animationiteration")
+ds_on_animationcancel = _create_event_handler("animationcancel")
+
+# Transition Events
+ds_on_transitionstart = _create_event_handler("transitionstart")
+ds_on_transitionend = _create_event_handler("transitionend")
+ds_on_transitionrun = _create_event_handler("transitionrun")
+ds_on_transitioncancel = _create_event_handler("transitioncancel")
+
+# Media Events
+ds_on_play = _create_event_handler("play")
+ds_on_pause = _create_event_handler("pause")
+ds_on_ended = _create_event_handler("ended")
+ds_on_volumechange = _create_event_handler("volumechange")
+ds_on_timeupdate = _create_event_handler("timeupdate")
+ds_on_canplay = _create_event_handler("canplay")
+ds_on_canplaythrough = _create_event_handler("canplaythrough")
+ds_on_loadedmetadata = _create_event_handler("loadedmetadata")
+ds_on_progress = _create_event_handler("progress")
+
+# Network Events
+ds_on_online = _create_event_handler("online")
+ds_on_offline = _create_event_handler("offline")
+
+# Page Events
+ds_on_error = _create_event_handler("error")
+ds_on_message = _create_event_handler("message")
+ds_on_storage = _create_event_handler("storage")
+ds_on_popstate = _create_event_handler("popstate")
+ds_on_hashchange = _create_event_handler("hashchange")
+ds_on_beforeunload = _create_event_handler("beforeunload")
+ds_on_unload = _create_event_handler("unload")
+ds_on_visibilitychange = _create_event_handler("visibilitychange")
+
+# Fullscreen Events
+ds_on_fullscreenchange = _create_event_handler("fullscreenchange")
+ds_on_fullscreenerror = _create_event_handler("fullscreenerror")
+
+# Device Events
+ds_on_orientationchange = _create_event_handler("orientationchange")
 
 
 def ds_on(event: str, expression: str, *modifiers, **kwargs) -> DatastarAttr:
@@ -459,12 +513,58 @@ __all__ = [
     # Additional Events
     "ds_on_reset",
     "ds_on_select",
+    "ds_on_invalid",
     "ds_on_pointerdown",
     "ds_on_pointerup",
     "ds_on_pointermove",
     "ds_on_pointerenter",
     "ds_on_pointerleave",
     "ds_on",
+    # Dialog/Popover Events
+    "ds_on_toggle",
+    "ds_on_beforetoggle",
+    # Clipboard Events
+    "ds_on_copy",
+    "ds_on_cut",
+    "ds_on_paste",
+    # Animation Events
+    "ds_on_animationstart",
+    "ds_on_animationend",
+    "ds_on_animationiteration",
+    "ds_on_animationcancel",
+    # Transition Events
+    "ds_on_transitionstart",
+    "ds_on_transitionend",
+    "ds_on_transitionrun",
+    "ds_on_transitioncancel",
+    # Media Events
+    "ds_on_play",
+    "ds_on_pause",
+    "ds_on_ended",
+    "ds_on_volumechange",
+    "ds_on_timeupdate",
+    "ds_on_canplay",
+    "ds_on_canplaythrough",
+    "ds_on_loadedmetadata",
+    "ds_on_progress",
+    # Network Events
+    "ds_on_online",
+    "ds_on_offline",
+    # Page Events
+    "ds_on_error",
+    "ds_on_message",
+    "ds_on_storage",
+    "ds_on_popstate",
+    "ds_on_hashchange",
+    "ds_on_beforeunload",
+    "ds_on_unload",
+    "ds_on_visibilitychange",
+    # Fullscreen Events
+    "ds_on_fullscreenchange",
+    "ds_on_fullscreenerror",
+    # Device Events
+    "ds_on_orientationchange",
+    # Special Attributes
     "ds_disabled",
     "ds_ignore",
     "ds_preserve_attr",
