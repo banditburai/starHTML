@@ -273,7 +273,44 @@ ds_on_keydown = _create_event_handler("keydown")
 ds_on_keyup = _create_event_handler("keyup")
 ds_on_focus = _create_event_handler("focus")
 ds_on_blur = _create_event_handler("blur")
-ds_on_scroll = _create_event_handler("scroll")
+# Custom scroll handler with anchored positioning support
+def ds_on_scroll(expression: str = "", *modifiers, **kwargs) -> DatastarAttr:
+    """Enhanced scroll handler with anchored positioning support.
+    
+    Args:
+        expression: JavaScript expression to execute on scroll (optional for anchored mode)
+        *modifiers: Additional modifiers (e.g., "smooth")
+        **kwargs: Named parameters including:
+            - throttle: Throttle time in ms (default 100)
+            - anchor_to: Element ID to anchor to (enables anchored positioning)
+            - signal_prefix: Explicit signal prefix (auto-detected from anchor_to ID if not provided)
+            - hide_when_offscreen: Auto-hide when trigger is off-screen (default True for anchored)
+            - hide_action: Custom JavaScript to execute when hiding (auto-detected if not provided)
+    
+    Examples:
+        # Traditional scroll handler
+        ds_on_scroll("$scrollY = window.scrollY", throttle="50")
+        
+        # Anchored positioning (minimal - auto-detects everything)
+        ds_on_scroll(anchor_to="popoverTrigger")
+        
+        # Anchored with custom hide action
+        ds_on_scroll(
+            anchor_to="selectTrigger",
+            hide_action="selectContent.hidePopover()",
+            throttle="16"
+        )
+        
+        # Anchored with additional custom logic
+        ds_on_scroll(
+            "$customLogic++",
+            anchor_to="tooltipTrigger",
+            signal_prefix="tooltip",
+            hide_when_offscreen=True
+        )
+    """
+    key = _build_event_key(f"data-on-scroll", list(modifiers), kwargs)
+    return DatastarAttr({key: NotStr(expression) if expression else True})
 ds_on_resize = _create_event_handler("resize")
 ds_on_load = _create_event_handler("load")
 ds_on_interval = _create_event_handler("interval")
