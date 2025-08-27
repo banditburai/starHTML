@@ -216,14 +216,14 @@ class TestSignalsAndPersistence:
         """Test ds_signals with kwargs."""
         result = attrs_of(ds_signals(count=0, name="John", active=True))
         # Fixed: all values become strings to prevent fastcore XML filtering
-        assert result == {"data-signals-count": "0", "data-signals-name": "John", "data-signals-active": "true"}
+        assert result == {"data-signals-count": "0", "data-signals-name": '"John"', "data-signals-active": "true"}
 
     def test_ds_signals_dict(self):
         """Test ds_signals with dict argument."""
         signals = {"count": 0, "name": "John"}
         result = attrs_of(ds_signals(signals))
         # Fixed: all values become strings to prevent fastcore XML filtering
-        assert result == {"data-signals-count": "0", "data-signals-name": "John"}
+        assert result == {"data-signals-count": "0", "data-signals-name": '"John"'}
 
     def test_ds_signals_with_modifiers(self):
         """Test ds_signals with ifmissing modifier."""
