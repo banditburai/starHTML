@@ -215,13 +215,15 @@ class TestSignalsAndPersistence:
     def test_ds_signals_kwargs(self):
         """Test ds_signals with kwargs."""
         result = attrs_of(ds_signals(count=0, name="John", active=True))
-        assert result == {"data-signals-count": "0", "data-signals-name": '"John"', "data-signals-active": "true"}
+        # Fixed: all values become strings to prevent fastcore XML filtering
+        assert result == {"data-signals-count": "0", "data-signals-name": "John", "data-signals-active": "true"}
 
     def test_ds_signals_dict(self):
         """Test ds_signals with dict argument."""
         signals = {"count": 0, "name": "John"}
         result = attrs_of(ds_signals(signals))
-        assert result == {"data-signals-count": "0", "data-signals-name": '"John"'}
+        # Fixed: all values become strings to prevent fastcore XML filtering
+        assert result == {"data-signals-count": "0", "data-signals-name": "John"}
 
     def test_ds_signals_with_modifiers(self):
         """Test ds_signals with ifmissing modifier."""
@@ -509,11 +511,12 @@ class TestIntegration:
 
     def test_form_with_signals_and_persist(self):
         """Test form with signals and persistence."""
+        # DatastarAttr objects should be applied to the parent element
         form = Form(
             Input(ds_bind("email", case="lower"), type="email"),
             Input(ds_bind("password"), type="password"),
             Button("Login", ds_disabled("!$email || !$password")),
-            ds_signals(email="", password=""),
+            ds_signals(email="", password=""),  # These get merged into form attributes
             ds_persist("email"),
             ds_on_submit("login()", "prevent"),
         )

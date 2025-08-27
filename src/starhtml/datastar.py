@@ -100,6 +100,8 @@ def _normalize_value(value: Any, wrap_strings: bool = False) -> Any:
     match value:
         case bool():
             return "true" if value else "false"
+        case None:
+            return "null"
         case int() | float():
             return value
         case str():
@@ -110,10 +112,26 @@ def _normalize_value(value: Any, wrap_strings: bool = False) -> Any:
             return str(value)
 
 
+def _to_signal_value(value: Any) -> str:
+    """Convert values for data-signals-* without over-quoting strings."""
+    match value:
+        case bool():
+            return "true" if value else "false"
+        case None:
+            return "null"
+        case int() | float():
+            return str(value)
+        case str():
+            return " " if value == "" else value
+        case dict() | list() | tuple():
+            return json.dumps(value)
+        case _:
+            return str(value)
+
+
 def _process_patterns(patterns: str | list[str | Pattern]) -> str | list[str]:
     if isinstance(patterns, str):
         return f"/{patterns}/"
-
     patterns = patterns if isinstance(patterns, list | tuple) else [patterns]
     result = [f"/{p.pattern}/" if hasattr(p, "pattern") else f"/{p}/" for p in patterns]
     return result[0] if len(result) == 1 else result
@@ -188,14 +206,13 @@ def ds_signals(*args, **kwargs) -> DatastarAttr:
         result["data-signals__ifmissing"] = ifmissing
 
     for name, value in signals.items():
-        result[f"data-signals-{name}"] = _to_js_value(value)
+        result[f"data-signals-{name}"] = _to_signal_value(value)
 
     return DatastarAttr(result)
 
 
 def ds_persist(*signals, include=None, exclude=None, session=False, key=None):
     attr_key = f"data-persist-{key}" if key else "data-persist" + ("__session" if session else "")
-
     value = (
         ",".join(signals)
         if signals
@@ -203,13 +220,11 @@ def ds_persist(*signals, include=None, exclude=None, session=False, key=None):
         if include or exclude
         else None
     )
-
     return DatastarAttr({attr_key: value})
 
 
 def ds_json_signals(show=True, include=None, exclude=None, terse=False):
     key = f"data-json-signals{'__terse' if terse else ''}"
-
     if show is False:
         value = "false"
     elif include or exclude:
@@ -217,7 +232,6 @@ def ds_json_signals(show=True, include=None, exclude=None, terse=False):
         value = f"{{{', '.join(filters)}}}"
     else:
         value = True
-
     return DatastarAttr({key: value})
 
 
@@ -228,7 +242,6 @@ def ds_json_signals(show=True, include=None, exclude=None, terse=False):
 
 def _build_event_key(base: str, modifiers: list[str], value_mods: dict[str, str]) -> str:
     modifier_parts = modifiers.copy()
-
     for name, value in value_mods.items():
         if value is True:
             modifier_parts.append(name)
@@ -241,7 +254,6 @@ def _build_event_key(base: str, modifiers: list[str], value_mods: dict[str, str]
                 modifier_parts.append(f"duration.{num}{'s' if unit == 's' else 'ms'}")
         else:
             modifier_parts.append(f"{name}.{value}")
-
     return f"{base}__{'.'.join(modifier_parts)}" if modifier_parts else base
 
 
@@ -267,7 +279,6 @@ ds_on_load = _create_event_handler("load")
 ds_on_interval = _create_event_handler("interval")
 ds_on_intersect = _create_event_handler("intersect")
 
-# Mouse Events
 ds_on_mousedown = _create_event_handler("mousedown")
 ds_on_mouseup = _create_event_handler("mouseup")
 ds_on_mousemove = _create_event_handler("mousemove")
@@ -279,13 +290,11 @@ ds_on_contextmenu = _create_event_handler("contextmenu")
 ds_on_dblclick = _create_event_handler("dblclick")
 ds_on_wheel = _create_event_handler("wheel")
 
-# Touch Events
 ds_on_touchstart = _create_event_handler("touchstart")
 ds_on_touchmove = _create_event_handler("touchmove")
 ds_on_touchend = _create_event_handler("touchend")
 ds_on_touchcancel = _create_event_handler("touchcancel")
 
-# Drag and Drop Events
 ds_on_dragstart = _create_event_handler("dragstart")
 ds_on_drag = _create_event_handler("drag")
 ds_on_dragenter = _create_event_handler("dragenter")
@@ -294,43 +303,35 @@ ds_on_dragleave = _create_event_handler("dragleave")
 ds_on_drop = _create_event_handler("drop")
 ds_on_dragend = _create_event_handler("dragend")
 
-# Additional Form Events
 ds_on_reset = _create_event_handler("reset")
 ds_on_select = _create_event_handler("select")
 ds_on_invalid = _create_event_handler("invalid")
 
-# Pointer Events
 ds_on_pointerdown = _create_event_handler("pointerdown")
 ds_on_pointerup = _create_event_handler("pointerup")
 ds_on_pointermove = _create_event_handler("pointermove")
 ds_on_pointerenter = _create_event_handler("pointerenter")
 ds_on_pointerleave = _create_event_handler("pointerleave")
 
-# Custom handler events
 ds_on_canvas = _create_event_handler("canvas")
 
-# Dialog/Popover Events
 ds_on_toggle = _create_event_handler("toggle")
 ds_on_beforetoggle = _create_event_handler("beforetoggle")
 
-# Clipboard Events
 ds_on_copy = _create_event_handler("copy")
 ds_on_cut = _create_event_handler("cut")
 ds_on_paste = _create_event_handler("paste")
 
-# Animation Events
 ds_on_animationstart = _create_event_handler("animationstart")
 ds_on_animationend = _create_event_handler("animationend")
 ds_on_animationiteration = _create_event_handler("animationiteration")
 ds_on_animationcancel = _create_event_handler("animationcancel")
 
-# Transition Events
 ds_on_transitionstart = _create_event_handler("transitionstart")
 ds_on_transitionend = _create_event_handler("transitionend")
 ds_on_transitionrun = _create_event_handler("transitionrun")
 ds_on_transitioncancel = _create_event_handler("transitioncancel")
 
-# Media Events
 ds_on_play = _create_event_handler("play")
 ds_on_pause = _create_event_handler("pause")
 ds_on_ended = _create_event_handler("ended")
@@ -341,11 +342,9 @@ ds_on_canplaythrough = _create_event_handler("canplaythrough")
 ds_on_loadedmetadata = _create_event_handler("loadedmetadata")
 ds_on_progress = _create_event_handler("progress")
 
-# Network Events
 ds_on_online = _create_event_handler("online")
 ds_on_offline = _create_event_handler("offline")
 
-# Page Events
 ds_on_error = _create_event_handler("error")
 ds_on_message = _create_event_handler("message")
 ds_on_storage = _create_event_handler("storage")
@@ -355,11 +354,9 @@ ds_on_beforeunload = _create_event_handler("beforeunload")
 ds_on_unload = _create_event_handler("unload")
 ds_on_visibilitychange = _create_event_handler("visibilitychange")
 
-# Fullscreen Events
 ds_on_fullscreenchange = _create_event_handler("fullscreenchange")
 ds_on_fullscreenerror = _create_event_handler("fullscreenerror")
 
-# Device Events
 ds_on_orientationchange = _create_event_handler("orientationchange")
 
 
@@ -374,22 +371,18 @@ def ds_on(event: str, expression: str, *modifiers, **kwargs) -> DatastarAttr:
 
 
 def ds_canvas_viewport(value: Any = True) -> DatastarAttr:
-    """Mark element as canvas viewport."""
     return DatastarAttr({"data-canvas-viewport": value})
 
 
 def ds_canvas_container(value: Any = True) -> DatastarAttr:
-    """Mark element as canvas container."""
     return DatastarAttr({"data-canvas-container": value})
 
 
 def ds_draggable(value: Any = True) -> DatastarAttr:
-    """Mark element as draggable."""
     return DatastarAttr({"data-draggable": value})
 
 
 def ds_drop_zone(zone_id: str) -> DatastarAttr:
-    """Mark element as drop zone with identifier."""
     return DatastarAttr({"data-drop-zone": zone_id})
 
 
@@ -425,7 +418,6 @@ CLIPBOARD_ACTION = """{
 
 
 def get_starhtml_action_plugins() -> list[dict]:
-    """StarHTML's custom Datastar action plugins."""
     return [{"type": "action", "name": "clipboard", "code": CLIPBOARD_ACTION}]
 
 
@@ -486,7 +478,6 @@ __all__ = [
     "ds_on_load",
     "ds_on_interval",
     "ds_on_intersect",
-    # Mouse Events
     "ds_on_mousedown",
     "ds_on_mouseup",
     "ds_on_mousemove",
@@ -497,12 +488,10 @@ __all__ = [
     "ds_on_contextmenu",
     "ds_on_dblclick",
     "ds_on_wheel",
-    # Touch Events
     "ds_on_touchstart",
     "ds_on_touchmove",
     "ds_on_touchend",
     "ds_on_touchcancel",
-    # Drag Events
     "ds_on_dragstart",
     "ds_on_drag",
     "ds_on_dragenter",
@@ -510,7 +499,6 @@ __all__ = [
     "ds_on_dragleave",
     "ds_on_drop",
     "ds_on_dragend",
-    # Additional Events
     "ds_on_reset",
     "ds_on_select",
     "ds_on_invalid",
@@ -520,24 +508,19 @@ __all__ = [
     "ds_on_pointerenter",
     "ds_on_pointerleave",
     "ds_on",
-    # Dialog/Popover Events
     "ds_on_toggle",
     "ds_on_beforetoggle",
-    # Clipboard Events
     "ds_on_copy",
     "ds_on_cut",
     "ds_on_paste",
-    # Animation Events
     "ds_on_animationstart",
     "ds_on_animationend",
     "ds_on_animationiteration",
     "ds_on_animationcancel",
-    # Transition Events
     "ds_on_transitionstart",
     "ds_on_transitionend",
     "ds_on_transitionrun",
     "ds_on_transitioncancel",
-    # Media Events
     "ds_on_play",
     "ds_on_pause",
     "ds_on_ended",
@@ -547,10 +530,8 @@ __all__ = [
     "ds_on_canplaythrough",
     "ds_on_loadedmetadata",
     "ds_on_progress",
-    # Network Events
     "ds_on_online",
     "ds_on_offline",
-    # Page Events
     "ds_on_error",
     "ds_on_message",
     "ds_on_storage",
@@ -559,20 +540,15 @@ __all__ = [
     "ds_on_beforeunload",
     "ds_on_unload",
     "ds_on_visibilitychange",
-    # Fullscreen Events
     "ds_on_fullscreenchange",
     "ds_on_fullscreenerror",
-    # Device Events
     "ds_on_orientationchange",
-    # Special Attributes
     "ds_disabled",
     "ds_ignore",
     "ds_preserve_attr",
-    # Custom Data Attributes
     "ds_canvas_viewport",
     "ds_canvas_container",
     "ds_draggable",
     "ds_drop_zone",
-    # Custom handler events
     "ds_on_canvas",
 ]
