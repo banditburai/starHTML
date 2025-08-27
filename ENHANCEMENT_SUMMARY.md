@@ -1,4 +1,4 @@
-# Scroll Handler Enhancement: Anchored Positioning
+# Position Handler: Floating UI Integration
 
 ## Summary
 

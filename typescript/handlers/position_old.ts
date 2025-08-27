@@ -1,6 +1,6 @@
 /**
- * StarHTML Position Handler - Simple Virtual Element Support
- * Provides automatic positioning using Floating UI with support for virtual elements
+ * StarHTML Position Handler - Floating UI Integration for Positioned Elements
+ * Provides automatic positioning and anchoring for floating elements using Floating UI
  */
 
 import {
@@ -126,7 +126,7 @@ const positionAttributePlugin: AttributePlugin = {
       return;
     }
     
-    console.log(`[position] Setting up ${el.id} with DOM anchor ${config.anchor}`);
+    console.log(`[position] Setting up position handler for ${el.id} with anchor ${config.anchor}`);
 
     // Build middleware array based on configuration
     const middleware: Middleware[] = [];
@@ -180,97 +180,150 @@ const positionAttributePlugin: AttributePlugin = {
       }));
     }
 
-    // Function to update position with any reference element
-    const updatePosition = async (referenceEl: any) => {
-      startBatch();
-      try {
-        const result = await computePosition(referenceEl, el, {
-          placement: config.placement,
-          strategy: config.strategy,
-          middleware,
-        });
+    // Store cleanup function for current autoUpdate
+    let cleanupFn: (() => void) | null = null;
+    
+    // Function to set up autoUpdate with current anchor
+    const setupAutoUpdate = () => {
+      // Clean up previous autoUpdate if it exists
+      if (cleanupFn) {
+        cleanupFn();
+        cleanupFn = null;
+      }
+      
+      // Get current anchor
+      const currentAnchor = getDynamicAnchor();
+      if (!currentAnchor) {
+        console.warn(`Anchor not found: ${config.anchor}`);
+        return;
+      }
+      
+      // Setup new auto-update for reactive positioning
+      cleanupFn = autoUpdate(
+        currentAnchor,  // Pass the actual element, not a function
+        el,
+        async () => {
+          startBatch();
+          try {
+            // Re-get anchor in case it changed (though autoUpdate is tied to initial one)
+            const anchor = getDynamicAnchor();
+            if (!anchor) {
+              console.warn(`Anchor not found during update: ${config.anchor}`);
+              return;
+            }
+            
+            const result = await computePosition(anchor, el, {
+              placement: config.placement,
+              strategy: config.strategy,
+              middleware,
+            });
 
-        // Update position styles directly on element
-        Object.assign(el.style, {
-          position: config.strategy,
-          left: `${result.x}px`,
-          top: `${result.y}px`,
-        });
-
-        // If signal prefix is detected, update position signals for reactive binding
-        if (config.signalPrefix) {
-          mergePatch({
-            [`${config.signalPrefix}_x`]: result.x,
-            [`${config.signalPrefix}_y`]: result.y,
-            [`${config.signalPrefix}_placement`]: result.placement,
+          // Update position styles directly on element
+          Object.assign(el.style, {
+            position: config.strategy,
+            left: `${result.x}px`,
+            top: `${result.y}px`,
           });
 
-          // If hide middleware detected the reference is hidden, update visibility signal
-          if (config.hideEnabled && result.middlewareData.hide) {
-            const { referenceHidden } = result.middlewareData.hide;
-            const currentOpen = getPath(`${config.signalPrefix}_open`);
-            if (referenceHidden && currentOpen) {
-              mergePatch({
-                [`${config.signalPrefix}_open`]: false,
-              });
+          // If signal prefix is detected, update position signals for reactive binding
+          if (config.signalPrefix) {
+            mergePatch({
+              [`${config.signalPrefix}_x`]: result.x,
+              [`${config.signalPrefix}_y`]: result.y,
+              [`${config.signalPrefix}_placement`]: result.placement,
+            });
+
+            // If hide middleware detected the reference is hidden, update visibility signal
+            if (config.hideEnabled && result.middlewareData.hide) {
+              const { referenceHidden } = result.middlewareData.hide;
+              const currentOpen = getPath(`${config.signalPrefix}_open`);
+              if (referenceHidden && currentOpen) {
+                mergePatch({
+                  [`${config.signalPrefix}_open`]: false,
+                });
+              }
             }
           }
+
+            // Dispatch custom event for position updates
+            el.dispatchEvent(new CustomEvent("position-update", {
+              detail: {
+                x: result.x,
+                y: result.y,
+                placement: result.placement,
+                strategy: config.strategy,
+              },
+              bubbles: true,
+            }));
+
+          } catch (error) {
+            console.error("Error computing position:", error);
+          } finally {
+            endBatch();
+          }
+        },
+        {
+          // Options for auto-update
+          ancestorScroll: true,
+          ancestorResize: true,
+          elementResize: true,
+          layoutShift: true,
+          animationFrame: false, // Use event-based updates for better performance
         }
-
-        // Dispatch custom event for position updates
-        el.dispatchEvent(new CustomEvent("position-update", {
-          detail: {
-            x: result.x,
-            y: result.y,
-            placement: result.placement,
-            strategy: config.strategy,
-          },
-          bubbles: true,
-        }));
-
-      } catch (error) {
-        console.error("Error computing position:", error);
-      } finally {
-        endBatch();
+      );
+    };
+    
+    // Initial setup
+    setupAutoUpdate();
+    
+    // Listen for custom event to re-check anchor (simpler approach)
+    let lastAnchor = getDynamicAnchor();
+    
+    // Custom event listener for anchor changes
+    const handleAnchorChange = () => {
+      const currentAnchor = getDynamicAnchor();
+      if (currentAnchor !== lastAnchor) {
+        console.log(`[position] Anchor changed for ${el.id}, re-setting up autoUpdate`);
+        lastAnchor = currentAnchor;
+        setupAutoUpdate();
       }
     };
     
-    // Setup auto-update for DOM anchor (normal case)
-    const cleanup = autoUpdate(
-      domAnchor,
-      el,
-      () => updatePosition(domAnchor),
-      {
-        ancestorScroll: true,
-        ancestorResize: true,
-        elementResize: true,
-        layoutShift: true,
-        animationFrame: false,
-      }
-    );
-    
-    // Handle virtual element positioning
-    const handleVirtualElement = () => {
-      const virtualAnchorKey = `${el.id}VirtualAnchor`;
-      const virtualElement = (window as any)[virtualAnchorKey];
+    // Listen for element becoming visible or anchor changing
+    const observer = new MutationObserver((mutations) => {
+      // Check if element became visible
+      let becameVisible = false;
+      mutations.forEach(mutation => {
+        if (mutation.attributeName === 'style' || mutation.attributeName === 'class') {
+          const isVisible = el.offsetParent !== null && el.style.display !== 'none';
+          if (isVisible && !becameVisible) {
+            becameVisible = true;
+          }
+        }
+      });
       
-      if (virtualElement) {
-        console.log(`[position] Using virtual anchor for ${el.id}`);
-        // For virtual elements, just call computePosition directly
-        updatePosition(virtualElement);
-      } else {
-        // No virtual element, use DOM anchor
-        updatePosition(domAnchor);
+      if (becameVisible) {
+        console.log(`[position] ${el.id} became visible, checking anchor`);
+        // Small delay to ensure any virtual anchors are set
+        setTimeout(handleAnchorChange, 50);
       }
-    };
+    });
     
-    // Listen for manual position updates (for virtual elements)
-    el.addEventListener('position-update-virtual', handleVirtualElement);
+    observer.observe(el, {
+      attributes: true,
+      attributeFilter: ['style', 'class'],
+    });
     
+    // Also listen for a custom event to manually trigger anchor re-check
+    el.addEventListener('position-recheck-anchor', handleAnchorChange);
+
     // Return cleanup function
     return () => {
-      cleanup();
-      el.removeEventListener('position-update-virtual', handleVirtualElement);
+      if (cleanupFn) {
+        cleanupFn();
+      }
+      observer.disconnect();
+      el.removeEventListener('position-recheck-anchor', handleAnchorChange);
     };
   },
 };

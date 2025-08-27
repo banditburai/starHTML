@@ -239,10 +239,10 @@ DEMOS = [
         "25 min",
     ),
     Demo(
-        "19-position-handler",
+        "16-position",
         "✨ Position Handler (Floating UI)",
         "Clean positioning with Floating UI integration",
-        "19_position_handler.py",
+        "16_position_handler.py",
         "Advanced",
         "10 min",
     ),
@@ -353,7 +353,9 @@ class DemoLoader:
             spec.loader.exec_module(module)
             return module
         except Exception as e:
+            import traceback
             print(f"Failed to load demo {demo.id}: {e}")
+            traceback.print_exc()
             return None
 
 
@@ -383,7 +385,7 @@ setup_demo_routes(app)
 if __name__ == "__main__":
     print("🚀 StarHTML Demo Hub")
     print("=" * 50)
-    print("Visit: http://localhost:5001")
+    print("Visit: http://localhost:5015")
     print("All demos available in one place!")
     print("=" * 50)
-    serve(port=5001)
+    serve(port=5015)

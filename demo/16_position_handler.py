@@ -1,6 +1,7 @@
 """Demo showing the Floating UI-powered position handler for anchored elements."""
 
 from starhtml import *
+from starhtml.handlers import position_handler
 
 app, rt = star_app(
     title="Position Handler - Floating UI",
@@ -14,6 +15,71 @@ app, rt = star_app(
 @rt("/")
 def home():
     return Div(
+        # Define all signals at the top level so they're accessible globally
+        ds_signals(
+            popover_open=False,
+            file_open=False,
+            tooltip_open=False,
+            context_open=False,
+            cursor_x=-1000,
+            cursor_y=-1000
+        ),
+        
+        # Global click handler for closing menus when clicking outside
+        ds_on_click("""
+            console.log('[Global Click] Event type:', event.type, 'Button:', event.button);
+            console.log('[Global Click] Target:', event.target);
+            console.log('[Global Click] Target ID:', event.target.id);
+            console.log('[Global Click] Current states - popover:', $popover_open, 'file:', $file_open, 'context:', $context_open);
+            
+            // Check if context menu exists and is visible
+            const contextMenuEl = document.getElementById('contextMenu');
+            if (contextMenuEl) {
+                const styles = window.getComputedStyle(contextMenuEl);
+                console.log('[Global Click] Context menu display:', styles.display);
+                console.log('[Global Click] Context menu visibility:', styles.visibility);
+            }
+            
+            // Check if click was on a trigger or inside a menu
+            const clickedTrigger = event.target.closest('#popoverTrigger, #fileButton');
+            const clickedInsideMenu = event.target.closest('#popoverContent, #fileMenu, #contextMenu');
+            
+            console.log('[Global Click] Clicked trigger?', !!clickedTrigger);
+            console.log('[Global Click] Clicked inside menu?', !!clickedInsideMenu);
+            
+            // If clicked outside all menus and triggers, close everything
+            if (!clickedTrigger && !clickedInsideMenu) {
+                console.log('[Global Click] Attempting to close all menus...');
+                console.log('[Global Click] Before - context_open:', $context_open);
+                $popover_open = false;
+                $file_open = false;
+                $context_open = false;
+                console.log('[Global Click] After - context_open:', $context_open);
+                
+                // Force a check after a delay
+                setTimeout(() => {
+                    console.log('[Global Click] Delayed check - context_open:', $context_open);
+                    const menu = document.getElementById('contextMenu');
+                    if (menu) {
+                        console.log('[Global Click] Menu still visible?', window.getComputedStyle(menu).display);
+                    }
+                }, 100);
+            } else {
+                console.log('[Global Click] Not closing - clicked on trigger or menu');
+            }
+        """),
+        # Global right-click handler to close context menu when right-clicking outside context area
+        ds_on_contextmenu("""
+            console.log('[Global Right-click] Target:', event.target);
+            console.log('[Global Right-click] In context area?', !!event.target.closest('#contextArea'));
+            
+            // If right-clicking outside the context area, close the context menu
+            if (!event.target.closest('#contextArea')) {
+                console.log('[Global Right-click] Closing context menu');
+                event.preventDefault();
+                $context_open = false;
+            }
+        """),
         Header(
             H1("🎯 Position Handler with Floating UI", cls="text-3xl font-bold mb-2"),
             P(
@@ -55,7 +121,6 @@ def home():
                         cls="p-4 bg-white border-2 border-blue-300 rounded-lg shadow-xl min-w-[200px]",
                     ),
                     
-                    ds_signals(popover_open=False),
                     cls="mb-8",
                 ),
                 cls="mb-12",
@@ -90,7 +155,6 @@ def home():
                         cls="bg-white border border-gray-300 rounded-lg shadow-xl min-w-[200px] py-1",
                     ),
                     
-                    ds_signals(file_open=False),
                     cls="mb-8",
                 ),
                 cls="mb-12",
@@ -120,7 +184,6 @@ def home():
                         cls="px-3 py-1 bg-gray-800 text-white text-sm rounded shadow-lg",
                     ),
                     
-                    ds_signals(tooltip_open=False),
                     cls="mb-8",
                 ),
                 cls="mb-12",
@@ -129,29 +192,40 @@ def home():
             # Context Menu Example
             Section(
                 H2("📋 Context Menu", cls="text-2xl font-semibold mb-4"),
+                P("Right-click in the gray area. Check console for debug logs.", cls="mb-2 text-muted-foreground"),
+                # Debug button to manually test closing
+                Button(
+                    "Debug: Close Context Menu",
+                    ds_on_click("""
+                        console.log('[Debug Button] Manually closing context menu');
+                        console.log('[Debug Button] Before - context_open:', $context_open);
+                        $context_open = false;
+                        console.log('[Debug Button] After - context_open:', $context_open);
+                    """),
+                    cls="mb-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700",
+                ),
                 Div(
                     Div(
                         "Right-click in this area",
                         ds_on_contextmenu("""
                             event.preventDefault();
-                            // Position at cursor using virtual element
-                            const virtualEl = {
-                                getBoundingClientRect: () => ({
-                                    x: event.clientX,
-                                    y: event.clientY,
-                                    width: 0,
-                                    height: 0,
-                                    top: event.clientY,
-                                    right: event.clientX,
-                                    bottom: event.clientY,
-                                    left: event.clientX
-                                })
-                            };
-                            // Store virtual anchor for position handler
-                            window.contextMenuAnchor = virtualEl;
-                            $context_open = true;
+                            event.stopPropagation(); // Stop this from bubbling to global handler
+                            console.log('[ContextArea Right-click] at:', event.pageX, event.pageY);
+                            console.log('[ContextArea Right-click] Current context_open:', $context_open);
+                            
+                            // Close any existing menu first
+                            $context_open = false;
+                            
+                            // Use pageX/pageY for absolute positioning (scrolls with content)
+                            $cursor_x = event.pageX;
+                            $cursor_y = event.pageY;
+                            
+                            // Show the menu at new position
+                            setTimeout(() => {
+                                console.log('[ContextArea Right-click] Opening menu after delay');
+                                $context_open = true;
+                            }, 10);
                         """),
-                        ds_on_click("$context_open = false"),
                         id="contextArea",
                         cls="h-32 bg-gray-100 border-2 border-dashed border-gray-400 rounded flex items-center justify-center cursor-context-menu",
                     ),
@@ -161,20 +235,23 @@ def home():
                         Div("Copy", cls="px-4 py-2 hover:bg-gray-100 cursor-pointer"),
                         Div("Paste", cls="px-4 py-2 hover:bg-gray-100 cursor-pointer"),
                         Hr(cls="my-1"),
-                        Div("Delete", cls="px-4 py-2 hover:bg-red-50 text-red-600 cursor-pointer"),
-                        
-                        ds_position(
-                            anchor="contextArea",
-                            placement="bottom-start",
-                            strategy="fixed"
-                        ),
-                        ds_show("$context_open"),
-                        ds_on_click("$context_open = false"),
+                        Div("Delete", cls="px-4 py-2 hover:bg-red-50 text-red-600 cursor-pointer"),                       
+                        # Use reactive CSS positioning  
+                        ds_on_click("""
+                            console.log('[ContextMenu Click] Closing menu');
+                            event.stopPropagation();
+                            $context_open = false;
+                        """),
                         id="contextMenu",
-                        cls="bg-white border border-gray-300 rounded-lg shadow-xl min-w-[150px] py-1",
+                        cls="bg-white border border-gray-300 rounded-lg shadow-xl min-w-[150px] py-1 absolute z-[1000]",
+                        style="position: absolute !important;",
+                        data_style_left="$cursor_x + 'px'",
+                        data_style_top="$cursor_y + 'px'",
+                        data_style_display="$context_open ? 'block' : 'none'",
+                        ds_show="$context_open",
+                        
                     ),
                     
-                    ds_signals(context_open=False),
                     cls="mb-8",
                 ),
                 cls="mb-12",
@@ -269,6 +346,7 @@ ds_position(anchor="popoverTrigger")""",
             
             # Spacer for scrolling
             Div(cls="h-[1000px]"),
+            
             
             cls="container mx-auto px-4 py-8 max-w-4xl",
         ),
