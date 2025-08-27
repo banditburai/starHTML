@@ -113,20 +113,45 @@ def _normalize_value(value: Any, wrap_strings: bool = False) -> Any:
 
 
 def _to_signal_value(value: Any) -> str:
-    """Convert values for data-signals-* without over-quoting strings."""
-    match value:
-        case bool():
-            return "true" if value else "false"
-        case None:
-            return "null"
-        case int() | float():
-            return str(value)
-        case str():
-            return " " if value == "" else value
-        case dict() | list() | tuple():
-            return json.dumps(value)
-        case _:
-            return str(value)
+    """Convert values for data-signals-* with smart string handling."""
+    if isinstance(value, str) and value and not value.startswith(("$", "`")):
+        if _is_js_expression(value):
+            return value
+    return _to_js_value(value)
+
+
+def _is_js_expression(value: str) -> bool:
+    """Check if string is a JavaScript expression vs string literal."""
+    if not value:
+        return False
+
+    if value.startswith(("$", "`")):
+        return True
+
+    # Detect JS syntax to avoid quoting expressions like: user.name, $count + 1
+    return any(
+        op in value
+        for op in [
+            " + ",
+            " - ",
+            " * ",
+            " / ",
+            " && ",
+            " || ",
+            " == ",
+            " != ",
+            "?",
+            ":",
+            "(",
+            ")",
+            "[",
+            "]",
+            ".",
+            "true",
+            "false",
+            "null",
+        ]
+    )
 
 
 def _process_patterns(patterns: str | list[str | Pattern]) -> str | list[str]:
