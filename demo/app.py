@@ -239,28 +239,12 @@ DEMOS = [
         "25 min",
     ),
     Demo(
-        "16-anchored-problem",
-        "❌ Anchored Positioning Problem",
-        "Manual scroll tracking for floating UI elements",
-        "16_anchored_popover_problem.py",
+        "19-position-handler",
+        "✨ Position Handler (Floating UI)",
+        "Clean positioning with Floating UI integration",
+        "19_position_handler.py",
         "Advanced",
         "10 min",
-    ),
-    Demo(
-        "17-anchored-solution",
-        "✅ Anchored Positioning Solution",
-        "Enhanced scroll handler with automatic anchored positioning",
-        "17_anchored_popover_solution.py",
-        "Advanced",
-        "10 min",
-    ),
-    Demo(
-        "18-anchored-components",
-        "🎯 Anchored Components Gallery",
-        "Various floating UI patterns with enhanced scroll handler",
-        "18_anchored_components.py",
-        "Advanced",
-        "15 min",
     ),
 ]
 

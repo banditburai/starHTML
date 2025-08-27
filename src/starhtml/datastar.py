@@ -273,44 +273,7 @@ ds_on_keydown = _create_event_handler("keydown")
 ds_on_keyup = _create_event_handler("keyup")
 ds_on_focus = _create_event_handler("focus")
 ds_on_blur = _create_event_handler("blur")
-# Custom scroll handler with anchored positioning support
-def ds_on_scroll(expression: str = "", *modifiers, **kwargs) -> DatastarAttr:
-    """Enhanced scroll handler with anchored positioning support.
-    
-    Args:
-        expression: JavaScript expression to execute on scroll (optional for anchored mode)
-        *modifiers: Additional modifiers (e.g., "smooth")
-        **kwargs: Named parameters including:
-            - throttle: Throttle time in ms (default 100)
-            - anchor_to: Element ID to anchor to (enables anchored positioning)
-            - signal_prefix: Explicit signal prefix (auto-detected from anchor_to ID if not provided)
-            - hide_when_offscreen: Auto-hide when trigger is off-screen (default True for anchored)
-            - hide_action: Custom JavaScript to execute when hiding (auto-detected if not provided)
-    
-    Examples:
-        # Traditional scroll handler
-        ds_on_scroll("$scrollY = window.scrollY", throttle="50")
-        
-        # Anchored positioning (minimal - auto-detects everything)
-        ds_on_scroll(anchor_to="popoverTrigger")
-        
-        # Anchored with custom hide action
-        ds_on_scroll(
-            anchor_to="selectTrigger",
-            hide_action="selectContent.hidePopover()",
-            throttle="16"
-        )
-        
-        # Anchored with additional custom logic
-        ds_on_scroll(
-            "$customLogic++",
-            anchor_to="tooltipTrigger",
-            signal_prefix="tooltip",
-            hide_when_offscreen=True
-        )
-    """
-    key = _build_event_key(f"data-on-scroll", list(modifiers), kwargs)
-    return DatastarAttr({key: NotStr(expression) if expression else True})
+ds_on_scroll = _create_event_handler("scroll")
 ds_on_resize = _create_event_handler("resize")
 ds_on_load = _create_event_handler("load")
 ds_on_interval = _create_event_handler("interval")
@@ -358,6 +321,93 @@ ds_on_beforetoggle = _create_event_handler("beforetoggle")
 ds_on_copy = _create_event_handler("copy")
 ds_on_cut = _create_event_handler("cut")
 ds_on_paste = _create_event_handler("paste")
+
+
+# ============================================================================
+# Position Handler - Floating UI Integration
+# ============================================================================
+
+
+def ds_position(
+    anchor: str,
+    placement: str = "bottom",
+    strategy: str = "absolute",
+    offset: int = 8,
+    flip: bool = True,
+    shift: bool = True,
+    hide: bool = False,
+    auto_size: bool = False,
+    signal_prefix: str = None,
+) -> DatastarAttr:
+    """Position element using Floating UI for automatic anchoring and collision detection.
+    
+    Args:
+        anchor: ID of the element to anchor to (required)
+        placement: Placement relative to anchor. Options:
+            'top', 'top-start', 'top-end',
+            'bottom', 'bottom-start', 'bottom-end',
+            'left', 'left-start', 'left-end',
+            'right', 'right-start', 'right-end'
+        strategy: Positioning strategy ('absolute' or 'fixed')
+        offset: Distance from anchor in pixels
+        flip: Auto-flip to opposite side when not enough space
+        shift: Slide along edge when partially out of view
+        hide: Hide when anchor element is off-screen
+        auto_size: Constrain size to viewport
+        signal_prefix: Prefix for position signals (auto-detected from element ID if not provided)
+    
+    Examples:
+        # Simple dropdown
+        ds_position(anchor="menuButton")
+        
+        # Tooltip above with offset
+        ds_position(anchor="helpIcon", placement="top", offset=10)
+        
+        # Popover with all features
+        ds_position(
+            anchor="trigger",
+            placement="bottom-start",
+            flip=True,
+            shift=True,
+            hide=True
+        )
+    
+    The handler automatically:
+    - Updates position when anchor moves (scroll, resize, etc.)
+    - Handles collision detection with viewport edges
+    - Manages visibility when anchor goes off-screen
+    - Updates position signals for reactive binding
+    """
+    attrs = {
+        "data-position-anchor": anchor,
+    }
+    
+    # Add modifiers for non-default values
+    modifiers = []
+    
+    if placement != "bottom":
+        modifiers.append(f"placement.{placement}")
+    if strategy != "absolute":
+        modifiers.append(f"strategy.{strategy}")
+    if offset != 8:
+        modifiers.append(f"offset.{offset}")
+    if not flip:
+        modifiers.append("flip.false")
+    if not shift:
+        modifiers.append("shift.false")
+    if hide:
+        modifiers.append("hide")
+    if auto_size:
+        modifiers.append("auto_size")
+    if signal_prefix:
+        modifiers.append(f"signal_prefix.{signal_prefix}")
+    
+    # Build the attribute key with modifiers
+    if modifiers:
+        key = f"data-position-anchor__{'.'.join(modifiers)}"
+        attrs = {key: anchor}
+    
+    return DatastarAttr(attrs)
 
 ds_on_animationstart = _create_event_handler("animationstart")
 ds_on_animationend = _create_event_handler("animationend")
@@ -588,4 +638,5 @@ __all__ = [
     "ds_draggable",
     "ds_drop_zone",
     "ds_on_canvas",
+    "ds_position",
 ]

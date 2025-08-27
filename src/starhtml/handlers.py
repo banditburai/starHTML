@@ -17,6 +17,7 @@ __all__ = [
     "resize_handler",
     "drag_handler",
     "canvas_handler",
+    "position_handler",
     "get_bundle_stats",
     "check_assets",
 ]
@@ -74,6 +75,21 @@ def drag_handler(
         "touchEnabled": touch_enabled,
     }
     return _load_handler("drag", config)
+
+
+def position_handler() -> ScriptOutput:
+    """Position floating elements using Floating UI.
+    
+    Automatically handles:
+    - Anchoring to reference elements
+    - Collision detection with viewport edges
+    - Auto-flipping when not enough space
+    - Scroll/resize tracking
+    - Reactive position updates
+    
+    Use with ds_position(anchor="elementId") on floating elements.
+    """
+    return _load_handler("position")
 
 
 def canvas_handler(
