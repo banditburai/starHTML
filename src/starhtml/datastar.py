@@ -18,11 +18,6 @@ class DatastarAttr:
         return f"DatastarAttr({self.attrs})"
 
 
-# ============================================================================
-# Helper Functions & Expression Utilities
-# ============================================================================
-
-
 def t(template: str) -> str:
     """JavaScript template literal using Python f-string style."""
     return f"`{re.sub(r'{([^}]+)}', r'${\1}', template)}`"
@@ -57,11 +52,6 @@ def if_(condition: str | dict[str, str], *args, **kwargs) -> str:
     raise ValueError("if_ requires either 2 positional args or keyword args with conditions")
 
 
-# ============================================================================
-# Internal Utilities
-# ============================================================================
-
-
 def _make_comparison(op: str):
     def compare(signal: str, value: Any) -> str:
         sig = signal if signal.startswith("$") else f"${{{signal}}}"
@@ -78,7 +68,7 @@ gte = _make_comparison(">=")
 lte = _make_comparison("<=")
 
 
-def _to_js_value(value: Any) -> str:  # noqa: PLR0911
+def _to_js_value(value: Any) -> str:
     match value:
         case bool():
             return "true" if value else "false"
@@ -96,16 +86,14 @@ def _to_js_value(value: Any) -> str:  # noqa: PLR0911
             return json.dumps(str(value))
 
 
-def _normalize_value(value: Any, wrap_strings: bool = False) -> Any:
+def _normalize_value(value: Any) -> Any:
     match value:
         case bool():
             return "true" if value else "false"
         case None:
             return "null"
-        case int() | float():
+        case int() | float() | str():
             return value
-        case str():
-            return NotStr(value) if wrap_strings else value
         case dict() | list() | tuple():
             return json.dumps(value)
         case _:
@@ -137,12 +125,16 @@ def js(code: str) -> _JS:
 
 
 def _to_signal_value(v: Any) -> str:
+    """Convert value to JavaScript literal for Datastar."""
     if isinstance(v, _Value):
-        return json.dumps(v.val)
-    if isinstance(v, _JS):
+        v = v.val
+    elif isinstance(v, _JS):
         return v.code
+    elif isinstance(v, str):
+        raise TypeError(f"Strings must use explicit value() or js() wrapper. Got: {v!r}")
+    elif not isinstance(v, bool | int | float | type(None)):
+        raise TypeError(f"Complex types must use value() wrapper. Got type: {type(v).__name__}")
 
-    # Primitives are unambiguous - can auto-wrap
     match v:
         case None:
             return "null"
@@ -150,11 +142,8 @@ def _to_signal_value(v: Any) -> str:
             return "true" if v else "false"
         case int() | float():
             return str(v)
-        case str():
-            raise TypeError(f"Strings must use explicit value() or js() wrapper. Got: {v!r}")
         case _:
-            # Lists, dicts, etc need explicit wrapper
-            raise TypeError(f"Complex types must use value() wrapper. Got type: {type(v).__name__}")
+            return json.dumps(v)
 
 
 def _process_patterns(patterns: str | list[str | Pattern]) -> str | list[str]:
@@ -163,11 +152,6 @@ def _process_patterns(patterns: str | list[str | Pattern]) -> str | list[str]:
     patterns = patterns if isinstance(patterns, list | tuple) else [patterns]
     result = [f"/{p.pattern}/" if hasattr(p, "pattern") else f"/{p}/" for p in patterns]
     return result[0] if len(result) == 1 else result
-
-
-# ============================================================================
-# Core Datastar Attributes
-# ============================================================================
 
 
 def ds_show(value: bool | str) -> DatastarAttr:
@@ -201,11 +185,6 @@ def ds_computed(name: str, expression: str, case: str | None = None) -> Datastar
     return DatastarAttr({key: expression})
 
 
-# ============================================================================
-# Conditional Attributes (class, style, attr)
-# ============================================================================
-
-
 def _make_attr_func(prefix: str):
     def attr_func(**kwargs) -> DatastarAttr:
         return DatastarAttr(
@@ -220,21 +199,29 @@ ds_style = _make_attr_func("data-style")
 ds_attr = _make_attr_func("data-attr")
 
 
-# ============================================================================
-# Signals & State Management
-# ============================================================================
-
-
 def ds_signals(*args, **kwargs) -> DatastarAttr:
+    """Create Datastar signal attributes.
+
+    Formats:
+    - ds_signals(name=value("Alice"), age=25) → individual attributes
+    - ds_signals({"name": value("Alice"), "age": 25}) → JSON object
+    """
     ifmissing = kwargs.pop("ifmissing", None)
-    signals = args[0] if args and isinstance(args[0], dict) else kwargs
+    use_json_format = args and isinstance(args[0], dict)
+    signals = args[0] if use_json_format else kwargs
 
     result = {}
     if ifmissing:
         result["data-signals__ifmissing"] = ifmissing
 
-    for name, value in signals.items():
-        result[f"data-signals-{name}"] = _to_signal_value(value)
+    if use_json_format:
+        json_obj = {}
+        for name, val in signals.items():
+            json_obj[name] = val.val if isinstance(val, _Value) else val.code if isinstance(val, _JS) else val
+        result["data-signals"] = json.dumps(json_obj, separators=(", ", ": "))
+    else:
+        for name, value in signals.items():
+            result[f"data-signals-{name}"] = _to_signal_value(value)
 
     return DatastarAttr(result)
 
@@ -261,11 +248,6 @@ def ds_json_signals(show=True, include=None, exclude=None, terse=False):
     else:
         value = True
     return DatastarAttr({key: value})
-
-
-# ============================================================================
-# Event Handlers
-# ============================================================================
 
 
 def _build_event_key(base: str, modifiers: list[str], value_mods: dict[str, str]) -> str:
@@ -393,11 +375,6 @@ def ds_on(event: str, expression: str, *modifiers, **kwargs) -> DatastarAttr:
     return DatastarAttr({key: NotStr(expression)})
 
 
-# ============================================================================
-# Custom Data Attributes
-# ============================================================================
-
-
 def ds_canvas_viewport(value: Any = True) -> DatastarAttr:
     return DatastarAttr({"data-canvas-viewport": value})
 
@@ -412,11 +389,6 @@ def ds_draggable(value: Any = True) -> DatastarAttr:
 
 def ds_drop_zone(zone_id: str) -> DatastarAttr:
     return DatastarAttr({"data-drop-zone": zone_id})
-
-
-# ============================================================================
-# Datastar Action Plugins
-# ============================================================================
 
 
 CLIPBOARD_ACTION = """{
@@ -449,11 +421,6 @@ def get_starhtml_action_plugins() -> list[dict]:
     return [{"type": "action", "name": "clipboard", "code": CLIPBOARD_ACTION}]
 
 
-# ============================================================================
-# Special Attributes
-# ============================================================================
-
-
 def ds_disabled(value: bool | str) -> DatastarAttr:
     return DatastarAttr({"data-disabled": _normalize_value(value)})
 
@@ -467,10 +434,6 @@ def ds_ignore(*modifiers) -> DatastarAttr:
 def ds_preserve_attr(*attrs) -> DatastarAttr:
     return DatastarAttr({"data-preserve-attr": ",".join(attrs) if attrs else "*"})
 
-
-# ============================================================================
-# Module Exports
-# ============================================================================
 
 __all__ = [
     "value",

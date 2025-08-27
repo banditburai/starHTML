@@ -220,11 +220,11 @@ class TestSignalsAndPersistence:
         assert result == {"data-signals-count": "0", "data-signals-name": '"John"', "data-signals-active": "true"}
 
     def test_ds_signals_dict(self):
-        """Test ds_signals with dict argument."""
+        """Test ds_signals with dict argument - triggers JSON format."""
         signals = {"count": 0, "name": value("John")}
         result = attrs_of(ds_signals(signals))
-        # Primitives auto-wrap, strings need explicit value()
-        assert result == {"data-signals-count": "0", "data-signals-name": '"John"'}
+        # Dict as first arg triggers JSON object format
+        assert result == {"data-signals": '{"count": 0, "name": "John"}'}
 
     def test_ds_signals_with_modifiers(self):
         """Test ds_signals with ifmissing modifier."""
