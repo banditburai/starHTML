@@ -6,6 +6,7 @@ from starlette.datastructures import UploadFile
 from starlette.testclient import TestClient
 
 from starhtml import *
+from starhtml.datastar import value
 from starhtml.datastar import (
     ds_bind,
     ds_class,
@@ -292,7 +293,7 @@ class TestNestedStructures:
                     ),
                     cls="user-info",
                 ),
-                ds_signals({"user": {"name": name, "email": email}}),
+                ds_signals(user=value({"name": name, "email": email})),
                 cls="user-card",
             )
 

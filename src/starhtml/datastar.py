@@ -112,46 +112,49 @@ def _normalize_value(value: Any, wrap_strings: bool = False) -> Any:
             return str(value)
 
 
-def _to_signal_value(value: Any) -> str:
-    """Convert values for data-signals-* with smart string handling."""
-    if isinstance(value, str) and value and not value.startswith(("$", "`")):
-        if _is_js_expression(value):
-            return value
-    return _to_js_value(value)
+class _Value:
+    __slots__ = ("val",)
+
+    def __init__(self, val):
+        self.val = val
 
 
-def _is_js_expression(value: str) -> bool:
-    """Check if string is a JavaScript expression vs string literal."""
-    if not value:
-        return False
+class _JS:
+    __slots__ = ("code",)
 
-    if value.startswith(("$", "`")):
-        return True
+    def __init__(self, code):
+        self.code = code
 
-    # Detect JS syntax to avoid quoting expressions like: user.name, $count + 1
-    return any(
-        op in value
-        for op in [
-            " + ",
-            " - ",
-            " * ",
-            " / ",
-            " && ",
-            " || ",
-            " == ",
-            " != ",
-            "?",
-            ":",
-            "(",
-            ")",
-            "[",
-            "]",
-            ".",
-            "true",
-            "false",
-            "null",
-        ]
-    )
+
+def value(v: Any) -> _Value:
+    """Mark as a data value to be JSON-encoded."""
+    return _Value(v)
+
+
+def js(code: str) -> _JS:
+    """Mark as JavaScript code to pass unchanged."""
+    return _JS(code)
+
+
+def _to_signal_value(v: Any) -> str:
+    if isinstance(v, _Value):
+        return json.dumps(v.val)
+    if isinstance(v, _JS):
+        return v.code
+
+    # Primitives are unambiguous - can auto-wrap
+    match v:
+        case None:
+            return "null"
+        case bool():
+            return "true" if v else "false"
+        case int() | float():
+            return str(v)
+        case str():
+            raise TypeError(f"Strings must use explicit value() or js() wrapper. Got: {v!r}")
+        case _:
+            # Lists, dicts, etc need explicit wrapper
+            raise TypeError(f"Complex types must use value() wrapper. Got type: {type(v).__name__}")
 
 
 def _process_patterns(patterns: str | list[str | Pattern]) -> str | list[str]:
@@ -470,6 +473,8 @@ def ds_preserve_attr(*attrs) -> DatastarAttr:
 # ============================================================================
 
 __all__ = [
+    "value",
+    "js",
     "t",
     "if_",
     "equals",
