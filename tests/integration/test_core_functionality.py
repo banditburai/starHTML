@@ -6,7 +6,6 @@ from starlette.datastructures import UploadFile
 from starlette.testclient import TestClient
 
 from starhtml import *
-from starhtml.datastar import value
 from starhtml.datastar import (
     ds_bind,
     ds_class,
@@ -17,6 +16,7 @@ from starhtml.datastar import (
     ds_show,
     ds_signals,
     ds_text,
+    value,
 )
 from starhtml.realtime import elements, format_element_event, format_signal_event, signals
 from starhtml.server import JSONResponse
@@ -467,20 +467,20 @@ class TestComplexFormScenarios:
 
             result = {"text_fields": {}, "files": [], "total_files": 0, "total_text_fields": 0}
 
-            for key, value in form_data.items():
-                if isinstance(value, UploadFile):
-                    file_content = await value.read()
+            for key, val in form_data.items():
+                if isinstance(val, UploadFile):
+                    file_content = await val.read()
                     result["files"].append(
                         {
                             "field_name": key,
-                            "filename": value.filename,
-                            "content_type": value.content_type,
+                            "filename": val.filename,
+                            "content_type": val.content_type,
                             "size": len(file_content),
                         }
                     )
                     result["total_files"] += 1
                 else:
-                    result["text_fields"][key] = str(value)
+                    result["text_fields"][key] = str(val)
                     result["total_text_fields"] += 1
 
             return result
