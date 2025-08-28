@@ -1,4 +1,4 @@
-"""StarHTML Datastar plugin handlers for signal persistence, scrolling, and resizing."""
+"""StarHTML Datastar plugin handlers."""
 
 import json
 from functools import cached_property
@@ -22,9 +22,6 @@ __all__ = [
     "check_assets",
 ]
 
-# =============================================================================
-# PUBLIC API - High-level handler functions for end-users
-# =============================================================================
 
 
 def persist_handler() -> ScriptOutput:
@@ -78,17 +75,7 @@ def drag_handler(
 
 
 def position_handler() -> ScriptOutput:
-    """Position floating elements using Floating UI.
-    
-    Automatically handles:
-    - Anchoring to reference elements
-    - Collision detection with viewport edges
-    - Auto-flipping when not enough space
-    - Scroll/resize tracking
-    - Reactive position updates
-    
-    Use with ds_position(anchor="elementId") on floating elements.
-    """
+    """Position floating elements using Floating UI."""
     return _load_handler("position")
 
 
@@ -105,12 +92,7 @@ def canvas_handler(
     minor_grid_size: int = 20,
     minor_grid_color: str = "#f0f0f0",
 ) -> ScriptOutput:
-    """Enable infinite canvas with pan/zoom.
-
-    Creates signals: {signal}_pan_x/y, {signal}_zoom, {signal}_is_panning.
-    Functions: {signal}_reset_view(), {signal}_zoom_in/out().
-    Use with ds_canvas_viewport() and ds_canvas_container().
-    """
+    """Enable infinite canvas with pan/zoom."""
     config = {
         "signal": signal,
         "enablePan": enable_pan,

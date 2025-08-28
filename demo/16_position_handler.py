@@ -326,15 +326,15 @@ ds_position(
                 Div(
                     H3("Comparison", cls="font-bold mb-3"),
                     Pre(
-                        Code("""# Before: Manual scroll tracking (20+ lines)
+                        Code("""# Before: Manual scroll tracking
 ds_on_scroll(\"\"\"
     if ($popover_open) {
         const deltaY = window.scrollY - $popover_initialScrollY;
-        // ... 15+ more lines of manual tracking
+        // Manual position adjustments...
     }
 \"\"\", throttle="16")
 
-# After: Clean positioning (1 line)
+# After: Automatic positioning
 ds_position(anchor="popoverTrigger")""",
                             cls="text-xs overflow-x-auto",
                         ),

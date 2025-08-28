@@ -339,50 +339,11 @@ def ds_position(
     auto_size: bool = False,
     signal_prefix: str = None,
 ) -> DatastarAttr:
-    """Position element using Floating UI for automatic anchoring and collision detection.
-    
-    Args:
-        anchor: ID of the element to anchor to (required)
-        placement: Placement relative to anchor. Options:
-            'top', 'top-start', 'top-end',
-            'bottom', 'bottom-start', 'bottom-end',
-            'left', 'left-start', 'left-end',
-            'right', 'right-start', 'right-end'
-        strategy: Positioning strategy ('absolute' or 'fixed')
-        offset: Distance from anchor in pixels
-        flip: Auto-flip to opposite side when not enough space
-        shift: Slide along edge when partially out of view
-        hide: Hide when anchor element is off-screen
-        auto_size: Constrain size to viewport
-        signal_prefix: Prefix for position signals (auto-detected from element ID if not provided)
-    
-    Examples:
-        # Simple dropdown
-        ds_position(anchor="menuButton")
-        
-        # Tooltip above with offset
-        ds_position(anchor="helpIcon", placement="top", offset=10)
-        
-        # Popover with all features
-        ds_position(
-            anchor="trigger",
-            placement="bottom-start",
-            flip=True,
-            shift=True,
-            hide=True
-        )
-    
-    The handler automatically:
-    - Updates position when anchor moves (scroll, resize, etc.)
-    - Handles collision detection with viewport edges
-    - Manages visibility when anchor goes off-screen
-    - Updates position signals for reactive binding
-    """
+    """Position element using Floating UI for automatic anchoring."""
     attrs = {
         "data-position-anchor": anchor,
     }
     
-    # Add modifiers for non-default values
     modifiers = []
     
     if placement != "bottom":
@@ -402,7 +363,6 @@ def ds_position(
     if signal_prefix:
         modifiers.append(f"signal_prefix.{signal_prefix}")
     
-    # Build the attribute key with modifiers
     if modifiers:
         key = f"data-position-anchor__{'.'.join(modifiers)}"
         attrs = {key: anchor}

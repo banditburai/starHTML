@@ -1,19 +1,14 @@
-/**
- * StarHTML Position Handler - Simple Virtual Element Support
- * Provides automatic positioning using Floating UI with support for virtual elements
- */
-
 import {
-  computePosition,
-  autoUpdate,
-  flip,
-  shift,
-  offset,
-  hide,
-  size,
-  type Placement,
   type Middleware,
+  type Placement,
   type Strategy,
+  autoUpdate,
+  computePosition,
+  flip,
+  hide,
+  offset,
+  shift,
+  size,
 } from "@floating-ui/dom";
 
 interface AttributePlugin {
@@ -49,60 +44,41 @@ interface PositionConfig {
   signalPrefix?: string;
 }
 
-function parseConfig(el: HTMLElement, mods: Map<string, any>, value: string): PositionConfig | null {
-  // Get anchor element ID
+function extractValue(value: any): any {
+  return value instanceof Set ? Array.from(value)[0] : value;
+}
+
+function parseConfig(
+  el: HTMLElement,
+  mods: Map<string, any>,
+  value: string
+): PositionConfig | null {
   const anchorValue = mods.get("anchor") || value;
   if (!anchorValue) {
     console.warn("Position handler requires an anchor element");
     return null;
   }
 
-  const anchorId = anchorValue instanceof Set ? Array.from(anchorValue)[0] : anchorValue;
-  
-  // Try to detect signal prefix from element ID
   let signalPrefix = "";
-  const elementId = el.id;
-  if (elementId) {
-    // Extract prefix from patterns like "popoverContent" -> "popover"
-    const match = elementId.match(/^(.+?)(Content|Panel|Menu|Dropdown|Tooltip|Popover)?$/i);
-    if (match) {
-      signalPrefix = match[1];
-    }
+  if (el.id) {
+    const match = el.id.match(/^(.+?)(Content|Panel|Menu|Dropdown|Tooltip|Popover)?$/i);
+    if (match) signalPrefix = match[1];
   }
 
-  // Override with explicit signal prefix if provided
   const explicitPrefix = mods.get("signal_prefix");
   if (explicitPrefix) {
-    signalPrefix = explicitPrefix instanceof Set ? Array.from(explicitPrefix)[0] : explicitPrefix;
+    signalPrefix = extractValue(explicitPrefix);
   }
 
-  // Get placement (default: "bottom")
-  const placementValue = mods.get("placement");
-  const placement = (placementValue instanceof Set ? Array.from(placementValue)[0] : placementValue) || "bottom";
-
-  // Get strategy (default: "absolute")
-  const strategyValue = mods.get("strategy");
-  const strategy = (strategyValue instanceof Set ? Array.from(strategyValue)[0] : strategyValue) || "absolute";
-
-  // Get offset (default: 8)
-  const offsetMod = mods.get("offset");
-  const offsetValue = offsetMod ? Number(offsetMod instanceof Set ? Array.from(offsetMod)[0] : offsetMod) : 8;
-
-  // Get feature flags
-  const flipEnabled = mods.has("flip") || mods.get("flip") !== false;
-  const shiftEnabled = mods.has("shift") || mods.get("shift") !== false;
-  const hideEnabled = mods.has("hide") || mods.get("hide") === true;
-  const autoSize = mods.has("auto_size") || mods.get("auto_size") === true;
-
   return {
-    anchor: anchorId,
-    placement: placement as Placement,
-    strategy: strategy as Strategy,
-    offsetValue,
-    flipEnabled,
-    shiftEnabled,
-    hideEnabled,
-    autoSize,
+    anchor: extractValue(anchorValue),
+    placement: extractValue(mods.get("placement")) || "bottom",
+    strategy: extractValue(mods.get("strategy")) || "absolute",
+    offsetValue: mods.has("offset") ? Number(extractValue(mods.get("offset"))) : 8,
+    flipEnabled: mods.has("flip") ? mods.get("flip") !== false : true,
+    shiftEnabled: mods.has("shift") ? mods.get("shift") !== false : true,
+    hideEnabled: mods.get("hide") === true,
+    autoSize: mods.get("auto_size") === true,
     signalPrefix,
   };
 }
@@ -115,72 +91,67 @@ const positionAttributePlugin: AttributePlugin = {
   onLoad(ctx: RuntimeContext): OnRemovalFn | void {
     const { el, value, mods, mergePatch, startBatch, endBatch, getPath } = ctx;
 
-    // Parse configuration
     const config = parseConfig(el, mods, value);
     if (!config) return;
 
-    // Get the DOM anchor element
     const domAnchor = document.getElementById(config.anchor);
     if (!domAnchor) {
       console.warn(`Anchor element not found: ${config.anchor}`);
       return;
     }
-    
-    console.log(`[position] Setting up ${el.id} with DOM anchor ${config.anchor}`);
 
-    // Build middleware array based on configuration
     const middleware: Middleware[] = [];
-    
-    // Add offset
+
     if (config.offsetValue) {
       middleware.push(offset(config.offsetValue));
     }
 
-    // Add flip to automatically flip when there's not enough space
     if (config.flipEnabled) {
-      middleware.push(flip({
-        fallbackPlacements: ["top", "bottom", "left", "right"],
-        padding: 5,
-      }));
+      middleware.push(
+        flip({
+          fallbackPlacements: ["top", "bottom", "left", "right"],
+          padding: 5,
+        })
+      );
     }
 
-    // Add shift to slide along the viewport edge
     if (config.shiftEnabled) {
-      middleware.push(shift({
-        padding: 5,
-        limiter: {
-          fn: ({ x, y, placement, rects, availableWidth, availableHeight }) => {
-            const { width, height } = rects.floating;
-            return {
-              x: Math.min(Math.max(0, x), availableWidth - width),
-              y: Math.min(Math.max(0, y), availableHeight - height),
-            };
+      middleware.push(
+        shift({
+          padding: 5,
+          limiter: {
+            fn: ({ x, y, rects }) => {
+              const { width, height } = rects.floating;
+              const viewportWidth = window.innerWidth;
+              const viewportHeight = window.innerHeight;
+              return {
+                x: Math.min(Math.max(0, x), viewportWidth - width),
+                y: Math.min(Math.max(0, y), viewportHeight - height),
+              };
+            },
           },
-        },
-      }));
+        })
+      );
     }
 
-    // Add hide detection when reference element is clipped
     if (config.hideEnabled) {
-      middleware.push(hide({
-        strategy: "referenceHidden",
-      }));
+      middleware.push(hide({ strategy: "referenceHidden" }));
     }
 
-    // Add auto-size to constrain floating element size
     if (config.autoSize) {
-      middleware.push(size({
-        apply({ availableWidth, availableHeight, elements }) {
-          Object.assign(elements.floating.style, {
-            maxWidth: `${availableWidth}px`,
-            maxHeight: `${availableHeight}px`,
-          });
-        },
-        padding: 10,
-      }));
+      middleware.push(
+        size({
+          apply({ availableWidth, availableHeight, elements }) {
+            Object.assign(elements.floating.style, {
+              maxWidth: `${availableWidth}px`,
+              maxHeight: `${availableHeight}px`,
+            });
+          },
+          padding: 10,
+        })
+      );
     }
 
-    // Function to update position with any reference element
     const updatePosition = async (referenceEl: any) => {
       startBatch();
       try {
@@ -190,14 +161,12 @@ const positionAttributePlugin: AttributePlugin = {
           middleware,
         });
 
-        // Update position styles directly on element
         Object.assign(el.style, {
           position: config.strategy,
           left: `${result.x}px`,
           top: `${result.y}px`,
         });
 
-        // If signal prefix is detected, update position signals for reactive binding
         if (config.signalPrefix) {
           mergePatch({
             [`${config.signalPrefix}_x`]: result.x,
@@ -205,72 +174,50 @@ const positionAttributePlugin: AttributePlugin = {
             [`${config.signalPrefix}_placement`]: result.placement,
           });
 
-          // If hide middleware detected the reference is hidden, update visibility signal
-          if (config.hideEnabled && result.middlewareData.hide) {
-            const { referenceHidden } = result.middlewareData.hide;
+          if (config.hideEnabled && result.middlewareData.hide?.referenceHidden) {
             const currentOpen = getPath(`${config.signalPrefix}_open`);
-            if (referenceHidden && currentOpen) {
-              mergePatch({
-                [`${config.signalPrefix}_open`]: false,
-              });
+            if (currentOpen) {
+              mergePatch({ [`${config.signalPrefix}_open`]: false });
             }
           }
         }
 
-        // Dispatch custom event for position updates
-        el.dispatchEvent(new CustomEvent("position-update", {
-          detail: {
-            x: result.x,
-            y: result.y,
-            placement: result.placement,
-            strategy: config.strategy,
-          },
-          bubbles: true,
-        }));
-
+        el.dispatchEvent(
+          new CustomEvent("position-update", {
+            detail: {
+              x: result.x,
+              y: result.y,
+              placement: result.placement,
+              strategy: config.strategy,
+            },
+            bubbles: true,
+          })
+        );
       } catch (error) {
         console.error("Error computing position:", error);
       } finally {
         endBatch();
       }
     };
-    
-    // Setup auto-update for DOM anchor (normal case)
-    const cleanup = autoUpdate(
-      domAnchor,
-      el,
-      () => updatePosition(domAnchor),
-      {
-        ancestorScroll: true,
-        ancestorResize: true,
-        elementResize: true,
-        layoutShift: true,
-        animationFrame: false,
-      }
-    );
-    
-    // Handle virtual element positioning
+
+    const cleanup = autoUpdate(domAnchor, el, () => updatePosition(domAnchor), {
+      ancestorScroll: true,
+      ancestorResize: true,
+      elementResize: true,
+      layoutShift: true,
+      animationFrame: false,
+    });
+
     const handleVirtualElement = () => {
-      const virtualAnchorKey = `${el.id}VirtualAnchor`;
-      const virtualElement = (window as any)[virtualAnchorKey];
-      
-      if (virtualElement) {
-        console.log(`[position] Using virtual anchor for ${el.id}`);
-        // For virtual elements, just call computePosition directly
-        updatePosition(virtualElement);
-      } else {
-        // No virtual element, use DOM anchor
-        updatePosition(domAnchor);
-      }
+      const virtualElement = (window as any)[`${el.id}VirtualAnchor`];
+      updatePosition(virtualElement || domAnchor);
     };
-    
-    // Listen for manual position updates (for virtual elements)
-    el.addEventListener('position-update-virtual', handleVirtualElement);
-    
-    // Return cleanup function
+
+    el.addEventListener("position-update-virtual", handleVirtualElement);
+
     return () => {
       cleanup();
-      el.removeEventListener('position-update-virtual', handleVirtualElement);
+      el.removeEventListener("position-update-virtual", handleVirtualElement);
     };
   },
 };
