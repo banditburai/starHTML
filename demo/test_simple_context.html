@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Simple Context Menu Test</title>
+    <script type="module">
+        import { load, apply } from 'https://cdn.jsdelivr.net/gh/starfederation/datastar@release-candidate/bundles/datastar.js';
+        import handlerPlugin from '/static/js/handlers/position.js';
+        
+        if (handlerPlugin.setConfig) handlerPlugin.setConfig({});
+        load(handlerPlugin);
+        apply();
+    </script>
+    <style>
+        #contextArea {
+            width: 400px;
+            height: 200px;
+            background: #f0f0f0;
+            border: 2px dashed #999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: context-menu;
+            margin: 50px;
+        }
+        #contextMenu {
+            position: fixed;
+            background: white;
+            border: 1px solid #ccc;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            padding: 5px 0;
+            min-width: 150px;
+        }
+        .menu-item {
+            padding: 8px 15px;
+            cursor: pointer;
+        }
+        .menu-item:hover {
+            background: #f0f0f0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Simple Context Menu Test</h1>
+    
+    <div data-signals-context_open="false">
+        <div id="contextArea" 
+             data-on-contextmenu="
+                event.preventDefault();
+                console.log('=== RIGHT CLICK EVENT ===');
+                console.log('Click position:', event.clientX, event.clientY);
+                
+                // Create virtual element at cursor
+                const virtualEl = {
+                    getBoundingClientRect: () => {
+                        const rect = {
+                            x: event.clientX,
+                            y: event.clientY,
+                            width: 0,
+                            height: 0,
+                            top: event.clientY,
+                            right: event.clientX,
+                            bottom: event.clientY,
+                            left: event.clientX
+                        };
+                        console.log('Virtual getBoundingClientRect called, returning:', rect);
+                        return rect;
+                    }
+                };
+                
+                // Store it where position handler expects it
+                window.contextMenuVirtualAnchor = virtualEl;
+                console.log('Stored virtual anchor as window.contextMenuVirtualAnchor');
+                
+                // Check what getDynamicAnchor would return
+                console.log('window.contextMenuVirtualAnchor exists?', !!window.contextMenuVirtualAnchor);
+                
+                // Open the menu
+                $context_open = true;
+                console.log('Set $context_open = true');
+                
+                // Log after a short delay to see what position was calculated
+                setTimeout(() => {
+                    const menu = document.getElementById('contextMenu');
+                    console.log('Menu final position:', {
+                        left: menu.style.left,
+                        top: menu.style.top,
+                        display: getComputedStyle(menu).display
+                    });
+                }, 100);
+             "
+             data-on-click="$context_open = false; window.contextMenuVirtualAnchor = null;">
+            Right-click in this area
+        </div>
+        
+        <div id="contextMenu"
+             data-position-anchor="contextArea"
+             data-position-placement="bottom-start"
+             data-position-strategy="fixed"
+             data-show="$context_open"
+             data-on-click="$context_open = false; window.contextMenuVirtualAnchor = null;">
+            <div class="menu-item">Cut</div>
+            <div class="menu-item">Copy</div>
+            <div class="menu-item">Paste</div>
+            <hr>
+            <div class="menu-item">Delete</div>
+        </div>
+    </div>
+    
+    <div style="margin: 50px;">
+        <h2>Debug Console Instructions:</h2>
+        <ol>
+            <li>Open browser console (F12)</li>
+            <li>Right-click in the gray box above</li>
+            <li>Check console for:
+                <ul>
+                    <li>"[position] Using virtual anchor" vs "[position] Using DOM anchor"</li>
+                    <li>Click position coordinates</li>
+                    <li>Menu final position</li>
+                </ul>
+            </li>
+        </ol>
+        
+        <button onclick="testManualVirtual()">Test Manual Virtual Anchor at (300, 200)</button>
+    </div>
+    
+    <script>
+        function testManualVirtual() {
+            console.log('=== MANUAL TEST ===');
+            const virtualEl = {
+                getBoundingClientRect: () => {
+                    const rect = {
+                        x: 300, y: 200, width: 0, height: 0,
+                        top: 200, right: 300, bottom: 200, left: 300
+                    };
+                    console.log('Manual virtual getBoundingClientRect called, returning:', rect);
+                    return rect;
+                }
+            };
+            
+            window.contextMenuVirtualAnchor = virtualEl;
+            console.log('Set manual virtual anchor at (300, 200)');
+            
+            // Manually trigger show
+            const event = new CustomEvent('datastar:signal:changed', {
+                detail: { context_open: true }
+            });
+            document.dispatchEvent(event);
+            
+            setTimeout(() => {
+                const menu = document.getElementById('contextMenu');
+                console.log('Menu position after manual virtual:', {
+                    left: menu.style.left,
+                    top: menu.style.top
+                });
+            }, 100);
+        }
+        
+        // Monitor position updates
+        document.addEventListener('DOMContentLoaded', () => {
+            const menu = document.getElementById('contextMenu');
+            if (menu) {
+                menu.addEventListener('position-update', (e) => {
+                    console.log('[Event] Position update:', e.detail);
+                });
+                
+                // Also monitor attribute changes
+                const observer = new MutationObserver((mutations) => {
+                    mutations.forEach(mutation => {
+                        if (mutation.attributeName === 'style') {
+                            console.log('[Observer] Menu style changed:', menu.style.left, menu.style.top);
+                        }
+                    });
+                });
+                observer.observe(menu, { attributes: true, attributeFilter: ['style'] });
+            }
+        });
+    </script>
+</body>
+</html>

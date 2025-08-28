@@ -332,6 +332,40 @@ ds_on_copy = _create_event_handler("copy")
 ds_on_cut = _create_event_handler("cut")
 ds_on_paste = _create_event_handler("paste")
 
+
+# ============================================================================
+# Position Handler - Floating UI Integration
+# ============================================================================
+
+
+def ds_position(
+    anchor: str,
+    placement: str = "bottom",
+    strategy: str = "absolute",
+    offset: int = 8,
+    flip: bool = True,
+    shift: bool = True,
+    hide: bool = False,
+    auto_size: bool = False,
+    signal_prefix: str = None,
+) -> DatastarAttr:
+    """Position element using Floating UI for automatic anchoring."""
+    modifiers = [
+        f"placement.{placement}" if placement != "bottom" else None,
+        f"strategy.{strategy}" if strategy != "absolute" else None,
+        f"offset.{offset}" if offset != 8 else None,
+        "flip.false" if not flip else None,
+        "shift.false" if not shift else None,
+        "hide" if hide else None,
+        "auto_size" if auto_size else None,
+        f"signal_prefix.{signal_prefix}" if signal_prefix else None,
+    ]
+    modifiers = [m for m in modifiers if m]
+
+    key = f"data-position-anchor__{'__'.join(modifiers)}" if modifiers else "data-position-anchor"
+    return DatastarAttr({key: anchor})
+
+
 ds_on_animationstart = _create_event_handler("animationstart")
 ds_on_animationend = _create_event_handler("animationend")
 ds_on_animationiteration = _create_event_handler("animationiteration")
@@ -544,4 +578,5 @@ __all__ = [
     "ds_draggable",
     "ds_drop_zone",
     "ds_on_canvas",
+    "ds_position",
 ]

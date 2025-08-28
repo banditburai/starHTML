@@ -39,6 +39,7 @@
     "dist",
     "**/*.test.ts",
     "**/*.spec.ts",
-    "typescript/handlers/types.ts"
+    "typescript/handlers/types.ts",
+    "typescript/handlers/position_backup.ts"
   ]
 }

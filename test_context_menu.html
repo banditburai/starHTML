@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Test Context Menu</title>
+    <script src="https://cdn.jsdelivr.net/npm/@floating-ui/dom@1.6.3/dist/floating-ui.dom.browser.min.js"></script>
+    <style>
+        #contextArea {
+            width: 400px;
+            height: 200px;
+            background: #f0f0f0;
+            border: 2px dashed #999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: context-menu;
+            margin: 50px;
+        }
+        #contextMenu {
+            position: fixed;
+            background: white;
+            border: 1px solid #ccc;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            padding: 5px 0;
+            min-width: 150px;
+            display: none;
+        }
+        #contextMenu.show {
+            display: block;
+        }
+        .menu-item {
+            padding: 8px 15px;
+            cursor: pointer;
+        }
+        .menu-item:hover {
+            background: #f0f0f0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Test Dynamic Anchor for Context Menu</h1>
+    
+    <div id="contextArea">Right-click in this area</div>
+    
+    <div id="contextMenu">
+        <div class="menu-item">Cut</div>
+        <div class="menu-item">Copy</div>
+        <div class="menu-item">Paste</div>
+        <hr>
+        <div class="menu-item">Delete</div>
+    </div>
+    
+    <script>
+        const contextArea = document.getElementById('contextArea');
+        const contextMenu = document.getElementById('contextMenu');
+        
+        // Test 1: Using DOM element as anchor (should position at bottom-left of contextArea)
+        function testDOMElement() {
+            console.log('Test 1: Using DOM element as anchor');
+            
+            const cleanup = FloatingUI.autoUpdate(
+                contextArea,  // DOM element
+                contextMenu,
+                async () => {
+                    const result = await FloatingUI.computePosition(contextArea, contextMenu, {
+                        placement: 'bottom-start',
+                        strategy: 'fixed'
+                    });
+                    
+                    Object.assign(contextMenu.style, {
+                        left: `${result.x}px`,
+                        top: `${result.y}px`,
+                    });
+                    
+                    console.log('Position with DOM element:', result);
+                }
+            );
+            
+            contextMenu.classList.add('show');
+            setTimeout(() => {
+                cleanup();
+                contextMenu.classList.remove('show');
+                testVirtualElement();
+            }, 2000);
+        }
+        
+        // Test 2: Using virtual element at cursor position
+        function testVirtualElement() {
+            console.log('Test 2: Using virtual element at cursor position (300, 150)');
+            
+            const virtualEl = {
+                getBoundingClientRect: () => ({
+                    x: 300, y: 150, width: 0, height: 0,
+                    top: 150, right: 300, bottom: 150, left: 300
+                })
+            };
+            
+            const cleanup = FloatingUI.autoUpdate(
+                virtualEl,  // Virtual element
+                contextMenu,
+                async () => {
+                    const result = await FloatingUI.computePosition(virtualEl, contextMenu, {
+                        placement: 'bottom-start',
+                        strategy: 'fixed'
+                    });
+                    
+                    Object.assign(contextMenu.style, {
+                        left: `${result.x}px`,
+                        top: `${result.y}px`,
+                    });
+                    
+                    console.log('Position with virtual element:', result);
+                }
+            );
+            
+            contextMenu.classList.add('show');
+            setTimeout(() => {
+                cleanup();
+                contextMenu.classList.remove('show');
+                testDynamicAnchor();
+            }, 2000);
+        }
+        
+        // Test 3: Using dynamic anchor function (simulating our approach)
+        function testDynamicAnchor() {
+            console.log('Test 3: Using dynamic anchor function');
+            
+            // Initially no virtual anchor
+            window.contextMenuVirtualAnchor = null;
+            
+            const getDynamicAnchor = () => {
+                if (window.contextMenuVirtualAnchor) {
+                    console.log('Using virtual anchor');
+                    return window.contextMenuVirtualAnchor;
+                }
+                console.log('Using DOM element');
+                return contextArea;
+            };
+            
+            const cleanup = FloatingUI.autoUpdate(
+                getDynamicAnchor,  // Function that returns anchor
+                contextMenu,
+                async () => {
+                    const currentAnchor = getDynamicAnchor();
+                    const result = await FloatingUI.computePosition(currentAnchor, contextMenu, {
+                        placement: 'bottom-start',
+                        strategy: 'fixed'
+                    });
+                    
+                    Object.assign(contextMenu.style, {
+                        left: `${result.x}px`,
+                        top: `${result.y}px`,
+                    });
+                    
+                    console.log('Position with dynamic anchor:', result);
+                }
+            );
+            
+            // Start with DOM element
+            contextMenu.classList.add('show');
+            
+            // After 2 seconds, switch to virtual element at (400, 200)
+            setTimeout(() => {
+                console.log('Switching to virtual anchor at (400, 200)');
+                window.contextMenuVirtualAnchor = {
+                    getBoundingClientRect: () => ({
+                        x: 400, y: 200, width: 0, height: 0,
+                        top: 200, right: 400, bottom: 200, left: 400
+                    })
+                };
+                // Force update by scrolling
+                window.scrollBy(0, 1);
+                window.scrollBy(0, -1);
+            }, 2000);
+            
+            setTimeout(() => {
+                cleanup();
+                contextMenu.classList.remove('show');
+                console.log('All tests complete!');
+            }, 4000);
+        }
+        
+        // Start tests
+        testDOMElement();
+        
+        // Also handle real right-clicks
+        contextArea.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            
+            const virtualEl = {
+                getBoundingClientRect: () => ({
+                    x: e.clientX, y: e.clientY, width: 0, height: 0,
+                    top: e.clientY, right: e.clientX, bottom: e.clientY, left: e.clientX
+                })
+            };
+            
+            window.contextMenuVirtualAnchor = virtualEl;
+            
+            const cleanup = FloatingUI.autoUpdate(
+                () => window.contextMenuVirtualAnchor || contextArea,
+                contextMenu,
+                async () => {
+                    const anchor = window.contextMenuVirtualAnchor || contextArea;
+                    const result = await FloatingUI.computePosition(anchor, contextMenu, {
+                        placement: 'bottom-start',
+                        strategy: 'fixed'
+                    });
+                    
+                    Object.assign(contextMenu.style, {
+                        left: `${result.x}px`,
+                        top: `${result.y}px`,
+                    });
+                }
+            );
+            
+            contextMenu.classList.add('show');
+            
+            // Hide on click anywhere
+            const hideMenu = () => {
+                cleanup();
+                contextMenu.classList.remove('show');
+                window.contextMenuVirtualAnchor = null;
+                document.removeEventListener('click', hideMenu);
+            };
+            
+            setTimeout(() => document.addEventListener('click', hideMenu), 0);
+        });
+    </script>
+</body>
+</html>

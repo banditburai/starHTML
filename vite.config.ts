@@ -9,6 +9,7 @@ export default defineConfig({
         'resize': './typescript/handlers/resize.ts',
         'drag': './typescript/handlers/drag.ts',
         'canvas': './typescript/handlers/canvas.ts',
+        'position': './typescript/handlers/position.ts',
         'throttle': './typescript/handlers/throttle.ts',
         'smooth-scroll': './typescript/handlers/smooth-scroll.ts',
         'index': './typescript/handlers/index.ts'
