@@ -340,34 +340,20 @@ def ds_position(
     signal_prefix: str = None,
 ) -> DatastarAttr:
     """Position element using Floating UI for automatic anchoring."""
-    attrs = {
-        "data-position-anchor": anchor,
-    }
+    modifiers = [
+        f"placement.{placement}" if placement != "bottom" else None,
+        f"strategy.{strategy}" if strategy != "absolute" else None,
+        f"offset.{offset}" if offset != 8 else None,
+        "flip.false" if not flip else None,
+        "shift.false" if not shift else None,
+        "hide" if hide else None,
+        "auto_size" if auto_size else None,
+        f"signal_prefix.{signal_prefix}" if signal_prefix else None,
+    ]
+    modifiers = [m for m in modifiers if m]
     
-    modifiers = []
-    
-    if placement != "bottom":
-        modifiers.append(f"placement.{placement}")
-    if strategy != "absolute":
-        modifiers.append(f"strategy.{strategy}")
-    if offset != 8:
-        modifiers.append(f"offset.{offset}")
-    if not flip:
-        modifiers.append("flip.false")
-    if not shift:
-        modifiers.append("shift.false")
-    if hide:
-        modifiers.append("hide")
-    if auto_size:
-        modifiers.append("auto_size")
-    if signal_prefix:
-        modifiers.append(f"signal_prefix.{signal_prefix}")
-    
-    if modifiers:
-        key = f"data-position-anchor__{'.'.join(modifiers)}"
-        attrs = {key: anchor}
-    
-    return DatastarAttr(attrs)
+    key = f"data-position-anchor__{'.'.join(modifiers)}" if modifiers else "data-position-anchor"
+    return DatastarAttr({key: anchor})
 
 ds_on_animationstart = _create_event_handler("animationstart")
 ds_on_animationend = _create_event_handler("animationend")
