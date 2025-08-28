@@ -354,6 +354,7 @@ class DemoLoader:
             return module
         except Exception as e:
             import traceback
+
             print(f"Failed to load demo {demo.id}: {e}")
             traceback.print_exc()
             return None

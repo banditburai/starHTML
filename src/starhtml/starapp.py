@@ -32,7 +32,6 @@ def star_app(
     on_shutdown: Callable = None,
     lifespan: Callable = None,
     default_hdrs: bool = True,
-    exts: list = None,
     canonical: bool = True,
     secret_key: str = None,
     key_fname: str = ".sesskey",
@@ -50,15 +49,14 @@ def star_app(
     body_wrap: Callable = None,
     auto_unpack: bool = True,
     fouc: str | dict = None,
+    compression=None,
     **kwargs: Any,
 ):
     from .core import noop_body
 
     if body_wrap is None:
         body_wrap = noop_body
-    h = list(hdrs) if hdrs else []
-
-    h = tuple(h)
+    h = tuple(hdrs or ())
 
     app = _app_factory(
         hdrs=h,
@@ -82,13 +80,13 @@ def star_app(
         sess_https_only=sess_https_only,
         sess_domain=sess_domain,
         key_fname=key_fname,
-        exts=exts,
         htmlkw=htmlkw,
         bodykw=bodykw,
         reload_attempts=reload_attempts,
         reload_interval=reload_interval,
         body_wrap=body_wrap,
         auto_unpack=auto_unpack,
+        compression=compression,
     )
     app.static_route_exts(static_path=static_path)
 
@@ -96,18 +94,27 @@ def star_app(
         return app, app.route
 
     db = database(db_file)
-    if not tbls:
-        tbls = {}
+
+    # Determine table schemas from tbls parameter or kwargs
+    tables = tbls or {}
     if kwargs:
         if isinstance(first(kwargs.values()), dict):
-            tbls = kwargs
+            # kwargs contains multiple table schemas
+            tables = kwargs
         else:
-            kwargs["render"] = render
-            tbls["items"] = kwargs
-    dbtbls = [_get_tbl(db.t, k, v) for k, v in tbls.items()]
-    if len(dbtbls) == 1:
-        dbtbls = dbtbls[0]
-    return app, app.route, *dbtbls
+            # kwargs contains single table fields, create "items" table
+            table_schema = kwargs.copy()
+            if render:
+                table_schema["render"] = render
+            tables = {"items": table_schema}
+
+    # Create database tables and dataclasses
+    db_tables = [_get_tbl(db.t, name, schema) for name, schema in tables.items()]
+
+    # Return single table unpacked if only one, otherwise unpack all
+    if len(db_tables) == 1:
+        return app, app.route, *db_tables[0]
+    return app, app.route, *db_tables
 
 
 # ============================================================================

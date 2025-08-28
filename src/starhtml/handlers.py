@@ -1,6 +1,7 @@
 """StarHTML Datastar plugin handlers."""
 
 import json
+import time
 from functools import cached_property
 from pathlib import Path
 
@@ -23,22 +24,21 @@ __all__ = [
 ]
 
 
-
-def persist_handler() -> ScriptOutput:
+def persist_handler(debug: bool = False) -> ScriptOutput:
     """Auto-persist signals to localStorage/sessionStorage.
 
     Use data-persist="signal1,signal2" or data-persist="*" on elements.
     Modifiers: __session, __as-{key}, __throttle.{ms}.
     """
-    return _load_handler("persist")
+    return _load_handler("persist", debug=debug)
 
 
-def scroll_handler() -> ScriptOutput:
+def scroll_handler(debug: bool = False) -> ScriptOutput:
     """Track scroll position, velocity, and visibility.
 
     Creates: scrollX/Y, direction, velocity, visible, progress signals.
     """
-    return _load_handler("scroll")
+    return _load_handler("scroll", debug=debug)
 
 
 def resize_handler(
@@ -46,10 +46,11 @@ def resize_handler(
     throttle_ms: int = 16,
     track_element: bool = False,
     track_both: bool = False,
+    debug: bool = False,
 ) -> ScriptOutput:
     """Track window/element resize events with responsive state."""
     config = {"signal": signal, "throttleMs": throttle_ms, "trackElement": track_element, "trackBoth": track_both}
-    return _load_handler("resize", config)
+    return _load_handler("resize", config, debug=debug)
 
 
 def drag_handler(
@@ -58,6 +59,7 @@ def drag_handler(
     throttle_ms: int = 16,
     constrain_to_parent: bool = False,
     touch_enabled: bool = True,
+    debug: bool = False,
 ) -> ScriptOutput:
     """Enable drag-and-drop with reactive state management.
 
@@ -71,12 +73,12 @@ def drag_handler(
         "constrainToParent": constrain_to_parent,
         "touchEnabled": touch_enabled,
     }
-    return _load_handler("drag", config)
+    return _load_handler("drag", config, debug=debug)
 
 
-def position_handler() -> ScriptOutput:
+def position_handler(debug: bool = False) -> ScriptOutput:
     """Position floating elements using Floating UI."""
-    return _load_handler("position")
+    return _load_handler("position", debug=debug)
 
 
 def canvas_handler(
@@ -91,6 +93,7 @@ def canvas_handler(
     grid_color: str = "#e0e0e0",
     minor_grid_size: int = 20,
     minor_grid_color: str = "#f0f0f0",
+    debug: bool = False,
 ) -> ScriptOutput:
     """Enable infinite canvas with pan/zoom."""
     config = {
@@ -133,9 +136,9 @@ def canvas_handler(
             z-index: -1;
         }}
         """)
-        return [_load_handler("canvas", config), grid_styles]
+        return [_load_handler("canvas", config, debug=debug), grid_styles]
 
-    return _load_handler("canvas", config)
+    return _load_handler("canvas", config, debug=debug)
 
 
 def get_bundle_stats() -> dict:
@@ -153,14 +156,16 @@ def check_assets() -> dict:
 # =============================================================================
 
 
-def _load_handler(handler_name: str, config: dict = None) -> ScriptOutput:
+def _load_handler(handler_name: str, config: dict = None, debug: bool = False) -> ScriptOutput:
     """Load and register a Datastar plugin handler."""
     config_json = json.dumps(config) if config else "{}"
     datastar_cdn = f"https://cdn.jsdelivr.net/gh/starfederation/datastar@{DATASTAR_VERSION}/bundles/datastar.js"
 
+    cache_bust = f"?v={int(time.time())}" if debug else ""
+
     return Script(
         f"""
-        import handlerPlugin from '/static/js/handlers/{handler_name}.js';
+        import handlerPlugin from '/static/js/handlers/{handler_name}.js{cache_bust}';
         import {{ load, apply }} from '{datastar_cdn}';
         
         if (handlerPlugin.setConfig) handlerPlugin.setConfig({config_json});
@@ -173,18 +178,18 @@ def _load_handler(handler_name: str, config: dict = None) -> ScriptOutput:
 
 def get_production_script(bundle_name: str, use_external: bool = True, fallback: bool = True, **kwargs) -> ScriptOutput:
     """Production script with CDN fallback support."""
-    if not use_external:
-        return Script(content, **kwargs) if (content := _assets.get_asset_content(bundle_name)) else None
+    script_url = _assets.get_asset_url(bundle_name) if use_external else None
+    content = _assets.get_asset_content(bundle_name)
 
-    if not (script_url := _assets.get_asset_url(bundle_name)):
-        return Script(content, **kwargs) if (content := _assets.get_asset_content(bundle_name)) else None
+    # Use inline content if no external URL requested or URL unavailable
+    if not script_url:
+        return Script(content, **kwargs) if content else None
 
-    if not fallback:
+    # Use external script without fallback
+    if not fallback or not content:
         return Script(src=script_url, defer=True, **kwargs)
 
-    if not (fallback_content := _assets.get_asset_content(bundle_name)):
-        return Script(src=script_url, defer=True, **kwargs)
-
+    # External script with inline fallback
     return [
         Script(_FALLBACK_SCRIPT),
         Script(
@@ -192,7 +197,7 @@ def get_production_script(bundle_name: str, use_external: bool = True, fallback:
             defer=True,
             type="module",
             onload=f"window.__starhtml_register_success('{bundle_name}')",
-            onerror=f"window.__starhtml_run_with_fallback('{bundle_name}', function() {{ {fallback_content} }})",
+            onerror=f"window.__starhtml_run_with_fallback('{bundle_name}', function() {{ {content} }})",
             **kwargs,
         ),
     ]
@@ -228,15 +233,14 @@ class PackageAssetManager:
 
     def _get_asset_path(self, bundle_name: str) -> Path | None:
         """Resolve asset path using manifest for cache-busted filenames."""
-        filename = f"{bundle_name}.min.js"
+        # Get filename from manifest or use default
         if files := self._manifest.get("files"):
-            filename = files.get(f"{bundle_name}.js", filename)
+            filename = files.get(f"{bundle_name}.js", f"{bundle_name}.min.js")
+        else:
+            filename = f"{bundle_name}.min.js"
 
-        if (asset_file := self.js_dir / filename).is_file():
-            return asset_file
-
-        fallback = self.js_dir / f"{bundle_name}.min.js"
-        return fallback if fallback.is_file() and fallback != asset_file else None
+        asset_file = self.js_dir / filename
+        return asset_file if asset_file.is_file() else None
 
     def get_asset_url(self, bundle_name: str) -> str | None:
         """Bundle URL with cache-busted filename."""

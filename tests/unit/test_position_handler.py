@@ -1,6 +1,7 @@
 """Tests for the Floating UI position handler."""
 
 import pytest
+
 from starhtml import *
 
 
@@ -70,9 +71,9 @@ def test_position_handler_all_options():
         shift=False,
         hide=True,
         auto_size=True,
-        signal_prefix="custom"
+        signal_prefix="custom",
     )
-    
+
     attrs_str = str(result.attrs)
     assert "complexElement" in attrs_str
     assert "placement.bottom-end" in attrs_str
@@ -95,7 +96,7 @@ def test_position_handler_defaults():
         flip=True,  # default
         shift=True,  # default
     )
-    
+
     # Only anchor should be present, no modifiers for defaults
     assert result.attrs == {"data-position-anchor": "test"}
 
@@ -112,7 +113,7 @@ def test_position_handler_integration():
         ),
         ds_signals(test_open=False),
     )
-    
+
     html = str(div)
     assert "data-position-anchor" in html
     assert "testButton" in html

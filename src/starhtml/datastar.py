@@ -361,9 +361,10 @@ def ds_position(
         f"signal_prefix.{signal_prefix}" if signal_prefix else None,
     ]
     modifiers = [m for m in modifiers if m]
-    
-    key = f"data-position-anchor__{'.'.join(modifiers)}" if modifiers else "data-position-anchor"
+
+    key = f"data-position-anchor__{'__'.join(modifiers)}" if modifiers else "data-position-anchor"
     return DatastarAttr({key: anchor})
+
 
 ds_on_animationstart = _create_event_handler("animationstart")
 ds_on_animationend = _create_event_handler("animationend")

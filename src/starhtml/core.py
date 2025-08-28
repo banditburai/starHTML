@@ -25,7 +25,6 @@ from .realtime import _ws_endp, setup_ws
 from .server import _mk_locfunc, _wrap_call, _wrap_ex, _wrap_req, all_meths, cookie, render_response, serve
 from .starapp import DATASTAR_VERSION, Beforeware, def_hdrs
 from .utils import _list, _params, empty, get_key, noop_body, reg_re_param
-from .xtend import Script
 
 empty = Parameter.empty
 
@@ -61,7 +60,6 @@ class StarHTML(Starlette):
         lifespan=None,
         hdrs=None,
         ftrs=None,
-        exts=None,
         before=None,
         after=None,
         default_hdrs=True,
@@ -82,24 +80,32 @@ class StarHTML(Starlette):
         iconify_version=None,
         auto_unpack=True,
         static_path=None,
+        compression=None,
         **bodykw,
     ):
         middleware, before, after = map(_list, (middleware, before, after))
         self.title, self.canonical = title, canonical
-        hdrs, ftrs, exts = map(listify, (hdrs, ftrs, exts))
-        # Extensions are currently not used with Datastar
-        if exts:
-            exts = {}
+        hdrs, ftrs = map(listify, (hdrs, ftrs))
         htmlkw = htmlkw or {}
         if default_hdrs:
             hdrs = def_hdrs(datastar_version, include_iconify, iconify_version) + hdrs
-        if exts:
-            # Script is now imported at top of file
-            hdrs += [Script(src=ext) for ext in exts]
         on_startup, on_shutdown = listify(on_startup) or None, listify(on_shutdown) or None
         self.lifespan, self.hdrs, self.ftrs = lifespan, hdrs, ftrs
         self.body_wrap, self.before, self.after, self.htmlkw, self.bodykw = body_wrap, before, after, htmlkw, bodykw
         secret_key = get_key(secret_key, key_fname)
+
+        if compression_config := self._resolve_compression(compression, debug):
+            try:
+                from starlette_compress import CompressMiddleware
+
+                comp_config = self._build_compression_config(compression_config)
+                middleware.insert(0, Middleware(CompressMiddleware, **comp_config))
+            except ImportError:
+                if compression is not None and compression is not False:
+                    raise ImportError(
+                        "starlette-compress required for compression. Install with: pip install starlette-compress"
+                    )
+
         if sess_cls:
             sess = Middleware(
                 sess_cls,
@@ -133,7 +139,6 @@ class StarHTML(Starlette):
         )
         self.state.auto_unpack = auto_unpack
 
-        # Serve datastar.js fallback (CDN-first approach in headers)
         from pathlib import Path
 
         import httpx
@@ -164,7 +169,6 @@ class StarHTML(Starlette):
 
         @self.route("/static/js/{filename:path}")
         async def serve_starhtml_js(filename: str):
-            """Serve StarHTML's built-in JavaScript files (including subdirectories)."""
             js_file = static_js_dir / filename
             if js_file.exists() and js_file.is_file():
                 return FileResponse(js_file, media_type="application/javascript")
@@ -172,6 +176,23 @@ class StarHTML(Starlette):
 
         if static_path:
             self.static_route_exts(static_path=static_path)
+
+    def _resolve_compression(self, compression, debug):
+        if compression is None:
+            return not debug
+        return compression if isinstance(compression, bool | str | dict) else False
+
+    def _build_compression_config(self, compression):
+        if isinstance(compression, dict):
+            return compression
+        if isinstance(compression, str):
+            return {
+                "minimum_size": 500,
+                "zstd": compression == "zstd",
+                "brotli": compression in ("br", "brotli"),
+                "gzip": compression == "gzip",
+            }
+        return {"minimum_size": 500, "zstd": True, "brotli": True, "gzip": True}
 
     def add_route(self, route) -> None:
         route.methods = [m.upper() if isinstance(m, str) else m for m in listify(route.methods)]
