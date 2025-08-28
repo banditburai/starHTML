@@ -487,7 +487,9 @@ class TestRealWorldScenarios:
 
         assert component.tag == "div"
         assert component.attrs["class"] == "counter-component"
-        assert "data-signals-count" in component.attrs
+        # Dict as first arg to ds_signals triggers JSON format
+        assert "data-signals" in component.attrs
+        assert component.attrs["data-signals"] == '{"count": 0}'
 
         # Check that child elements exist
         assert len(component.children) == 4  # h2, p, button, button

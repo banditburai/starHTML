@@ -1,6 +1,6 @@
 [project]
 name = "starhtml"
-version = "0.1.9"
+version = "0.1.10"
 description = "Modern HTML generation in Python, inspired by FastHTML"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -139,7 +139,7 @@ ignore = [
 "src/starhtml/components.py" = ["N802", "N807", "C901", "PLR0912", "UP007", "PLW2901", "PLE0605"]  # Allow capitalized function names for HTML components and complexity
 "src/starhtml/svg.py" = ["N802", "N803", "N806"]  # Allow capitalized function names for SVG elements
 "src/starhtml/js.py" = ["N802"]  # Allow capitalized function names for JS components
-"src/starhtml/datastar.py" = ["B904", "PLR2004"]  # Allow datastar patterns
+"src/starhtml/datastar.py" = ["B904", "PLR2004", "PLR0911"]  # Allow datastar patterns and multiple returns
 "src/starhtml/live_reload.py" = ["N802"]  # Allow capitalized function names
 "src/starhtml/oauth.py" = ["C901"]  # Allow complexity in OAuth
 "src/starhtml/__init__.py" = ["F401"]  # Allow unused imports in __init__

@@ -66,6 +66,7 @@ from starhtml.datastar import (
     lte,
     # Helper functions
     t,
+    value,
 )
 
 
@@ -214,20 +215,20 @@ class TestSignalsAndPersistence:
 
     def test_ds_signals_kwargs(self):
         """Test ds_signals with kwargs."""
-        result = attrs_of(ds_signals(count=0, name="John", active=True))
-        # Fixed: all values become strings to prevent fastcore XML filtering
-        assert result == {"data-signals-count": "0", "data-signals-name": "John", "data-signals-active": "true"}
+        result = attrs_of(ds_signals(count=0, name=value("John"), active=True))
+        # Primitives auto-wrap, strings need explicit value()
+        assert result == {"data-signals-count": "0", "data-signals-name": '"John"', "data-signals-active": "true"}
 
     def test_ds_signals_dict(self):
-        """Test ds_signals with dict argument."""
-        signals = {"count": 0, "name": "John"}
+        """Test ds_signals with dict argument - triggers JSON format."""
+        signals = {"count": 0, "name": value("John")}
         result = attrs_of(ds_signals(signals))
-        # Fixed: all values become strings to prevent fastcore XML filtering
-        assert result == {"data-signals-count": "0", "data-signals-name": "John"}
+        # Dict as first arg triggers JSON object format
+        assert result == {"data-signals": '{"count": 0, "name": "John"}'}
 
     def test_ds_signals_with_modifiers(self):
         """Test ds_signals with ifmissing modifier."""
-        result = attrs_of(ds_signals(count=0, ifmissing="warn"))
+        result = attrs_of(ds_signals(count=0, ifmissing="warn"))  # ifmissing is special, not a signal
         assert "data-signals__ifmissing" in result
         assert result["data-signals__ifmissing"] == "warn"
 
@@ -516,7 +517,7 @@ class TestIntegration:
             Input(ds_bind("email", case="lower"), type="email"),
             Input(ds_bind("password"), type="password"),
             Button("Login", ds_disabled("!$email || !$password")),
-            ds_signals(email="", password=""),  # These get merged into form attributes
+            ds_signals(email=value(""), password=value("")),  # These get merged into form attributes
             ds_persist("email"),
             ds_on_submit("login()", "prevent"),
         )
