@@ -46,25 +46,15 @@ const extractPlacementValue = (value: any): string => {
   const values = Array.from(value);
   if (values.length === 1) {
     const singleValue = values[0];
-
     const validPlacements = [
-      "top",
-      "bottom",
-      "left",
-      "right",
-      "top-start",
-      "top-end",
-      "bottom-start",
-      "bottom-end",
-      "left-start",
-      "left-end",
-      "right-start",
-      "right-end",
+      "top", "bottom", "left", "right",
+      "top-start", "top-end", "bottom-start", "bottom-end",
+      "left-start", "left-end", "right-start", "right-end",
     ];
 
     if (validPlacements.includes(singleValue)) return singleValue;
 
-    // Datastar removes hyphens in compound placements
+    // Datastar removes hyphens from compound placements
     const dehyphenated: Record<string, string> = {
       topstart: "top-start",
       topend: "top-end",
@@ -110,13 +100,11 @@ const positionAttributePlugin: AttributePlugin = {
     const { el, value, mods, startBatch, endBatch } = ctx;
     const config = parseConfig(el, value, mods);
     const isNativePopover = el.hasAttribute("popover");
-
     const initialAnchor = document.getElementById(config.anchor);
 
     if (!initialAnchor && !isNativePopover) return;
 
     if (!initialAnchor) {
-      // Native popover might need to wait for anchor to appear in DOM
       const observer = new MutationObserver(() => {
         const anchor = document.getElementById(config.anchor);
         if (anchor) {
@@ -127,7 +115,6 @@ const positionAttributePlugin: AttributePlugin = {
 
       observer.observe(document.body, { childList: true, subtree: true });
 
-      // Also poll for a limited time as fallback
       let attempts = 0;
       const checkInterval = setInterval(() => {
         const anchor = document.getElementById(config.anchor);
@@ -147,15 +134,43 @@ const positionAttributePlugin: AttributePlugin = {
     return initializeWithAnchor(initialAnchor);
 
     function initializeWithAnchor(anchorElement: HTMLElement): OnRemovalFn {
-      // Position off-screen initially to prevent flash at 0,0
-      if (!el.hasAttribute("data-positioned")) {
+      const originalStyles = {
+        opacity: el.style.opacity,
+        pointerEvents: el.style.pointerEvents,
+        transition: el.style.transition,
+      };
+
+      const hideElement = () => {
+        el.style.transition = "none";
+        el.style.opacity = "0";
+        el.style.pointerEvents = "none";
         el.style.position = config.strategy;
-        el.style.left = "-9999px";
-        el.style.top = "-9999px";
+        el.setAttribute("data-position-state", "initializing");
+      };
+
+      const revealElement = () => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            el.setAttribute("data-position-state", "positioned");
+            el.setAttribute("data-position-initialized", "true");
+            el.style.transition = originalStyles.transition || "opacity 0.15s ease-in-out";
+            el.style.opacity = originalStyles.opacity || "1";
+            el.style.pointerEvents = originalStyles.pointerEvents || "";
+            
+            setTimeout(() => {
+              if (el.style.transition === "opacity 0.15s ease-in-out") {
+                el.style.transition = originalStyles.transition || "";
+              }
+            }, 150);
+          });
+        });
+      };
+
+      if (!el.hasAttribute("data-position-initialized")) {
+        hideElement();
       }
 
       const middleware: Middleware[] = [offset(config.offsetValue)];
-
       if (config.flipEnabled) middleware.push(flip());
       if (config.shiftEnabled) middleware.push(shift({ padding: 10 }));
       if (config.hideEnabled) middleware.push(hide());
@@ -175,6 +190,7 @@ const positionAttributePlugin: AttributePlugin = {
 
       let lastPosition = { x: 0, y: 0, placement: "" };
       let cleanup: (() => void) | null = null;
+      let hasPositionedOnce = false;
 
       const isVisible = (element: HTMLElement) => {
         const style = getComputedStyle(element);
@@ -191,11 +207,9 @@ const positionAttributePlugin: AttributePlugin = {
           let attempts = 0;
           const check = () => {
             const bounds = element.getBoundingClientRect();
-            if (
-              (bounds.width > 0 || bounds.height > 0) &&
-              typeof bounds.x === "number" &&
-              typeof bounds.y === "number"
-            ) {
+            if ((bounds.width > 0 || bounds.height > 0) && 
+                typeof bounds.x === "number" && 
+                typeof bounds.y === "number") {
               resolve(bounds);
             } else if (++attempts >= 3) {
               resolve(null);
@@ -233,13 +247,14 @@ const positionAttributePlugin: AttributePlugin = {
               top: `${result.y}px`,
             });
             lastPosition = { x: result.x, y: result.y, placement: result.placement };
-
-            // Mark as positioned
-            if (!el.hasAttribute("data-positioned")) {
-              el.setAttribute("data-positioned", "true");
-            }
           }
-        } catch {
+
+          if (!hasPositionedOnce) {
+            hasPositionedOnce = true;
+            revealElement();
+          }
+        } catch (err) {
+          console.error("Position update failed:", err);
         } finally {
           endBatch();
         }
@@ -269,10 +284,17 @@ const positionAttributePlugin: AttributePlugin = {
       if (isNativePopover) {
         toggleHandler = (e: any) => {
           if (e.newState === "open") {
+            hideElement();
+            el.offsetHeight; // Force reflow for rapid toggles
+            hasPositionedOnce = false;
+            el.removeAttribute("data-position-initialized");
             setupPositioning();
           } else if (e.newState === "closed") {
             teardownPositioning();
-            el.removeAttribute("data-positioned");
+            el.removeAttribute("data-position-initialized");
+            el.setAttribute("data-position-state", "closed");
+            el.style.opacity = "0";
+            hasPositionedOnce = false;
           }
         };
         el.addEventListener("toggle", toggleHandler);
@@ -280,8 +302,13 @@ const positionAttributePlugin: AttributePlugin = {
         visibilityObserver = new MutationObserver(() => {
           const visible = isVisible(el);
           const wasVisible = cleanup !== null;
-          if (visible && !wasVisible) setupPositioning();
-          else if (!visible && wasVisible) teardownPositioning();
+          if (visible && !wasVisible) {
+            if (!hasPositionedOnce) hideElement();
+            setupPositioning();
+          } else if (!visible && wasVisible) {
+            teardownPositioning();
+            hasPositionedOnce = false;
+          }
         });
 
         visibilityObserver.observe(el, {
@@ -294,8 +321,14 @@ const positionAttributePlugin: AttributePlugin = {
 
       return () => {
         teardownPositioning();
-        if (toggleHandler) el.removeEventListener("toggle", toggleHandler);
+        toggleHandler && el.removeEventListener("toggle", toggleHandler);
         visibilityObserver?.disconnect();
+
+        el.style.opacity = originalStyles.opacity || "";
+        el.style.pointerEvents = originalStyles.pointerEvents || "";
+        el.style.transition = originalStyles.transition || "";
+        el.removeAttribute("data-position-state");
+        el.removeAttribute("data-position-initialized");
       };
     }
   },
