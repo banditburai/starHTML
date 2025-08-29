@@ -1,0 +1,488 @@
+#!/usr/bin/env python3
+"""
+Simple test to verify the opacity-based hiding in position.ts works correctly.
+This uses the popover component code exactly as provided, without modifications.
+"""
+
+import sys
+
+sys.path.insert(0, "src")
+
+from uuid import uuid4
+
+from starhtml import *
+from starhtml.datastar import ds_position, ds_ref
+
+
+# Popover component code exactly as provided
+def cn(*classes):
+    """Concatenate class names."""
+    return " ".join(filter(None, classes))
+
+
+def make_injectable(func):
+    """Mark a function as injectable."""
+    func._inject_signal = func
+    return func
+
+
+def inject_signals(children, *args):
+    """Process children and inject signals."""
+    result = []
+    for child in children:
+        if hasattr(child, "_inject_signal") and callable(child._inject_signal):
+            result.append(child._inject_signal(*args))
+        else:
+            result.append(child)
+    return result
+
+
+def Popover(*children, cls="relative inline-block", **attrs):
+    signal = f"popover_{uuid4().hex[:8]}"
+    return Div(*inject_signals(children, signal), cls=cls, **attrs)
+
+
+def PopoverTrigger(*children, variant="default", cls="", **attrs):
+    def _inject_signal(signal):
+        return Button(
+            *children,
+            ds_ref(f"{signal}Trigger"),
+            popovertarget=f"{signal}-content",
+            popoveraction="toggle",
+            id=f"{signal}-trigger",
+            cls=cls,
+            **attrs,
+        )
+
+    return make_injectable(_inject_signal)
+
+
+def PopoverContent(*children, cls="", side="bottom", align="center", **attrs):
+    def _inject_signal(signal):
+        placement = f"{side}-{align}" if align != "center" else side
+
+        def process_element(element):
+            if callable(element) and getattr(element, "_is_popover_close", False):
+                return element(signal)
+            if hasattr(element, "tag") and hasattr(element, "children") and element.children:
+                processed_children = tuple(process_element(child) for child in element.children)
+                return FT(element.tag, processed_children, element.attrs)
+            return element
+
+        processed_children = [process_element(child) for child in children]
+
+        return Div(
+            *processed_children,
+            ds_ref(f"{signal}Content"),
+            ds_position(anchor=f"{signal}-trigger", placement=placement, offset=8, flip=True, shift=True, hide=True),
+            popover="auto",
+            id=f"{signal}-content",
+            role="dialog",
+            tabindex="-1",
+            cls=cn(
+                "z-50 w-72 rounded-md border bg-white p-4 shadow-md outline-none",
+                cls,
+            ),
+            **attrs,
+        )
+
+    return make_injectable(_inject_signal)
+
+
+def PopoverClose(*children, cls="", **attrs):
+    def close_button(signal):
+        return Button(
+            *children,
+            popovertarget=f"{signal}-content",
+            popoveraction="hide",
+            cls=cn("absolute right-2 top-2 px-2 py-1 bg-gray-200 rounded", cls),
+            **attrs,
+        )
+
+    close_button._is_popover_close = True
+    return close_button
+
+
+# Create the test app
+app, rt = star_app(
+    title="Position Opacity Test",
+    hdrs=[
+        Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
+        position_handler(),
+        Style("""
+            /* Visual indicator for flash detection */
+            .flash-test-bg {
+                background: repeating-linear-gradient(
+                    45deg,
+                    #ff0000,
+                    #ff0000 10px,
+                    #ffff00 10px,
+                    #ffff00 20px
+                );
+            }
+            
+            /* Counter display */
+            #flash-counter {
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: #333;
+                color: white;
+                padding: 10px 20px;
+                border-radius: 8px;
+                font-family: monospace;
+                z-index: 10000;
+            }
+            
+            .test-section {
+                margin-bottom: 3rem;
+                padding: 1.5rem;
+                background: #f3f4f6;
+                border-radius: 0.5rem;
+            }
+        """),
+    ],
+)
+
+
+@rt("/")
+def home():
+    return Div(
+        # Flash counter
+        Div(
+            "Flash Count: ",
+            Span("0", id="flash-count", cls="text-xl font-bold"),
+            id="flash-counter",
+        ),
+        # Header
+        H1("Position Handler Opacity Test", cls="text-3xl font-bold text-center py-8"),
+        P("Testing that popovers appear without flashing", cls="text-center text-gray-600 pb-8"),
+        # Test 1: Basic popover with bright background
+        Div(
+            H2("Test 1: Flash Detection", cls="text-xl font-semibold mb-4"),
+            P("Bright pattern background makes any flash extremely visible", cls="text-gray-600 mb-4"),
+            Popover(
+                PopoverTrigger(
+                    "Open Flash Test",
+                    cls="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700",
+                ),
+                PopoverContent(
+                    H3("Flash Detection Test", cls="font-bold mb-2"),
+                    P("This popover should appear smoothly without any flash or jump."),
+                    P("The bright background makes any flash very visible.", cls="text-sm text-gray-600 mt-2"),
+                    PopoverClose("✕"),
+                    cls="flash-test-bg border-2 border-red-500",
+                ),
+            ),
+            cls="test-section",
+        ),
+        # Test 2: Different positions
+        Div(
+            H2("Test 2: All Positions", cls="text-xl font-semibold mb-4"),
+            P("Test different placement options", cls="text-gray-600 mb-4"),
+            Div(
+                Popover(
+                    PopoverTrigger("Top", cls="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"),
+                    PopoverContent(
+                        P("Top positioned", cls="font-semibold"),
+                        P("Should appear above without flash"),
+                        PopoverClose("✕"),
+                        side="top",
+                        cls="bg-green-50 border-green-300",
+                    ),
+                ),
+                Popover(
+                    PopoverTrigger("Right", cls="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700"),
+                    PopoverContent(
+                        P("Right positioned", cls="font-semibold"),
+                        P("Should appear to the right without flash"),
+                        PopoverClose("✕"),
+                        side="right",
+                        cls="bg-purple-50 border-purple-300",
+                    ),
+                ),
+                Popover(
+                    PopoverTrigger("Bottom", cls="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"),
+                    PopoverContent(
+                        P("Bottom positioned", cls="font-semibold"),
+                        P("Should appear below without flash"),
+                        PopoverClose("✕"),
+                        side="bottom",
+                        cls="bg-blue-50 border-blue-300",
+                    ),
+                ),
+                Popover(
+                    PopoverTrigger("Left", cls="px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700"),
+                    PopoverContent(
+                        P("Left positioned", cls="font-semibold"),
+                        P("Should appear to the left without flash"),
+                        PopoverClose("✕"),
+                        side="left",
+                        cls="bg-orange-50 border-orange-300",
+                    ),
+                ),
+                cls="flex gap-4 justify-center flex-wrap",
+            ),
+            cls="test-section",
+        ),
+        # Test 3: Alignment options
+        Div(
+            H2("Test 3: Alignment Options", cls="text-xl font-semibold mb-4"),
+            P("Test alignment variations (start, center, end)", cls="text-gray-600 mb-4"),
+            Div(
+                Popover(
+                    PopoverTrigger("Bottom-Start", cls="px-4 py-2 bg-teal-600 text-white rounded hover:bg-teal-700"),
+                    PopoverContent(
+                        P("Aligned to start", cls="font-semibold"),
+                        PopoverClose("✕"),
+                        side="bottom",
+                        align="start",
+                        cls="bg-teal-50",
+                    ),
+                ),
+                Popover(
+                    PopoverTrigger(
+                        "Bottom-Center", cls="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
+                    ),
+                    PopoverContent(
+                        P("Aligned to center", cls="font-semibold"),
+                        PopoverClose("✕"),
+                        side="bottom",
+                        align="center",
+                        cls="bg-indigo-50",
+                    ),
+                ),
+                Popover(
+                    PopoverTrigger("Bottom-End", cls="px-4 py-2 bg-pink-600 text-white rounded hover:bg-pink-700"),
+                    PopoverContent(
+                        P("Aligned to end", cls="font-semibold"),
+                        PopoverClose("✕"),
+                        side="bottom",
+                        align="end",
+                        cls="bg-pink-50",
+                    ),
+                ),
+                cls="flex gap-4 justify-center flex-wrap",
+            ),
+            cls="test-section",
+        ),
+        # Test 4: Rapid toggle stress test
+        Div(
+            H2("Test 4: Rapid Toggle", cls="text-xl font-semibold mb-4"),
+            P("Click rapidly to stress test - should never flash", cls="text-gray-600 mb-4"),
+            Popover(
+                PopoverTrigger(
+                    "Rapid Toggle Test",
+                    cls="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700",
+                ),
+                PopoverContent(
+                    H3("Stress Test", cls="font-bold mb-2"),
+                    P("Toggle me rapidly!"),
+                    P("Even with rapid clicking, there should be no flash.", cls="text-sm text-gray-600 mt-2"),
+                    Div(
+                        "Toggle count: ",
+                        Span("0", id="toggle-count", cls="font-mono text-lg"),
+                        cls="mt-3 p-2 bg-gray-100 rounded",
+                    ),
+                    PopoverClose("Done"),
+                    cls="bg-red-50 border-2 border-red-300",
+                ),
+            ),
+            cls="test-section text-center",
+        ),
+        # Test 5: Complex content
+        Div(
+            H2("Test 5: Complex Content", cls="text-xl font-semibold mb-4"),
+            P("Popover with form elements", cls="text-gray-600 mb-4"),
+            Popover(
+                PopoverTrigger(
+                    "Open Form",
+                    cls="px-4 py-2 bg-gray-700 text-white rounded hover:bg-gray-800",
+                ),
+                PopoverContent(
+                    H3("Settings Form", cls="font-bold mb-4"),
+                    Div(
+                        Label("Name", cls="block text-sm font-medium mb-1"),
+                        Input(type="text", placeholder="Your name", cls="w-full px-3 py-2 border rounded"),
+                        cls="mb-3",
+                    ),
+                    Div(
+                        Label("Email", cls="block text-sm font-medium mb-1"),
+                        Input(type="email", placeholder="your@email.com", cls="w-full px-3 py-2 border rounded"),
+                        cls="mb-3",
+                    ),
+                    Div(
+                        Label(
+                            Input(type="checkbox", cls="mr-2"),
+                            "Enable notifications",
+                            cls="flex items-center text-sm",
+                        ),
+                        cls="mb-4",
+                    ),
+                    Div(
+                        Button("Cancel", cls="px-3 py-1 bg-gray-200 rounded mr-2"),
+                        Button("Save", cls="px-3 py-1 bg-blue-600 text-white rounded"),
+                        cls="flex justify-end",
+                    ),
+                    PopoverClose("✕"),
+                    side="bottom",
+                    align="end",
+                    cls="w-80",
+                ),
+            ),
+            cls="test-section",
+        ),
+        # Test 6: Multiple popovers simultaneously
+        Div(
+            H2("Test 6: Multiple Active Popovers", cls="text-xl font-semibold mb-4"),
+            P("Open multiple popovers to test simultaneous positioning", cls="text-gray-600 mb-4"),
+            Div(
+                Popover(
+                    PopoverTrigger("Popover A", cls="px-4 py-2 bg-cyan-600 text-white rounded"),
+                    PopoverContent(
+                        P("First popover active"),
+                        PopoverClose("✕"),
+                        cls="bg-cyan-50",
+                    ),
+                ),
+                Popover(
+                    PopoverTrigger("Popover B", cls="px-4 py-2 bg-amber-600 text-white rounded"),
+                    PopoverContent(
+                        P("Second popover active"),
+                        PopoverClose("✕"),
+                        cls="bg-amber-50",
+                    ),
+                ),
+                Popover(
+                    PopoverTrigger("Popover C", cls="px-4 py-2 bg-emerald-600 text-white rounded"),
+                    PopoverContent(
+                        P("Third popover active"),
+                        PopoverClose("✕"),
+                        cls="bg-emerald-50",
+                    ),
+                ),
+                cls="flex gap-4 justify-center flex-wrap",
+            ),
+            cls="test-section",
+        ),
+        # Test 7: Edge cases
+        Div(
+            H2("Test 7: Edge Cases", cls="text-xl font-semibold mb-4"),
+            P("Test edge positioning and flipping", cls="text-gray-600 mb-4"),
+            Div(
+                Div(
+                    Popover(
+                        PopoverTrigger("Far Left", cls="px-3 py-1 bg-violet-600 text-white rounded text-sm"),
+                        PopoverContent(
+                            P("Should flip if needed", cls="text-sm"),
+                            PopoverClose("✕"),
+                            side="left",
+                        ),
+                    ),
+                    cls="text-left",
+                ),
+                Div(
+                    Popover(
+                        PopoverTrigger("Far Right", cls="px-3 py-1 bg-rose-600 text-white rounded text-sm"),
+                        PopoverContent(
+                            P("Should flip if needed", cls="text-sm"),
+                            PopoverClose("✕"),
+                            side="right",
+                        ),
+                    ),
+                    cls="text-right",
+                ),
+                cls="flex justify-between",
+            ),
+            cls="test-section",
+        ),
+        # Automated test button
+        Div(
+            H2("Automated Test", cls="text-xl font-semibold mb-4"),
+            Button(
+                "Run All Tests Automatically",
+                id="auto-test",
+                cls="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700",
+            ),
+            P("Click to automatically test all popovers", cls="text-gray-600 mt-2"),
+            cls="text-center p-6 bg-yellow-100 rounded-lg",
+        ),
+        # JavaScript to monitor for flashes and handle testing
+        Script("""
+            document.addEventListener('DOMContentLoaded', () => {
+                let flashCount = 0;
+                let toggleCount = 0;
+                const flashCountEl = document.getElementById('flash-count');
+                const toggleCountEl = document.getElementById('toggle-count');
+                
+                // Monitor all popovers for position changes
+                const observer = new MutationObserver((mutations) => {
+                    mutations.forEach((mutation) => {
+                        if (mutation.type === 'attributes' &&
+                            mutation.target.hasAttribute('popover') &&
+                            mutation.attributeName === 'style') {
+                            
+                            const rect = mutation.target.getBoundingClientRect();
+                            // Check if positioned off-screen (old behavior that causes flash)
+                            if (rect.left < -1000 || rect.top < -1000) {
+                                flashCount++;
+                                flashCountEl.textContent = flashCount;
+                                flashCountEl.style.color = 'red';
+                                console.warn('Flash detected!', mutation.target.id);
+                            }
+                        }
+                    });
+                });
+                
+                document.querySelectorAll('[popover]').forEach(el => {
+                    observer.observe(el, {
+                        attributes: true,
+                        attributeFilter: ['style']
+                    });
+                });
+                
+                // Track rapid toggle count
+                document.querySelectorAll('[id*="trigger"]').forEach(trigger => {
+                    if (trigger.textContent.includes('Rapid Toggle')) {
+                        trigger.addEventListener('click', () => {
+                            toggleCount++;
+                            if (toggleCountEl) toggleCountEl.textContent = toggleCount;
+                        });
+                    }
+                });
+                
+                // Automated test
+                document.getElementById('auto-test')?.addEventListener('click', async () => {
+                    const triggers = document.querySelectorAll('[popovertarget]');
+                    flashCount = 0;
+                    flashCountEl.textContent = '0';
+                    
+                    for (const trigger of triggers) {
+                        if (trigger.id === 'auto-test') continue;
+                        console.log('Testing:', trigger.textContent);
+                        trigger.click(); // Open
+                        await new Promise(r => setTimeout(r, 200));
+                        trigger.click(); // Close
+                        await new Promise(r => setTimeout(r, 100));
+                    }
+                    
+                    alert(`Test complete! Flash events: ${flashCount}${flashCount === 0 ? ' ✅ SUCCESS!' : ' ❌ FAILED'}`);
+                });
+                
+                // Log success after 2 seconds if no flash
+                setTimeout(() => {
+                    if (flashCount === 0) {
+                        console.log('✅ SUCCESS: No flashing detected!');
+                        flashCountEl.style.color = '#10b981';
+                    }
+                }, 2000);
+            });
+        """),
+        cls="min-h-screen bg-gray-50 p-8 max-w-6xl mx-auto",
+    )
+
+
+if __name__ == "__main__":
+    print("Running on http://localhost:5008")
+    print("The opacity-based hiding in position.ts should prevent any flashing")
+    serve(port=5008)
