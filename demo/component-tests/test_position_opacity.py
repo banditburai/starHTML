@@ -6,7 +6,7 @@ This uses the popover component code exactly as provided, without modifications.
 
 import sys
 
-sys.path.insert(0, 'src')
+sys.path.insert(0, "src")
 
 from uuid import uuid4
 
@@ -19,10 +19,12 @@ def cn(*classes):
     """Concatenate class names."""
     return " ".join(filter(None, classes))
 
+
 def make_injectable(func):
     """Mark a function as injectable."""
     func._inject_signal = func
     return func
+
 
 def inject_signals(children, *args):
     """Process children and inject signals."""
@@ -34,9 +36,11 @@ def inject_signals(children, *args):
             result.append(child)
     return result
 
+
 def Popover(*children, cls="relative inline-block", **attrs):
     signal = f"popover_{uuid4().hex[:8]}"
     return Div(*inject_signals(children, signal), cls=cls, **attrs)
+
 
 def PopoverTrigger(*children, variant="default", cls="", **attrs):
     def _inject_signal(signal):
@@ -49,33 +53,28 @@ def PopoverTrigger(*children, variant="default", cls="", **attrs):
             cls=cls,
             **attrs,
         )
+
     return make_injectable(_inject_signal)
+
 
 def PopoverContent(*children, cls="", side="bottom", align="center", **attrs):
     def _inject_signal(signal):
         placement = f"{side}-{align}" if align != "center" else side
-        
+
         def process_element(element):
-            if callable(element) and getattr(element, '_is_popover_close', False):
+            if callable(element) and getattr(element, "_is_popover_close", False):
                 return element(signal)
-            if hasattr(element, 'tag') and hasattr(element, 'children') and element.children:
+            if hasattr(element, "tag") and hasattr(element, "children") and element.children:
                 processed_children = tuple(process_element(child) for child in element.children)
                 return FT(element.tag, processed_children, element.attrs)
             return element
-        
+
         processed_children = [process_element(child) for child in children]
-        
+
         return Div(
             *processed_children,
             ds_ref(f"{signal}Content"),
-            ds_position(
-                anchor=f"{signal}-trigger",
-                placement=placement,
-                offset=8,
-                flip=True,
-                shift=True,
-                hide=True
-            ),
+            ds_position(anchor=f"{signal}-trigger", placement=placement, offset=8, flip=True, shift=True, hide=True),
             popover="auto",
             id=f"{signal}-content",
             role="dialog",
@@ -86,7 +85,9 @@ def PopoverContent(*children, cls="", side="bottom", align="center", **attrs):
             ),
             **attrs,
         )
+
     return make_injectable(_inject_signal)
+
 
 def PopoverClose(*children, cls="", **attrs):
     def close_button(signal):
@@ -97,8 +98,10 @@ def PopoverClose(*children, cls="", **attrs):
             cls=cn("absolute right-2 top-2 px-2 py-1 bg-gray-200 rounded", cls),
             **attrs,
         )
+
     close_button._is_popover_close = True
     return close_button
+
 
 # Create the test app
 app, rt = star_app(
@@ -141,6 +144,7 @@ app, rt = star_app(
     ],
 )
 
+
 @rt("/")
 def home():
     return Div(
@@ -150,11 +154,9 @@ def home():
             Span("0", id="flash-count", cls="text-xl font-bold"),
             id="flash-counter",
         ),
-        
         # Header
         H1("Position Handler Opacity Test", cls="text-3xl font-bold text-center py-8"),
         P("Testing that popovers appear without flashing", cls="text-center text-gray-600 pb-8"),
-        
         # Test 1: Basic popover with bright background
         Div(
             H2("Test 1: Flash Detection", cls="text-xl font-semibold mb-4"),
@@ -174,7 +176,6 @@ def home():
             ),
             cls="test-section",
         ),
-        
         # Test 2: Different positions
         Div(
             H2("Test 2: All Positions", cls="text-xl font-semibold mb-4"),
@@ -224,7 +225,6 @@ def home():
             ),
             cls="test-section",
         ),
-        
         # Test 3: Alignment options
         Div(
             H2("Test 3: Alignment Options", cls="text-xl font-semibold mb-4"),
@@ -241,7 +241,9 @@ def home():
                     ),
                 ),
                 Popover(
-                    PopoverTrigger("Bottom-Center", cls="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"),
+                    PopoverTrigger(
+                        "Bottom-Center", cls="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
+                    ),
                     PopoverContent(
                         P("Aligned to center", cls="font-semibold"),
                         PopoverClose("✕"),
@@ -264,7 +266,6 @@ def home():
             ),
             cls="test-section",
         ),
-        
         # Test 4: Rapid toggle stress test
         Div(
             H2("Test 4: Rapid Toggle", cls="text-xl font-semibold mb-4"),
@@ -289,7 +290,6 @@ def home():
             ),
             cls="test-section text-center",
         ),
-        
         # Test 5: Complex content
         Div(
             H2("Test 5: Complex Content", cls="text-xl font-semibold mb-4"),
@@ -332,7 +332,6 @@ def home():
             ),
             cls="test-section",
         ),
-        
         # Test 6: Multiple popovers simultaneously
         Div(
             H2("Test 6: Multiple Active Popovers", cls="text-xl font-semibold mb-4"),
@@ -366,7 +365,6 @@ def home():
             ),
             cls="test-section",
         ),
-        
         # Test 7: Edge cases
         Div(
             H2("Test 7: Edge Cases", cls="text-xl font-semibold mb-4"),
@@ -398,7 +396,6 @@ def home():
             ),
             cls="test-section",
         ),
-        
         # Automated test button
         Div(
             H2("Automated Test", cls="text-xl font-semibold mb-4"),
@@ -410,7 +407,6 @@ def home():
             P("Click to automatically test all popovers", cls="text-gray-600 mt-2"),
             cls="text-center p-6 bg-yellow-100 rounded-lg",
         ),
-        
         # JavaScript to monitor for flashes and handle testing
         Script("""
             document.addEventListener('DOMContentLoaded', () => {
@@ -482,9 +478,9 @@ def home():
                 }, 2000);
             });
         """),
-        
         cls="min-h-screen bg-gray-50 p-8 max-w-6xl mx-auto",
     )
+
 
 if __name__ == "__main__":
     print("Running on http://localhost:5008")
