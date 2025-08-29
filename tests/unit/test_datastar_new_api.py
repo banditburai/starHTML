@@ -470,9 +470,9 @@ class TestOtherAttributes:
 
     def test_ds_disabled(self):
         """Test ds_disabled function."""
-        assert attrs_of(ds_disabled(True)) == {"data-disabled": "true"}
-        assert attrs_of(ds_disabled(False)) == {"data-disabled": "false"}
-        assert attrs_of(ds_disabled("$isSubmitting")) == {"data-disabled": "$isSubmitting"}
+        assert attrs_of(ds_disabled(True)) == {"data-attr-disabled": "true"}
+        assert attrs_of(ds_disabled(False)) == {"data-attr-disabled": "false"}
+        assert attrs_of(ds_disabled("$isSubmitting")) == {"data-attr-disabled": "$isSubmitting"}
 
     def test_ds_ignore(self):
         """Test ds_ignore function."""
@@ -508,7 +508,7 @@ class TestIntegration:
         assert "data-on-click__once.prevent" in html
         assert "data-class-active" in html
         assert "data-class-loading" in html
-        assert "data-disabled" in html
+        assert "data-attr-disabled" in html
 
     def test_form_with_signals_and_persist(self):
         """Test form with signals and persistence."""

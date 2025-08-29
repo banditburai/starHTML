@@ -8,6 +8,9 @@ import importlib.util
 from dataclasses import dataclass
 from pathlib import Path
 
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
+
 from starhtml import *
 
 # Create the hub app - simple and clean
@@ -52,10 +55,15 @@ class BackButtonMiddleware(BaseHTTPMiddleware):
             re.match(r"^/\d{2}-", request.url.path)
             and request.url.path.endswith("/")
             and response.headers.get("content-type", "").startswith("text/html")
+            and not response.headers.get("content-encoding")  # Skip compressed responses
         ):
             # Read the response body
             body = b"".join([chunk async for chunk in response.body_iterator])
-            html_content = body.decode("utf-8")
+            try:
+                html_content = body.decode("utf-8")
+            except UnicodeDecodeError:
+                # Not a text response, return as-is
+                return Response(content=body, status_code=response.status_code, headers=dict(response.headers))
 
             # Convert absolute paths to relative paths for proper Mount behavior
             import re
