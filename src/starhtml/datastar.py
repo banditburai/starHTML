@@ -456,7 +456,12 @@ def get_starhtml_action_plugins() -> list[dict]:
 
 
 def ds_disabled(value: bool | str) -> DatastarAttr:
-    return DatastarAttr({"data-disabled": _normalize_value(value)})
+    return ds_attr(disabled=value)
+
+
+def toggle(signal_name: str) -> str:
+    signal = signal_name if signal_name.startswith("$") else f"${signal_name}"
+    return f"{signal} = !{signal}"
 
 
 def ds_ignore(*modifiers) -> DatastarAttr:
@@ -571,6 +576,7 @@ __all__ = [
     "ds_on_fullscreenerror",
     "ds_on_orientationchange",
     "ds_disabled",
+    "toggle",
     "ds_ignore",
     "ds_preserve_attr",
     "ds_canvas_viewport",

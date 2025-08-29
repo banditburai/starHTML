@@ -33,77 +33,60 @@ interface RuntimeContext {
 
 type OnRemovalFn = () => void;
 
-function extractValue(value: any): string {
+const extractValue = (value: any): string => {
   if (!value) return "";
   if (typeof value === "string") return value;
-  if (value instanceof Set) {
-    return Array.from(value)[0] || "";
-  }
+  if (value instanceof Set) return Array.from(value)[0] || "";
   return "";
-}
+};
 
-function extractPlacementValue(value: any): string {
-  if (value instanceof Set) {
-    const values = Array.from(value);
-    if (values.length === 1) {
-      const singleValue = values[0];
+const extractPlacementValue = (value: any): string => {
+  if (!(value instanceof Set)) return value || "bottom";
 
-      const validPlacements = [
-        "top",
-        "bottom",
-        "left",
-        "right",
-        "top-start",
-        "top-end",
-        "bottom-start",
-        "bottom-end",
-        "left-start",
-        "left-end",
-        "right-start",
-        "right-end",
-      ];
+  const values = Array.from(value);
+  if (values.length === 1) {
+    const singleValue = values[0];
 
-      if (validPlacements.includes(singleValue)) {
-        return singleValue;
-      }
+    const validPlacements = [
+      "top",
+      "bottom",
+      "left",
+      "right",
+      "top-start",
+      "top-end",
+      "bottom-start",
+      "bottom-end",
+      "left-start",
+      "left-end",
+      "right-start",
+      "right-end",
+    ];
 
-      // Handle Datastar's hyphen removal in compound placements
-      const mergedCompoundPlacements: Record<string, string> = {
-        topstart: "top-start",
-        topend: "top-end",
-        bottomstart: "bottom-start",
-        bottomend: "bottom-end",
-        leftstart: "left-start",
-        leftend: "left-end",
-        rightstart: "right-start",
-        rightend: "right-end",
-      };
+    if (validPlacements.includes(singleValue)) return singleValue;
 
-      const mapped = mergedCompoundPlacements[singleValue.toLowerCase()];
-      if (mapped) return mapped;
-    }
+    // Datastar removes hyphens in compound placements
+    const dehyphenated: Record<string, string> = {
+      topstart: "top-start",
+      topend: "top-end",
+      bottomstart: "bottom-start",
+      bottomend: "bottom-end",
+      leftstart: "left-start",
+      leftend: "left-end",
+      rightstart: "right-start",
+      rightend: "right-end",
+    };
 
-    const validParts = ["top", "bottom", "left", "right", "start", "end"];
-    const placementParts = values.filter((v) => validParts.includes(v));
-    if (placementParts.length === 0) {
-      return "bottom";
-    }
-    return placementParts.join("-");
-  }
-  return value || "bottom";
-}
-
-function parseConfig(el: HTMLElement, value: string, mods: Map<string, Set<string>>) {
-  let signalPrefix = "";
-  if (el.id) {
-    const match = el.id.match(/^(.+?)(Content|Panel|Menu|Dropdown|Tooltip|Popover)?$/i);
-    if (match) signalPrefix = match[1];
+    return dehyphenated[singleValue.toLowerCase()] || "bottom";
   }
 
-  const explicitPrefix = mods.get("signal_prefix");
-  if (explicitPrefix) {
-    signalPrefix = extractValue(explicitPrefix);
-  }
+  const validParts = ["top", "bottom", "left", "right", "start", "end"];
+  const placementParts = values.filter((v) => validParts.includes(v));
+  return placementParts.length ? placementParts.join("-") : "bottom";
+};
+
+const parseConfig = (el: HTMLElement, value: string, mods: Map<string, Set<string>>) => {
+  const match = el.id?.match(/^(.+?)(Content|Panel|Menu|Dropdown|Tooltip|Popover)?$/i);
+  const signalPrefix = extractValue(mods.get("signal_prefix")) || (match?.[1] ?? "");
 
   return {
     anchor: extractValue(mods.get("anchor") || value),
@@ -116,22 +99,8 @@ function parseConfig(el: HTMLElement, value: string, mods: Map<string, Set<strin
     autoSize: extractValue(mods.get("auto_size")) === "true",
     signalPrefix,
   };
-}
+};
 
-/**
- * Position handler for dynamically positioning elements relative to anchor elements using Floating UI.
- *
- * Supports modifiers:
- * - anchor: ID of the element to position relative to
- * - placement: Position (top, bottom, left, right, top-start, etc.)
- * - strategy: Positioning strategy (absolute or fixed)
- * - offset: Distance from anchor element (default: 8)
- * - flip: Enable position flipping when space is limited (default: true)
- * - shift: Enable position shifting to stay in viewport (default: true)
- * - hide: Hide element when reference is not visible (default: false)
- * - auto_size: Automatically size element to available space (default: false)
- * - signal_prefix: Prefix for reactive signal updates
- */
 const positionAttributePlugin: AttributePlugin = {
   type: "attribute",
   name: "position",
@@ -139,195 +108,196 @@ const positionAttributePlugin: AttributePlugin = {
 
   onLoad(ctx: RuntimeContext): OnRemovalFn | void {
     const { el, value, mods, startBatch, endBatch } = ctx;
-
     const config = parseConfig(el, value, mods);
+    const isNativePopover = el.hasAttribute("popover");
 
     const initialAnchor = document.getElementById(config.anchor);
+
+    if (!initialAnchor && !isNativePopover) return;
+
     if (!initialAnchor) {
-      return;
-    }
-
-    const middleware: Middleware[] = [offset(config.offsetValue)];
-
-    if (config.flipEnabled) {
-      middleware.push(flip());
-    }
-
-    if (config.shiftEnabled) {
-      middleware.push(shift({ padding: 10 }));
-    }
-
-    if (config.hideEnabled) {
-      middleware.push(hide());
-    }
-
-    if (config.autoSize) {
-      middleware.push(
-        size({
-          apply({ availableWidth, availableHeight, elements }) {
-            Object.assign(elements.floating.style, {
-              maxWidth: `${availableWidth}px`,
-              maxHeight: `${availableHeight}px`,
-            });
-          },
-          padding: 10,
-        })
-      );
-    }
-
-    let lastPosition = { x: 0, y: 0, placement: "" };
-    let cleanup: (() => void) | null = null;
-    let visibilityObserver: MutationObserver | null = null;
-
-    function isElementVisible(element: HTMLElement): boolean {
-      const style = getComputedStyle(element);
-      return (
-        style.display !== "none" &&
-        style.visibility !== "hidden" &&
-        element.offsetWidth > 0 &&
-        element.offsetHeight > 0
-      );
-    }
-
-    function waitForValidBounds(element: HTMLElement, maxAttempts = 3): Promise<DOMRect | null> {
-      return new Promise((resolve) => {
-        let attempts = 0;
-
-        const checkBounds = () => {
-          attempts++;
-          const bounds = element.getBoundingClientRect();
-
-          const hasValidDimensions =
-            (typeof bounds.width === "number" && bounds.width > 0) ||
-            (typeof bounds.height === "number" && bounds.height > 0);
-          const hasValidPosition = typeof bounds.x === "number" && typeof bounds.y === "number";
-          const isValid = hasValidDimensions && hasValidPosition;
-
-          if (isValid) {
-            resolve(bounds);
-          } else if (attempts >= maxAttempts) {
-            resolve(null);
-          } else {
-            setTimeout(checkBounds, 16);
-          }
-        };
-
-        checkBounds();
+      // Native popover might need to wait for anchor to appear in DOM
+      const observer = new MutationObserver(() => {
+        const anchor = document.getElementById(config.anchor);
+        if (anchor) {
+          observer.disconnect();
+          initializeWithAnchor(anchor);
+        }
       });
+
+      observer.observe(document.body, { childList: true, subtree: true });
+
+      // Also poll for a limited time as fallback
+      let attempts = 0;
+      const checkInterval = setInterval(() => {
+        const anchor = document.getElementById(config.anchor);
+        if (anchor || ++attempts > 50) {
+          clearInterval(checkInterval);
+          observer.disconnect();
+          if (anchor) initializeWithAnchor(anchor);
+        }
+      }, 100);
+
+      return () => {
+        clearInterval(checkInterval);
+        observer.disconnect();
+      };
     }
 
-    const updatePosition = async (passedReferenceEl?: HTMLElement) => {
-      startBatch();
-      try {
-        const currentAnchor = document.getElementById(config.anchor);
-        if (!currentAnchor?.isConnected) {
-          return;
-        }
+    return initializeWithAnchor(initialAnchor);
 
-        const referenceEl = passedReferenceEl || currentAnchor;
+    function initializeWithAnchor(anchorElement: HTMLElement): OnRemovalFn {
+      // Position off-screen initially to prevent flash at 0,0
+      if (!el.hasAttribute("data-positioned")) {
+        el.style.position = config.strategy;
+        el.style.left = "-9999px";
+        el.style.top = "-9999px";
+      }
 
-        if (!referenceEl.isConnected) {
-          cleanup?.();
-          cleanup = null;
-          return;
-        }
+      const middleware: Middleware[] = [offset(config.offsetValue)];
 
-        const bounds = referenceEl.getBoundingClientRect();
+      if (config.flipEnabled) middleware.push(flip());
+      if (config.shiftEnabled) middleware.push(shift({ padding: 10 }));
+      if (config.hideEnabled) middleware.push(hide());
+      if (config.autoSize) {
+        middleware.push(
+          size({
+            apply: ({ availableWidth, availableHeight, elements }) => {
+              Object.assign(elements.floating.style, {
+                maxWidth: `${availableWidth}px`,
+                maxHeight: `${availableHeight}px`,
+              });
+            },
+            padding: 10,
+          })
+        );
+      }
 
-        // Basic validation for element bounds
-        if (bounds.width === 0 && bounds.height === 0) {
-          return;
-        }
+      let lastPosition = { x: 0, y: 0, placement: "" };
+      let cleanup: (() => void) | null = null;
 
-        let result: Awaited<ReturnType<typeof computePosition>>;
+      const isVisible = (element: HTMLElement) => {
+        const style = getComputedStyle(element);
+        return (
+          style.display !== "none" &&
+          style.visibility !== "hidden" &&
+          element.offsetWidth > 0 &&
+          element.offsetHeight > 0
+        );
+      };
+
+      const waitForBounds = (element: HTMLElement): Promise<DOMRect | null> =>
+        new Promise((resolve) => {
+          let attempts = 0;
+          const check = () => {
+            const bounds = element.getBoundingClientRect();
+            if (
+              (bounds.width > 0 || bounds.height > 0) &&
+              typeof bounds.x === "number" &&
+              typeof bounds.y === "number"
+            ) {
+              resolve(bounds);
+            } else if (++attempts >= 3) {
+              resolve(null);
+            } else {
+              setTimeout(check, 16);
+            }
+          };
+          check();
+        });
+
+      const updatePosition = async () => {
+        const anchor = anchorElement || document.getElementById(config.anchor);
+        if (!anchor?.isConnected) return;
+
+        const bounds = anchor.getBoundingClientRect();
+        if (bounds.width === 0 && bounds.height === 0) return;
+
+        startBatch();
         try {
-          result = await computePosition(referenceEl, el, {
+          const result = await computePosition(anchor, el, {
             placement: config.placement,
             strategy: config.strategy,
             middleware,
           });
-        } catch (_error) {
-          return;
-        }
 
-        const positionChanged =
-          Math.abs(result.x - lastPosition.x) > 0.1 ||
-          Math.abs(result.y - lastPosition.y) > 0.1 ||
-          result.placement !== lastPosition.placement;
+          const changed =
+            Math.abs(result.x - lastPosition.x) > 0.1 ||
+            Math.abs(result.y - lastPosition.y) > 0.1 ||
+            result.placement !== lastPosition.placement;
 
-        if (positionChanged) {
-          Object.assign(el.style, {
-            position: config.strategy,
-            left: `${result.x}px`,
-            top: `${result.y}px`,
-          });
+          if (changed) {
+            Object.assign(el.style, {
+              position: config.strategy,
+              left: `${result.x}px`,
+              top: `${result.y}px`,
+            });
+            lastPosition = { x: result.x, y: result.y, placement: result.placement };
 
-          lastPosition = { x: result.x, y: result.y, placement: result.placement };
-        }
-      } finally {
-        endBatch();
-      }
-    };
-
-    async function setupPositioning() {
-      const currentAnchor = document.getElementById(config.anchor);
-      if (!currentAnchor) {
-        return;
-      }
-
-      const validBounds = await waitForValidBounds(currentAnchor);
-      if (!validBounds) {
-        return;
-      }
-
-      cleanup = autoUpdate(currentAnchor, el, () => updatePosition(), {
-        ancestorScroll: true,
-        ancestorResize: true,
-        elementResize: true,
-        layoutShift: true,
-        animationFrame: false,
-      });
-    }
-
-    function teardownPositioning() {
-      cleanup?.();
-      cleanup = null;
-    }
-
-    visibilityObserver = new MutationObserver((mutations) => {
-      for (const mutation of mutations) {
-        if (
-          mutation.type === "attributes" &&
-          (mutation.attributeName === "style" ||
-            mutation.attributeName === "class" ||
-            mutation.attributeName === "data-show")
-        ) {
-          const isVisible = isElementVisible(el);
-          const wasVisible = cleanup !== null;
-
-          if (isVisible && !wasVisible) {
-            setupPositioning();
-          } else if (!isVisible && wasVisible) {
-            teardownPositioning();
+            // Mark as positioned
+            if (!el.hasAttribute("data-positioned")) {
+              el.setAttribute("data-positioned", "true");
+            }
           }
+        } catch {
+        } finally {
+          endBatch();
         }
+      };
+
+      const setupPositioning = async () => {
+        const anchor = anchorElement || document.getElementById(config.anchor);
+        if (!anchor || !(await waitForBounds(anchor))) return;
+
+        cleanup = autoUpdate(anchor, el, updatePosition, {
+          ancestorScroll: true,
+          ancestorResize: true,
+          elementResize: true,
+          layoutShift: true,
+          animationFrame: false,
+        });
+      };
+
+      const teardownPositioning = () => {
+        cleanup?.();
+        cleanup = null;
+      };
+
+      let toggleHandler: ((e: any) => void) | null = null;
+      let visibilityObserver: MutationObserver | null = null;
+
+      if (isNativePopover) {
+        toggleHandler = (e: any) => {
+          if (e.newState === "open") {
+            setupPositioning();
+          } else if (e.newState === "closed") {
+            teardownPositioning();
+            el.removeAttribute("data-positioned");
+          }
+        };
+        el.addEventListener("toggle", toggleHandler);
+      } else {
+        visibilityObserver = new MutationObserver(() => {
+          const visible = isVisible(el);
+          const wasVisible = cleanup !== null;
+          if (visible && !wasVisible) setupPositioning();
+          else if (!visible && wasVisible) teardownPositioning();
+        });
+
+        visibilityObserver.observe(el, {
+          attributes: true,
+          attributeFilter: ["style", "class", "data-show"],
+        });
+
+        if (isVisible(el)) setupPositioning();
       }
-    });
 
-    visibilityObserver.observe(el, {
-      attributes: true,
-      attributeFilter: ["style", "class", "data-show"],
-    });
-
-    if (isElementVisible(el)) {
-      setupPositioning();
+      return () => {
+        teardownPositioning();
+        if (toggleHandler) el.removeEventListener("toggle", toggleHandler);
+        visibilityObserver?.disconnect();
+      };
     }
-
-    return () => {
-      teardownPositioning();
-      visibilityObserver?.disconnect();
-      visibilityObserver = null;
-    };
   },
 };
 
