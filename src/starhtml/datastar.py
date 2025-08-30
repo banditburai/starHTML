@@ -332,40 +332,6 @@ ds_on_copy = _create_event_handler("copy")
 ds_on_cut = _create_event_handler("cut")
 ds_on_paste = _create_event_handler("paste")
 
-
-# ============================================================================
-# Position Handler - Floating UI Integration
-# ============================================================================
-
-
-def ds_position(
-    anchor: str,
-    placement: str = "bottom",
-    strategy: str = "absolute",
-    offset: int = 8,
-    flip: bool = True,
-    shift: bool = True,
-    hide: bool = False,
-    auto_size: bool = False,
-    signal_prefix: str = None,
-) -> DatastarAttr:
-    """Position element using Floating UI for automatic anchoring."""
-    modifiers = [
-        f"placement.{placement}" if placement != "bottom" else None,
-        f"strategy.{strategy}" if strategy != "absolute" else None,
-        f"offset.{offset}" if offset != 8 else None,
-        "flip.false" if not flip else None,
-        "shift.false" if not shift else None,
-        "hide" if hide else None,
-        "auto_size" if auto_size else None,
-        f"signal_prefix.{signal_prefix}" if signal_prefix else None,
-    ]
-    modifiers = [m for m in modifiers if m]
-
-    key = f"data-position-anchor__{'__'.join(modifiers)}" if modifiers else "data-position-anchor"
-    return DatastarAttr({key: anchor})
-
-
 ds_on_animationstart = _create_event_handler("animationstart")
 ds_on_animationend = _create_event_handler("animationend")
 ds_on_animationiteration = _create_event_handler("animationiteration")
@@ -403,10 +369,64 @@ ds_on_fullscreenerror = _create_event_handler("fullscreenerror")
 
 ds_on_orientationchange = _create_event_handler("orientationchange")
 
+ds_on_close = _create_event_handler("close")
+ds_on_cancel = _create_event_handler("cancel")
+
+ds_on_abort = _create_event_handler("abort")
+ds_on_beforeinput = _create_event_handler("beforeinput")
+ds_on_compositionstart = _create_event_handler("compositionstart")
+ds_on_compositionend = _create_event_handler("compositionend")
+ds_on_compositionupdate = _create_event_handler("compositionupdate")
+
+ds_on_gotpointercapture = _create_event_handler("gotpointercapture")
+ds_on_lostpointercapture = _create_event_handler("lostpointercapture")
+ds_on_pointercancel = _create_event_handler("pointercancel")
+ds_on_pointerout = _create_event_handler("pointerout")
+ds_on_pointerover = _create_event_handler("pointerover")
+
+ds_on_seeked = _create_event_handler("seeked")
+ds_on_seeking = _create_event_handler("seeking")
+ds_on_stalled = _create_event_handler("stalled")
+ds_on_suspend = _create_event_handler("suspend")
+ds_on_waiting = _create_event_handler("waiting")
+ds_on_durationchange = _create_event_handler("durationchange")
+ds_on_loadstart = _create_event_handler("loadstart")
+ds_on_loadeddata = _create_event_handler("loadeddata")
+ds_on_emptied = _create_event_handler("emptied")
+ds_on_ratechange = _create_event_handler("ratechange")
+
 
 def ds_on(event: str, expression: str, *modifiers, **kwargs) -> DatastarAttr:
     key = _build_event_key(f"data-on-{event}", list(modifiers), kwargs)
     return DatastarAttr({key: NotStr(expression)})
+
+
+def ds_position(
+    anchor: str,
+    placement: str = "bottom",
+    strategy: str = "absolute",
+    offset: int = 8,
+    flip: bool = True,
+    shift: bool = True,
+    hide: bool = False,
+    auto_size: bool = False,
+    signal_prefix: str = None,
+) -> DatastarAttr:
+    """Position element using Floating UI for automatic anchoring."""
+    modifiers = [
+        f"placement.{placement}" if placement != "bottom" else None,
+        f"strategy.{strategy}" if strategy != "absolute" else None,
+        f"offset.{offset}" if offset != 8 else None,
+        "flip.false" if not flip else None,
+        "shift.false" if not shift else None,
+        "hide" if hide else None,
+        "auto_size" if auto_size else None,
+        f"signal_prefix.{signal_prefix}" if signal_prefix else None,
+    ]
+    modifiers = [m for m in modifiers if m]
+
+    key = f"data-position-anchor__{'__'.join(modifiers)}" if modifiers else "data-position-anchor"
+    return DatastarAttr({key: anchor})
 
 
 def ds_canvas_viewport(value: Any = True) -> DatastarAttr:
@@ -575,6 +595,28 @@ __all__ = [
     "ds_on_fullscreenchange",
     "ds_on_fullscreenerror",
     "ds_on_orientationchange",
+    "ds_on_close",
+    "ds_on_cancel",
+    "ds_on_abort",
+    "ds_on_beforeinput",
+    "ds_on_compositionstart",
+    "ds_on_compositionend",
+    "ds_on_compositionupdate",
+    "ds_on_gotpointercapture",
+    "ds_on_lostpointercapture",
+    "ds_on_pointercancel",
+    "ds_on_pointerout",
+    "ds_on_pointerover",
+    "ds_on_seeked",
+    "ds_on_seeking",
+    "ds_on_stalled",
+    "ds_on_suspend",
+    "ds_on_waiting",
+    "ds_on_durationchange",
+    "ds_on_loadstart",
+    "ds_on_loadeddata",
+    "ds_on_emptied",
+    "ds_on_ratechange",
     "ds_disabled",
     "toggle",
     "ds_ignore",
