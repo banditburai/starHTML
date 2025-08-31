@@ -11,10 +11,6 @@ from .realtime import StarHTMLWithLiveReload
 
 __all__ = ["star_app", "DATASTAR_VERSION", "ICONIFY_VERSION", "def_hdrs", "fouc_script", "Beforeware", "MiddlewareBase"]
 
-# ============================================================================
-# Main Application Factory
-# ============================================================================
-
 
 def star_app(
     db_file: str = None,
@@ -95,31 +91,21 @@ def star_app(
 
     db = database(db_file)
 
-    # Determine table schemas from tbls parameter or kwargs
     tables = tbls or {}
     if kwargs:
         if isinstance(first(kwargs.values()), dict):
-            # kwargs contains multiple table schemas
             tables = kwargs
         else:
-            # kwargs contains single table fields, create "items" table
             table_schema = kwargs.copy()
             if render:
                 table_schema["render"] = render
             tables = {"items": table_schema}
 
-    # Create database tables and dataclasses
     db_tables = [_get_tbl(db.t, name, schema) for name, schema in tables.items()]
-
-    # Return single table unpacked if only one, otherwise unpack all
     if len(db_tables) == 1:
         return app, app.route, *db_tables[0]
     return app, app.route, *db_tables
 
-
-# ============================================================================
-# Public Helpers & Constants
-# ============================================================================
 
 DATASTAR_VERSION = "release-candidate"
 ICONIFY_VERSION = "2.3.0"
@@ -227,9 +213,21 @@ def _get_tbl(dt: Any, nm: str, schema: dict):
 
 
 def _app_factory(*args, **kwargs):
+    import warnings
+
     from .core import StarHTML
 
-    if kwargs.pop("live", False):
+    live = kwargs.pop("live", False)
+    debug = kwargs.get("debug", False)
+
+    if live and not debug:
+        if _is_production():
+            live = False  # Silently disable in production
+        else:
+            warnings.warn("live=True requires debug=True. Enabling debug mode.", UserWarning, stacklevel=2)
+            kwargs["debug"] = True
+
+    if live:
         return StarHTMLWithLiveReload(*args, **kwargs)
 
     kwargs.pop("reload_attempts", None)
@@ -238,3 +236,10 @@ def _app_factory(*args, **kwargs):
     if bodykw:
         kwargs.update(bodykw)
     return StarHTML(*args, **kwargs)
+
+
+def _is_production():
+    import os
+
+    env = os.getenv("ENV", os.getenv("ENVIRONMENT", "")).lower()
+    return env in ("production", "prod") or os.getenv("DEBUG", "").lower() in ("false", "0", "no")
