@@ -32,34 +32,28 @@ interface RuntimeContext {
 }
 
 type OnRemovalFn = () => void;
+type Position = { x: number; y: number; placement: string };
 
-const TIMING = {
-  OSCILLATION_WINDOW: 2000,
-  OSCILLATION_THRESHOLD: 3,
-  STABILIZATION_DURATION: 1500,
-  HISTORY_LIMIT: 10,
-} as const;
-
-const THRESHOLDS = {
-  ZOOM_CHANGE: 0.01,
-  BASE_PADDING: 20,
-  PADDING_MULTIPLIER: 30,
-  MOVEMENT_THRESHOLD: 50,
-  RAPID_MOVEMENT_WINDOW: 500,
-} as const;
-
-const PLACEMENT_OPPOSITES = {
-  left: "right",
-  right: "left",
-  top: "bottom",
-  bottom: "top",
-} as const;
+const OPPOSITES = { left: "right", right: "left", top: "bottom", bottom: "top" };
+const VALID_PLACEMENTS: Placement[] = [
+  "top",
+  "bottom",
+  "left",
+  "right",
+  "top-start",
+  "top-end",
+  "bottom-start",
+  "bottom-end",
+  "left-start",
+  "left-end",
+  "right-start",
+  "right-end",
+];
 
 class StablePositioner {
-  private history: Array<{ x: number; y: number; placement: string; timestamp: number }> = [];
+  private history: Array<Position & { timestamp: number }> = [];
   private lockedPlacement: Placement | null = null;
   private lockUntil = 0;
-  private lastZoom = window.devicePixelRatio || 1;
 
   constructor(
     private reference: HTMLElement,
@@ -75,50 +69,50 @@ class StablePositioner {
     }
   ) {}
 
-  async position() {
-    const zoom = window.devicePixelRatio || 1;
-    if (Math.abs(zoom - this.lastZoom) > THRESHOLDS.ZOOM_CHANGE) {
-      this.lastZoom = zoom;
-      this.reset();
-    }
-
+  async position(): Promise<Position> {
     const placement = this.getStablePlacement();
-    const padding = Math.max(THRESHOLDS.BASE_PADDING, THRESHOLDS.PADDING_MULTIPLIER * zoom);
-    
+    const zoom = window.devicePixelRatio || 1;
+    const padding = Math.max(20, 30 * zoom);
+
     const middleware: Middleware[] = [offset(this.config.offset)];
-    
+
     if (this.config.flip && !this.isLocked()) {
       middleware.push(flip({ padding, fallbackStrategy: "bestFit" }));
     }
-    
     if (this.config.shift) middleware.push(shift({ padding }));
     if (this.config.hide) middleware.push(hide());
-    
     if (this.config.autoSize) {
-      middleware.push(size({
-        apply: ({ availableWidth, availableHeight, elements }) => {
-          Object.assign(elements.floating.style, {
-            maxWidth: `${availableWidth}px`,
-            maxHeight: `${availableHeight}px`,
-          });
-        },
-        padding: 10,
-      }));
+      middleware.push(
+        size({
+          apply: ({ availableWidth, availableHeight, elements }) => {
+            Object.assign(elements.floating.style, {
+              maxWidth: `${availableWidth}px`,
+              maxHeight: `${availableHeight}px`,
+            });
+          },
+          padding: 10,
+        })
+      );
     }
 
-    const result = await computePosition(this.reference, this.floating, {
+    const {
+      x,
+      y,
+      placement: finalPlacement,
+    } = await computePosition(this.reference, this.floating, {
       placement,
       strategy: this.config.strategy,
       middleware,
     });
 
-    this.recordHistory(result);
-    
-    return {
-      x: Math.round(result.x),
-      y: Math.round(result.y),
-      placement: result.placement,
+    const result = {
+      x: Math.round(x),
+      y: Math.round(y),
+      placement: finalPlacement,
     };
+
+    this.recordHistory(result);
+    return result;
   }
 
   private getStablePlacement(): Placement {
@@ -135,96 +129,70 @@ class StablePositioner {
 
   private detectOscillation(): boolean {
     const now = Date.now();
-    this.history = this.history.filter(h => now - h.timestamp < TIMING.OSCILLATION_WINDOW);
-    
-    if (this.history.length < TIMING.OSCILLATION_THRESHOLD) return false;
+    this.history = this.history.filter((h) => now - h.timestamp < 2000);
 
-    const placements = this.history.map(h => h.placement);
-    const uniquePlacements = new Set(placements);
-    
-    if (uniquePlacements.size <= 1) return false;
+    if (this.history.length < 3) return false;
 
-    // Detect opposing placements
-    for (const [side, opposite] of Object.entries(PLACEMENT_OPPOSITES)) {
-      if (placements.some(p => p.includes(side)) && placements.some(p => p.includes(opposite))) {
-        return true;
-      }
-    }
+    const placements = this.history.map((h) => h.placement);
+    if (new Set(placements).size <= 1) return false;
 
-    // Detect rapid movement
+    // Oscillating between opposite sides?
+    const hasOpposites = Object.entries(OPPOSITES).some(
+      ([side, opposite]) =>
+        placements.some((p) => p.includes(side)) && placements.some((p) => p.includes(opposite))
+    );
+    if (hasOpposites) return true;
+
+    // Rapid movement?
     const recent = this.history.slice(-3);
-    if (recent.length < 3) return false;
-    
-    const movement = recent.reduce((sum, h, i) => {
-      if (i === 0) return 0;
-      const prev = recent[i - 1];
-      return sum + Math.abs(h.x - prev.x) + Math.abs(h.y - prev.y);
-    }, 0);
+    const movement = recent
+      .slice(1)
+      .reduce((sum, h, i) => sum + Math.abs(h.x - recent[i].x) + Math.abs(h.y - recent[i].y), 0);
 
-    return movement > THRESHOLDS.MOVEMENT_THRESHOLD && 
-           (now - recent[0].timestamp) < THRESHOLDS.RAPID_MOVEMENT_WINDOW;
+    return movement > 50 && now - recent[0].timestamp < 500;
   }
 
   private findBestPlacement(): Placement {
     const rect = this.reference.getBoundingClientRect();
     const floatingRect = this.floating.getBoundingClientRect();
     const viewport = { width: window.innerWidth, height: window.innerHeight };
-    const padding = Math.max(THRESHOLDS.BASE_PADDING, THRESHOLDS.PADDING_MULTIPLIER * this.lastZoom);
-    
+    const padding = Math.max(20, 30 * (window.devicePixelRatio || 1));
+
     const space = {
-      top: rect.top - padding,
-      bottom: viewport.height - rect.bottom - padding,
-      left: rect.left - padding,
-      right: viewport.width - rect.right - padding,
+      top: (rect.top - padding) / floatingRect.height,
+      bottom: (viewport.height - rect.bottom - padding) / floatingRect.height,
+      left: (rect.left - padding) / floatingRect.width,
+      right: (viewport.width - rect.right - padding) / floatingRect.width,
     };
 
-    const scores = {
-      top: space.top / floatingRect.height,
-      bottom: space.bottom / floatingRect.height,
-      left: space.left / floatingRect.width,
-      right: space.right / floatingRect.width,
-    };
+    const [base, align] = this.config.placement.split("-");
+    if (space[base as keyof typeof space] > 0.8) return this.config.placement;
 
-    const [base] = this.config.placement.split("-");
-    const alignment = this.config.placement.includes("-") ? this.config.placement.split("-")[1] : "";
-    
-    // Prefer original placement if space is adequate
-    if (scores[base as keyof typeof scores] > 0.8) return this.config.placement;
-
-    const best = Object.entries(scores).reduce((a, b) => b[1] > a[1] ? b : a);
-    return (alignment ? `${best[0]}-${alignment}` : best[0]) as Placement;
+    const [best] = Object.entries(space).reduce((a, b) => (b[1] > a[1] ? b : a));
+    return (align ? `${best}-${align}` : best) as Placement;
   }
 
   private lock(placement: Placement): void {
-    const zoom = window.devicePixelRatio || 1;
     this.lockedPlacement = placement;
-    this.lockUntil = Date.now() + TIMING.STABILIZATION_DURATION * Math.max(1, zoom / 2);
+    this.lockUntil = Date.now() + 1500;
   }
 
   private isLocked(): boolean {
-    return Date.now() < this.lockUntil;
+    return Date.now() < this.lockUntil && this.lockedPlacement !== null;
   }
 
-  private recordHistory(result: { x: number; y: number; placement: Placement }): void {
-    this.history.push({
-      x: result.x,
-      y: result.y,
-      placement: result.placement,
-      timestamp: Date.now(),
-    });
-
-    if (this.history.length > TIMING.HISTORY_LIMIT) {
-      this.history = this.history.slice(-TIMING.HISTORY_LIMIT);
-    }
+  private recordHistory(position: Position): void {
+    this.history.push({ ...position, timestamp: Date.now() });
+    if (this.history.length > 10) this.history.shift();
   }
 
-  shouldUpdate(x: number, y: number, placement: string, last: { x: number; y: number; placement: string }): boolean {
-    const zoom = window.devicePixelRatio || 1;
-    const threshold = Math.max(2, 3 * Math.sqrt(zoom));
-    
-    return Math.abs(x - last.x) > threshold ||
-           Math.abs(y - last.y) > threshold ||
-           placement !== last.placement;
+  shouldUpdate(x: number, y: number, placement: string, last: Position): boolean {
+    const threshold = Math.max(2, 3 * Math.sqrt(window.devicePixelRatio || 1));
+    return (
+      Math.abs(x - last.x) > threshold ||
+      Math.abs(y - last.y) > threshold ||
+      placement !== last.placement
+    );
   }
 
   reset(): void {
@@ -234,19 +202,12 @@ class StablePositioner {
   }
 }
 
-const extract = (value: unknown): string => {
-  if (!value) return "";
-  if (typeof value === "string") return value;
-  if (value instanceof Set) return Array.from(value)[0] || "";
-  return "";
-};
+const extract = (value: unknown): string =>
+  typeof value === "string" ? value : value instanceof Set ? Array.from(value)[0] || "" : "";
 
 const extractPlacement = (value: unknown): Placement => {
   const str = extract(value) || "bottom";
-  const valid = ["top", "bottom", "left", "right", "top-start", "top-end", 
-                 "bottom-start", "bottom-end", "left-start", "left-end", 
-                 "right-start", "right-end"];
-  return valid.includes(str) ? str as Placement : "bottom";
+  return VALID_PLACEMENTS.includes(str as Placement) ? (str as Placement) : "bottom";
 };
 
 export default {
@@ -271,7 +232,7 @@ export default {
 
     let positioner: StablePositioner | null = null;
     let cleanup: (() => void) | null = null;
-    let lastPos = { x: -999, y: -999, placement: "" };
+    let lastPos: Position = { x: -999, y: -999, placement: "" };
 
     const updatePosition = async () => {
       const target = anchor || document.getElementById(config.anchor);
@@ -297,16 +258,18 @@ export default {
 
     const isVisible = () => {
       const style = getComputedStyle(el);
-      return style.display !== "none" && 
-             style.visibility !== "hidden" && 
-             el.offsetWidth > 0 && 
-             el.offsetHeight > 0;
+      return (
+        style.display !== "none" &&
+        style.visibility !== "hidden" &&
+        el.offsetWidth > 0 &&
+        el.offsetHeight > 0
+      );
     };
 
     const start = () => {
       const target = anchor || document.getElementById(config.anchor);
       if (!target) return;
-      
+
       cleanup = autoUpdate(target, el, updatePosition, {
         ancestorScroll: true,
         ancestorResize: true,
