@@ -33,306 +33,322 @@ interface RuntimeContext {
 
 type OnRemovalFn = () => void;
 
-const extractValue = (value: any): string => {
+const TIMING = {
+  OSCILLATION_WINDOW: 2000,
+  OSCILLATION_THRESHOLD: 3,
+  STABILIZATION_DURATION: 1500,
+  HISTORY_LIMIT: 10,
+} as const;
+
+const THRESHOLDS = {
+  ZOOM_CHANGE: 0.01,
+  BASE_PADDING: 20,
+  PADDING_MULTIPLIER: 30,
+  MOVEMENT_THRESHOLD: 50,
+  RAPID_MOVEMENT_WINDOW: 500,
+} as const;
+
+const PLACEMENT_OPPOSITES = {
+  left: "right",
+  right: "left",
+  top: "bottom",
+  bottom: "top",
+} as const;
+
+class StablePositioner {
+  private history: Array<{ x: number; y: number; placement: string; timestamp: number }> = [];
+  private lockedPlacement: Placement | null = null;
+  private lockUntil = 0;
+  private lastZoom = window.devicePixelRatio || 1;
+
+  constructor(
+    private reference: HTMLElement,
+    private floating: HTMLElement,
+    private config: {
+      placement: Placement;
+      strategy: Strategy;
+      offset: number;
+      flip: boolean;
+      shift: boolean;
+      hide: boolean;
+      autoSize: boolean;
+    }
+  ) {}
+
+  async position() {
+    const zoom = window.devicePixelRatio || 1;
+    if (Math.abs(zoom - this.lastZoom) > THRESHOLDS.ZOOM_CHANGE) {
+      this.lastZoom = zoom;
+      this.reset();
+    }
+
+    const placement = this.getStablePlacement();
+    const padding = Math.max(THRESHOLDS.BASE_PADDING, THRESHOLDS.PADDING_MULTIPLIER * zoom);
+    
+    const middleware: Middleware[] = [offset(this.config.offset)];
+    
+    if (this.config.flip && !this.isLocked()) {
+      middleware.push(flip({ padding, fallbackStrategy: "bestFit" }));
+    }
+    
+    if (this.config.shift) middleware.push(shift({ padding }));
+    if (this.config.hide) middleware.push(hide());
+    
+    if (this.config.autoSize) {
+      middleware.push(size({
+        apply: ({ availableWidth, availableHeight, elements }) => {
+          Object.assign(elements.floating.style, {
+            maxWidth: `${availableWidth}px`,
+            maxHeight: `${availableHeight}px`,
+          });
+        },
+        padding: 10,
+      }));
+    }
+
+    const result = await computePosition(this.reference, this.floating, {
+      placement,
+      strategy: this.config.strategy,
+      middleware,
+    });
+
+    this.recordHistory(result);
+    
+    return {
+      x: Math.round(result.x),
+      y: Math.round(result.y),
+      placement: result.placement,
+    };
+  }
+
+  private getStablePlacement(): Placement {
+    if (this.isLocked() && this.lockedPlacement) return this.lockedPlacement;
+
+    if (this.detectOscillation()) {
+      const placement = this.findBestPlacement();
+      this.lock(placement);
+      return placement;
+    }
+
+    return this.config.placement;
+  }
+
+  private detectOscillation(): boolean {
+    const now = Date.now();
+    this.history = this.history.filter(h => now - h.timestamp < TIMING.OSCILLATION_WINDOW);
+    
+    if (this.history.length < TIMING.OSCILLATION_THRESHOLD) return false;
+
+    const placements = this.history.map(h => h.placement);
+    const uniquePlacements = new Set(placements);
+    
+    if (uniquePlacements.size <= 1) return false;
+
+    // Detect opposing placements
+    for (const [side, opposite] of Object.entries(PLACEMENT_OPPOSITES)) {
+      if (placements.some(p => p.includes(side)) && placements.some(p => p.includes(opposite))) {
+        return true;
+      }
+    }
+
+    // Detect rapid movement
+    const recent = this.history.slice(-3);
+    if (recent.length < 3) return false;
+    
+    const movement = recent.reduce((sum, h, i) => {
+      if (i === 0) return 0;
+      const prev = recent[i - 1];
+      return sum + Math.abs(h.x - prev.x) + Math.abs(h.y - prev.y);
+    }, 0);
+
+    return movement > THRESHOLDS.MOVEMENT_THRESHOLD && 
+           (now - recent[0].timestamp) < THRESHOLDS.RAPID_MOVEMENT_WINDOW;
+  }
+
+  private findBestPlacement(): Placement {
+    const rect = this.reference.getBoundingClientRect();
+    const floatingRect = this.floating.getBoundingClientRect();
+    const viewport = { width: window.innerWidth, height: window.innerHeight };
+    const padding = Math.max(THRESHOLDS.BASE_PADDING, THRESHOLDS.PADDING_MULTIPLIER * this.lastZoom);
+    
+    const space = {
+      top: rect.top - padding,
+      bottom: viewport.height - rect.bottom - padding,
+      left: rect.left - padding,
+      right: viewport.width - rect.right - padding,
+    };
+
+    const scores = {
+      top: space.top / floatingRect.height,
+      bottom: space.bottom / floatingRect.height,
+      left: space.left / floatingRect.width,
+      right: space.right / floatingRect.width,
+    };
+
+    const [base] = this.config.placement.split("-");
+    const alignment = this.config.placement.includes("-") ? this.config.placement.split("-")[1] : "";
+    
+    // Prefer original placement if space is adequate
+    if (scores[base as keyof typeof scores] > 0.8) return this.config.placement;
+
+    const best = Object.entries(scores).reduce((a, b) => b[1] > a[1] ? b : a);
+    return (alignment ? `${best[0]}-${alignment}` : best[0]) as Placement;
+  }
+
+  private lock(placement: Placement): void {
+    const zoom = window.devicePixelRatio || 1;
+    this.lockedPlacement = placement;
+    this.lockUntil = Date.now() + TIMING.STABILIZATION_DURATION * Math.max(1, zoom / 2);
+  }
+
+  private isLocked(): boolean {
+    return Date.now() < this.lockUntil;
+  }
+
+  private recordHistory(result: { x: number; y: number; placement: Placement }): void {
+    this.history.push({
+      x: result.x,
+      y: result.y,
+      placement: result.placement,
+      timestamp: Date.now(),
+    });
+
+    if (this.history.length > TIMING.HISTORY_LIMIT) {
+      this.history = this.history.slice(-TIMING.HISTORY_LIMIT);
+    }
+  }
+
+  shouldUpdate(x: number, y: number, placement: string, last: { x: number; y: number; placement: string }): boolean {
+    const zoom = window.devicePixelRatio || 1;
+    const threshold = Math.max(2, 3 * Math.sqrt(zoom));
+    
+    return Math.abs(x - last.x) > threshold ||
+           Math.abs(y - last.y) > threshold ||
+           placement !== last.placement;
+  }
+
+  reset(): void {
+    this.history = [];
+    this.lockUntil = 0;
+    this.lockedPlacement = null;
+  }
+}
+
+const extract = (value: unknown): string => {
   if (!value) return "";
   if (typeof value === "string") return value;
   if (value instanceof Set) return Array.from(value)[0] || "";
   return "";
 };
 
-const extractPlacementValue = (value: any): string => {
-  if (!(value instanceof Set)) return value || "bottom";
-
-  const values = Array.from(value);
-  if (values.length === 1) {
-    const singleValue = values[0];
-    const validPlacements = [
-      "top", "bottom", "left", "right",
-      "top-start", "top-end", "bottom-start", "bottom-end",
-      "left-start", "left-end", "right-start", "right-end",
-    ];
-
-    if (validPlacements.includes(singleValue)) return singleValue;
-
-    // Datastar removes hyphens from compound placements
-    const dehyphenated: Record<string, string> = {
-      topstart: "top-start",
-      topend: "top-end",
-      bottomstart: "bottom-start",
-      bottomend: "bottom-end",
-      leftstart: "left-start",
-      leftend: "left-end",
-      rightstart: "right-start",
-      rightend: "right-end",
-    };
-
-    return dehyphenated[singleValue.toLowerCase()] || "bottom";
-  }
-
-  const validParts = ["top", "bottom", "left", "right", "start", "end"];
-  const placementParts = values.filter((v) => validParts.includes(v));
-  return placementParts.length ? placementParts.join("-") : "bottom";
+const extractPlacement = (value: unknown): Placement => {
+  const str = extract(value) || "bottom";
+  const valid = ["top", "bottom", "left", "right", "top-start", "top-end", 
+                 "bottom-start", "bottom-end", "left-start", "left-end", 
+                 "right-start", "right-end"];
+  return valid.includes(str) ? str as Placement : "bottom";
 };
 
-const parseConfig = (el: HTMLElement, value: string, mods: Map<string, Set<string>>) => {
-  const match = el.id?.match(/^(.+?)(Content|Panel|Menu|Dropdown|Tooltip|Popover)?$/i);
-  const signalPrefix = extractValue(mods.get("signal_prefix")) || (match?.[1] ?? "");
-
-  return {
-    anchor: extractValue(mods.get("anchor") || value),
-    placement: extractPlacementValue(mods.get("placement")) as Placement,
-    strategy: (extractValue(mods.get("strategy")) || "absolute") as Strategy,
-    offsetValue: mods.has("offset") ? Number(extractValue(mods.get("offset"))) : 8,
-    flipEnabled: mods.has("flip") ? extractValue(mods.get("flip")) !== "false" : true,
-    shiftEnabled: mods.has("shift") ? extractValue(mods.get("shift")) !== "false" : true,
-    hideEnabled: extractValue(mods.get("hide")) === "true",
-    autoSize: extractValue(mods.get("auto_size")) === "true",
-    signalPrefix,
-  };
-};
-
-const positionAttributePlugin: AttributePlugin = {
+export default {
   type: "attribute",
   name: "position",
   keyReq: "starts",
 
-  onLoad(ctx: RuntimeContext): OnRemovalFn | void {
-    const { el, value, mods, startBatch, endBatch } = ctx;
-    const config = parseConfig(el, value, mods);
-    const isNativePopover = el.hasAttribute("popover");
-    const initialAnchor = document.getElementById(config.anchor);
+  onLoad({ el, value, mods, startBatch, endBatch }: RuntimeContext): OnRemovalFn | void {
+    const config = {
+      anchor: extract(mods.get("anchor") || value),
+      placement: extractPlacement(mods.get("placement")),
+      strategy: (extract(mods.get("strategy")) || "absolute") as Strategy,
+      offset: Number(extract(mods.get("offset"))) || 8,
+      flip: extract(mods.get("flip")) !== "false",
+      shift: extract(mods.get("shift")) !== "false",
+      hide: extract(mods.get("hide")) === "true",
+      autoSize: extract(mods.get("auto_size")) === "true",
+    };
 
-    if (!initialAnchor && !isNativePopover) return;
+    const anchor = document.getElementById(config.anchor);
+    if (!anchor && !el.hasAttribute("popover")) return;
 
-    if (!initialAnchor) {
-      const observer = new MutationObserver(() => {
-        const anchor = document.getElementById(config.anchor);
-        if (anchor) {
-          observer.disconnect();
-          initializeWithAnchor(anchor);
+    let positioner: StablePositioner | null = null;
+    let cleanup: (() => void) | null = null;
+    let lastPos = { x: -999, y: -999, placement: "" };
+
+    const updatePosition = async () => {
+      const target = anchor || document.getElementById(config.anchor);
+      if (!target?.isConnected) return;
+
+      startBatch();
+      try {
+        positioner ??= new StablePositioner(target, el, config);
+        const result = await positioner.position();
+
+        if (positioner.shouldUpdate(result.x, result.y, result.placement, lastPos)) {
+          Object.assign(el.style, {
+            position: config.strategy,
+            left: `${result.x}px`,
+            top: `${result.y}px`,
+          });
+          lastPos = result;
         }
+      } finally {
+        endBatch();
+      }
+    };
+
+    const isVisible = () => {
+      const style = getComputedStyle(el);
+      return style.display !== "none" && 
+             style.visibility !== "hidden" && 
+             el.offsetWidth > 0 && 
+             el.offsetHeight > 0;
+    };
+
+    const start = () => {
+      const target = anchor || document.getElementById(config.anchor);
+      if (!target) return;
+      
+      cleanup = autoUpdate(target, el, updatePosition, {
+        ancestorScroll: true,
+        ancestorResize: true,
+        elementResize: false,
+        layoutShift: false,
       });
+    };
 
-      observer.observe(document.body, { childList: true, subtree: true });
+    const stop = () => {
+      cleanup?.();
+      cleanup = null;
+      positioner?.reset();
+      positioner = null;
+    };
 
-      let attempts = 0;
-      const checkInterval = setInterval(() => {
-        const anchor = document.getElementById(config.anchor);
-        if (anchor || ++attempts > 50) {
-          clearInterval(checkInterval);
-          observer.disconnect();
-          if (anchor) initializeWithAnchor(anchor);
-        }
-      }, 100);
-
+    if (el.hasAttribute("popover")) {
+      const handleToggle = (e: any) => {
+        if (e.newState === "open") start();
+        else if (e.newState === "closed") stop();
+      };
+      el.addEventListener("toggle", handleToggle);
       return () => {
-        clearInterval(checkInterval);
-        observer.disconnect();
+        el.removeEventListener("toggle", handleToggle);
+        stop();
       };
     }
 
-    return initializeWithAnchor(initialAnchor);
+    const observer = new MutationObserver(() => {
+      if (isVisible() && !cleanup) start();
+      else if (!isVisible() && cleanup) stop();
+    });
 
-    function initializeWithAnchor(anchorElement: HTMLElement): OnRemovalFn {
-      const originalStyles = {
-        opacity: el.style.opacity,
-        pointerEvents: el.style.pointerEvents,
-        transition: el.style.transition,
-      };
+    observer.observe(el, {
+      attributes: true,
+      attributeFilter: ["style", "class", "data-show"],
+    });
 
-      const hideElement = () => {
-        el.style.transition = "none";
-        el.style.opacity = "0";
-        el.style.pointerEvents = "none";
-        el.style.position = config.strategy;
-        el.setAttribute("data-position-state", "initializing");
-      };
+    if (isVisible()) start();
 
-      const revealElement = () => {
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            el.setAttribute("data-position-state", "positioned");
-            el.setAttribute("data-position-initialized", "true");
-            el.style.transition = originalStyles.transition || "opacity 0.15s ease-in-out";
-            el.style.opacity = originalStyles.opacity || "1";
-            el.style.pointerEvents = originalStyles.pointerEvents || "";
-            
-            setTimeout(() => {
-              if (el.style.transition === "opacity 0.15s ease-in-out") {
-                el.style.transition = originalStyles.transition || "";
-              }
-            }, 150);
-          });
-        });
-      };
-
-      if (!el.hasAttribute("data-position-initialized")) {
-        hideElement();
-      }
-
-      const middleware: Middleware[] = [offset(config.offsetValue)];
-      if (config.flipEnabled) middleware.push(flip());
-      if (config.shiftEnabled) middleware.push(shift({ padding: 10 }));
-      if (config.hideEnabled) middleware.push(hide());
-      if (config.autoSize) {
-        middleware.push(
-          size({
-            apply: ({ availableWidth, availableHeight, elements }) => {
-              Object.assign(elements.floating.style, {
-                maxWidth: `${availableWidth}px`,
-                maxHeight: `${availableHeight}px`,
-              });
-            },
-            padding: 10,
-          })
-        );
-      }
-
-      let lastPosition = { x: 0, y: 0, placement: "" };
-      let cleanup: (() => void) | null = null;
-      let hasPositionedOnce = false;
-
-      const isVisible = (element: HTMLElement) => {
-        const style = getComputedStyle(element);
-        return (
-          style.display !== "none" &&
-          style.visibility !== "hidden" &&
-          element.offsetWidth > 0 &&
-          element.offsetHeight > 0
-        );
-      };
-
-      const waitForBounds = (element: HTMLElement): Promise<DOMRect | null> =>
-        new Promise((resolve) => {
-          let attempts = 0;
-          const check = () => {
-            const bounds = element.getBoundingClientRect();
-            if ((bounds.width > 0 || bounds.height > 0) && 
-                typeof bounds.x === "number" && 
-                typeof bounds.y === "number") {
-              resolve(bounds);
-            } else if (++attempts >= 3) {
-              resolve(null);
-            } else {
-              setTimeout(check, 16);
-            }
-          };
-          check();
-        });
-
-      const updatePosition = async () => {
-        const anchor = anchorElement || document.getElementById(config.anchor);
-        if (!anchor?.isConnected) return;
-
-        const bounds = anchor.getBoundingClientRect();
-        if (bounds.width === 0 && bounds.height === 0) return;
-
-        startBatch();
-        try {
-          const result = await computePosition(anchor, el, {
-            placement: config.placement,
-            strategy: config.strategy,
-            middleware,
-          });
-
-          const changed =
-            Math.abs(result.x - lastPosition.x) > 0.1 ||
-            Math.abs(result.y - lastPosition.y) > 0.1 ||
-            result.placement !== lastPosition.placement;
-
-          if (changed) {
-            Object.assign(el.style, {
-              position: config.strategy,
-              left: `${result.x}px`,
-              top: `${result.y}px`,
-            });
-            lastPosition = { x: result.x, y: result.y, placement: result.placement };
-          }
-
-          if (!hasPositionedOnce) {
-            hasPositionedOnce = true;
-            revealElement();
-          }
-        } catch (err) {
-          console.error("Position update failed:", err);
-        } finally {
-          endBatch();
-        }
-      };
-
-      const setupPositioning = async () => {
-        const anchor = anchorElement || document.getElementById(config.anchor);
-        if (!anchor || !(await waitForBounds(anchor))) return;
-
-        cleanup = autoUpdate(anchor, el, updatePosition, {
-          ancestorScroll: true,
-          ancestorResize: true,
-          elementResize: true,
-          layoutShift: true,
-          animationFrame: false,
-        });
-      };
-
-      const teardownPositioning = () => {
-        cleanup?.();
-        cleanup = null;
-      };
-
-      let toggleHandler: ((e: any) => void) | null = null;
-      let visibilityObserver: MutationObserver | null = null;
-
-      if (isNativePopover) {
-        toggleHandler = (e: any) => {
-          if (e.newState === "open") {
-            hideElement();
-            el.offsetHeight; // Force reflow for rapid toggles
-            hasPositionedOnce = false;
-            el.removeAttribute("data-position-initialized");
-            setupPositioning();
-          } else if (e.newState === "closed") {
-            teardownPositioning();
-            el.removeAttribute("data-position-initialized");
-            el.setAttribute("data-position-state", "closed");
-            el.style.opacity = "0";
-            hasPositionedOnce = false;
-          }
-        };
-        el.addEventListener("toggle", toggleHandler);
-      } else {
-        visibilityObserver = new MutationObserver(() => {
-          const visible = isVisible(el);
-          const wasVisible = cleanup !== null;
-          if (visible && !wasVisible) {
-            if (!hasPositionedOnce) hideElement();
-            setupPositioning();
-          } else if (!visible && wasVisible) {
-            teardownPositioning();
-            hasPositionedOnce = false;
-          }
-        });
-
-        visibilityObserver.observe(el, {
-          attributes: true,
-          attributeFilter: ["style", "class", "data-show"],
-        });
-
-        if (isVisible(el)) setupPositioning();
-      }
-
-      return () => {
-        teardownPositioning();
-        toggleHandler && el.removeEventListener("toggle", toggleHandler);
-        visibilityObserver?.disconnect();
-
-        el.style.opacity = originalStyles.opacity || "";
-        el.style.pointerEvents = originalStyles.pointerEvents || "";
-        el.style.transition = originalStyles.transition || "";
-        el.removeAttribute("data-position-state");
-        el.removeAttribute("data-position-initialized");
-      };
-    }
+    return () => {
+      observer.disconnect();
+      stop();
+    };
   },
-};
-
-export { positionAttributePlugin };
-export default positionAttributePlugin;
+} satisfies AttributePlugin;

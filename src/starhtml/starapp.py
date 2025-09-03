@@ -213,8 +213,6 @@ def _get_tbl(dt: Any, nm: str, schema: dict):
 
 
 def _app_factory(*args, **kwargs):
-    import warnings
-
     from .core import StarHTML
 
     live = kwargs.pop("live", False)
@@ -224,7 +222,7 @@ def _app_factory(*args, **kwargs):
         if _is_production():
             live = False  # Silently disable in production
         else:
-            warnings.warn("live=True requires debug=True. Enabling debug mode.", UserWarning, stacklevel=2)
+            # Silently enable debug mode when live=True (no warning)
             kwargs["debug"] = True
 
     if live:
