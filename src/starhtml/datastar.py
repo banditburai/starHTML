@@ -200,12 +200,17 @@ def ds_computed(name: str, expression: str, case: str | None = None) -> Datastar
 def _make_attr_func(prefix: str):
     def attr_func(**kwargs) -> DatastarAttr:
         if any("/" in str(name) for name in kwargs):
-            attr_dict = {name: _normalize_value(value) for name, value in kwargs.items()}
-            return DatastarAttr({prefix: json.dumps(attr_dict)})
+            attr_dict = {
+                name.replace("_", "-"): (
+                    norm_val.replace("'", '"') if isinstance(norm_val := _normalize_value(value), str) else norm_val
+                )
+                for name, value in kwargs.items()
+            }
+            return DatastarAttr({prefix: NotStr(json.dumps(attr_dict))})
 
-        return DatastarAttr(
-            {f"{prefix}-{name.replace('_', '-')}": _normalize_value(value) for name, value in kwargs.items()}
-        )
+        return DatastarAttr({
+            f"{prefix}-{name.replace('_', '-')}": _normalize_value(value) for name, value in kwargs.items()
+        })
 
     return attr_func
 

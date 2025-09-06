@@ -17,7 +17,7 @@ class TestTailwindOpacityHandling:
         expected_dict = {"border-primary/60": "$isPrimary", "bg-accent/30": "$isActive"}
 
         assert "data-class" in result.attrs
-        assert json.loads(result.attrs["data-class"]) == expected_dict
+        assert json.loads(str(result.attrs["data-class"])) == expected_dict
 
     def test_ds_class_without_slash_uses_attributes(self):
         """Test that ds_class uses regular attributes when no slashes."""
@@ -33,10 +33,10 @@ class TestTailwindOpacityHandling:
         result = ds_class(**{"border-primary/60": "$isPrimary", "text_blue_500": "$isBlue", "bg-white/90": "$isLight"})
 
         # Should use dictionary for all when any have slashes
-        expected_dict = {"border-primary/60": "$isPrimary", "text_blue_500": "$isBlue", "bg-white/90": "$isLight"}
+        expected_dict = {"border-primary/60": "$isPrimary", "text-blue-500": "$isBlue", "bg-white/90": "$isLight"}
 
         assert "data-class" in result.attrs
-        assert json.loads(result.attrs["data-class"]) == expected_dict
+        assert json.loads(str(result.attrs["data-class"])) == expected_dict
 
     def test_other_ds_functions_with_slashes(self):
         """Test that other ds_* functions created with _make_attr_func handle slashes."""
@@ -45,12 +45,12 @@ class TestTailwindOpacityHandling:
         # Test ds_style with slash-containing keys
         style_result = ds_style(**{"width/special": "$widthValue"})
         assert "data-style" in style_result.attrs
-        assert json.loads(style_result.attrs["data-style"]) == {"width/special": "$widthValue"}
+        assert json.loads(str(style_result.attrs["data-style"])) == {"width/special": "$widthValue"}
 
         # Test ds_attr with slash-containing keys
         attr_result = ds_attr(**{"href/special": "$linkValue"})
         assert "data-attr" in attr_result.attrs
-        assert json.loads(attr_result.attrs["data-attr"]) == {"href/special": "$linkValue"}
+        assert json.loads(str(attr_result.attrs["data-attr"])) == {"href/special": "$linkValue"}
 
     def test_html_generation_with_opacity_classes(self):
         """Test HTML generation with Tailwind opacity classes."""
@@ -78,7 +78,44 @@ class TestTailwindOpacityHandling:
         }
 
         assert "data-class" in result.attrs
-        assert json.loads(result.attrs["data-class"]) == expected_dict
+        assert json.loads(str(result.attrs["data-class"])) == expected_dict
+
+    def test_single_quotes_converted_to_double_quotes(self):
+        """Test that single quotes in JS expressions are converted to double quotes to avoid HTML escaping."""
+        result = ds_class(**{"border-primary/60": "$plan === 'free'", "text-red/50": "$status !== 'active'"})
+
+        # Extract the JSON
+        json_str = str(result.attrs["data-class"])
+        parsed = json.loads(json_str)
+
+        # Single quotes should be converted to double quotes
+        assert parsed["border-primary/60"] == '$plan === "free"'
+        assert parsed["text-red/50"] == '$status !== "active"'
+
+    def test_html_output_has_parseable_json(self):
+        """Test that the JSON in HTML output is parseable by JavaScript."""
+        result = ds_class(**{"border-primary/60": "$plan === 'premium'", "bg-accent/30": "$user.role === 'admin'"})
+
+        # Generate HTML
+        element = Div("Test", **result.attrs)
+        html_str = str(element)
+
+        # Extract JSON from HTML (simulating browser behavior)
+        import re
+
+        match = re.search(r"data-class=(['\"])(.*?)\1", html_str)
+        assert match is not None
+
+        extracted_json = match.group(2)
+
+        # Should parse without HTML entity issues
+        parsed = json.loads(extracted_json)
+        assert "border-primary/60" in parsed
+        assert "bg-accent/30" in parsed
+
+        # Should not contain HTML entities
+        assert "&#39;" not in extracted_json
+        assert "&quot;" not in extracted_json
 
 
 if __name__ == "__main__":
