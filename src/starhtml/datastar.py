@@ -9,13 +9,25 @@ from fastcore.xml import NotStr
 
 
 class DatastarAttr:
-    """Wrapper that enables flat API usage without ** unpacking."""
+    """Wrapper that enables both .attrs access and direct ** unpacking."""
 
     def __init__(self, attrs):
         self.attrs = attrs
 
     def __repr__(self):
         return f"DatastarAttr({self.attrs})"
+
+    def keys(self):
+        return self.attrs.keys()
+
+    def __getitem__(self, key):
+        return self.attrs[key]
+
+    def __iter__(self):
+        return iter(self.attrs)
+
+    def __len__(self):
+        return len(self.attrs)
 
 
 def t(template: str) -> str:
@@ -187,6 +199,10 @@ def ds_computed(name: str, expression: str, case: str | None = None) -> Datastar
 
 def _make_attr_func(prefix: str):
     def attr_func(**kwargs) -> DatastarAttr:
+        if any("/" in str(name) for name in kwargs):
+            attr_dict = {name: _normalize_value(value) for name, value in kwargs.items()}
+            return DatastarAttr({prefix: json.dumps(attr_dict)})
+
         return DatastarAttr(
             {f"{prefix}-{name.replace('_', '-')}": _normalize_value(value) for name, value in kwargs.items()}
         )
