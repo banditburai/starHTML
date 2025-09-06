@@ -9,13 +9,25 @@ from fastcore.xml import NotStr
 
 
 class DatastarAttr:
-    """Wrapper that enables flat API usage without ** unpacking."""
+    """Wrapper that enables both .attrs access and direct ** unpacking."""
 
     def __init__(self, attrs):
         self.attrs = attrs
 
     def __repr__(self):
         return f"DatastarAttr({self.attrs})"
+
+    def keys(self):
+        return self.attrs.keys()
+
+    def __getitem__(self, key):
+        return self.attrs[key]
+
+    def __iter__(self):
+        return iter(self.attrs)
+
+    def __len__(self):
+        return len(self.attrs)
 
 
 def t(template: str) -> str:
@@ -187,6 +199,21 @@ def ds_computed(name: str, expression: str, case: str | None = None) -> Datastar
 
 def _make_attr_func(prefix: str):
     def attr_func(**kwargs) -> DatastarAttr:
+        # Use dictionary syntax when any attribute name contains '/'
+        # to preserve special characters like Tailwind opacity syntax (e.g., "border-primary/60")
+        if any("/" in str(name) for name in kwargs):
+            attr_dict = {}
+            for name, value in kwargs.items():
+                normalized_value = _normalize_value(value)
+                # Convert single quotes to double quotes in string values to avoid HTML escaping issues
+                if isinstance(normalized_value, str):
+                    normalized_value = normalized_value.replace("'", '"')
+                attr_dict[name.replace("_", "-")] = normalized_value
+            
+            # Use NotStr to prevent HTML escaping of JSON content
+            return DatastarAttr({prefix: NotStr(json.dumps(attr_dict))})
+
+        # Standard individual attributes for everything else
         return DatastarAttr(
             {f"{prefix}-{name.replace('_', '-')}": _normalize_value(value) for name, value in kwargs.items()}
         )
