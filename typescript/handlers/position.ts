@@ -111,15 +111,15 @@ async function computeFloatingPosition(
     "[popover]:popover-open"
   ) as HTMLElement | null;
 
-  // For nested popovers (submenus), use negative offset to create overlap
+  // For nested popovers (submenus), use minimal negative offset for subtle overlap
   // This matches the ShadCN/Radix UI menubar behavior
   let offsetValue = config.offset;
   if (parentPopover) {
     const isHorizontal =
       config.placement.startsWith("right") || config.placement.startsWith("left");
     if (isHorizontal) {
-      // Use -4px offset for horizontal submenus to create overlap
-      offsetValue = -4;
+      // Use -1px offset for horizontal submenus to create subtle overlap
+      offsetValue = -1;
     }
   }
 

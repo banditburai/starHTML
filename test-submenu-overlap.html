@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Submenu Overlap Test</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            padding: 40px;
+        }
+        
+        /* Menubar styles */
+        .menubar {
+            display: flex;
+            gap: 4px;
+            padding: 4px;
+            background: #f3f4f6;
+            border-radius: 6px;
+        }
+        
+        .menubar-trigger {
+            padding: 6px 12px;
+            background: transparent;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .menubar-trigger:hover {
+            background: #e5e7eb;
+        }
+        
+        /* Menu and submenu styles */
+        [popover] {
+            margin: 0;
+            padding: 4px;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            min-width: 200px;
+        }
+        
+        .menu-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            padding: 6px 8px;
+            background: transparent;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            text-align: left;
+            cursor: pointer;
+        }
+        
+        .menu-item:hover {
+            background: #f3f4f6;
+        }
+        
+        .menu-separator {
+            height: 1px;
+            background: #e5e7eb;
+            margin: 4px 0;
+        }
+        
+        .submenu-indicator {
+            margin-left: auto;
+            opacity: 0.5;
+        }
+        
+        /* Visual indicator for overlap */
+        .overlap-indicator {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 10px;
+            background: #fef3c7;
+            border: 1px solid #fbbf24;
+            border-radius: 6px;
+            font-size: 12px;
+        }
+    </style>
+    <script type="module">
+        // This would normally be loaded from the starhtml library
+        // For testing, we'll need to ensure the position.ts handler is loaded
+    </script>
+</head>
+<body>
+    <h1>Submenu Overlap Test</h1>
+    <p>Testing that submenus overlap their parent menu by ~4px (matching ShadCN behavior)</p>
+    
+    <div class="menubar">
+        <button class="menubar-trigger" popovertarget="file-menu">File</button>
+        <button class="menubar-trigger" popovertarget="edit-menu">Edit</button>
+        <button class="menubar-trigger" popovertarget="view-menu">View</button>
+    </div>
+    
+    <!-- File Menu -->
+    <div id="file-menu" popover="auto" data-ds-position="anchor:file-menu placement:bottom-start">
+        <button class="menu-item">New File</button>
+        <button class="menu-item">Open...</button>
+        <button class="menu-item" id="recent-trigger" popovertarget="recent-submenu">
+            Recent Files
+            <span class="submenu-indicator">▶</span>
+        </button>
+        <div class="menu-separator"></div>
+        <button class="menu-item">Save</button>
+        <button class="menu-item">Save As...</button>
+    </div>
+    
+    <!-- Recent Files Submenu -->
+    <div id="recent-submenu" popover="auto" data-ds-position="anchor:recent-trigger placement:right-start">
+        <button class="menu-item">Document1.txt</button>
+        <button class="menu-item">Spreadsheet.xlsx</button>
+        <button class="menu-item">Presentation.pptx</button>
+        <button class="menu-item">Image.png</button>
+    </div>
+    
+    <!-- Edit Menu -->
+    <div id="edit-menu" popover="auto" data-ds-position="anchor:edit-menu placement:bottom-start">
+        <button class="menu-item">Undo</button>
+        <button class="menu-item">Redo</button>
+        <div class="menu-separator"></div>
+        <button class="menu-item">Cut</button>
+        <button class="menu-item">Copy</button>
+        <button class="menu-item">Paste</button>
+        <div class="menu-separator"></div>
+        <button class="menu-item" id="find-trigger" popovertarget="find-submenu">
+            Find
+            <span class="submenu-indicator">▶</span>
+        </button>
+    </div>
+    
+    <!-- Find Submenu -->
+    <div id="find-submenu" popover="auto" data-ds-position="anchor:find-trigger placement:right-start">
+        <button class="menu-item">Search the web</button>
+        <button class="menu-item">Find...</button>
+        <button class="menu-item">Find Next</button>
+        <button class="menu-item">Find Previous</button>
+    </div>
+    
+    <!-- View Menu -->
+    <div id="view-menu" popover="auto" data-ds-position="anchor:view-menu placement:bottom-start">
+        <button class="menu-item">Zoom In</button>
+        <button class="menu-item">Zoom Out</button>
+        <button class="menu-item">Actual Size</button>
+        <div class="menu-separator"></div>
+        <button class="menu-item" id="sidebar-trigger" popovertarget="sidebar-submenu">
+            Sidebar
+            <span class="submenu-indicator">▶</span>
+        </button>
+    </div>
+    
+    <!-- Sidebar Submenu -->
+    <div id="sidebar-submenu" popover="auto" data-ds-position="anchor:sidebar-trigger placement:right-start">
+        <button class="menu-item">Show Sidebar</button>
+        <button class="menu-item">Hide Sidebar</button>
+        <button class="menu-item">Toggle Sidebar</button>
+    </div>
+    
+    <div class="overlap-indicator">
+        <strong>Expected behavior:</strong><br>
+        Submenus should overlap their parent menu by ~4px<br>
+        (matching ShadCN/Radix UI menubar)
+    </div>
+    
+    <script>
+        // Log position calculations for debugging
+        document.querySelectorAll('[popover]').forEach(el => {
+            el.addEventListener('toggle', (e) => {
+                if (e.newState === 'open') {
+                    console.log(`Opened: ${el.id}`);
+                    // Check if this is a submenu
+                    const trigger = document.querySelector(`[popovertarget="${el.id}"]`);
+                    if (trigger && trigger.closest('[popover]')) {
+                        console.log(`  This is a submenu - should have 4px overlap`);
+                    }
+                }
+            });
+        });
+    </script>
+</body>
+</html>
