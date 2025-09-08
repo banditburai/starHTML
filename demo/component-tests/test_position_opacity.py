@@ -399,7 +399,10 @@ def home():
         # Test 8: Nested Submenu Test - Critical for menubar functionality
         Div(
             H2("Test 8: Nested Submenu Positioning", cls="text-xl font-semibold mb-4"),
-            P("Testing submenu positioning in nested popover contexts (critical for menubar)", cls="text-gray-600 mb-4"),
+            P(
+                "Testing submenu positioning in nested popover contexts (critical for menubar)",
+                cls="text-gray-600 mb-4",
+            ),
             Div(
                 # Main menu with submenu using nested popovers
                 Popover(
@@ -420,9 +423,18 @@ def home():
                                 ),
                                 PopoverContent(
                                     H4("Submenu Items", cls="font-semibold mb-2 text-sm"),
-                                    Button("Submenu Item 1", cls="w-full text-left px-3 py-2 hover:bg-blue-50 rounded text-sm"),
-                                    Button("Submenu Item 2", cls="w-full text-left px-3 py-2 hover:bg-blue-50 rounded text-sm"),
-                                    Button("Submenu Item 3", cls="w-full text-left px-3 py-2 hover:bg-blue-50 rounded text-sm"),
+                                    Button(
+                                        "Submenu Item 1",
+                                        cls="w-full text-left px-3 py-2 hover:bg-blue-50 rounded text-sm",
+                                    ),
+                                    Button(
+                                        "Submenu Item 2",
+                                        cls="w-full text-left px-3 py-2 hover:bg-blue-50 rounded text-sm",
+                                    ),
+                                    Button(
+                                        "Submenu Item 3",
+                                        cls="w-full text-left px-3 py-2 hover:bg-blue-50 rounded text-sm",
+                                    ),
                                     PopoverClose("✕"),
                                     side="right",
                                     align="start",
@@ -611,7 +623,7 @@ def home():
                             const elementId = mutation.target.id;
                             
                             // Check if element is truly visible to users (not just positioning states)
-                            const isUserVisible = style.visibility !== 'hidden' && 
+                            const isUserVisible = style.visibility !== 'hidden' &&
                                                  parseFloat(style.opacity) > 0.5 &&
                                                  mutation.target.matches(':popover-open');
                             
@@ -696,7 +708,7 @@ def home():
                     
                     flashTracker.clear();
                     
-                    const message = flashCount === 0 
+                    const message = flashCount === 0
                         ? `SUCCESS! ${topLevelTriggers.length} top-level popovers tested with no flashing.`
                         : `FAILED: ${flashCount} flash events detected in top-level popovers.`;
                     
