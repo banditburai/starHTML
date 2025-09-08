@@ -111,15 +111,25 @@ async function computeFloatingPosition(
     "[popover]:popover-open"
   ) as HTMLElement | null;
 
-  // For nested popovers (submenus), use minimal negative offset for subtle overlap
+  // For nested popovers (submenus), calculate proper offset for minimal overlap
   // This matches the ShadCN/Radix UI menubar behavior
   let offsetValue = config.offset;
   if (parentPopover) {
     const isHorizontal =
       config.placement.startsWith("right") || config.placement.startsWith("left");
     if (isHorizontal) {
-      // Use -1px offset for horizontal submenus to create subtle overlap
-      offsetValue = -1;
+      // Calculate distance from trigger edge to parent popover edge
+      const parentRect = parentPopover.getBoundingClientRect();
+      const refRect = reference.getBoundingClientRect();
+      
+      // Calculate how far the trigger is from the edge of its parent menu
+      const distanceToEdge = config.placement.startsWith("right")
+        ? parentRect.right - refRect.right
+        : refRect.left - parentRect.left;
+      
+      // Position submenu to just barely overlap (1-2px) with the parent menu edge
+      // distanceToEdge is the space we need to traverse, minus 1-2px for overlap
+      offsetValue = distanceToEdge - 2;
     }
   }
 
