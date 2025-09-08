@@ -115,20 +115,30 @@ async function computeFloatingPosition(
   // This matches the ShadCN/Radix UI menubar behavior
   let offsetValue = config.offset;
   if (parentPopover) {
+    const parentRect = parentPopover.getBoundingClientRect();
+    const refRect = reference.getBoundingClientRect();
+    
     const isHorizontal =
       config.placement.startsWith("right") || config.placement.startsWith("left");
+    const isVertical = 
+      config.placement.startsWith("top") || config.placement.startsWith("bottom");
+    
     if (isHorizontal) {
       // Calculate distance from trigger edge to parent popover edge
-      const parentRect = parentPopover.getBoundingClientRect();
-      const refRect = reference.getBoundingClientRect();
-      
       // Calculate how far the trigger is from the edge of its parent menu
       const distanceToEdge = config.placement.startsWith("right")
         ? parentRect.right - refRect.right
         : refRect.left - parentRect.left;
       
-      // Position submenu to just barely overlap (1-2px) with the parent menu edge
-      // distanceToEdge is the space we need to traverse, minus 1-2px for overlap
+      // Position submenu to just barely overlap (2px) with the parent menu edge
+      offsetValue = distanceToEdge - 2;
+    } else if (isVertical) {
+      // For vertical placements, calculate distance to parent menu edge
+      const distanceToEdge = config.placement.startsWith("bottom")
+        ? parentRect.bottom - refRect.bottom
+        : refRect.top - parentRect.top;
+      
+      // Position submenu to just barely overlap (2px) with the parent menu edge
       offsetValue = distanceToEdge - 2;
     }
   }
