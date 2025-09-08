@@ -34,7 +34,6 @@ interface RuntimeContext {
 type OnRemovalFn = () => void;
 type Position = { x: number; y: number; placement: string };
 
-const OPPOSITES = { left: "right", right: "left", top: "bottom", bottom: "top" };
 const VALID_PLACEMENTS: Placement[] = [
   "top",
   "bottom",
@@ -50,164 +49,175 @@ const VALID_PLACEMENTS: Placement[] = [
   "right-end",
 ];
 
-class StablePositioner {
+class OscillationDetector {
   private history: Array<Position & { timestamp: number }> = [];
-  private lockedPlacement: Placement | null = null;
+  private lockedPosition: Position | null = null;
   private lockUntil = 0;
+  private lastPosition: Position | null = null;
 
-  constructor(
-    private reference: HTMLElement,
-    private floating: HTMLElement,
-    private config: {
-      placement: Placement;
-      strategy: Strategy;
-      offset: number;
-      flip: boolean;
-      shift: boolean;
-      hide: boolean;
-      autoSize: boolean;
-    }
-  ) {}
-
-  async position(): Promise<Position> {
-    const placement = this.getStablePlacement();
-    const zoom = window.devicePixelRatio || 1;
-    const padding = Math.max(20, 30 * zoom);
-
-    const middleware: Middleware[] = [offset(this.config.offset)];
-
-    if (this.config.flip && !this.isLocked()) {
-      middleware.push(flip({ padding, fallbackStrategy: "bestFit" }));
-    }
-    if (this.config.shift) middleware.push(shift({ padding }));
-    if (this.config.hide) middleware.push(hide());
-    if (this.config.autoSize) {
-      middleware.push(
-        size({
-          apply: ({ availableWidth, availableHeight, elements }) => {
-            Object.assign(elements.floating.style, {
-              maxWidth: `${availableWidth}px`,
-              maxHeight: `${availableHeight}px`,
-            });
-          },
-          padding: 10,
-        })
-      );
-    }
-
-    const {
-      x,
-      y,
-      placement: finalPlacement,
-    } = await computePosition(this.reference, this.floating, {
-      placement,
-      strategy: this.config.strategy,
-      middleware,
-    });
-
-    const result = {
-      x: Math.round(x),
-      y: Math.round(y),
-      placement: finalPlacement,
-    };
-
-    this.recordHistory(result);
-    return result;
-  }
-
-  private getStablePlacement(): Placement {
-    if (this.isLocked() && this.lockedPlacement) return this.lockedPlacement;
-
-    if (this.detectOscillation()) {
-      const placement = this.findBestPlacement();
-      this.lock(placement);
-      return placement;
-    }
-
-    return this.config.placement;
-  }
-
-  private detectOscillation(): boolean {
+  addPosition(pos: Position): void {
     const now = Date.now();
-    this.history = this.history.filter((h) => now - h.timestamp < 2000);
+    if (this.lastPosition?.x === pos.x && this.lastPosition?.y === pos.y) return;
 
-    if (this.history.length < 3) return false;
+    this.history.push({ ...pos, timestamp: now });
+    this.lastPosition = pos;
+    this.history = this.history.filter((h) => now - h.timestamp < 1000);
 
-    const placements = this.history.map((h) => h.placement);
-    if (new Set(placements).size <= 1) return false;
+    if (this.history.length >= 3) {
+      const recent = this.history.slice(-3);
+      const positions = new Set(recent.map((p) => `${p.x},${p.y}`));
 
-    // Oscillating between opposite sides?
-    const hasOpposites = Object.entries(OPPOSITES).some(
-      ([side, opposite]) =>
-        placements.some((p) => p.includes(side)) && placements.some((p) => p.includes(opposite))
-    );
-    if (hasOpposites) return true;
-
-    // Rapid movement?
-    const recent = this.history.slice(-3);
-    const movement = recent
-      .slice(1)
-      .reduce((sum, h, i) => sum + Math.abs(h.x - recent[i].x) + Math.abs(h.y - recent[i].y), 0);
-
-    return movement > 50 && now - recent[0].timestamp < 500;
+      if (positions.size === 2 && now - recent[0].timestamp < 500) {
+        this.lockedPosition = { ...pos };
+        this.lockUntil = now + 2000;
+      }
+    }
   }
 
-  private findBestPlacement(): Placement {
-    const rect = this.reference.getBoundingClientRect();
-    const floatingRect = this.floating.getBoundingClientRect();
-    const viewport = { width: window.innerWidth, height: window.innerHeight };
-    const padding = Math.max(20, 30 * (window.devicePixelRatio || 1));
-
-    const space = {
-      top: (rect.top - padding) / floatingRect.height,
-      bottom: (viewport.height - rect.bottom - padding) / floatingRect.height,
-      left: (rect.left - padding) / floatingRect.width,
-      right: (viewport.width - rect.right - padding) / floatingRect.width,
-    };
-
-    const [base, align] = this.config.placement.split("-");
-    if (space[base as keyof typeof space] > 0.8) return this.config.placement;
-
-    const [best] = Object.entries(space).reduce((a, b) => (b[1] > a[1] ? b : a));
-    return (align ? `${best}-${align}` : best) as Placement;
-  }
-
-  private lock(placement: Placement): void {
-    this.lockedPlacement = placement;
-    this.lockUntil = Date.now() + 1500;
-  }
-
-  private isLocked(): boolean {
-    return Date.now() < this.lockUntil && this.lockedPlacement !== null;
-  }
-
-  private recordHistory(position: Position): void {
-    this.history.push({ ...position, timestamp: Date.now() });
-    if (this.history.length > 10) this.history.shift();
-  }
-
-  shouldUpdate(x: number, y: number, placement: string, last: Position): boolean {
-    const threshold = Math.max(2, 3 * Math.sqrt(window.devicePixelRatio || 1));
-    return (
-      Math.abs(x - last.x) > threshold ||
-      Math.abs(y - last.y) > threshold ||
-      placement !== last.placement
-    );
+  getPosition(computed: Position): Position {
+    const now = Date.now();
+    if (now >= this.lockUntil) this.lockedPosition = null;
+    return this.lockedPosition && now < this.lockUntil ? this.lockedPosition : computed;
   }
 
   reset(): void {
-    this.history = [];
-    this.lockUntil = 0;
-    this.lockedPlacement = null;
+    Object.assign(this, {
+      history: [],
+      lockedPosition: null,
+      lockUntil: 0,
+      lastPosition: null,
+    });
   }
 }
 
-const extract = (value: unknown): string =>
-  typeof value === "string" ? value : value instanceof Set ? Array.from(value)[0] || "" : "";
+type PositionConfig = {
+  placement: Placement;
+  strategy: Strategy;
+  offset: number;
+  flip: boolean;
+  shift: boolean;
+  hide: boolean;
+  autoSize: boolean;
+};
+
+async function computeFloatingPosition(
+  reference: HTMLElement,
+  floating: HTMLElement,
+  config: PositionConfig,
+  detector?: OscillationDetector
+): Promise<Position> {
+  const padding = 10;
+  const parentPopover = floating.parentElement?.closest(
+    "[popover]:popover-open"
+  ) as HTMLElement | null;
+
+  let offsetValue = config.offset;
+  if (parentPopover) {
+    const isHorizontal =
+      config.placement.startsWith("right") || config.placement.startsWith("left");
+    if (isHorizontal) {
+      const parentRect = parentPopover.getBoundingClientRect();
+      const refRect = reference.getBoundingClientRect();
+      const distanceToEdge = config.placement.startsWith("right")
+        ? parentRect.right - refRect.right
+        : refRect.left - parentRect.left;
+      offsetValue = Math.max(8, distanceToEdge + 8);
+    } else {
+      offsetValue = 12;
+    }
+  }
+
+  const middleware: Middleware[] = [offset(offsetValue)];
+  if (config.flip) middleware.push(flip({ padding }));
+  if (config.shift) middleware.push(shift({ padding }));
+  if (config.hide) middleware.push(hide());
+  if (config.autoSize) {
+    middleware.push(
+      size({
+        apply: ({ availableWidth, availableHeight, elements }) => {
+          Object.assign(elements.floating.style, {
+            maxWidth: `${availableWidth}px`,
+            maxHeight: `${availableHeight}px`,
+          });
+        },
+        padding: 10,
+      })
+    );
+  }
+
+  const strategy = floating.hasAttribute("popover") ? "fixed" : config.strategy;
+  const { x, y, placement } = await computePosition(reference, floating, {
+    placement: config.placement,
+    strategy: strategy as Strategy,
+    middleware,
+  });
+
+  if (x === 0 && y === 0) {
+    const { width, height } = reference.getBoundingClientRect();
+    if (width === 0 || height === 0) {
+      return { x: -9999, y: -9999, placement };
+    }
+  }
+
+  const position = { x: Math.round(x), y: Math.round(y), placement };
+
+  if (detector) {
+    detector.addPosition(position);
+    return detector.getPosition(position);
+  }
+
+  return position;
+}
+
+const shouldUpdatePosition = (current: Position, last: Position, threshold = 2): boolean =>
+  Math.abs(current.x - last.x) > threshold ||
+  Math.abs(current.y - last.y) > threshold ||
+  current.placement !== last.placement;
+
+const extract = (value: unknown): string => {
+  if (typeof value === "string") return value;
+  if (value instanceof Set) return Array.from(value)[0] || "";
+  return "";
+};
 
 const extractPlacement = (value: unknown): Placement => {
-  const str = extract(value) || "bottom";
-  return VALID_PLACEMENTS.includes(str as Placement) ? (str as Placement) : "bottom";
+  let str = extract(value) || "bottom";
+
+  str = str.replace(/^(top|bottom|left|right)(start|end)$/i, "$1-$2");
+
+  const hyphenMap: Record<string, Placement> = {
+    topstart: "top-start",
+    topend: "top-end",
+    bottomstart: "bottom-start",
+    bottomend: "bottom-end",
+    leftstart: "left-start",
+    leftend: "left-end",
+    rightstart: "right-start",
+    rightend: "right-end",
+  };
+
+  const normalized = hyphenMap[str.toLowerCase()] || str;
+  return VALID_PLACEMENTS.includes(normalized as Placement) ? (normalized as Placement) : "bottom";
+};
+
+const injectPositioningCSS = () => {
+  const styleId = "starhtml-positioning-css";
+  if (document.getElementById(styleId)) return;
+
+  const style = document.createElement("style");
+  style.id = styleId;
+  style.textContent = `
+    [data-positioning="true"]:not([popover]) {
+      visibility: hidden !important;
+      opacity: 0 !important;
+    }
+    [data-positioning="false"]:not([popover]) {
+      visibility: visible !important;
+      opacity: 1 !important;
+      transition: opacity 150ms ease-out;
+    }
+  `;
+  document.head.appendChild(style);
 };
 
 export default {
@@ -216,6 +226,8 @@ export default {
   keyReq: "starts",
 
   onLoad({ el, value, mods, startBatch, endBatch }: RuntimeContext): OnRemovalFn | void {
+    injectPositioningCSS();
+
     const config = {
       anchor: extract(mods.get("anchor") || value),
       placement: extractPlacement(mods.get("placement")),
@@ -230,76 +242,200 @@ export default {
     const anchor = document.getElementById(config.anchor);
     if (!anchor && !el.hasAttribute("popover")) return;
 
-    let positioner: StablePositioner | null = null;
     let cleanup: (() => void) | null = null;
     let lastPos: Position = { x: -999, y: -999, placement: "" };
+    let hasPositioned = false;
+    let showTimer: number | null = null;
+    let settlementTimer: number | null = null;
+    let domHistory: Array<{ x: number; y: number; timestamp: number }> = [];
+    let isLocked = false;
+    let lockUntil = 0;
+
+    const prepareHiddenState = () => {
+      const baseStyle = { visibility: "hidden" as const, opacity: "0" };
+      const style = config.hide
+        ? { ...baseStyle, transition: "opacity 150ms ease-out" }
+        : baseStyle;
+
+      if (config.hide || el.hasAttribute("popover")) {
+        Object.assign(el.style, style);
+      }
+    };
+
+    prepareHiddenState();
+
+    const checkDOMOscillation = (x: number, y: number): boolean => {
+      const now = Date.now();
+      domHistory.push({ x, y, timestamp: now });
+      domHistory = domHistory.filter((h) => now - h.timestamp < 1000);
+
+      if (domHistory.length >= 4) {
+        const recent = domHistory.slice(-4);
+        const positions = new Set(recent.map((p) => `${p.x},${p.y}`));
+
+        if (positions.size === 2 && now - recent[0].timestamp < 300) {
+          isLocked = true;
+          lockUntil = now + 2000;
+          return true;
+        }
+      }
+
+      if (now > lockUntil) isLocked = false;
+      return isLocked;
+    };
+
+    const setPositioning = (state: "true" | "false") => {
+      el.setAttribute("data-positioning", state);
+    };
+
+    const getTargetElement = (): HTMLElement | null => {
+      const target = anchor || document.getElementById(config.anchor);
+      if (!target?.isConnected) return null;
+
+      const parentPopover = el.parentElement?.closest(
+        "[popover]:popover-open"
+      ) as HTMLElement | null;
+      const isVertical =
+        config.placement.startsWith("top") || config.placement.startsWith("bottom");
+
+      return parentPopover && isVertical ? parentPopover : target;
+    };
 
     const updatePosition = async () => {
-      const target = anchor || document.getElementById(config.anchor);
-      if (!target?.isConnected) return;
+      const target = getTargetElement();
+      if (!target) return;
 
       startBatch();
       try {
-        positioner ??= new StablePositioner(target, el, config);
-        const result = await positioner.position();
+        const result = await computeFloatingPosition(target, el, config);
 
-        if (positioner.shouldUpdate(result.x, result.y, result.placement, lastPos)) {
-          Object.assign(el.style, {
-            position: config.strategy,
-            left: `${result.x}px`,
-            top: `${result.y}px`,
-          });
-          lastPos = result;
+        if (shouldUpdatePosition(result, lastPos)) {
+          if (!checkDOMOscillation(result.x, result.y)) {
+            const strategy = el.hasAttribute("popover") ? "fixed" : config.strategy;
+            Object.assign(el.style, {
+              position: strategy,
+              left: `${result.x}px`,
+              top: `${result.y}px`,
+            });
+            lastPos = result;
+
+            if (settlementTimer) clearTimeout(settlementTimer);
+            settlementTimer = window.setTimeout(() => setPositioning("false"), 100);
+          } else {
+            setPositioning("false");
+          }
+        }
+
+        const isValidPosition =
+          result.x !== 0 && result.y !== 0 && result.x > -1000 && result.y > -1000;
+        if (!hasPositioned && isValidPosition) {
+          hasPositioned = true;
+
+          if (config.hide || el.hasAttribute("popover")) {
+            el.style.visibility = "visible";
+            if (config.hide) {
+              showTimer = window.setTimeout(() => {
+                el.style.opacity = "1";
+              }, 10);
+            } else {
+              el.style.opacity = "1";
+            }
+          }
         }
       } finally {
         endBatch();
       }
     };
 
-    const isVisible = () => {
-      const style = getComputedStyle(el);
+    const isVisible = (): boolean => {
+      const { display, visibility } = getComputedStyle(el);
       return (
-        style.display !== "none" &&
-        style.visibility !== "hidden" &&
-        el.offsetWidth > 0 &&
-        el.offsetHeight > 0
+        display !== "none" && visibility !== "hidden" && el.offsetWidth > 0 && el.offsetHeight > 0
       );
     };
 
     const start = () => {
-      const target = anchor || document.getElementById(config.anchor);
-      if (!target) return;
+      const target = getTargetElement();
+      if (!target || cleanup) return;
+
+      if (el.hasAttribute("popover")) {
+        requestAnimationFrame(updatePosition);
+      }
 
       cleanup = autoUpdate(target, el, updatePosition, {
         ancestorScroll: true,
         ancestorResize: true,
-        elementResize: false,
-        layoutShift: false,
+        elementResize: true,
+        layoutShift: true,
       });
     };
 
     const stop = () => {
       cleanup?.();
       cleanup = null;
-      positioner?.reset();
-      positioner = null;
+      hasPositioned = false;
+
+      for (const timer of [showTimer, settlementTimer]) {
+        if (timer) clearTimeout(timer);
+      }
+      showTimer = settlementTimer = null;
+
+      domHistory = [];
+      isLocked = false;
+      lockUntil = 0;
+      el.removeAttribute("data-positioning");
+
+      if (config.hide || el.hasAttribute("popover")) {
+        prepareHiddenState();
+      }
+
+      lastPos = { x: -999, y: -999, placement: "" };
     };
 
     if (el.hasAttribute("popover")) {
       const handleToggle = (e: any) => {
-        if (e.newState === "open") start();
-        else if (e.newState === "closed") stop();
+        if (e.newState === "open") {
+          config.strategy = "fixed" as Strategy;
+          Object.assign(el.style, { margin: "0", inset: "unset" });
+          prepareHiddenState();
+
+          const isNested = el.parentElement?.closest("[popover]:popover-open") !== null;
+          const startFn = () => el.matches(":popover-open") && start();
+
+          if (isNested) {
+            setTimeout(startFn, 20);
+          } else {
+            requestAnimationFrame(startFn);
+          }
+        } else if (e.newState === "closed") {
+          stop();
+        }
       };
+
+      const handleBeforeToggle = (e: any) => {
+        if (e.newState === "open") {
+          Object.assign(el.style, { margin: "0", inset: "unset" });
+          prepareHiddenState();
+        }
+      };
+
       el.addEventListener("toggle", handleToggle);
+      el.addEventListener("beforetoggle", handleBeforeToggle);
+
       return () => {
         el.removeEventListener("toggle", handleToggle);
+        el.removeEventListener("beforetoggle", handleBeforeToggle);
         stop();
       };
     }
 
     const observer = new MutationObserver(() => {
-      if (isVisible() && !cleanup) start();
-      else if (!isVisible() && cleanup) stop();
+      if (isVisible() && !cleanup) {
+        setPositioning("true");
+        start();
+      } else if (!isVisible() && cleanup) {
+        stop();
+      }
     });
 
     observer.observe(el, {
