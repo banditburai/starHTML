@@ -94,6 +94,7 @@ type PositionConfig = {
   placement: Placement;
   strategy: Strategy;
   offset: number;
+  hasCustomOffset: boolean;
   flip: boolean;
   shift: boolean;
   hide: boolean;
@@ -112,23 +113,22 @@ async function computeFloatingPosition(
   ) as HTMLElement | null;
 
   let offsetValue = config.offset;
-  
-  // Smart default for submenus when no explicit offset is provided
-  if (parentPopover && config.offset === 8) {
+
+  // Submenus need offset relative to parent menu edge, not trigger element
+  if (parentPopover) {
     const parentRect = parentPopover.getBoundingClientRect();
     const refRect = reference.getBoundingClientRect();
-    const placement = config.placement;
-    
+
     const edgeDistances = {
       right: parentRect.right - refRect.right,
       left: refRect.left - parentRect.left,
       bottom: parentRect.bottom - refRect.bottom,
       top: refRect.top - parentRect.top,
     };
-    
-    const edge = placement.split("-")[0] as keyof typeof edgeDistances;
+
+    const edge = config.placement.split("-")[0] as keyof typeof edgeDistances;
     if (edge in edgeDistances) {
-      offsetValue = edgeDistances[edge] - 2; // 2px overlap by default
+      offsetValue = edgeDistances[edge] + (config.hasCustomOffset ? config.offset : -2);
     }
   }
 
@@ -233,11 +233,13 @@ export default {
   onLoad({ el, value, mods, startBatch, endBatch }: RuntimeContext): OnRemovalFn | void {
     injectPositioningCSS();
 
+    const offsetValue = extract(mods.get("offset"));
     const config = {
       anchor: extract(mods.get("anchor") || value),
       placement: extractPlacement(mods.get("placement")),
       strategy: (extract(mods.get("strategy")) || "absolute") as Strategy,
-      offset: extract(mods.get("offset")) ? Number(extract(mods.get("offset"))) : 8,
+      offset: offsetValue ? Number(offsetValue) : 8,
+      hasCustomOffset: !!offsetValue,
       flip: extract(mods.get("flip")) !== "false",
       shift: extract(mods.get("shift")) !== "false",
       hide: extract(mods.get("hide")) === "true",

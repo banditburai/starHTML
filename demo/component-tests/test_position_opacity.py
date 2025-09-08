@@ -57,7 +57,7 @@ def PopoverTrigger(*children, variant="default", cls="", **attrs):
     return make_injectable(_inject_signal)
 
 
-def PopoverContent(*children, cls="", side="bottom", align="center", **attrs):
+def PopoverContent(*children, cls="", side="bottom", align="center", offset=None, **attrs):
     def _inject_signal(signal):
         placement = f"{side}-{align}" if align != "center" else side
 
@@ -70,11 +70,22 @@ def PopoverContent(*children, cls="", side="bottom", align="center", **attrs):
             return element
 
         processed_children = [process_element(child) for child in children]
+        
+        # Build ds_position kwargs with optional offset
+        position_kwargs = {
+            "anchor": f"{signal}-trigger",
+            "placement": placement,
+            "flip": True,
+            "shift": True,
+            "hide": True,
+        }
+        if offset is not None:
+            position_kwargs["offset"] = offset
 
         return Div(
             *processed_children,
             ds_ref(f"{signal}Content"),
-            ds_position(anchor=f"{signal}-trigger", placement=placement, offset=8, flip=True, shift=True, hide=True),
+            ds_position(**position_kwargs),
             popover="auto",
             id=f"{signal}-content",
             role="dialog",
@@ -582,6 +593,102 @@ def home():
                         PopoverClose("✕"),
                         side="bottom",
                         cls="w-48",
+                    ),
+                ),
+                cls="flex gap-4 justify-center flex-wrap",
+            ),
+            cls="test-section",
+        ),
+        # Test 9: Custom Offset Test - Verify user-specified offsets work
+        Div(
+            H2("Test 9: Custom Offset for Submenus", cls="text-xl font-semibold mb-4"),
+            P(
+                "Testing that user-specified offsets override smart defaults",
+                cls="text-gray-600 mb-4",
+            ),
+            Div(
+                # Test with explicit large gap (20px)
+                Popover(
+                    PopoverTrigger(
+                        "Menu with 20px Gap",
+                        cls="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700",
+                    ),
+                    PopoverContent(
+                        H3("20px Gap Test", cls="font-bold mb-3"),
+                        Popover(
+                            PopoverTrigger(
+                                "Submenu with 20px offset →",
+                                cls="w-full text-left px-3 py-2 hover:bg-gray-100 rounded",
+                            ),
+                            PopoverContent(
+                                P("This should have 20px gap", cls="text-sm"),
+                                PopoverClose("✕"),
+                                side="right",
+                                align="start",
+                                offset="20",
+                                cls="w-48 bg-green-50",
+                            ),
+                            cls="w-full",
+                        ),
+                        PopoverClose("✕"),
+                        side="bottom",
+                        cls="w-64",
+                    ),
+                ),
+                # Test with zero offset (touching)
+                Popover(
+                    PopoverTrigger(
+                        "Menu with 0px Gap",
+                        cls="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700",
+                    ),
+                    PopoverContent(
+                        H3("0px Gap Test", cls="font-bold mb-3"),
+                        Popover(
+                            PopoverTrigger(
+                                "Submenu with 0px offset →",
+                                cls="w-full text-left px-3 py-2 hover:bg-gray-100 rounded",
+                            ),
+                            PopoverContent(
+                                P("This should be touching", cls="text-sm"),
+                                PopoverClose("✕"),
+                                side="right",
+                                align="start",
+                                offset="0",
+                                cls="w-48 bg-yellow-50",
+                            ),
+                            cls="w-full",
+                        ),
+                        PopoverClose("✕"),
+                        side="bottom",
+                        cls="w-64",
+                    ),
+                ),
+                # Test with negative offset (overlapping more)
+                Popover(
+                    PopoverTrigger(
+                        "Menu with -10px Overlap",
+                        cls="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700",
+                    ),
+                    PopoverContent(
+                        H3("-10px Overlap Test", cls="font-bold mb-3"),
+                        Popover(
+                            PopoverTrigger(
+                                "Submenu with -10px offset →",
+                                cls="w-full text-left px-3 py-2 hover:bg-gray-100 rounded",
+                            ),
+                            PopoverContent(
+                                P("This should overlap by 10px", cls="text-sm"),
+                                PopoverClose("✕"),
+                                side="right",
+                                align="start",
+                                offset="-10",
+                                cls="w-48 bg-red-50",
+                            ),
+                            cls="w-full",
+                        ),
+                        PopoverClose("✕"),
+                        side="bottom",
+                        cls="w-64",
                     ),
                 ),
                 cls="flex gap-4 justify-center flex-wrap",
