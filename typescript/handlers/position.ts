@@ -112,18 +112,23 @@ async function computeFloatingPosition(
   ) as HTMLElement | null;
 
   let offsetValue = config.offset;
-  if (parentPopover) {
-    const isHorizontal =
-      config.placement.startsWith("right") || config.placement.startsWith("left");
-    if (isHorizontal) {
-      const parentRect = parentPopover.getBoundingClientRect();
-      const refRect = reference.getBoundingClientRect();
-      const distanceToEdge = config.placement.startsWith("right")
-        ? parentRect.right - refRect.right
-        : refRect.left - parentRect.left;
-      offsetValue = Math.max(8, distanceToEdge + 8);
-    } else {
-      offsetValue = 12;
+  
+  // Smart default for submenus when no explicit offset is provided
+  if (parentPopover && config.offset === 8) {
+    const parentRect = parentPopover.getBoundingClientRect();
+    const refRect = reference.getBoundingClientRect();
+    const placement = config.placement;
+    
+    const edgeDistances = {
+      right: parentRect.right - refRect.right,
+      left: refRect.left - parentRect.left,
+      bottom: parentRect.bottom - refRect.bottom,
+      top: refRect.top - parentRect.top,
+    };
+    
+    const edge = placement.split("-")[0] as keyof typeof edgeDistances;
+    if (edge in edgeDistances) {
+      offsetValue = edgeDistances[edge] - 2; // 2px overlap by default
     }
   }
 
@@ -232,7 +237,7 @@ export default {
       anchor: extract(mods.get("anchor") || value),
       placement: extractPlacement(mods.get("placement")),
       strategy: (extract(mods.get("strategy")) || "absolute") as Strategy,
-      offset: Number(extract(mods.get("offset"))) || 8,
+      offset: extract(mods.get("offset")) ? Number(extract(mods.get("offset"))) : 8,
       flip: extract(mods.get("flip")) !== "false",
       shift: extract(mods.get("shift")) !== "false",
       hide: extract(mods.get("hide")) === "true",
