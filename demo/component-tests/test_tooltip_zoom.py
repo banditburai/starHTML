@@ -284,6 +284,25 @@ def index():
                 ),
                 cls="mb-8",
             ),
+            # Automated test section
+            Div(
+                H3("Automated Test", cls="text-lg font-semibold mb-4"),
+                Div(
+                    Button(
+                        "Run Automated Tests",
+                        id="run-tests",
+                        cls="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 mr-4",
+                    ),
+                    Span("Status: ", cls="text-gray-600"),
+                    Span(id="test-status", cls="font-semibold"),
+                    cls="mb-4",
+                ),
+                Div(
+                    id="test-results",
+                    cls="bg-gray-100 p-4 rounded mb-4 hidden",
+                ),
+                cls="mb-8",
+            ),
             # Debug output
             Div(
                 H3("Debug Log", cls="text-lg font-semibold mb-2"),
@@ -324,23 +343,160 @@ def index():
             updateZoomIndicators();
             addDebugLog('Test page loaded - Ready for testing');
             
-            // Monitor tooltip visibility changes
-            const observer = new MutationObserver((mutations) => {
+            // Add keyboard shortcut for testing
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 't' && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault();
+                    runAutomatedTests();
+                }
+            });
+            
+            // Monitor tooltip visibility and position changes
+            const tooltipObserver = new MutationObserver((mutations) => {
                 mutations.forEach(mutation => {
                     if (mutation.target.id && mutation.target.id.includes('tooltip') && mutation.target.id.includes('content')) {
-                        const isVisible = window.getComputedStyle(mutation.target).display !== 'none';
+                        const el = mutation.target;
+                        const style = window.getComputedStyle(el);
+                        const isVisible = style.display !== 'none' && style.visibility !== 'hidden';
+                        
                         if (isVisible) {
-                            addDebugLog(`Tooltip shown: ${mutation.target.id}`);
+                            const rect = el.getBoundingClientRect();
+                            const placement = el.getAttribute('data-side') || 'unknown';
+                            
+                            // Check for position issues
+                            const issues = [];
+                            if (rect.left < 0) issues.push('cut-off-left');
+                            if (rect.right > window.innerWidth) issues.push('cut-off-right');
+                            if (rect.top < 0) issues.push('cut-off-top');
+                            if (rect.bottom > window.innerHeight) issues.push('cut-off-bottom');
+                            
+                            const posInfo = `pos:(${Math.round(rect.left)},${Math.round(rect.top)}) ${placement}`;
+                            const issueInfo = issues.length ? ` ISSUES: ${issues.join(', ')}` : '';
+                            addDebugLog(`Tooltip shown: ${el.id} ${posInfo}${issueInfo}`);
                         }
                     }
                 });
             });
             
-            observer.observe(document.body, {
+            tooltipObserver.observe(document.body, {
                 attributes: true,
                 subtree: true,
                 attributeFilter: ['style', 'class']
             });
+            
+            // Automated testing functionality
+            const runAutomatedTests = async () => {
+                const statusEl = document.getElementById('test-status');
+                const resultsEl = document.getElementById('test-results');
+                
+                statusEl.textContent = 'Running...';
+                statusEl.className = 'font-semibold text-yellow-600';
+                resultsEl.classList.remove('hidden');
+                resultsEl.innerHTML = '';
+                
+                const testResults = [];
+                const tooltipButtons = [
+                    { id: 'tooltip_', label: 'Top', expectedSide: 'top' },
+                    { id: 'tooltip_', label: 'Bottom', expectedSide: 'bottom' },
+                    { id: 'tooltip_', label: 'Left', expectedSide: 'left' },
+                    { id: 'tooltip_', label: 'Right', expectedSide: 'right' }
+                ];
+                
+                // Test at different zoom levels
+                const zoomLevels = [100, 125, 150, 175, 200];
+                
+                for (const zoom of zoomLevels) {
+                    // Note: Can't programmatically change zoom, but can simulate different positions
+                    const zoomResults = { zoom, tests: [] };
+                    
+                    for (const btn of tooltipButtons) {
+                        // Find the trigger button
+                        const triggers = Array.from(document.querySelectorAll('[id^="' + btn.id + '"][id$="-trigger"]'));
+                        const trigger = triggers.find(t => t.textContent.includes(btn.label));
+                        
+                        if (!trigger) continue;
+                        
+                        // Trigger tooltip
+                        const mouseEnter = new MouseEvent('mouseenter', { bubbles: true });
+                        trigger.dispatchEvent(mouseEnter);
+                        
+                        // Wait for tooltip to position
+                        await new Promise(resolve => setTimeout(resolve, 300));
+                        
+                        // Check tooltip position
+                        const tooltipId = trigger.id.replace('-trigger', '-content');
+                        const tooltip = document.getElementById(tooltipId);
+                        
+                        if (tooltip) {
+                            const rect = tooltip.getBoundingClientRect();
+                            const style = window.getComputedStyle(tooltip);
+                            const isVisible = style.display !== 'none' && style.visibility !== 'hidden';
+                            
+                            const result = {
+                                button: btn.label,
+                                visible: isVisible,
+                                position: { x: Math.round(rect.left), y: Math.round(rect.top) },
+                                cutOffLeft: rect.left < 0,
+                                cutOffRight: rect.right > window.innerWidth,
+                                cutOffTop: rect.top < 0,
+                                cutOffBottom: rect.bottom > window.innerHeight,
+                                actualSide: tooltip.getAttribute('data-side') || 'unknown'
+                            };
+                            
+                            result.hasIssues = result.cutOffLeft || result.cutOffRight || result.cutOffTop || result.cutOffBottom;
+                            zoomResults.tests.push(result);
+                        }
+                        
+                        // Hide tooltip
+                        const mouseLeave = new MouseEvent('mouseleave', { bubbles: true });
+                        trigger.dispatchEvent(mouseLeave);
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                    }
+                    
+                    testResults.push(zoomResults);
+                }
+                
+                // Display results
+                let hasAnyIssues = false;
+                let html = '<div class="space-y-4">';
+                
+                for (const zoomResult of testResults) {
+                    const zoomIssues = zoomResult.tests.filter(t => t.hasIssues);
+                    hasAnyIssues = hasAnyIssues || zoomIssues.length > 0;
+                    
+                    html += `<div class="border rounded p-3">`;
+                    html += `<h4 class="font-semibold mb-2">Current Zoom (${Math.round(window.devicePixelRatio * 100)}%)</h4>`;
+                    html += '<ul class="space-y-1 text-sm">';
+                    
+                    for (const test of zoomResult.tests) {
+                        const icon = test.hasIssues ? '❌' : '✅';
+                        const issues = [];
+                        if (test.cutOffLeft) issues.push('left');
+                        if (test.cutOffRight) issues.push('right');
+                        if (test.cutOffTop) issues.push('top');
+                        if (test.cutOffBottom) issues.push('bottom');
+                        
+                        const issueText = issues.length ? ` (cut-off: ${issues.join(', ')})` : '';
+                        html += `<li>${icon} ${test.button}: ${test.actualSide}${issueText}</li>`;
+                    }
+                    
+                    html += '</ul></div>';
+                }
+                
+                html += '</div>';
+                resultsEl.innerHTML = html;
+                
+                // Update status
+                if (hasAnyIssues) {
+                    statusEl.textContent = 'Issues Found';
+                    statusEl.className = 'font-semibold text-red-600';
+                } else {
+                    statusEl.textContent = 'All Tests Passed';
+                    statusEl.className = 'font-semibold text-green-600';
+                }
+            };
+            
+            document.getElementById('run-tests').addEventListener('click', runAutomatedTests);
         """),
     )
 
