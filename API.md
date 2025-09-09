@@ -107,6 +107,83 @@ Div(
 )
 ```
 
+### Conditional Tailwind Classes with `toggle_class()`
+
+The simplest way to toggle between Tailwind class sets. Supports both binary and multi-state patterns:
+
+```python
+from starhtml.datastar import toggle_class
+
+# Simple binary toggle (positional args: truthy, falsy)
+Button(
+    "Click me",
+    **toggle_class("$active",
+        "bg-blue-500 text-white shadow-lg",  # Truthy (first arg)
+        "bg-gray-300 text-gray-600"          # Falsy (second arg)
+    )
+)
+
+# With base classes that always apply
+Div(
+    "Step 1",
+    **toggle_class("$currentStep >= 1",
+        "bg-blue-500 text-white",              # Truthy
+        "bg-gray-300 text-gray-600",           # Falsy
+        base="flex items-center p-4 rounded-lg"  # Always applied
+    )
+)
+
+# Multi-state pattern with named states
+Div(
+    **toggle_class("$status",
+        success="bg-green-500 text-white",
+        error="bg-red-500 text-white",
+        warning="bg-yellow-500 text-black",
+        _="bg-gray-300",  # Default state
+        base="px-3 py-1 rounded"  # Always applied
+    )
+)
+
+# Real-world examples:
+# Dark mode
+Div(
+    **toggle_class("$darkMode",
+        "bg-gray-900 text-gray-100",
+        "bg-white text-gray-900",
+        base="min-h-screen p-8 transition-colors"
+    )
+)
+
+# Theme switching (multi-state)
+Body(
+    **toggle_class("$theme",
+        dark="bg-gray-900 text-gray-100",
+        light="bg-white text-gray-900",
+        sepia="bg-amber-50 text-amber-900",
+        _="bg-white text-gray-900",  # Default
+        base="transition-colors duration-200"
+    )
+)
+
+# Loading state
+Button(
+    "Submit",
+    **toggle_class("$loading",
+        "opacity-50 cursor-not-allowed",
+        "hover:bg-blue-600 cursor-pointer",
+        base="bg-blue-500 text-white px-4 py-2 rounded"
+    ),
+    **ds_attr(disabled="$loading")  # Can combine with other attributes
+)
+```
+
+### When to Use Each Approach
+
+- **`toggle_class()`** - For switching between Tailwind class sets (90% of cases)
+- **`ds_style()`** - For inline CSS properties (`width`, `transform`, `opacity`)
+- **`ds_class()`** - For granular control over individual classes
+- **`ds_attr()`** - For non-class HTML attributes (`disabled`, `href`, `title`)
+
 ## Common Patterns
 
 ### Form with Validation
@@ -136,9 +213,11 @@ Div(
     ds_on("mouseleave", "$hovered = false")
 )
 
-# Toggle visibility
+# Toggle visibility with toggle_signal() helper
+from starhtml.datastar import toggle_signal
+
 Div(
-    Button("Toggle Details", ds_on_click("$showDetails = !$showDetails")),
+    Button("Toggle Details", ds_on_click(toggle_signal("showDetails"))),  # Cleaner than "$showDetails = !$showDetails"
     Div(
         "Detailed information here...",
         ds_show("$showDetails")
@@ -208,9 +287,10 @@ ds_bind("email")                     # Python string
 
 | Function | Purpose | Example |
 |----------|---------|----------|
-| `ds_class(**classes)` | Conditional classes | `ds_class(active="$selected", error="$invalid")` |
-| `ds_style(**styles)` | Inline styles | `ds_style(opacity=if_("$loading", 0.5, 1))` |
-| `ds_attr(**attrs)` | Element attributes | `ds_attr(title="$tooltip", href="$link")` |
+| `toggle_class(condition, truthy, falsy, base)` | Toggle Tailwind classes | `toggle_class("$active", "bg-blue-500", "bg-gray-300", base="p-4")` |
+| `ds_class(**classes)` | Individual class toggles | `ds_class(bold="$important", hidden="!$visible")` |
+| `ds_style(**styles)` | Inline CSS styles | `ds_style(opacity=if_("$loading", 0.5, 1))` |
+| `ds_attr(**attrs)` | HTML attributes | `ds_attr(disabled="$loading", href="$link")` |
 
 ### Signals & State
 
@@ -220,6 +300,7 @@ ds_bind("email")                     # Python string
 | `ds_computed(name, expr)` | Computed signals | `ds_computed("total", "$price * $quantity")` |
 | `ds_persist(*signals)` | Persist to storage | `ds_persist("theme", "user")` |
 | `ds_json_signals()` | JSON state sync | `ds_json_signals(include="user")` |
+| `toggle_signal(signal)` | Toggle boolean signal | `toggle_signal("menuOpen")` returns `"$menuOpen = !$menuOpen"` |
 
 ### Event Handlers
 

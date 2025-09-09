@@ -36,7 +36,7 @@ def t(template: str) -> str:
 
 
 def if_(condition: str | dict[str, str], *args, **kwargs) -> str:
-    """CSS-aligned conditional matching if() function."""
+    """Conditional expression helper."""
     if len(args) == 2:
         return f"{condition} ? {_to_js_value(args[0])} : {_to_js_value(args[1])}"
 
@@ -137,7 +137,6 @@ def js(code: str) -> _JS:
 
 
 def _to_signal_value(v: Any) -> str:
-    """Convert value to JavaScript literal for Datastar."""
     if isinstance(v, _Value):
         v = v.val
     elif isinstance(v, _JS):
@@ -221,12 +220,7 @@ ds_attr = _make_attr_func("data-attr")
 
 
 def ds_signals(*args, **kwargs) -> DatastarAttr:
-    """Create Datastar signal attributes.
-
-    Formats:
-    - ds_signals(name=value("Alice"), age=25) → individual attributes
-    - ds_signals({"name": value("Alice"), "age": 25}) → JSON object
-    """
+    """Create Datastar signal attributes."""
     ifmissing = kwargs.pop("ifmissing", None)
     use_json_format = args and isinstance(args[0], dict)
     signals = args[0] if use_json_format else kwargs
@@ -433,7 +427,6 @@ def ds_position(
     auto_size: bool = False,
     signal_prefix: str = None,
 ) -> DatastarAttr:
-    """Position element using Floating UI for automatic anchoring."""
     modifiers = [
         f"placement.{placement}" if placement != "bottom" else None,
         f"strategy.{strategy}" if strategy != "absolute" else None,
@@ -500,9 +493,41 @@ def ds_disabled(value: bool | str) -> DatastarAttr:
     return ds_attr(disabled=value)
 
 
-def toggle(signal_name: str) -> str:
+def toggle_signal(signal_name: str) -> str:
+    """Generate JavaScript to toggle a boolean signal."""
     signal = signal_name if signal_name.startswith("$") else f"${signal_name}"
     return f"{signal} = !{signal}"
+
+
+def toggle_class(condition: str, *args, base: str = "", **kwargs) -> DatastarAttr:
+    """Toggle Tailwind classes based on a condition.
+
+    Binary: toggle_class("$active", "bg-blue-500", "bg-gray-300", base="p-4")
+    Multi-state: toggle_class("$status", success="bg-green-500", error="bg-red-500", _="bg-gray-300", base="p-4")
+    """
+
+    def apply_base(classes: str) -> str:
+        """Prepend base classes if they exist."""
+        if not base:
+            return classes
+        return f"{base} {classes}".strip() if classes else base
+
+    if kwargs:
+        # Multi-state: Build chained ternary for string equality checks
+        default = kwargs.pop("_", "")
+        conditions = [
+            f"{condition} === {_to_js_value(state)} ? {_to_js_value(apply_base(classes))}"
+            for state, classes in kwargs.items()
+        ]
+        conditions.append(_to_js_value(apply_base(default)))
+        expression = " : ".join(conditions)
+    else:
+        # Binary: Simple ternary with positional args
+        truthy = args[0] if args else ""
+        falsy = args[1] if len(args) > 1 else ""
+        expression = f"{condition} ? {_to_js_value(apply_base(truthy))} : {_to_js_value(apply_base(falsy))}"
+
+    return DatastarAttr({"data-attr-class-": expression})
 
 
 def ds_ignore(*modifiers) -> DatastarAttr:
@@ -639,7 +664,8 @@ __all__ = [
     "ds_on_emptied",
     "ds_on_ratechange",
     "ds_disabled",
-    "toggle",
+    "toggle_signal",
+    "toggle_class",
     "ds_ignore",
     "ds_preserve_attr",
     "ds_canvas_viewport",
