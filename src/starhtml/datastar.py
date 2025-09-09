@@ -437,7 +437,7 @@ def ds_position(
     modifiers = [
         f"placement.{placement}" if placement != "bottom" else None,
         f"strategy.{strategy}" if strategy != "absolute" else None,
-        f"offset.{offset}" if offset != 8 else None,
+        f"offset.{'n' + str(abs(offset)) if offset < 0 else offset}" if offset != 8 else None,
         "flip.false" if not flip else None,
         "shift.false" if not shift else None,
         "hide" if hide else None,
