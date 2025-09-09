@@ -114,7 +114,6 @@ async function computeFloatingPosition(
 
   let offsetValue = config.offset;
 
-  // Submenus need offset relative to parent menu edge, not trigger element
   if (parentPopover) {
     const parentRect = parentPopover.getBoundingClientRect();
     const refRect = reference.getBoundingClientRect();
@@ -128,7 +127,10 @@ async function computeFloatingPosition(
 
     const edge = config.placement.split("-")[0] as keyof typeof edgeDistances;
     if (edge in edgeDistances) {
-      offsetValue = edgeDistances[edge] + (config.hasCustomOffset ? config.offset : -2);
+      const distanceToEdge = edgeDistances[edge];
+
+      // Offset relative to menu edge: positive = gap, negative = overlap, zero = touching
+      offsetValue = distanceToEdge + (config.hasCustomOffset ? config.offset : -2);
     }
   }
 
@@ -233,13 +235,18 @@ export default {
   onLoad({ el, value, mods, startBatch, endBatch }: RuntimeContext): OnRemovalFn | void {
     injectPositioningCSS();
 
-    const offsetValue = extract(mods.get("offset"));
+    let offsetValue = extract(mods.get("offset"));
+    if (offsetValue?.startsWith("n")) {
+      offsetValue = `-${offsetValue.substring(1)}`;
+    }
+    const hasCustomOffset = !!offsetValue;
+
     const config = {
       anchor: extract(mods.get("anchor") || value),
       placement: extractPlacement(mods.get("placement")),
       strategy: (extract(mods.get("strategy")) || "absolute") as Strategy,
       offset: offsetValue ? Number(offsetValue) : 8,
-      hasCustomOffset: !!offsetValue,
+      hasCustomOffset,
       flip: extract(mods.get("flip")) !== "false",
       shift: extract(mods.get("shift")) !== "false",
       hide: extract(mods.get("hide")) === "true",
