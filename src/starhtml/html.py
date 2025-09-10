@@ -76,18 +76,54 @@ def ft_html(
     return ft_cls(tag, c, kw, void_=tag in voids)
 
 
+def _apply_slot_attrs_to_children(element: FT, slot_attrs: dict) -> None:
+    """Recursively apply slot_attrs to children with matching data_slot attributes."""
+    from .datastar import DatastarAttr
+
+    if not getattr(element, "children", None):
+        return
+
+    for child in element.children:
+        if not isinstance(child, FT):
+            continue
+
+        if attrs := getattr(child, "attrs", None):
+            # Support both data_slot and data-slot for flexibility
+            if data_slot := (attrs.get("data_slot") or attrs.get("data-slot")):
+                if data_slot in slot_attrs:
+                    attrs_to_apply = slot_attrs[data_slot]
+                    attrs_to_apply = [attrs_to_apply] if not isinstance(attrs_to_apply, list) else attrs_to_apply
+
+                    for attr in attrs_to_apply:
+                        attr_dict = attr.attrs if isinstance(attr, DatastarAttr) else attr
+                        # Direct attributes take precedence (setdefault won't overwrite)
+                        for key, value in attr_dict.items():
+                            attrs.setdefault(key, value)
+
+        _apply_slot_attrs_to_children(child, slot_attrs)
+
+
 def ft_datastar(tag: str, *c: Any, **kwargs: Any) -> FT:
     """Create an HTML element with support for Datastar attributes."""
-    from .datastar import DatastarAttr
+    from .datastar import DatastarAttr, SlotAttrs
+
+    slot_attrs_dict = kwargs.pop("slot_attrs", None)
 
     new_children = []
     for child in c:
         if isinstance(child, DatastarAttr):
             kwargs.update(child.attrs)
+        elif isinstance(child, SlotAttrs):
+            slot_attrs_dict = child.slots
         else:
             new_children.append(child)
 
-    return ft_html(tag, *new_children, **kwargs)
+    element = ft_html(tag, *new_children, **kwargs)
+
+    if slot_attrs_dict:
+        _apply_slot_attrs_to_children(element, slot_attrs_dict)
+
+    return element
 
 
 # ============================================================================
