@@ -550,6 +550,34 @@ def ds_preserve_attr(*attrs) -> DatastarAttr:
     return DatastarAttr({"data-preserve-attr": ",".join(attrs) if attrs else "*"})
 
 
+class SlotAttrs:
+    """Container for slot attributes to target component internals."""
+
+    __slots__ = ("slots",)
+
+    def __init__(self, slots):
+        self.slots = slots
+
+    def __repr__(self):
+        return f"SlotAttrs({self.slots})"
+
+
+def slot_attrs(**slots) -> SlotAttrs:
+    """Target specific slots within a component with attributes.
+
+    Example:
+        Div(
+            slot_attrs(
+                label=toggle_class("required", "font-bold", ""),
+                input=ds_bind("name")
+            ),
+            Label("Name", data_slot="label"),
+            Input(data_slot="input")
+        )
+    """
+    return SlotAttrs(slots)
+
+
 __all__ = [
     "value",
     "js",
@@ -684,4 +712,6 @@ __all__ = [
     "ds_drop_zone",
     "ds_on_canvas",
     "ds_position",
+    "SlotAttrs",
+    "slot_attrs",
 ]
