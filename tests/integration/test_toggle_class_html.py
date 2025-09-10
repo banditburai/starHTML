@@ -11,7 +11,7 @@ def test_toggle_class_html_output():
     )
 
     html = str(button)
-    assert 'data-attr-class-=\'$active ? "bg-blue-500" : "bg-gray-300"\'' in html
+    assert 'data-attr-class=\'$active ? "bg-blue-500" : "bg-gray-300"\'' in html
     assert 'data-on-click="$active = !$active"' in html
 
 
@@ -31,7 +31,7 @@ def test_multi_state_html_output():
 
     html = str(status_div)
     # Check for the chained ternary structure
-    assert "data-attr-class-=" in html
+    assert "data-attr-class=" in html
     assert '$status === "loading"' in html
     assert '$status === "success"' in html
     assert '$status === "error"' in html
@@ -123,9 +123,9 @@ def test_no_unnecessary_attributes():
 
     html = str(simple)
 
-    # Should only have the data-attr-class- attribute
+    # Should only have the data-attr-class attribute
     assert html.count("data-") == 1
-    assert "data-attr-class-=" in html
+    assert "data-attr-class=" in html
 
     # Should not have any other Datastar attributes
     assert "data-class-" not in html

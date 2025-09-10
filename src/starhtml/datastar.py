@@ -31,7 +31,18 @@ class DatastarAttr:
 
 
 def t(template: str) -> str:
-    """JavaScript template literal using Python f-string style."""
+    """JavaScript template literal from Python string or variable.
+
+    t("myVar") -> `${myVar}`
+    t("{name}") -> `${name}`
+    t("Hello {name}") -> `Hello ${name}`
+    """
+    if re.match(r"^[$]?[a-zA-Z_]\w*$", template):
+        return f"`${{{template.lstrip('$')}}}`"
+
+    if "${" in template:
+        return f"`{template}`"
+
     return f"`{re.sub(r'{([^}]+)}', r'${\1}', template)}`"
 
 
@@ -502,18 +513,18 @@ def toggle_signal(signal_name: str) -> str:
 def toggle_class(condition: str, *args, base: str = "", **kwargs) -> DatastarAttr:
     """Toggle Tailwind classes based on a condition.
 
-    Binary: toggle_class("$active", "bg-blue-500", "bg-gray-300", base="p-4")
-    Multi-state: toggle_class("$status", success="bg-green-500", error="bg-red-500", _="bg-gray-300", base="p-4")
+    Binary: toggle_class("active", "bg-blue-500", "bg-gray-300", base="p-4")
+    Multi-state: toggle_class("status", success="bg-green-500", error="bg-red-500", _="bg-gray-300", base="p-4")
     """
+    if not condition.startswith(("$", "!")):
+        condition = f"${condition}"
 
     def apply_base(classes: str) -> str:
-        """Prepend base classes if they exist."""
         if not base:
             return classes
         return f"{base} {classes}".strip() if classes else base
 
     if kwargs:
-        # Multi-state: Build chained ternary for string equality checks
         default = kwargs.pop("_", "")
         conditions = [
             f"{condition} === {_to_js_value(state)} ? {_to_js_value(apply_base(classes))}"
@@ -522,12 +533,11 @@ def toggle_class(condition: str, *args, base: str = "", **kwargs) -> DatastarAtt
         conditions.append(_to_js_value(apply_base(default)))
         expression = " : ".join(conditions)
     else:
-        # Binary: Simple ternary with positional args
         truthy = args[0] if args else ""
         falsy = args[1] if len(args) > 1 else ""
         expression = f"{condition} ? {_to_js_value(apply_base(truthy))} : {_to_js_value(apply_base(falsy))}"
 
-    return DatastarAttr({"data-attr-class-": expression})
+    return DatastarAttr({"data-attr-class": expression})
 
 
 def ds_ignore(*modifiers) -> DatastarAttr:
