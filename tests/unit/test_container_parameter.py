@@ -30,13 +30,7 @@ def test_ds_position_container_auto_explicit():
 
 def test_ds_position_container_with_other_modifiers():
     """Test container parameter combined with other modifiers."""
-    result = ds_position(
-        anchor="test-anchor",
-        placement="right",
-        container="none",
-        offset=20,
-        flip=False
-    )
+    result = ds_position(anchor="test-anchor", placement="right", container="none", offset=20, flip=False)
     expected_key = "data-position-anchor__placement.right__offset.20__flip.false__container.none"
     assert result.attrs == {expected_key: "test-anchor"}
 
@@ -52,9 +46,9 @@ def test_ds_position_container_preserves_existing_behavior():
         flip=True,
         shift=True,
         hide=False,
-        auto_size=False
+        auto_size=False,
     )
-    
+
     # With explicit container='auto'
     result2 = ds_position(
         anchor="test-anchor",
@@ -65,9 +59,9 @@ def test_ds_position_container_preserves_existing_behavior():
         shift=True,
         hide=False,
         auto_size=False,
-        container="auto"
+        container="auto",
     )
-    
+
     # Both should produce the same result
     assert result1.attrs == result2.attrs
     assert result1.attrs == {"data-position-anchor": "test-anchor"}

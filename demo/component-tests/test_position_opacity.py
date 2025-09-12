@@ -171,7 +171,10 @@ def home():
         ),
         # Header
         H1("Position Handler Test Suite", cls="text-3xl font-bold text-center py-8"),
-        P("Comprehensive testing of position.ts functionality including opacity, container parameter, and scroll behavior", cls="text-center text-gray-600 pb-8"),
+        P(
+            "Comprehensive testing of position.ts functionality including opacity, container parameter, and scroll behavior",
+            cls="text-center text-gray-600 pb-8",
+        ),
         # Test 1: Basic popover with bright background
         Div(
             H2("Test 1: Flash Detection", cls="text-xl font-semibold mb-4"),
@@ -725,8 +728,12 @@ def home():
                             PopoverContent(
                                 H4("Select Month", cls="font-semibold mb-2 text-sm"),
                                 Div(
-                                    *[Button(month, cls="w-full text-left px-2 py-1 hover:bg-green-50 rounded text-sm")
-                                      for month in ["Jan", "Feb", "Mar", "Apr", "May", "Jun"]],
+                                    *[
+                                        Button(
+                                            month, cls="w-full text-left px-2 py-1 hover:bg-green-50 rounded text-sm"
+                                        )
+                                        for month in ["Jan", "Feb", "Mar", "Apr", "May", "Jun"]
+                                    ],
                                     cls="space-y-1",
                                 ),
                                 PopoverClose("✕"),
@@ -745,8 +752,13 @@ def home():
                             PopoverContent(
                                 H4("Select Year", cls="font-semibold mb-2 text-sm"),
                                 Div(
-                                    *[Button(str(year), cls="w-full text-left px-2 py-1 hover:bg-green-50 rounded text-sm")
-                                      for year in range(2020, 2026)],
+                                    *[
+                                        Button(
+                                            str(year),
+                                            cls="w-full text-left px-2 py-1 hover:bg-green-50 rounded text-sm",
+                                        )
+                                        for year in range(2020, 2026)
+                                    ],
                                     cls="space-y-1",
                                 ),
                                 PopoverClose("✕"),
@@ -760,8 +772,10 @@ def home():
                     ),
                     # Simplified calendar grid
                     Div(
-                        *[Div(str(day), cls="px-2 py-1 text-center border rounded hover:bg-gray-100 text-sm")
-                          for day in range(1, 8)],
+                        *[
+                            Div(str(day), cls="px-2 py-1 text-center border rounded hover:bg-gray-100 text-sm")
+                            for day in range(1, 8)
+                        ],
                         cls="grid grid-cols-7 gap-1",
                     ),
                     PopoverClose("✕"),
