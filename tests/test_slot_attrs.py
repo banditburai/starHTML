@@ -2,7 +2,7 @@
 
 from fastcore.xml import to_xml
 
-from starhtml.datastar import DatastarAttr, ds_bind, ds_class, ds_show, slot_attrs, toggle_class
+from starhtml.datastar import DatastarAttr, ds_attr, ds_bind, ds_class, ds_show, slot_attrs, toggle_class
 from starhtml.tags import Button, Div, Form, Input, Label, Span
 
 
@@ -270,6 +270,117 @@ class TestSlotAttrsWithDictAttributes:
         assert "data-attr-class=" in html
         assert "$active" in html
         assert 'data-custom="value"' in html
+
+
+class TestSlotAttrsNormalization:
+    """Test underscore to kebab-case normalization in slot_attrs."""
+
+    def test_basic_underscore_normalization(self):
+        """Test that underscores in slot names are converted to kebab-case."""
+        element = Div(
+            slot_attrs(toggle_group_item=ds_attr(disabled="$disabled_partial")),
+            Button("X", data_slot="toggle-group-item"),
+        )
+
+        html = to_xml(element)
+        assert 'data-slot="toggle-group-item"' in html
+        assert 'data-attr-disabled="$disabled_partial"' in html
+
+    def test_multiple_underscores_normalization(self):
+        """Test normalization with multiple underscores."""
+        element = Div(
+            slot_attrs(
+                my_complex_slot_name=toggle_class("active", "highlight", ""), another_long_name=ds_show("$visible")
+            ),
+            Span("Item 1", data_slot="my-complex-slot-name"),
+            Span("Item 2", data_slot="another-long-name"),
+        )
+
+        html = to_xml(element)
+        assert 'data-slot="my-complex-slot-name"' in html
+        assert 'data-slot="another-long-name"' in html
+        assert "$active" in html
+        assert "$visible" in html
+
+    def test_dict_with_kebab_case_still_works(self):
+        """Test that passing a dict with kebab-case keys still works."""
+        element = Div(
+            slot_attrs({"toggle-group-item": ds_attr(disabled="$disabled")}), Button("Y", data_slot="toggle-group-item")
+        )
+
+        html = to_xml(element)
+        assert 'data-attr-disabled="$disabled"' in html
+
+    def test_dict_with_underscores_normalized(self):
+        """Test that dict keys with underscores are also normalized."""
+        element = Div(
+            slot_attrs({"toggle_group_item": ds_attr(disabled="$disabled")}), Button("Z", data_slot="toggle-group-item")
+        )
+
+        html = to_xml(element)
+        assert 'data-attr-disabled="$disabled"' in html
+
+    def test_mixed_dict_and_kwargs(self):
+        """Test that both dict and kwargs can be used together."""
+        element = Div(
+            slot_attrs({"menu_item": ds_show("$menuVisible")}, toggle_button=toggle_class("open", "rotate-180", "")),
+            Span("Menu", data_slot="menu-item"),
+            Button("Toggle", data_slot="toggle-button"),
+        )
+
+        html = to_xml(element)
+        assert 'data-show="$menuVisible"' in html
+        assert "$open" in html
+        assert "rotate-180" in html
+
+    def test_no_underscores_unchanged(self):
+        """Test that slot names without underscores remain unchanged."""
+        element = Div(
+            slot_attrs(label=ds_show("$visible"), button=ds_bind("action")),
+            Label("Text", data_slot="label"),
+            Button("Click", data_slot="button"),
+        )
+
+        html = to_xml(element)
+        assert 'data-show="$visible"' in html
+        assert 'data-bind="action"' in html
+
+    def test_backward_compatibility_with_kwarg_pattern(self):
+        """Test that the kwarg pattern (slot_attrs=dict) still works."""
+        element = Div(
+            Label("Old Style", data_slot="label-item"), slot_attrs={"label_item": toggle_class("active", "bold", "")}
+        )
+
+        html = to_xml(element)
+        assert "$active" in html
+        assert "bold" in html
+
+    def test_real_world_component_with_normalization(self):
+        """Test a realistic component using underscore normalization."""
+
+        def ToggleGroup(items, slot_attrs_config=None):
+            children = []
+            for i, item in enumerate(items):
+                children.append(Button(item, data_slot="toggle-group-item", data_item_id=str(i)))
+            if slot_attrs_config:
+                children.insert(0, slot_attrs_config)
+            return Div(*children, cls="toggle-group")
+
+        component = ToggleGroup(
+            ["Option 1", "Option 2", "Option 3"],
+            slot_attrs_config=slot_attrs(
+                toggle_group_item=[
+                    toggle_class("selected", "bg-blue-500 text-white", "bg-gray-200"),
+                    ds_attr(disabled="$disabled_items"),
+                ]
+            ),
+        )
+
+        html = to_xml(component)
+        assert html.count('data-slot="toggle-group-item"') == 3
+        assert "$selected" in html
+        assert "bg-blue-500" in html
+        assert 'data-attr-disabled="$disabled_items"' in html
 
 
 class TestSlotAttrsPositional:
