@@ -108,6 +108,8 @@ def ft_datastar(tag: str, *c: Any, **kwargs: Any) -> FT:
     from .datastar import DatastarAttr, SlotAttrs
 
     slot_attrs_dict = kwargs.pop("slot_attrs", None)
+    if slot_attrs_dict and isinstance(slot_attrs_dict, dict):
+        slot_attrs_dict = {k.replace("_", "-"): v for k, v in slot_attrs_dict.items()}
 
     new_children = []
     for child in c:
@@ -119,7 +121,6 @@ def ft_datastar(tag: str, *c: Any, **kwargs: Any) -> FT:
             new_children.append(child)
 
     element = ft_html(tag, *new_children, **kwargs)
-
     if slot_attrs_dict:
         _apply_slot_attrs_to_children(element, slot_attrs_dict)
 

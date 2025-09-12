@@ -564,20 +564,18 @@ class SlotAttrs:
         return f"SlotAttrs({self.slots})"
 
 
-def slot_attrs(**slots) -> SlotAttrs:
+def slot_attrs(*args, **kwargs) -> SlotAttrs:
     """Target specific slots within a component with attributes.
 
+    Keys with underscores are normalized to kebab-case for matching data-slot values.
+
     Example:
-        Div(
-            slot_attrs(
-                label=toggle_class("required", "font-bold", ""),
-                input=ds_bind("name")
-            ),
-            Label("Name", data_slot="label"),
-            Input(data_slot="input")
-        )
+        slot_attrs(toggle_group_item=ds_attr(disabled="$disabled_partial"))
+        slot_attrs({"toggle-group-item": ds_attr(disabled="$disabled_partial")})
     """
-    return SlotAttrs(slots)
+    slots = dict(args[0]) if args else {}
+    slots.update(kwargs)
+    return SlotAttrs({k.replace("_", "-"): v for k, v in slots.items()})
 
 
 __all__ = [
