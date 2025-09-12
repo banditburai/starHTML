@@ -436,6 +436,7 @@ def ds_position(
     shift: bool = True,
     hide: bool = False,
     auto_size: bool = False,
+    container: str = "auto",
     signal_prefix: str = None,
 ) -> DatastarAttr:
     modifiers = [
@@ -446,6 +447,7 @@ def ds_position(
         "shift.false" if not shift else None,
         "hide" if hide else None,
         "auto_size" if auto_size else None,
+        f"container.{container}" if container != "auto" else None,
         f"signal_prefix.{signal_prefix}" if signal_prefix else None,
     ]
     modifiers = [m for m in modifiers if m]

@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """
-Simple test to verify the opacity-based hiding in position.ts works correctly.
-This uses the popover component code exactly as provided, without modifications.
+Comprehensive test suite for position.ts handler functionality:
+- Opacity-based hiding to prevent flashing
+- Container parameter for controlling nested popover positioning
+- Scroll behavior for different placements
+- Edge cases and stress testing
 """
 
 import sys
@@ -57,7 +60,7 @@ def PopoverTrigger(*children, variant="default", cls="", **attrs):
     return make_injectable(_inject_signal)
 
 
-def PopoverContent(*children, cls="", side="bottom", align="center", offset=None, **attrs):
+def PopoverContent(*children, cls="", side="bottom", align="center", offset=None, container="auto", **attrs):
     def _inject_signal(signal):
         placement = f"{side}-{align}" if align != "center" else side
 
@@ -71,13 +74,14 @@ def PopoverContent(*children, cls="", side="bottom", align="center", offset=None
 
         processed_children = [process_element(child) for child in children]
 
-        # Build ds_position kwargs with optional offset
+        # Build ds_position kwargs with optional offset and container
         position_kwargs = {
             "anchor": f"{signal}-trigger",
             "placement": placement,
             "flip": True,
             "shift": True,
             "hide": True,
+            "container": container,  # Add container parameter support
         }
         if offset is not None:
             position_kwargs["offset"] = offset
@@ -116,7 +120,7 @@ def PopoverClose(*children, cls="", **attrs):
 
 # Create the test app
 app, rt = star_app(
-    title="Position Opacity Test",
+    title="Position Handler Test Suite",
     hdrs=[
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
         position_handler(),
@@ -166,8 +170,8 @@ def home():
             id="flash-counter",
         ),
         # Header
-        H1("Position Handler Opacity Test", cls="text-3xl font-bold text-center py-8"),
-        P("Testing that popovers appear without flashing", cls="text-center text-gray-600 pb-8"),
+        H1("Position Handler Test Suite", cls="text-3xl font-bold text-center py-8"),
+        P("Comprehensive testing of position.ts functionality including opacity, container parameter, and scroll behavior", cls="text-center text-gray-600 pb-8"),
         # Test 1: Basic popover with bright background
         Div(
             H2("Test 1: Flash Detection", cls="text-xl font-semibold mb-4"),
@@ -695,6 +699,183 @@ def home():
             ),
             cls="test-section",
         ),
+        # Test 10: Container Parameter - Calendar-like dropdown
+        Div(
+            H2("Test 10: Container Parameter - Calendar Pattern", cls="text-xl font-semibold mb-4"),
+            P(
+                "Calendar month/year dropdowns should position at their triggers, not parent edge (container='none')",
+                cls="text-gray-600 mb-4",
+            ),
+            # Date picker popover
+            Popover(
+                PopoverTrigger(
+                    "Open Date Picker",
+                    cls="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700",
+                ),
+                PopoverContent(
+                    H3("Select Date", cls="font-bold mb-3"),
+                    # Calendar header with month/year selectors
+                    Div(
+                        # Month selector with container='none'
+                        Popover(
+                            PopoverTrigger(
+                                "January ▼",
+                                cls="px-3 py-1 bg-gray-100 rounded hover:bg-gray-200",
+                            ),
+                            PopoverContent(
+                                H4("Select Month", cls="font-semibold mb-2 text-sm"),
+                                Div(
+                                    *[Button(month, cls="w-full text-left px-2 py-1 hover:bg-green-50 rounded text-sm")
+                                      for month in ["Jan", "Feb", "Mar", "Apr", "May", "Jun"]],
+                                    cls="space-y-1",
+                                ),
+                                PopoverClose("✕"),
+                                side="bottom",
+                                align="start",
+                                container="none",  # KEY: Positions relative to trigger
+                                cls="bg-green-50 border-green-300 w-32 max-h-48 overflow-y-auto",
+                            ),
+                        ),
+                        # Year selector with container='none'
+                        Popover(
+                            PopoverTrigger(
+                                "2025 ▼",
+                                cls="px-3 py-1 bg-gray-100 rounded hover:bg-gray-200 ml-2",
+                            ),
+                            PopoverContent(
+                                H4("Select Year", cls="font-semibold mb-2 text-sm"),
+                                Div(
+                                    *[Button(str(year), cls="w-full text-left px-2 py-1 hover:bg-green-50 rounded text-sm")
+                                      for year in range(2020, 2026)],
+                                    cls="space-y-1",
+                                ),
+                                PopoverClose("✕"),
+                                side="bottom",
+                                align="start",
+                                container="none",  # KEY: Positions relative to trigger
+                                cls="bg-green-50 border-green-300 w-24 max-h-48 overflow-y-auto",
+                            ),
+                        ),
+                        cls="flex items-center mb-3",
+                    ),
+                    # Simplified calendar grid
+                    Div(
+                        *[Div(str(day), cls="px-2 py-1 text-center border rounded hover:bg-gray-100 text-sm")
+                          for day in range(1, 8)],
+                        cls="grid grid-cols-7 gap-1",
+                    ),
+                    PopoverClose("✕"),
+                    side="bottom",
+                    cls="w-80",
+                ),
+            ),
+            cls="test-section",
+        ),
+        # Test 11: Container Parameter Comparison
+        Div(
+            H2("Test 11: Container Parameter Comparison", cls="text-xl font-semibold mb-4"),
+            P("Compare auto vs none vs parent behaviors side-by-side", cls="text-gray-600 mb-4"),
+            Div(
+                # Left: container='auto' (default)
+                Div(
+                    H3("container='auto'", cls="font-semibold mb-2 text-sm"),
+                    Popover(
+                        PopoverTrigger(
+                            "Open Parent",
+                            cls="px-3 py-2 bg-purple-600 text-white rounded text-sm",
+                        ),
+                        PopoverContent(
+                            P("Parent Popover", cls="font-semibold mb-2"),
+                            Popover(
+                                PopoverTrigger(
+                                    "Nested →",
+                                    cls="w-full px-3 py-2 bg-purple-100 rounded text-sm",
+                                ),
+                                PopoverContent(
+                                    P("Auto: Aligns with parent edge", cls="text-xs"),
+                                    PopoverClose("✕"),
+                                    side="right",
+                                    container="auto",
+                                    cls="bg-purple-50 w-44",
+                                ),
+                            ),
+                            PopoverClose("✕"),
+                            cls="w-48",
+                        ),
+                    ),
+                    P("Smart submenu positioning", cls="text-xs text-gray-600 mt-2"),
+                    cls="flex-1",
+                ),
+                # Middle: container='none'
+                Div(
+                    H3("container='none'", cls="font-semibold mb-2 text-sm"),
+                    Popover(
+                        PopoverTrigger(
+                            "Open Parent",
+                            cls="px-3 py-2 bg-orange-600 text-white rounded text-sm",
+                        ),
+                        PopoverContent(
+                            P("Parent Popover", cls="font-semibold mb-2"),
+                            Popover(
+                                PopoverTrigger(
+                                    "Nested ↓",
+                                    cls="w-full px-3 py-2 bg-orange-100 rounded text-sm",
+                                ),
+                                PopoverContent(
+                                    P("None: At trigger button", cls="text-xs"),
+                                    PopoverClose("✕"),
+                                    side="bottom",
+                                    container="none",
+                                    cls="bg-orange-50 w-44",
+                                ),
+                            ),
+                            PopoverClose("✕"),
+                            cls="w-48",
+                        ),
+                    ),
+                    P("Standard positioning", cls="text-xs text-gray-600 mt-2"),
+                    cls="flex-1",
+                ),
+                # Right: container='parent'
+                Div(
+                    H3("container='parent'", cls="font-semibold mb-2 text-sm"),
+                    Popover(
+                        PopoverTrigger(
+                            "Open Parent",
+                            cls="px-3 py-2 bg-teal-600 text-white rounded text-sm",
+                        ),
+                        PopoverContent(
+                            P("Parent Popover", cls="font-semibold mb-2"),
+                            Div(
+                                Div(
+                                    Popover(
+                                        PopoverTrigger(
+                                            "Deep nested →",
+                                            cls="px-2 py-1 bg-teal-100 rounded text-sm",
+                                        ),
+                                        PopoverContent(
+                                            P("Parent: Forces edge align", cls="text-xs"),
+                                            PopoverClose("✕"),
+                                            side="right",
+                                            container="parent",
+                                            cls="bg-teal-50 w-44",
+                                        ),
+                                    ),
+                                    cls="p-2 border rounded",
+                                ),
+                                cls="p-2",
+                            ),
+                            PopoverClose("✕"),
+                            cls="w-48",
+                        ),
+                    ),
+                    P("Force parent-relative", cls="text-xs text-gray-600 mt-2"),
+                    cls="flex-1",
+                ),
+                cls="flex gap-4 justify-center",
+            ),
+            cls="test-section",
+        ),
         # Automated test button
         Div(
             H2("Automated Test", cls="text-xl font-semibold mb-4"),
@@ -837,5 +1018,12 @@ def home():
 
 if __name__ == "__main__":
     print("Running on http://localhost:5008")
-    print("The opacity-based hiding in position.ts should prevent any flashing")
+    print("\nPosition Handler Test Suite:")
+    print("- Opacity-based hiding to prevent flashing")
+    print("- Container parameter (auto/none/parent) for nested popovers")
+    print("- Edge cases and stress testing")
+    print("\nKey container parameter usage:")
+    print("  container='auto' (default): Smart submenu positioning")
+    print("  container='none': Standard positioning for independent dropdowns")
+    print("  container='parent': Force parent-relative positioning")
     serve(port=5008)
