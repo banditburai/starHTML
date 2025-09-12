@@ -99,6 +99,7 @@ type PositionConfig = {
   shift: boolean;
   hide: boolean;
   autoSize: boolean;
+  container: string;
 };
 
 async function computeFloatingPosition(
@@ -108,13 +109,13 @@ async function computeFloatingPosition(
   detector?: OscillationDetector
 ): Promise<Position> {
   const padding = 10;
-  const parentPopover = floating.parentElement?.closest(
+  const parentPopover = reference.parentElement?.closest(
     "[popover]:popover-open"
   ) as HTMLElement | null;
 
   let offsetValue = config.offset;
 
-  if (parentPopover) {
+  if (parentPopover && config.container !== "none") {
     const parentRect = parentPopover.getBoundingClientRect();
     const refRect = reference.getBoundingClientRect();
 
@@ -128,8 +129,6 @@ async function computeFloatingPosition(
     const edge = config.placement.split("-")[0] as keyof typeof edgeDistances;
     if (edge in edgeDistances) {
       const distanceToEdge = edgeDistances[edge];
-
-      // Offset relative to menu edge: positive = gap, negative = overlap, zero = touching
       offsetValue = distanceToEdge + (config.hasCustomOffset ? config.offset : -2);
     }
   }
@@ -166,7 +165,23 @@ async function computeFloatingPosition(
     }
   }
 
-  const position = { x: Math.round(x), y: Math.round(y), placement };
+  // For fixed positioning, manually calculate Y to track scrolling references
+  let finalY = y;
+  if (strategy === "fixed") {
+    const refRect = reference.getBoundingClientRect();
+    const floatRect = floating.getBoundingClientRect();
+
+    if (config.placement.startsWith("left") || config.placement.startsWith("right")) {
+      // Center vertically for horizontal placements
+      finalY = refRect.y + (refRect.height - floatRect.height) / 2;
+    } else if (config.placement.startsWith("top")) {
+      finalY = refRect.top - floatRect.height - offsetValue;
+    } else if (config.placement.startsWith("bottom")) {
+      finalY = refRect.bottom + offsetValue;
+    }
+  }
+
+  const position = { x: Math.round(x), y: Math.round(finalY), placement };
 
   if (detector) {
     detector.addPosition(position);
@@ -241,6 +256,11 @@ export default {
     }
     const hasCustomOffset = !!offsetValue;
 
+    const containerParam = extract(mods.get("container")) || "auto";
+    if (!["auto", "none", "parent"].includes(containerParam)) {
+      console.warn(`Invalid container parameter: ${containerParam}. Using 'auto'.`);
+    }
+
     const config = {
       anchor: extract(mods.get("anchor") || value),
       placement: extractPlacement(mods.get("placement")),
@@ -251,6 +271,7 @@ export default {
       shift: extract(mods.get("shift")) !== "false",
       hide: extract(mods.get("hide")) === "true",
       autoSize: extract(mods.get("auto_size")) === "true",
+      container: ["auto", "none", "parent"].includes(containerParam) ? containerParam : "auto",
     };
 
     const anchor = document.getElementById(config.anchor);
@@ -305,6 +326,10 @@ export default {
     const getTargetElement = (): HTMLElement | null => {
       const target = anchor || document.getElementById(config.anchor);
       if (!target?.isConnected) return null;
+
+      if (config.container === "none") {
+        return target;
+      }
 
       const parentPopover = el.parentElement?.closest(
         "[popover]:popover-open"
@@ -379,8 +404,8 @@ export default {
       cleanup = autoUpdate(target, el, updatePosition, {
         ancestorScroll: true,
         ancestorResize: true,
-        elementResize: true,
-        layoutShift: true,
+        elementResize: false,
+        layoutShift: false,
       });
     };
 
