@@ -219,10 +219,10 @@ class TestDefHdrs:
 
         result = def_hdrs()
 
-        # Should create charset, viewport, datastar script, and iconify script
+        # Should create charset, viewport, and datastar script (iconify=False by default)
         assert mock_meta.call_count == 2  # charset and viewport
-        assert mock_script.call_count == 2  # datastar and iconify
-        assert len(result) == 4  # all headers
+        assert mock_script.call_count == 1  # datastar only
+        assert len(result) == 3  # all headers
 
     @patch("starhtml.tags.Meta")
     @patch("starhtml.xtend.Script")
@@ -236,8 +236,8 @@ class TestDefHdrs:
         custom_version = "v1.2.3"
         result = def_hdrs(datastar_version=custom_version)
 
-        # Should create headers with scripts
-        assert len(result) == 4  # charset, viewport, datastar, iconify
+        # Should create headers with scripts (no iconify by default)
+        assert len(result) == 3  # charset, viewport, datastar
         assert mock_script.called  # Script was used
         # With plugins, version is embedded in inline script, not src attribute
 
@@ -250,7 +250,7 @@ class TestDefHdrs:
         mock_script.return_value = mock_script_instance
         mock_meta.return_value = mock_meta_instance
 
-        result = def_hdrs(include_iconify=False)
+        result = def_hdrs(iconify=False)
 
         # Should only create charset, viewport, and datastar script (no iconify)
         assert mock_meta.call_count == 2  # charset and viewport
@@ -267,7 +267,7 @@ class TestDefHdrs:
         mock_meta.return_value = mock_meta_instance
 
         custom_iconify_version = "3.0.0"
-        result = def_hdrs(iconify_version=custom_iconify_version)
+        result = def_hdrs(iconify=True, iconify_version=custom_iconify_version)
 
         # Should create headers including iconify
         assert len(result) == 4  # charset, viewport, datastar, iconify
@@ -283,10 +283,10 @@ class TestDefHdrs:
         mock_meta.return_value = mock_meta_instance
 
         custom_fallback = "/assets/datastar.js"
-        result = def_hdrs(fallback_path=custom_fallback, include_starhtml_plugins=False)
+        result = def_hdrs(fallback_path=custom_fallback)
 
         # When not using plugins, fallback should be in onerror attribute
-        assert len(result) == 4  # charset, viewport, datastar, iconify
+        assert len(result) == 3  # charset, viewport, datastar (no iconify by default)
         # With plugins=False, it uses external script with fallback
         datastar_script_call = mock_script.call_args_list[0]
         if "onerror" in datastar_script_call[1]:  # Only when using external script
@@ -572,10 +572,10 @@ class TestRealWorldScenarios:
         # Production setup with specific versions
         headers = def_hdrs(
             datastar_version="v1.0.0",
-            include_iconify=True,
+            iconify=True,
             iconify_version="2.5.0",
             fallback_path="/static/datastar-v1.0.0.js",
-            include_starhtml_plugins=False,  # Use external scripts for production
+            clipboard=False,  # Use external scripts for production
         )
 
         assert len(headers) == 4  # charset, viewport, datastar, iconify

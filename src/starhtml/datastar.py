@@ -1,717 +1,826 @@
-"""Pythonic API for Datastar attributes in StarHTML."""
+"""
+Pythonic API for Datastar attributes and signals in StarHTML.
 
+This module provides a powerful expression system to generate Datastar-compatible
+JavaScript from Python code, enabling a type-safe and intuitive developer experience.
+
+Key Concepts:
+- Signal: A typed reference to a reactive piece of state (e.g., Signal("count", 0)).
+- Expr: An abstract base class for objects that can be compiled to a JavaScript expression.
+- Operators: Python operators like `+`, `-`, `==`, `&`, `|`, `~` are overloaded on
+  Signal and Expr objects to build complex reactive expressions pythonically.
+- Helpers: Functions like `match()`, `switch()`, `js()`, and `f()` provide
+  higher-level constructs for common UI patterns.
+"""
+
+import builtins
 import json
 import re
-from re import Pattern
-from typing import Any
+from abc import ABC, abstractmethod
+from typing import Any, Union
 
 from fastcore.xml import NotStr
 
-
-class DatastarAttr:
-    """Wrapper that enables both .attrs access and direct ** unpacking."""
-
-    def __init__(self, attrs):
-        self.attrs = attrs
-
-    def __repr__(self):
-        return f"DatastarAttr({self.attrs})"
-
-    def keys(self):
-        return self.attrs.keys()
-
-    def __getitem__(self, key):
-        return self.attrs[key]
-
-    def __iter__(self):
-        return iter(self.attrs)
-
-    def __len__(self):
-        return len(self.attrs)
+# ============================================================================
+# 1. Core Expression System (The Foundation)
+# ============================================================================
 
 
-def t(template: str) -> str:
-    """JavaScript template literal from Python string or variable.
+class Expr(ABC):
+    """Abstract base class for objects that can be compiled to JavaScript."""
 
-    t("myVar") -> `${myVar}`
-    t("{name}") -> `${name}`
-    t("Hello {name}") -> `Hello ${name}`
-    """
-    if re.match(r"^[$]?[a-zA-Z_]\w*$", template):
-        return f"`${{{template.lstrip('$')}}}`"
+    @abstractmethod
+    def to_js(self) -> str:
+        """Compile the expression to a JavaScript string."""
+        pass
 
-    if "${" in template:
-        return f"`{template}`"
+    def __str__(self) -> str:
+        """Return the JavaScript representation of the expression."""
+        return self.to_js()
 
-    return f"`{re.sub(r'{([^}]+)}', r'${\1}', template)}`"
+    def __contains__(self, item: str) -> bool:
+        """Check if string is contained in the JavaScript representation."""
+        return item in self.to_js()
+
+    # --- Property and Method Access ---
+    def __getattr__(self, key: str) -> "PropertyAccess":
+        """Access a property on the expression: `expr.key`."""
+        return PropertyAccess(self, key)
+
+    def __getitem__(self, index: Any) -> "IndexAccess":
+        """Access an index or key on the expression: `expr[index]`."""
+        return IndexAccess(self, index)
+
+    @property
+    def length(self) -> "PropertyAccess":
+        return PropertyAccess(self, "length")
+
+    # --- Logical & Comparison Operators ---
+    def __and__(self, other: Any) -> "BinaryOp":
+        return BinaryOp(self, "&&", other)
+
+    def __or__(self, other: Any) -> "BinaryOp":
+        return BinaryOp(self, "||", other)
+
+    def __invert__(self) -> "UnaryOp":
+        return UnaryOp("!", self)
+
+    def __eq__(self, other: Any) -> "BinaryOp":
+        return BinaryOp(self, "===", other)
+
+    def __ne__(self, other: Any) -> "BinaryOp":
+        return BinaryOp(self, "!==", other)
+
+    def __lt__(self, other: Any) -> "BinaryOp":
+        return BinaryOp(self, "<", other)
+
+    def __le__(self, other: Any) -> "BinaryOp":
+        return BinaryOp(self, "<=", other)
+
+    def __gt__(self, other: Any) -> "BinaryOp":
+        return BinaryOp(self, ">", other)
+
+    def __ge__(self, other: Any) -> "BinaryOp":
+        return BinaryOp(self, ">=", other)
+
+    def eq(self, other: Any) -> "BinaryOp":
+        return BinaryOp(self, "===", other)
+
+    def neq(self, other: Any) -> "BinaryOp":
+        return BinaryOp(self, "!==", other)
+
+    def and_(self, other: Any) -> "BinaryOp":
+        return BinaryOp(self, "&&", other)
+
+    def or_(self, other: Any) -> "BinaryOp":
+        return BinaryOp(self, "||", other)
+
+    # --- Arithmetic Operators ---
+    def __add__(self, other: Any) -> Union["BinaryOp", "TemplateLiteral"]:
+        return TemplateLiteral([self, other]) if isinstance(other, str) else BinaryOp(self, "+", other)
+
+    def __sub__(self, other: Any) -> "BinaryOp":
+        return BinaryOp(self, "-", other)
+
+    def __mul__(self, other: Any) -> "BinaryOp":
+        return BinaryOp(self, "*", other)
+
+    def __truediv__(self, other: Any) -> "BinaryOp":
+        return BinaryOp(self, "/", other)
+
+    def __mod__(self, other: Any) -> "BinaryOp":
+        return BinaryOp(self, "%", other)
+
+    def __radd__(self, other: Any) -> Union["BinaryOp", "TemplateLiteral"]:
+        return TemplateLiteral([other, self]) if isinstance(other, str) else BinaryOp(other, "+", self)
+
+    def __rsub__(self, other: Any) -> "BinaryOp":
+        return BinaryOp(other, "-", self)
+
+    def __rmul__(self, other: Any) -> "BinaryOp":
+        return BinaryOp(other, "*", self)
+
+    def __rtruediv__(self, other: Any) -> "BinaryOp":
+        return BinaryOp(other, "/", self)
+
+    def __rmod__(self, other: Any) -> "BinaryOp":
+        return BinaryOp(other, "%", self)
+
+    def set(self, value: Any) -> "Assignment":
+        return Assignment(self, value)
+
+    def add(self, amount: Any) -> Union["_JSRaw", "Assignment"]:
+        return _JSRaw(f"{self.to_js()}++") if type(amount) is int and amount == 1 else Assignment(self, self + amount)
+
+    def sub(self, amount: Any) -> Union["_JSRaw", "Assignment"]:
+        return _JSRaw(f"{self.to_js()}--") if type(amount) is int and amount == 1 else Assignment(self, self - amount)
+
+    def mul(self, factor: Any) -> "Assignment":
+        return Assignment(self, self * factor)
+
+    def div(self, divisor: Any) -> "Assignment":
+        return Assignment(self, self / divisor)
+
+    def mod(self, divisor: Any) -> "Assignment":
+        return Assignment(self, self % divisor)
+
+    # --- Control Flow ---
+    def if_(self, true_val: Any, false_val: Any = "") -> "Conditional":
+        """Ternary expression: `condition ? true_val : false_val`."""
+        return Conditional(self, true_val, false_val)
+
+    def then(self, action: Any) -> "_JSRaw":
+        """Execute action when condition is true: `if (condition) { action }`."""
+        action_js = action if isinstance(action, str) else action.to_js()
+        return _JSRaw(f"if ({self.to_js()}) {{ {action_js} }}")
+
+    def toggle(self, *values: Any) -> "Assignment":
+        if not values:
+            return self.set(~self)
+        result = values[0]
+        for i in range(len(values) - 1, 0, -1):
+            result = (self == values[i - 1]).if_(values[i], result)
+        return self.set(result)
+
+    # --- String Methods ---
+    def lower(self) -> "MethodCall":
+        return MethodCall(self, "toLowerCase", [])
+
+    def upper(self) -> "MethodCall":
+        return MethodCall(self, "toUpperCase", [])
+
+    def strip(self) -> "MethodCall":
+        return MethodCall(self, "trim", [])
+
+    def contains(self, text: Any) -> "MethodCall":
+        return MethodCall(self, "includes", [text])
+
+    # --- Math Methods ---
+    def round(self, digits: int = 0) -> "MethodCall":
+        return (
+            MethodCall(_JSRaw("Math"), "round", [self])
+            if digits == 0
+            else MethodCall(_JSRaw("Math"), "round", [self * (10**digits)]) / (10**digits)
+        )
+
+    def abs(self) -> "MethodCall":
+        return MethodCall(_JSRaw("Math"), "abs", [self])
+
+    def min(self, limit: Any) -> "MethodCall":
+        return MethodCall(_JSRaw("Math"), "min", [self, limit])
+
+    def max(self, limit: Any) -> "MethodCall":
+        return MethodCall(_JSRaw("Math"), "max", [self, limit])
+
+    def clamp(self, min_val: Any, max_val: Any) -> "MethodCall":
+        return self.max(min_val).min(max_val)
+
+    # Array methods - simple operations without callbacks
+    def append(self, *items: Any) -> "MethodCall":
+        return MethodCall(self, "push", [_ensure_expr(item) for item in items])
+
+    def prepend(self, *items: Any) -> "MethodCall":
+        return MethodCall(self, "unshift", [_ensure_expr(item) for item in items])
+
+    def pop(self) -> "MethodCall":
+        return MethodCall(self, "pop", [])
+
+    def remove(self, index: Any) -> "MethodCall":
+        return MethodCall(self, "splice", [_ensure_expr(index), _ensure_expr(1)])
+
+    def join(self, separator: str = ",") -> "MethodCall":
+        return MethodCall(self, "join", [_ensure_expr(separator)])
+
+    def slice(self, start: Any = None, end: Any = None) -> "MethodCall":
+        args = []
+        if start is not None:
+            args.append(_ensure_expr(start))
+        if end is not None:
+            args.append(_ensure_expr(end))
+        return MethodCall(self, "slice", args)
+
+    # --- Event Modifiers ---
+    def with_(self, **modifiers) -> tuple:
+        """Add event modifiers: expr.with_(prevent=True, debounce=300)"""
+        return (self, modifiers)
 
 
-def if_(condition: str | dict[str, str], *args, **kwargs) -> str:
-    """Conditional expression helper."""
-    if len(args) == 2:
-        return f"{condition} ? {_to_js_value(args[0])} : {_to_js_value(args[1])}"
+class _JSLiteral(Expr):
+    """Internal: A Python value to be safely encoded as a JavaScript literal."""
 
-    if kwargs:
-        default = kwargs.pop("_", "null")
-        result = _to_js_value(default)
-        for pattern, value in reversed(kwargs.items()):
-            check = (
-                condition
-                if pattern == "true"
-                else f"!{condition}"
-                if pattern == "false"
-                else f"{condition} === {_to_js_value(pattern)}"
-            )
-            result = f"{check} ? {_to_js_value(value)} : {result}"
-        return result
+    __slots__ = ("value",)
 
-    if isinstance(condition, dict):
-        conditions = [(c, v) for c, v in condition.items() if c != "_"]
-        result = _to_js_value(condition.get("_", "null"))
-        for cond, val in reversed(conditions):
-            result = f"{cond} ? {_to_js_value(val)} : {result}"
-        return result
+    def __init__(self, value: Any):
+        self.value = value
 
-    raise ValueError("if_ requires either 2 positional args or keyword args with conditions")
+    def to_js(self) -> str:
+        return json.dumps(self.value, separators=(",", ":"))
 
 
-def _make_comparison(op: str):
-    def compare(signal: str, value: Any) -> str:
-        sig = signal if signal.startswith("$") else f"${{{signal}}}"
-        val = _to_js_value(value) if op == "===" else value
-        return f"{sig} {op} {val}"
+class TemplateLiteral(Expr):
+    """JS template literal that efficiently combines parts."""
 
-    return compare
+    __slots__ = ("parts",)
+
+    def __init__(self, parts: list):
+        self.parts = parts
+
+    def to_js(self) -> str:
+        if not self.parts:
+            return '""'
+        parts = []
+        for part in self.parts:
+            if isinstance(part, str):
+                parts.append(part.replace("`", "\\`").replace("\\", "\\\\").replace("${", "\\${"))
+            else:
+                parts.append(f"${{{_ensure_expr(part).to_js()}}}")
+        return f"`{''.join(parts)}`"
+
+    def __add__(self, other: Any) -> "TemplateLiteral":
+        return TemplateLiteral(self.parts + [other])
+
+    def __radd__(self, other: Any) -> "TemplateLiteral":
+        return TemplateLiteral([other] + self.parts)
 
 
-equals = _make_comparison("===")
-gt = _make_comparison(">")
-lt = _make_comparison("<")
-gte = _make_comparison(">=")
-lte = _make_comparison("<=")
+class _JSRaw(Expr):
+    """Internal: A raw string of JavaScript code to be passed through verbatim."""
+
+    __slots__ = ("code",)
+
+    def __init__(self, code: str):
+        self.code = code
+
+    def to_js(self) -> str:
+        return self.code
+
+    def __add__(self, other: Any) -> "TemplateLiteral":
+        return TemplateLiteral([self, other])
+
+    def __radd__(self, other: Any) -> "TemplateLiteral":
+        return TemplateLiteral([other, self])
+
+    def __call__(self, *args: Any) -> "_JSRaw":
+        args_js = ", ".join(_ensure_expr(arg).to_js() for arg in args)
+        return _JSRaw(f"{self.code}({args_js})")
 
 
-def _to_js_value(value: Any) -> str:
+class BinaryOp(Expr):
+    """A binary operation like `a + b` or `x > y`."""
+
+    __slots__ = ("left", "op", "right")
+
+    def __init__(self, left: Any, op: str, right: Any):
+        self.left = _ensure_expr(left)
+        self.op = op
+        self.right = _ensure_expr(right)
+
+    def to_js(self) -> str:
+        return f"({self.left.to_js()} {self.op} {self.right.to_js()})"
+
+
+class UnaryOp(Expr):
+    """A unary operation like `!x`."""
+
+    __slots__ = ("op", "expr")
+
+    def __init__(self, op: str, expr: Expr):
+        self.op, self.expr = op, expr
+
+    def to_js(self) -> str:
+        return f"{self.op}({self.expr.to_js()})"
+
+
+class Conditional(Expr):
+    """A ternary expression: `condition ? true_val : false_val`."""
+
+    __slots__ = ("condition", "true_val", "false_val")
+
+    def __init__(self, condition: Expr, true_val: Any, false_val: Any):
+        self.condition, self.true_val, self.false_val = condition, _ensure_expr(true_val), _ensure_expr(false_val)
+
+    def to_js(self) -> str:
+        return f"({self.condition.to_js()} ? {self.true_val.to_js()} : {self.false_val.to_js()})"
+
+
+class Assignment(Expr):
+    """An assignment: `target = value`."""
+
+    __slots__ = ("target", "value")
+
+    def __init__(self, target: Expr, value: Any):
+        self.target, self.value = target, _ensure_expr(value)
+
+    def to_js(self) -> str:
+        return f"{self.target.to_js()} = {self.value.to_js()}"
+
+
+class MethodCall(Expr):
+    """A method call: `obj.method(arg1, arg2)`."""
+
+    __slots__ = ("obj", "method", "args")
+
+    def __init__(self, obj: Expr, method: str, args: list[Any]):
+        self.obj, self.method, self.args = obj, method, [_ensure_expr(a) for a in args]
+
+    def to_js(self) -> str:
+        return f"{self.obj.to_js()}.{self.method}({', '.join(arg.to_js() for arg in self.args)})"
+
+
+class PropertyAccess(Expr):
+    """Property access: `obj.prop` that can be called like a method."""
+
+    __slots__ = ("obj", "prop")
+
+    def __init__(self, obj: Expr, prop: str):
+        self.obj, self.prop = obj, prop
+
+    def to_js(self) -> str:
+        return f"{self.obj.to_js()}.{self.prop}"
+
+    def __call__(self, *args: Any) -> "MethodCall":
+        return MethodCall(self.obj, self.prop, args)
+
+
+class IndexAccess(Expr):
+    """Index access for arrays or objects: `obj[index]`."""
+
+    __slots__ = ("obj", "index")
+
+    def __init__(self, obj: Expr, index: Any):
+        self.obj, self.index = obj, _ensure_expr(index)
+
+    def to_js(self) -> str:
+        return f"{self.obj.to_js()}[{self.index.to_js()}]"
+
+
+def _ensure_expr(value: Any) -> Expr:
+    """Idempotently convert a Python value into an Expr object."""
+    return value if isinstance(value, Expr) else _JSLiteral(value)
+
+
+class Signal(Expr):
+    """A typed, validated signal reference."""
+
+    def __init__(
+        self,
+        name: str,
+        initial: Any = None,
+        type_: type | None = None,
+        namespace: str | None = None,
+        _ref_only: bool = False,
+    ):
+        self._name = name
+        self._initial = initial
+        self._namespace = namespace
+        self._ref_only = _ref_only
+        self._is_computed = isinstance(initial, Expr)
+        self.type_ = type_ or self._infer_type(initial)
+        self._validate_name()
+
+    def _infer_type(self, initial: Any) -> type:
+        """Infer type from initial value, checking bool before int."""
+        if initial is None:
+            return str
+        if isinstance(initial, bool):
+            return bool
+        if isinstance(initial, int | float | str):
+            return type(initial)
+        if isinstance(initial, list | tuple):
+            return list
+        if isinstance(initial, dict):
+            return dict
+        return type(initial)
+
+    def _validate_name(self):
+        if not re.match(r"^[a-z][a-z0-9_]*$", self._name):
+            raise ValueError(f"Signal name must be snake_case: '{self._name}'")
+
+    @property
+    def full_name(self) -> str:
+        return f"{self._namespace}_{self._name}" if self._namespace else self._name
+
+    def to_dict(self) -> dict[str, Any]:
+        if self._is_computed:
+            return {}
+        return {self.full_name: self._initial}
+
+    def get_computed_attr(self) -> tuple[str, Any] | None:
+        if self._is_computed:
+            return (f"data_computed_{self._name}", self._initial)
+        return None
+
+    def to_js(self) -> str:
+        return f"${self.full_name}"
+
+    def __hash__(self):
+        return hash((self._name, self._namespace))
+
+    def __eq__(self, other) -> "BinaryOp":
+        return BinaryOp(self, "===", _ensure_expr(other))
+
+    def is_same_as(self, other: "Signal") -> bool:
+        return isinstance(other, Signal) and self._name == other._name and self._namespace == other._namespace
+
+    def __getattr__(self, key: str) -> PropertyAccess:
+        return PropertyAccess(self, key)
+
+
+_JS_EXPR_PREFIXES = ("$", "`", "!", "(", "'", "evt.")
+_JS_EXPR_KEYWORDS = {"true", "false", "null", "undefined"}
+
+
+def _to_js(value: Any, allow_expressions: bool = True) -> str:
+    """Convert Python value to JavaScript string."""
     match value:
-        case bool():
-            return "true" if value else "false"
-        case str() if value.startswith(("$", "`")):
-            return value
-        case str():
-            return json.dumps(value)
-        case int() | float():
-            return str(value)
+        case Expr() as expr:
+            return expr.to_js()
         case None:
             return "null"
-        case dict() | list() | tuple():
-            return json.dumps(value)
+        case bool():
+            return "true" if value else "false"
+        case int() | float():
+            return str(value)
+        case str() as s:
+            if allow_expressions and (s.startswith(_JS_EXPR_PREFIXES) or s in _JS_EXPR_KEYWORDS):
+                return s
+            return json.dumps(s)
+        case dict() as d:
+            try:
+                return json.dumps(d)
+            except (TypeError, ValueError):
+                items = [f"{_to_js(k, allow_expressions)}: {_to_js(v, allow_expressions)}" for k, v in d.items()]
+                return f"({{{', '.join(items)}}})"
+        case list() | tuple() as l:
+            try:
+                return json.dumps(l)
+            except (TypeError, ValueError):
+                items = [_to_js(item, allow_expressions) for item in l]
+                return f"[{', '.join(items)}]"
         case _:
             return json.dumps(str(value))
 
 
-def _normalize_value(value: Any) -> Any:
-    match value:
-        case bool():
-            return "true" if value else "false"
-        case None:
-            return "null"
-        case int() | float() | str():
-            return value
-        case dict() | list() | tuple():
-            return json.dumps(value)
-        case _:
-            return str(value)
+def to_js_value(value: Any) -> str:
+    """Convert Python value to JavaScript expression."""
+    return _to_js(value, allow_expressions=True)
 
 
-class _Value:
-    __slots__ = ("val",)
-
-    def __init__(self, val):
-        self.val = val
+# --- General Purpose Helpers ---
 
 
-class _JS:
-    __slots__ = ("code",)
-
-    def __init__(self, code):
-        self.code = code
+def js(code: str) -> _JSRaw:
+    """Mark a string as raw JavaScript code."""
+    return _JSRaw(code)
 
 
-def value(v: Any) -> _Value:
-    """Mark as a data value to be JSON-encoded."""
-    return _Value(v)
+def value(v: Any) -> _JSLiteral:
+    """Mark a Python value to be safely encoded as a JavaScript literal."""
+    if isinstance(v, Expr):
+        raise TypeError(
+            f"value() should not be used with {type(v).__name__} objects. Use the object directly instead of wrapping it with value()."
+        )
+    return _JSLiteral(v)
 
 
-def js(code: str) -> _JS:
-    """Mark as JavaScript code to pass unchanged."""
-    return _JS(code)
+def f(template_str: str, **kwargs: Any) -> _JSRaw:
+    """Create reactive JavaScript template literal, like a Python f-string."""
+
+    def replacer(match: re.Match) -> str:
+        key = match.group(1)
+        val = kwargs.get(key)
+        if val is None:
+            return match.group(0)
+        return f"${{{to_js_value(val)}}}"
+
+    js_template = re.sub(r"\{(\w+)\}", replacer, template_str)
+    return _JSRaw(f"`{js_template}`")
 
 
-def _to_signal_value(v: Any) -> str:
-    if isinstance(v, _Value):
-        v = v.val
-    elif isinstance(v, _JS):
-        return v.code
-    elif isinstance(v, str):
-        raise TypeError(f"Strings must use explicit value() or js() wrapper. Got: {v!r}")
-    elif not isinstance(v, bool | int | float | type(None)):
-        raise TypeError(f"Complex types must use value() wrapper. Got type: {type(v).__name__}")
-
-    match v:
-        case None:
-            return "null"
-        case bool():
-            return "true" if v else "false"
-        case int() | float():
-            return str(v)
-        case _:
-            return json.dumps(v)
+def regex(pattern: str) -> _JSRaw:
+    """Create JavaScript regex literal: regex("^todo_") → /^todo_/"""
+    return _JSRaw(f"/{pattern}/")
 
 
-def _process_patterns(patterns: str | list[str | Pattern]) -> str | list[str]:
-    if isinstance(patterns, str):
-        return f"/{patterns}/"
-    patterns = patterns if isinstance(patterns, list | tuple) else [patterns]
-    result = [f"/{p.pattern}/" if hasattr(p, "pattern") else f"/{p}/" for p in patterns]
-    return result[0] if len(result) == 1 else result
+# --- Conditional Logic Helpers ---
 
 
-def ds_show(value: bool | str) -> DatastarAttr:
-    return DatastarAttr({"data-show": _normalize_value(value)})
+def match(subject: Any, /, **patterns: Any) -> _JSRaw:
+    """Pattern matching for conditional values (like Python match/case)."""
+    subject_expr = _ensure_expr(subject)
+    default_val = patterns.pop("default", "")
+    result = _ensure_expr(default_val)
+    for pattern, val in reversed(patterns.items()):
+        check_expr = subject_expr == _ensure_expr(pattern)
+        result = check_expr.if_(val, result)
+    return _JSRaw(result.to_js())
 
 
-def ds_text(value: str) -> DatastarAttr:
-    return DatastarAttr({"data-text": _normalize_value(value)})
+def switch(cases: list[tuple[Any, Any]], /, default: Any = "") -> _JSRaw:
+    """Sequential condition evaluation (if/elif/else chain)."""
+    result = _ensure_expr(default)
+    for condition, val in reversed(cases):
+        result = _ensure_expr(condition).if_(val, result)
+    return _JSRaw(result.to_js())
 
 
-def ds_bind(signal: str, case: str | None = None) -> DatastarAttr:
-    if case:
-        return DatastarAttr({f"data-bind-{signal}__case.{case}": True})
-    return DatastarAttr({"data-bind": signal})
+def collect(cases: list[tuple[Any, Any]], /, join_with: str = " ") -> _JSRaw:
+    """Combines values from all true conditions (for CSS classes, etc.)."""
+    if not cases:
+        return _JSRaw("''")
+    parts = [_ensure_expr(condition).if_(val, "").to_js() for condition, val in cases]
+    array_expr = "[" + ", ".join(parts) + "]"
+    return _JSRaw(f"{array_expr}.filter(Boolean).join('{join_with}')")
 
 
-def ds_ref(name: str) -> DatastarAttr:
-    return DatastarAttr({"data-ref": name})
+# --- Logical Aggregation Helpers ---
 
 
-def ds_indicator(name: str) -> DatastarAttr:
-    return DatastarAttr({"data-indicator": name})
+def _iterable_args(*args):
+    """Support Python built-in style: if passed a single iterable, unpack it."""
+    return (
+        args[0]
+        if builtins.len(args) == 1 and hasattr(args[0], "__iter__") and not isinstance(args[0], str | Signal | Expr)
+        else args
+    )
 
 
-def ds_effect(expression: str) -> DatastarAttr:
-    return DatastarAttr({"data-effect": NotStr(expression)})
+def all(*signals) -> _JSRaw:
+    """Check if all signals are truthy: all(a, b, c) → !!a && !!b && !!c"""
+    if not signals:
+        return _JSRaw("true")
+    signals = _iterable_args(*signals)
+    return _JSRaw(" && ".join(f"!!{_ensure_expr(s).to_js()}" for s in signals))
 
 
-def ds_computed(name: str, expression: str, case: str | None = None) -> DatastarAttr:
-    key = f"data-computed-{name}" + (f"__case.{case}" if case else "")
-    return DatastarAttr({key: expression})
+def any(*signals) -> _JSRaw:
+    """Check if any signal is truthy: any(a, b, c) → !!a || !!b || !!c"""
+    if not signals:
+        return _JSRaw("false")
+    signals = _iterable_args(*signals)
+    return _JSRaw(" || ".join(f"!!{_ensure_expr(s).to_js()}" for s in signals))
 
 
-def _make_attr_func(prefix: str):
-    def attr_func(**kwargs) -> DatastarAttr:
-        if any("/" in str(name) for name in kwargs):
-            attr_dict = {
-                name.replace("_", "-"): (
-                    norm_val.replace("'", '"') if isinstance(norm_val := _normalize_value(value), str) else norm_val
-                )
-                for name, value in kwargs.items()
-            }
-            return DatastarAttr({prefix: NotStr(json.dumps(attr_dict))})
+# --- Action Helpers ---
 
-        return DatastarAttr(
-            {f"{prefix}-{name.replace('_', '-')}": _normalize_value(value) for name, value in kwargs.items()}
+
+def post(url: str, data: dict[str, Any] | None = None, **kwargs) -> _JSRaw:
+    return _action("post", url, data, **kwargs)
+
+
+def get(url: str, data: dict[str, Any] | None = None, **kwargs) -> _JSRaw:
+    return _action("get", url, data, **kwargs)
+
+
+def put(url: str, data: dict[str, Any] | None = None, **kwargs) -> _JSRaw:
+    return _action("put", url, data, **kwargs)
+
+
+def patch(url: str, data: dict[str, Any] | None = None, **kwargs) -> _JSRaw:
+    return _action("patch", url, data, **kwargs)
+
+
+def delete(url: str, data: dict[str, Any] | None = None, **kwargs) -> _JSRaw:
+    return _action("delete", url, data, **kwargs)
+
+
+def clipboard(text: str = None, element: str = None, signal: str = None) -> _JSRaw:
+    if not ((text is None) ^ (element is None)):
+        raise ValueError("Must provide exactly one of: text or element")
+
+    signal_suffix = f", {to_js_value(signal)}" if signal else ""
+
+    if text is not None:
+        return _JSRaw(f"@clipboard({to_js_value(text)}{signal_suffix})")
+
+    # Element mode: generate appropriate DOM access
+    if element == "el":
+        js_expr = "el"
+    elif element.startswith(("#", ".")):
+        js_expr = f"document.querySelector({to_js_value(element)})"
+    else:
+        js_expr = f"document.getElementById({to_js_value(element)})"
+
+    return _JSRaw(f"@clipboard({js_expr}.textContent{signal_suffix})")
+
+
+def _action(verb: str, url: str, data: dict[str, Any] | None = None, **kwargs) -> _JSRaw:
+    payload = {**(data or {}), **kwargs}
+    if not payload:
+        return _JSRaw(f"@{verb}('{url}')")
+    parts = [f"{k}: {to_js_value(v)}" for k, v in payload.items()]
+    return _JSRaw(f"@{verb}('{url}', {{{', '.join(parts)}}})")
+
+
+# --- JavaScript Global Objects ---
+
+console = js("console")
+Math = js("Math")
+JSON = js("JSON")
+Object = js("Object")
+Array = js("Array")
+Date = js("Date")
+Number = js("Number")
+String = js("String")
+Boolean = js("Boolean")
+
+
+# --- Core Datastar Keyword Argument Processing Engine ---
+
+
+def _normalize_data_key(key: str) -> str:
+    """Normalizes a Pythonic key to its `data-*` attribute equivalent."""
+    for prefix in ("data_computed_", "data_on_", "data_attr_", "data_"):
+        if key.startswith(prefix):
+            name = key.removeprefix(prefix)
+            slug = name if prefix == "data_computed_" else name.replace("_", "-")
+            return f"{prefix.removesuffix('_').replace('_', '-')}-{slug}"
+    return key.replace("_", "-")
+
+
+def _build_modifier_suffix(modifiers: dict[str, Any]) -> str:
+    """Builds a modifier suffix (e.g., `__debounce__300ms`) from a dictionary."""
+    if not modifiers:
+        return ""
+    parts = []
+    for name, value in modifiers.items():
+        match value:
+            case True:
+                parts.append(name)
+            case False:
+                parts.append(f"{name}.false")  # Preserve explicit false
+            case int() | float():
+                part = f"n{abs(value)}" if value < 0 else str(value)
+                parts.append(f"{name}.{part}")
+            case str():
+                parts.append(f"{name}.{value}")
+    return f"__{'__'.join(parts)}" if parts else ""
+
+
+def _expr_list_to_js(items: list[Any], collect_signals: callable) -> str:
+    """Joins a list of expressions into a semicolon-separated JS string."""
+
+    def process_item(item):
+        if isinstance(item, Expr | Signal):
+            collect_signals(item)
+            return item.to_js()
+        return str(item)
+
+    return "; ".join(process_item(item) for item in items)
+
+
+def _collect_signals(expr: Any, sink: set[Signal]) -> None:
+    """Recursively traverses an expression to find all Signal references."""
+    if isinstance(expr, Signal):
+        sink.add(expr)
+    elif isinstance(expr, Expr):
+        attrs = (
+            (getattr(expr, slot, None) for slot in expr.__slots__)
+            if hasattr(expr, "__slots__")
+            else expr.__dict__.values()
+            if hasattr(expr, "__dict__")
+            else ()
         )
 
-    return attr_func
-
-
-ds_class = _make_attr_func("data-class")
-ds_style = _make_attr_func("data-style")
-ds_attr = _make_attr_func("data-attr")
-
-
-def ds_signals(*args, **kwargs) -> DatastarAttr:
-    """Create Datastar signal attributes."""
-    ifmissing = kwargs.pop("ifmissing", None)
-    use_json_format = args and isinstance(args[0], dict)
-    signals = args[0] if use_json_format else kwargs
-
-    result = {}
-    if ifmissing:
-        result["data-signals__ifmissing"] = ifmissing
-
-    if use_json_format:
-        json_obj = {}
-        for name, val in signals.items():
-            json_obj[name] = val.val if isinstance(val, _Value) else val.code if isinstance(val, _JS) else val
-        result["data-signals"] = json.dumps(json_obj, separators=(", ", ": "))
-    else:
-        for name, value in signals.items():
-            result[f"data-signals-{name}"] = _to_signal_value(value)
-
-    return DatastarAttr(result)
-
-
-def ds_persist(*signals, include=None, exclude=None, session=False, key=None):
-    attr_key = f"data-persist-{key}" if key else "data-persist" + ("__session" if session else "")
-    value = (
-        ",".join(signals)
-        if signals
-        else json.dumps({k: _process_patterns(v) for k, v in [("include", include), ("exclude", exclude)] if v})
-        if include or exclude
-        else None
-    )
-    return DatastarAttr({attr_key: value})
-
-
-def ds_json_signals(show=True, include=None, exclude=None, terse=False):
-    key = f"data-json-signals{'__terse' if terse else ''}"
-    if show is False:
-        value = "false"
-    elif include or exclude:
-        filters = [f"{k}: {_process_patterns(v)}" for k, v in [("include", include), ("exclude", exclude)] if v]
-        value = f"{{{', '.join(filters)}}}"
-    else:
-        value = True
-    return DatastarAttr({key: value})
-
-
-def _build_event_key(base: str, modifiers: list[str], value_mods: dict[str, str]) -> str:
-    modifier_parts = modifiers.copy()
-    for name, value in value_mods.items():
-        if value is True:
-            modifier_parts.append(name)
-        elif name in ("debounce", "throttle"):
-            if match := re.search(r"(\d+)", str(value)):
-                modifier_parts.append(f"{name}.{match.group(1)}ms")
-        elif name == "duration":
-            if match := re.search(r"(\d+)(ms|s)?", str(value)):
-                num, unit = match.groups()
-                modifier_parts.append(f"duration.{num}{'s' if unit == 's' else 'ms'}")
-        else:
-            modifier_parts.append(f"{name}.{value}")
-    return f"{base}__{'.'.join(modifier_parts)}" if modifier_parts else base
-
-
-def _create_event_handler(event_name: str):
-    def handler(expression: str, *modifiers, **kwargs) -> DatastarAttr:
-        key = _build_event_key(f"data-on-{event_name}", list(modifiers), kwargs)
-        return DatastarAttr({key: NotStr(expression)})
-
-    return handler
-
-
-ds_on_click = _create_event_handler("click")
-ds_on_input = _create_event_handler("input")
-ds_on_change = _create_event_handler("change")
-ds_on_submit = _create_event_handler("submit")
-ds_on_keydown = _create_event_handler("keydown")
-ds_on_keyup = _create_event_handler("keyup")
-ds_on_focus = _create_event_handler("focus")
-ds_on_blur = _create_event_handler("blur")
-ds_on_scroll = _create_event_handler("scroll")
-ds_on_resize = _create_event_handler("resize")
-ds_on_load = _create_event_handler("load")
-ds_on_interval = _create_event_handler("interval")
-ds_on_intersect = _create_event_handler("intersect")
-
-ds_on_mousedown = _create_event_handler("mousedown")
-ds_on_mouseup = _create_event_handler("mouseup")
-ds_on_mousemove = _create_event_handler("mousemove")
-ds_on_mouseenter = _create_event_handler("mouseenter")
-ds_on_mouseleave = _create_event_handler("mouseleave")
-ds_on_mouseover = _create_event_handler("mouseover")
-ds_on_mouseout = _create_event_handler("mouseout")
-ds_on_contextmenu = _create_event_handler("contextmenu")
-ds_on_dblclick = _create_event_handler("dblclick")
-ds_on_wheel = _create_event_handler("wheel")
-
-ds_on_touchstart = _create_event_handler("touchstart")
-ds_on_touchmove = _create_event_handler("touchmove")
-ds_on_touchend = _create_event_handler("touchend")
-ds_on_touchcancel = _create_event_handler("touchcancel")
-
-ds_on_dragstart = _create_event_handler("dragstart")
-ds_on_drag = _create_event_handler("drag")
-ds_on_dragenter = _create_event_handler("dragenter")
-ds_on_dragover = _create_event_handler("dragover")
-ds_on_dragleave = _create_event_handler("dragleave")
-ds_on_drop = _create_event_handler("drop")
-ds_on_dragend = _create_event_handler("dragend")
-
-ds_on_reset = _create_event_handler("reset")
-ds_on_select = _create_event_handler("select")
-ds_on_invalid = _create_event_handler("invalid")
-
-ds_on_pointerdown = _create_event_handler("pointerdown")
-ds_on_pointerup = _create_event_handler("pointerup")
-ds_on_pointermove = _create_event_handler("pointermove")
-ds_on_pointerenter = _create_event_handler("pointerenter")
-ds_on_pointerleave = _create_event_handler("pointerleave")
-
-ds_on_canvas = _create_event_handler("canvas")
-
-ds_on_toggle = _create_event_handler("toggle")
-ds_on_beforetoggle = _create_event_handler("beforetoggle")
-
-ds_on_copy = _create_event_handler("copy")
-ds_on_cut = _create_event_handler("cut")
-ds_on_paste = _create_event_handler("paste")
-
-ds_on_animationstart = _create_event_handler("animationstart")
-ds_on_animationend = _create_event_handler("animationend")
-ds_on_animationiteration = _create_event_handler("animationiteration")
-ds_on_animationcancel = _create_event_handler("animationcancel")
-
-ds_on_transitionstart = _create_event_handler("transitionstart")
-ds_on_transitionend = _create_event_handler("transitionend")
-ds_on_transitionrun = _create_event_handler("transitionrun")
-ds_on_transitioncancel = _create_event_handler("transitioncancel")
-
-ds_on_play = _create_event_handler("play")
-ds_on_pause = _create_event_handler("pause")
-ds_on_ended = _create_event_handler("ended")
-ds_on_volumechange = _create_event_handler("volumechange")
-ds_on_timeupdate = _create_event_handler("timeupdate")
-ds_on_canplay = _create_event_handler("canplay")
-ds_on_canplaythrough = _create_event_handler("canplaythrough")
-ds_on_loadedmetadata = _create_event_handler("loadedmetadata")
-ds_on_progress = _create_event_handler("progress")
-
-ds_on_online = _create_event_handler("online")
-ds_on_offline = _create_event_handler("offline")
-
-ds_on_error = _create_event_handler("error")
-ds_on_message = _create_event_handler("message")
-ds_on_storage = _create_event_handler("storage")
-ds_on_popstate = _create_event_handler("popstate")
-ds_on_hashchange = _create_event_handler("hashchange")
-ds_on_beforeunload = _create_event_handler("beforeunload")
-ds_on_unload = _create_event_handler("unload")
-ds_on_visibilitychange = _create_event_handler("visibilitychange")
-
-ds_on_fullscreenchange = _create_event_handler("fullscreenchange")
-ds_on_fullscreenerror = _create_event_handler("fullscreenerror")
-
-ds_on_orientationchange = _create_event_handler("orientationchange")
-
-ds_on_close = _create_event_handler("close")
-ds_on_cancel = _create_event_handler("cancel")
-
-ds_on_abort = _create_event_handler("abort")
-ds_on_beforeinput = _create_event_handler("beforeinput")
-ds_on_compositionstart = _create_event_handler("compositionstart")
-ds_on_compositionend = _create_event_handler("compositionend")
-ds_on_compositionupdate = _create_event_handler("compositionupdate")
-
-ds_on_gotpointercapture = _create_event_handler("gotpointercapture")
-ds_on_lostpointercapture = _create_event_handler("lostpointercapture")
-ds_on_pointercancel = _create_event_handler("pointercancel")
-ds_on_pointerout = _create_event_handler("pointerout")
-ds_on_pointerover = _create_event_handler("pointerover")
-
-ds_on_seeked = _create_event_handler("seeked")
-ds_on_seeking = _create_event_handler("seeking")
-ds_on_stalled = _create_event_handler("stalled")
-ds_on_suspend = _create_event_handler("suspend")
-ds_on_waiting = _create_event_handler("waiting")
-ds_on_durationchange = _create_event_handler("durationchange")
-ds_on_loadstart = _create_event_handler("loadstart")
-ds_on_loadeddata = _create_event_handler("loadeddata")
-ds_on_emptied = _create_event_handler("emptied")
-ds_on_ratechange = _create_event_handler("ratechange")
-
-
-def ds_on(event: str, expression: str, *modifiers, **kwargs) -> DatastarAttr:
-    key = _build_event_key(f"data-on-{event}", list(modifiers), kwargs)
-    return DatastarAttr({key: NotStr(expression)})
-
-
-def ds_position(
-    anchor: str,
-    placement: str = "bottom",
-    strategy: str = "absolute",
-    offset: int = 8,
-    flip: bool = True,
-    shift: bool = True,
-    hide: bool = False,
-    auto_size: bool = False,
-    container: str = "auto",
-    signal_prefix: str = None,
-) -> DatastarAttr:
-    modifiers = [
-        f"placement.{placement}" if placement != "bottom" else None,
-        f"strategy.{strategy}" if strategy != "absolute" else None,
-        f"offset.{'n' + str(abs(offset)) if offset < 0 else offset}" if offset != 8 else None,
-        "flip.false" if not flip else None,
-        "shift.false" if not shift else None,
-        "hide" if hide else None,
-        "auto_size" if auto_size else None,
-        f"container.{container}" if container != "auto" else None,
-        f"signal_prefix.{signal_prefix}" if signal_prefix else None,
-    ]
-    modifiers = [m for m in modifiers if m]
-
-    key = f"data-position-anchor__{'__'.join(modifiers)}" if modifiers else "data-position-anchor"
-    return DatastarAttr({key: anchor})
-
-
-def ds_canvas_viewport(value: Any = True) -> DatastarAttr:
-    return DatastarAttr({"data-canvas-viewport": value})
-
-
-def ds_canvas_container(value: Any = True) -> DatastarAttr:
-    return DatastarAttr({"data-canvas-container": value})
-
-
-def ds_draggable(value: Any = True) -> DatastarAttr:
-    return DatastarAttr({"data-draggable": value})
-
-
-def ds_drop_zone(zone_id: str) -> DatastarAttr:
-    return DatastarAttr({"data-drop-zone": zone_id})
-
-
-CLIPBOARD_ACTION = """{
-    type: 'action',
-    name: 'clipboard',
-    fn: ({ peek, mergePatch }, text, signal, timeout = 2000) => {
-        navigator.clipboard.writeText(text).then(() => {
-            if (signal) {
-                peek(() => mergePatch({ [signal]: true }));
-                setTimeout(() => peek(() => mergePatch({ [signal]: false })), timeout);
-            }
-        }).catch(() => {
-            const ta = document.createElement('textarea');
-            ta.value = text;
-            ta.style.cssText = 'position:fixed;left:-9999px';
-            document.body.appendChild(ta);
-            ta.select();
-            document.execCommand('copy');
-            document.body.removeChild(ta);
-            if (signal) {
-                peek(() => mergePatch({ [signal]: true }));
-                setTimeout(() => peek(() => mergePatch({ [signal]: false })), timeout);
-            }
-        });
-    }
-}"""
-
-
-def get_starhtml_action_plugins() -> list[dict]:
-    return [{"type": "action", "name": "clipboard", "code": CLIPBOARD_ACTION}]
-
-
-def ds_disabled(value: bool | str) -> DatastarAttr:
-    return ds_attr(disabled=value)
-
-
-def toggle_signal(signal_name: str) -> str:
-    """Generate JavaScript to toggle a boolean signal."""
-    signal = signal_name if signal_name.startswith("$") else f"${signal_name}"
-    return f"{signal} = !{signal}"
-
-
-def toggle_class(condition: str, *args, base: str = "", **kwargs) -> DatastarAttr:
-    """Toggle Tailwind classes based on a condition.
-
-    Binary: toggle_class("active", "bg-blue-500", "bg-gray-300", base="p-4")
-    Multi-state: toggle_class("status", success="bg-green-500", error="bg-red-500", _="bg-gray-300", base="p-4")
-    """
-    if not condition.startswith(("$", "!")):
-        condition = f"${condition}"
-
-    def apply_base(classes: str) -> str:
-        if not base:
-            return classes
-        return f"{base} {classes}".strip() if classes else base
-
-    if kwargs:
-        default = kwargs.pop("_", "")
-        conditions = [
-            f"{condition} === {_to_js_value(state)} ? {_to_js_value(apply_base(classes))}"
-            for state, classes in kwargs.items()
-        ]
-        conditions.append(_to_js_value(apply_base(default)))
-        expression = " : ".join(conditions)
-    else:
-        truthy = args[0] if args else ""
-        falsy = args[1] if len(args) > 1 else ""
-        expression = f"{condition} ? {_to_js_value(apply_base(truthy))} : {_to_js_value(apply_base(falsy))}"
-
-    return DatastarAttr({"data-attr-class": expression})
-
-
-def ds_ignore(*modifiers) -> DatastarAttr:
-    if "self" in modifiers:
-        return DatastarAttr({"data-ignore__self": ""})
-    return DatastarAttr({"data-ignore": ""})
-
-
-def ds_preserve_attr(*attrs) -> DatastarAttr:
-    return DatastarAttr({"data-preserve-attr": ",".join(attrs) if attrs else "*"})
-
-
-class SlotAttrs:
-    """Container for slot attributes to target component internals."""
-
-    __slots__ = ("slots",)
-
-    def __init__(self, slots):
-        self.slots = slots
-
-    def __repr__(self):
-        return f"SlotAttrs({self.slots})"
-
-
-def slot_attrs(*args, **kwargs) -> SlotAttrs:
-    """Target specific slots within a component with attributes.
-
-    Keys with underscores are normalized to kebab-case for matching data-slot values.
-
-    Example:
-        slot_attrs(toggle_group_item=ds_attr(disabled="$disabled_partial"))
-        slot_attrs({"toggle-group-item": ds_attr(disabled="$disabled_partial")})
-    """
-    slots = dict(args[0]) if args else {}
-    slots.update(kwargs)
-    return SlotAttrs({k.replace("_", "-"): v for k, v in slots.items()})
-
+        for attr in attrs:
+            if isinstance(attr, Signal | Expr):
+                _collect_signals(attr, sink)
+            elif isinstance(attr, list | tuple):
+                for item in attr:
+                    _collect_signals(item, sink)
+
+
+def build_data_signals(signals: dict[str, Any]) -> NotStr:
+    """Builds a non-escaped JavaScript object literal for `data-signals`."""
+    parts = [f"{key}: {_to_js(val, allow_expressions=False)}" for key, val in signals.items()]
+    return NotStr("{" + ", ".join(parts) + "}")
+
+
+def _handle_data_signals(value: Any) -> Any:
+    """Processes the value for a `data_signals` keyword argument."""
+    signal_dict = {}
+    match value:
+        case list() | tuple():
+            for s in value:
+                if isinstance(s, Signal) and not s._ref_only:
+                    signal_dict.update(s.to_dict())
+        case dict() as d:
+            signal_dict = d
+        case Signal() as s:
+            signal_dict = s.to_dict()
+    return build_data_signals(signal_dict) if signal_dict else value
+
+
+def _apply_additive_class_behavior(processed: dict) -> None:
+    """Combines cls and data_attr_cls for SSR + reactive classes."""
+    if "cls" in processed and "data_attr_cls" in processed:
+        base_classes = processed.pop("cls")
+        reactive_classes = str(processed.pop("data_attr_cls"))
+        if reactive_classes.startswith("(") and reactive_classes.endswith(")"):
+            reactive_classes = reactive_classes[1:-1]
+        processed["data-attr-class"] = NotStr(f"`{base_classes} ${{{reactive_classes}}}`")
+
+
+# --- Main Engine ---
+
+
+def process_datastar_kwargs(kwargs: dict) -> tuple[dict, set[Signal]]:
+    """Maps Pythonic kwargs to Datastar data-* attributes."""
+    processed: dict[str, Any] = {}
+    signals_found: set[Signal] = set()
+
+    def collect(expr: Any) -> None:
+        _collect_signals(expr, signals_found)
+
+    for key, value in kwargs.items():
+        if key == "data_signals":
+            processed["data-signals"] = _handle_data_signals(value)
+            continue
+
+        normalized_key = _normalize_data_key(key)
+        match value:
+            case list():
+                processed[normalized_key] = NotStr(_expr_list_to_js(value, collect))
+            case (expr, modifiers) if isinstance(modifiers, dict):
+                js_str = ""
+                if isinstance(expr, Expr | Signal):
+                    collect(expr)
+                    js_str = expr.to_js()
+                elif isinstance(expr, list):
+                    js_str = _expr_list_to_js(expr, collect)
+                else:
+                    js_str = str(expr)
+                final_key = f"{normalized_key}{_build_modifier_suffix(modifiers)}"
+                processed[final_key] = NotStr(js_str)
+            case Expr() as expr:
+                collect(expr)
+                js_str = expr.to_js()
+                if key == "data_bind" and isinstance(expr, Signal):
+                    processed["data-bind"] = expr.full_name
+                elif key == "data_class":
+                    processed["data-class"] = NotStr(js_str)
+                else:
+                    processed[normalized_key] = NotStr(js_str)
+            case _JSLiteral() | _JSRaw() | dict() as val:
+                processed[normalized_key] = NotStr(_to_js(val))
+            case _:
+                processed[key] = value
+
+    _apply_additive_class_behavior(processed)
+    return processed, signals_found
+
+
+# ============================================================================
+# 8. Public API Exports
+# ============================================================================
 
 __all__ = [
-    "value",
+    "Signal",
+    "Expr",
     "js",
-    "t",
-    "if_",
-    "equals",
-    "gt",
-    "lt",
-    "gte",
-    "lte",
-    "ds_show",
-    "ds_text",
-    "ds_bind",
-    "ds_ref",
-    "ds_indicator",
-    "ds_effect",
-    "ds_computed",
-    "ds_class",
-    "ds_style",
-    "ds_attr",
-    "ds_signals",
-    "ds_persist",
-    "ds_json_signals",
-    "ds_on_click",
-    "ds_on_input",
-    "ds_on_change",
-    "ds_on_submit",
-    "ds_on_keydown",
-    "ds_on_keyup",
-    "ds_on_focus",
-    "ds_on_blur",
-    "ds_on_scroll",
-    "ds_on_resize",
-    "ds_on_load",
-    "ds_on_interval",
-    "ds_on_intersect",
-    "ds_on_mousedown",
-    "ds_on_mouseup",
-    "ds_on_mousemove",
-    "ds_on_mouseenter",
-    "ds_on_mouseleave",
-    "ds_on_mouseover",
-    "ds_on_mouseout",
-    "ds_on_contextmenu",
-    "ds_on_dblclick",
-    "ds_on_wheel",
-    "ds_on_touchstart",
-    "ds_on_touchmove",
-    "ds_on_touchend",
-    "ds_on_touchcancel",
-    "ds_on_dragstart",
-    "ds_on_drag",
-    "ds_on_dragenter",
-    "ds_on_dragover",
-    "ds_on_dragleave",
-    "ds_on_drop",
-    "ds_on_dragend",
-    "ds_on_reset",
-    "ds_on_select",
-    "ds_on_invalid",
-    "ds_on_pointerdown",
-    "ds_on_pointerup",
-    "ds_on_pointermove",
-    "ds_on_pointerenter",
-    "ds_on_pointerleave",
-    "ds_on",
-    "ds_on_toggle",
-    "ds_on_beforetoggle",
-    "ds_on_copy",
-    "ds_on_cut",
-    "ds_on_paste",
-    "ds_on_animationstart",
-    "ds_on_animationend",
-    "ds_on_animationiteration",
-    "ds_on_animationcancel",
-    "ds_on_transitionstart",
-    "ds_on_transitionend",
-    "ds_on_transitionrun",
-    "ds_on_transitioncancel",
-    "ds_on_play",
-    "ds_on_pause",
-    "ds_on_ended",
-    "ds_on_volumechange",
-    "ds_on_timeupdate",
-    "ds_on_canplay",
-    "ds_on_canplaythrough",
-    "ds_on_loadedmetadata",
-    "ds_on_progress",
-    "ds_on_online",
-    "ds_on_offline",
-    "ds_on_error",
-    "ds_on_message",
-    "ds_on_storage",
-    "ds_on_popstate",
-    "ds_on_hashchange",
-    "ds_on_beforeunload",
-    "ds_on_unload",
-    "ds_on_visibilitychange",
-    "ds_on_fullscreenchange",
-    "ds_on_fullscreenerror",
-    "ds_on_orientationchange",
-    "ds_on_close",
-    "ds_on_cancel",
-    "ds_on_abort",
-    "ds_on_beforeinput",
-    "ds_on_compositionstart",
-    "ds_on_compositionend",
-    "ds_on_compositionupdate",
-    "ds_on_gotpointercapture",
-    "ds_on_lostpointercapture",
-    "ds_on_pointercancel",
-    "ds_on_pointerout",
-    "ds_on_pointerover",
-    "ds_on_seeked",
-    "ds_on_seeking",
-    "ds_on_stalled",
-    "ds_on_suspend",
-    "ds_on_waiting",
-    "ds_on_durationchange",
-    "ds_on_loadstart",
-    "ds_on_loadeddata",
-    "ds_on_emptied",
-    "ds_on_ratechange",
-    "ds_disabled",
-    "toggle_signal",
-    "toggle_class",
-    "ds_ignore",
-    "ds_preserve_attr",
-    "ds_canvas_viewport",
-    "ds_canvas_container",
-    "ds_draggable",
-    "ds_drop_zone",
-    "ds_on_canvas",
-    "ds_position",
-    "SlotAttrs",
-    "slot_attrs",
+    "value",
+    "f",
+    "regex",
+    "match",
+    "switch",
+    "collect",
+    "all",
+    "any",
+    "post",
+    "get",
+    "put",
+    "patch",
+    "delete",
+    "clipboard",
+    "console",
+    "Math",
+    "JSON",
+    "Object",
+    "Array",
+    "Date",
+    "Number",
+    "String",
+    "Boolean",
+    "process_datastar_kwargs",
+    "to_js_value",
 ]

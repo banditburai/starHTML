@@ -14,7 +14,6 @@ from pathlib import Path
 import pytest
 from fastcore.xml import Safe
 
-from starhtml.datastar import ds_bind, ds_on_submit, ds_show, ds_text
 from starhtml.xtend import (
     AX,
     A,
@@ -65,7 +64,7 @@ class TestCoreComponents:
 
     def test_a_link_with_datastar_attrs(self):
         """Test A link with additional Datastar attributes."""
-        link = A("Button", ds_show("$isVisible"), ds_text("$dynamicText"))
+        link = A("Button", data_show="$isVisible", data_text="$dynamicText")
         html = str(link)
         assert 'data-show="$isVisible"' in html
         assert 'data-text="$dynamicText"' in html
@@ -102,7 +101,7 @@ class TestCoreComponents:
 
     def test_form_with_datastar_attrs(self):
         """Test Form with Datastar attributes."""
-        form = Form("Form content", ds_bind("formData"), ds_on_submit("handleSubmit()"))
+        form = Form("Form content", data_bind="formData", data_on_submit="handleSubmit()")
         html = str(form)
         assert 'data-bind="formData"' in html
         assert 'data-on-submit="handleSubmit()"' in html

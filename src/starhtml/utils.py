@@ -40,7 +40,6 @@ __all__ = [
     "form2dict",
     "parse_form",
     "clear_form_signals",
-    "to_js",
     "unqid",
     "parsed_date",
     "snake2hyphens",
@@ -184,37 +183,13 @@ def find_inputs(e, tags="input", **kw):
     return inputs
 
 
-def to_js(value):
-    """Convert Python value to safe JavaScript literal."""
-    import json
+def clear_form_signals(*signals, **values):
+    """Clear form signals to empty strings or specific values."""
+    from starhtml.datastar import Signal, _JSRaw, to_js_value
 
-    match value:
-        case bool():
-            return "true" if value else "false"
-        case str():
-            return json.dumps(value)
-        case int() | float():
-            return str(value)
-        case None:
-            return "null"
-        case dict() | list() | tuple():
-            return json.dumps(value)
-        case _:
-            return json.dumps(str(value))
-
-
-def clear_form_signals(*signals, **kwargs):
-    """Generate JavaScript to clear form signals to empty strings or specified values."""
-
-    # Auto-detect dict passed as first argument (no ** required)
-    if len(signals) == 1 and isinstance(signals[0], dict) and not kwargs:
-        kwargs = signals[0]
-        signals = ()
-
-    assignments = [f"${s} = ''" for s in signals]
-    assignments.extend(f"${k} = {to_js(v)}" for k, v in kwargs.items())
-
-    return "; ".join(assignments)
+    return [sig.set("") if isinstance(sig, Signal) else _JSRaw(f"${sig} = ''") for sig in signals] + [
+        _JSRaw(f"${name} = {to_js_value(val)}") for name, val in values.items()
+    ]
 
 
 def File(fname: str):

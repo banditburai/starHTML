@@ -26,38 +26,36 @@ class TestHandlerBehavior:
     """Test actual handler behavior and functionality."""
 
     def test_persist_handler_generates_executable_script(self):
-        """Test persist_handler generates a valid JavaScript module."""
+        """Test persist_handler generates a valid HandlerBundle with scripts."""
         result = persist_handler()
+
+        # Test that result is a HandlerBundle with scripts and signals
+        assert hasattr(result, "scripts"), "Result should have scripts attribute"
+        assert hasattr(result, "signals"), "Result should have signals attribute"
+
+        # Test that scripts contain the expected persist handler content
         script_content = str(result)
-
-        # Test that the script follows ES6 module pattern
-        assert script_content.startswith('<script type="module">')
-        assert script_content.endswith("</script>")
-
-        # Test that it follows a proper import/load/apply pattern
-        lines = script_content.split("\n")
-        import_lines = [line for line in lines if "import" in line]
-        load_lines = [line for line in lines if "load(" in line]
-        apply_lines = [line for line in lines if "apply(" in line]
-
-        # Should have at least one import, load, and apply
-        assert len(import_lines) >= 1, "Script should import handler plugin"
-        assert len(load_lines) >= 1, "Script should load the plugin"
-        assert len(apply_lines) >= 1, "Script should apply the handlers"
+        assert "/static/js/handlers/persist.js" in script_content
+        assert "import handlerPlugin" in script_content
+        assert "load(handlerPlugin)" in script_content
+        assert "apply()" in script_content
 
     def test_scroll_handler_generates_functional_script(self):
-        """Test scroll_handler creates a functional JavaScript handler."""
+        """Test scroll_handler creates a functional HandlerBundle."""
         result = scroll_handler()
+
+        # Test that result is a HandlerBundle with scripts and signals
+        assert hasattr(result, "scripts"), "Result should have scripts attribute"
+        assert hasattr(result, "signals"), "Result should have signals attribute"
+
+        # Test that scripts contain the expected scroll handler content
         script_content = str(result)
-
-        # Should be a proper ES6 module
-        assert script_content.startswith('<script type="module">')
-
-        # Should import scroll handler specifically
         assert "/static/js/handlers/scroll.js" in script_content
-
-        # Should follow the plugin loading pattern
         assert "load(handlerPlugin)" in script_content
+
+        # Check for signals (scroll handlers often include scroll position signals)
+        if result.signals:
+            assert isinstance(result.signals, dict), "Signals should be a dictionary"
 
     def test_resize_handler_configuration_affects_behavior(self):
         """Test that resize_handler configuration actually changes output."""
@@ -218,7 +216,7 @@ class TestErrorConditions:
         script_content = str(result)
 
         # Should handle large configs without breaking
-        assert '<script type="module">' in script_content
+        # Handler now returns scripts list, not full HTML tags
         assert "setConfig(" in script_content
 
     def test_bundle_stats_with_filesystem_errors(self):
@@ -255,12 +253,13 @@ class TestRealWorldUsage:
         scroll_script = scroll_handler()
         resize_script = resize_handler(throttle_ms=50)
 
-        # All should be valid ES6 modules
+        # All should be valid HandlerBundles
         scripts = [persist_script, scroll_script, resize_script]
         for script in scripts:
+            assert hasattr(script, "scripts"), "Each handler should return a HandlerBundle with scripts"
+            assert hasattr(script, "signals"), "Each handler should return a HandlerBundle with signals"
             content = str(script)
-            assert content.startswith('<script type="module">')
-            assert content.endswith("</script>")
+            assert "import handlerPlugin" in content, "Each script should import a handler plugin"
 
         # Should not interfere with each other (different handler files)
         persist_content = str(persist_script)

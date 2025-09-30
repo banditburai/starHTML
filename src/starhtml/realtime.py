@@ -180,7 +180,7 @@ VALID_MODES = frozenset(["outer", "inner", "replace", "prepend", "append", "befo
 SSEMode = Literal["outer", "inner", "replace", "prepend", "append", "before", "after", "remove"]
 
 NEWLINE_REGEX = re.compile(r"\r\n|\r|\n")
-SELECTOR_VALIDATION_REGEX = re.compile(r"^[#.\[\]_\w:*-]+$")
+SELECTOR_VALIDATION_REGEX = re.compile(r"^[#\.\[\]_\w:*=\-\'\"]+$")
 
 try:
     from orjson import dumps as _orjson_dumps
@@ -477,9 +477,9 @@ class StarHTMLWithLiveReload:
         """Factory using __new__ to dynamically inject live-reload into StarHTML."""
         from .core import StarHTML
 
-        bodykw = kwargs.pop("bodykw", {})
         reload_attempts = kwargs.pop("reload_attempts", 1)
         reload_interval = kwargs.pop("reload_interval", 1000)
+        bodykw = kwargs.pop("bodykw", {})
 
         class _StarHTMLWithLiveReload(StarHTML):
             def __init__(self, *args, **kwargs):

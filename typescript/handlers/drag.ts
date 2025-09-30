@@ -1,4 +1,4 @@
-import { createRAFThrottle } from "./throttle.js";
+import { createRAFThrottle, createTimerThrottle } from "./throttle.js";
 
 interface AttributePlugin {
   type: "attribute";
@@ -29,7 +29,6 @@ interface DragConfig {
   mode: "freeform" | "sortable";
   throttleMs: number;
   constrainToParent: boolean;
-  touchEnabled: boolean;
 }
 
 interface DragState {
@@ -42,7 +41,16 @@ interface DragState {
   dimensions: { width: number; height: number };
 }
 
-const argNames = ["isDragging", "elementId", "x", "y", "dropZone", "zoneItems"];
+// Dynamic signal names based on config.signal
+function getDragArgNames(signal = "drag"): string[] {
+  return [
+    `${signal}_is_dragging`,
+    `${signal}_element_id`,
+    `${signal}_x`,
+    `${signal}_y`,
+    `${signal}_drop_zone`,
+  ];
+}
 
 const DEFAULT_THROTTLE = 16;
 
@@ -51,18 +59,32 @@ const parseTransform = (transform: string): { pan: { x: number; y: number }; sca
     return { pan: { x: 0, y: 0 }, scale: 1 };
   }
 
-  const matches = transform.match(/translate\(([^,]+),\s*([^)]+)\)\s*scale\(([^)]+)\)/);
-  if (!matches) {
-    return { pan: { x: 0, y: 0 }, scale: 1 };
+  // Try to match translate(x, y) scale(z) format first
+  let matches = transform.match(/translate\(([^,]+),\s*([^)]+)\)\s*scale\(([^)]+)\)/);
+  if (matches) {
+    return {
+      pan: {
+        x: Number.parseFloat(matches[1]),
+        y: Number.parseFloat(matches[2]),
+      },
+      scale: Number.parseFloat(matches[3]),
+    };
   }
 
-  return {
-    pan: {
-      x: Number.parseFloat(matches[1]),
-      y: Number.parseFloat(matches[2]),
-    },
-    scale: Number.parseFloat(matches[3]),
-  };
+  // Try to match matrix format: matrix(a, b, c, d, tx, ty)
+  // where a = scale x, d = scale y, tx = translate x, ty = translate y
+  matches = transform.match(/matrix\(([^,]+),\s*([^,]+),\s*([^,]+),\s*([^,]+),\s*([^,]+),\s*([^)]+)\)/);
+  if (matches) {
+    return {
+      pan: {
+        x: Number.parseFloat(matches[5]), // tx
+        y: Number.parseFloat(matches[6]), // ty
+      },
+      scale: Number.parseFloat(matches[1]), // a (scale x)
+    };
+  }
+
+  return { pan: { x: 0, y: 0 }, scale: 1 };
 };
 
 const calculateCanvasPosition = (
@@ -154,8 +176,9 @@ const updateDropZoneTracking = (_config: DragConfig, mergePatch: RuntimeContext[
       }
     }
 
+    const sig = _config.signal ?? "drag";
     mergePatch({
-      [`zone_${zoneName}_items`]: items,
+      [`${sig}_zone_${zoneName}_items`]: items,
     });
   }
 };
@@ -169,65 +192,100 @@ const findRelativeParent = (element: HTMLElement): HTMLElement | null => {
   return null;
 };
 
-const dragAttributePlugin: AttributePlugin = {
-  type: "attribute",
-  name: "draggable",
-  keyReq: "starts",
-  valReq: "allowed",
-  shouldEvaluate: false,
+function ensureAndPlacePlaceholder(state: DragState & { placeholder?: HTMLElement | null }, dropZone: Element) {
+  if (!state.element) return;
+  if (!state.placeholder) {
+    state.placeholder = document.createElement("div");
+    state.placeholder.className = "drag-placeholder";
+    state.placeholder.style.opacity = "0.5";
+    state.placeholder.style.border = "2px dashed #3b82f6";
+    state.placeholder.style.borderRadius = "8px";
+    state.placeholder.style.boxSizing = "border-box";
+  }
+  const height = `${state.dimensions.height}px`;
+  if (state.placeholder.style.height !== height) {
+    state.placeholder.style.height = height;
+  }
+  state.placeholder.style.margin = window.getComputedStyle(state.element).margin;
 
-  onLoad(ctx: RuntimeContext): OnRemovalFn | void {
-    const { el, mergePatch, startBatch, endBatch } = ctx;
+  const insertBefore = findInsertPosition(dropZone, state.current.y, state.element);
+  if (insertBefore) {
+    dropZone.insertBefore(state.placeholder, insertBefore);
+  } else if (state.placeholder.parentElement !== dropZone) {
+    dropZone.appendChild(state.placeholder);
+  }
+}
 
-    const config: DragConfig = {
-      signal: (window as any).__starhtml_drag_config?.signal ?? "drag",
-      mode: (window as any).__starhtml_drag_config?.mode ?? "freeform",
-      throttleMs: (window as any).__starhtml_drag_config?.throttleMs ?? DEFAULT_THROTTLE,
-      constrainToParent: (window as any).__starhtml_drag_config?.constrainToParent ?? false,
-      touchEnabled: (window as any).__starhtml_drag_config?.touchEnabled ?? true,
-    };
+// Global drag manager: single delegated pointerdown, shared active state
+type Registration = {
+  el: HTMLElement;
+  mods: Map<string, any>;
+  mergePatch: RuntimeContext["mergePatch"];
+  startBatch: RuntimeContext["startBatch"];
+  endBatch: RuntimeContext["endBatch"];
+};
 
-    const initializeSignals = () => {
-      mergePatch({
-        isDragging: false,
-        elementId: null,
-        x: 0,
-        y: 0,
-        dropZone: null,
-      });
+type ActiveDrag = {
+  ctx: Registration;
+  sig: string;
+  debug: boolean;
+  config: DragConfig;
+  state: DragState & { placeholder?: HTMLElement | null };
+  lastSent: Record<string, any>;
+  throttledUpdatePosition: () => void;
+  throttledZoneScan: () => void;
+};
 
-      const dropZoneName = el.getAttribute("data-drop-zone");
-      if (dropZoneName) {
-        mergePatch({
-          [`zone_${dropZoneName}_items`]: getDropZoneItems(el),
-        });
+const registrations: Registration[] = [];
+let globalPointerDownAttached = false;
+let active: ActiveDrag | null = null;
+
+function getGlobalConfig(): DragConfig {
+  const cfg = (window as any).__starhtml_drag_config || {};
+  return {
+    signal: cfg.signal ?? "drag",
+    mode: cfg.mode ?? "freeform",
+    throttleMs: cfg.throttleMs ?? DEFAULT_THROTTLE,
+    constrainToParent: cfg.constrainToParent ?? false,
+  } as DragConfig;
+}
+
+function findRegistrationFor(draggableEl: HTMLElement): Registration | null {
+  let node: HTMLElement | null = draggableEl;
+  while (node && node !== document.body) {
+    const reg = registrations.find(r => r.el === node) || null;
+    if (reg) {
+      const isDirectHandler = reg.el.hasAttribute("data-draggable");
+      if (!isDirectHandler || reg.el === draggableEl) {
+        return reg;
       }
-    };
+    }
+    node = node.parentElement;
+  }
+  return null;
+}
 
-    initializeSignals();
-
-    const state: DragState & { placeholder?: HTMLElement | null } = {
-      isDragging: false,
-      element: null,
-      hasMoved: false,
-      startPoint: { x: 0, y: 0 },
-      offset: { x: 0, y: 0 },
-      current: { x: 0, y: 0 },
-      dimensions: { width: 0, height: 0 },
-    };
-
-    const updateDragSignals = (updates: Record<string, any>) => {
-      startBatch();
-      try {
-        mergePatch(updates);
-      } catch (error) {
-        console.error("Error updating drag signals:", error);
+function computeAndMergeIfChanged(ctx: Registration, _debug: boolean, last: Record<string, any>, updates: Record<string, any>) {
+  const patch: Record<string, any> = {};
+  for (const k of Object.keys(updates)) {
+    if (last[k] !== updates[k]) {
+      patch[k] = updates[k];
+      last[k] = updates[k];
+    }
+  }
+  if (Object.keys(patch).length === 0) return;
+  ctx.startBatch();
+  try {
+    ctx.mergePatch(patch);
+        
       } finally {
-        endBatch();
+    ctx.endBatch();
+  }
       }
-    };
 
-    const updateDragPosition = () => {
+function updateDragPositionActive() {
+  if (!active) return;
+  const { ctx, state, sig, config } = active;
       if (!state.element || !state.isDragging) return;
 
       const { x, y } = state.current;
@@ -238,32 +296,30 @@ const dragAttributePlugin: AttributePlugin = {
       let finalX: number;
       let finalY: number;
 
-      if (canvasContainer && canvasViewport) {
+  const useCanvas = Boolean(canvasContainer && canvasViewport);
+  const relativeParent = useCanvas ? null : findRelativeParent(state.element);
+  const useRelative = Boolean(!useCanvas && relativeParent && relativeParent !== document.body);
+
+  if (useCanvas && canvasContainer && canvasViewport) {
         const viewportRect = canvasViewport.getBoundingClientRect();
         const transform = parseTransform(window.getComputedStyle(canvasContainer).transform);
         const canvasPos = calculateCanvasPosition(x, y, viewportRect, transform, state.offset);
-
         finalX = Math.round(canvasPos.x);
         finalY = Math.round(canvasPos.y);
-
         Object.assign(state.element.style, {
           left: `${canvasPos.x}px`,
           top: `${canvasPos.y}px`,
           position: "absolute",
-          zIndex: "1000",
-          transform: transform.scale !== 1 ? `scale(${1 / transform.scale})` : "",
+          zIndex: "1000",          
+          transform: "",
           transformOrigin: "top left",
         });
-      } else {
-        const relativeParent = findRelativeParent(state.element);
-
-        if (relativeParent && relativeParent !== document.body) {
+  } else if (useRelative && relativeParent) {
           const parentRect = relativeParent.getBoundingClientRect();
           let relativePos = {
             x: x - parentRect.left - state.offset.x,
             y: y - parentRect.top - state.offset.y,
           };
-
           if (config.constrainToParent) {
             relativePos = applyConstraints(
               relativePos.x,
@@ -272,10 +328,8 @@ const dragAttributePlugin: AttributePlugin = {
               state.dimensions
             );
           }
-
           finalX = Math.round(relativePos.x);
           finalY = Math.round(relativePos.y);
-
           Object.assign(state.element.style, {
             left: `${relativePos.x}px`,
             top: `${relativePos.y}px`,
@@ -285,22 +339,17 @@ const dragAttributePlugin: AttributePlugin = {
         } else {
           let transformX = x - state.offset.x;
           let transformY = y - state.offset.y;
-
           if (config.constrainToParent && state.element.parentElement) {
             const parentRect = state.element.parentElement.getBoundingClientRect();
-
             const minX = parentRect.left - state.offset.x;
             const minY = parentRect.top - state.offset.y;
             const maxX = parentRect.right - state.dimensions.width - state.offset.x;
             const maxY = parentRect.bottom - state.dimensions.height - state.offset.y;
-
             transformX = Math.max(minX, Math.min(maxX, transformX));
             transformY = Math.max(minY, Math.min(maxY, transformY));
           }
-
           finalX = Math.round(transformX + state.offset.x);
           finalY = Math.round(transformY + state.offset.y);
-
           Object.assign(state.element.style, {
             position: "fixed",
             transform: `translate(${transformX}px, ${transformY}px)`,
@@ -310,7 +359,6 @@ const dragAttributePlugin: AttributePlugin = {
             pointerEvents: "none",
             willChange: "transform",
           });
-        }
       }
 
       if (state.element) {
@@ -321,111 +369,82 @@ const dragAttributePlugin: AttributePlugin = {
         const dropZoneName = dropZone?.getAttribute("data-drop-zone") ?? null;
         const elementId = state.element.id || state.element.dataset.id || null;
 
-        updateDragSignals({
-          isDragging: true,
-          elementId: elementId,
-          x: finalX,
-          y: finalY,
-          dropZone: dropZoneName,
-        });
+    computeAndMergeIfChanged(
+      ctx,
+      active.debug,
+      active.lastSent,
+      {
+          [`${sig}_is_dragging`]: true,
+          [`${sig}_element_id`]: elementId,
+          [`${sig}_x`]: finalX,
+          [`${sig}_y`]: finalY,
+          [`${sig}_drop_zone`]: dropZoneName,
+      }
+    );
 
         for (const zone of document.querySelectorAll("[data-drop-zone]")) {
           zone.classList.toggle("drop-zone-active", zone === dropZone);
         }
 
         if (config.mode === "sortable" && dropZone) {
-          if (state.placeholder) {
-            state.placeholder.remove();
-          }
-
-          state.placeholder = document.createElement("div");
-          state.placeholder.className = "drag-placeholder";
-          state.placeholder.style.height = `${state.dimensions.height}px`;
-          state.placeholder.style.margin = window.getComputedStyle(state.element).margin;
-          state.placeholder.style.opacity = "0.5";
-          state.placeholder.style.border = "2px dashed #3b82f6";
-          state.placeholder.style.borderRadius = "8px";
-          state.placeholder.style.boxSizing = "border-box";
-
-          const insertBefore = findInsertPosition(dropZone, state.current.y, state.element);
-
-          if (insertBefore) {
-            dropZone.insertBefore(state.placeholder, insertBefore);
-          } else {
-            dropZone.appendChild(state.placeholder);
-          }
+          ensureAndPlacePlaceholder(state, dropZone);
         }
       }
 
       if (state.isDragging && config.mode === "freeform") {
-        updateDropZoneTracking(config, mergePatch);
-      }
-    };
+    active.throttledZoneScan();
+  }
+}
 
-    const throttledUpdatePosition = createRAFThrottle(updateDragPosition);
+function cleanupActiveDrag() {
+  if (!active) return;
 
-    let boundPointerMove: ((evt: PointerEvent) => void) | null = null;
-    let boundPointerUp: (() => void) | null = null;
+  document.removeEventListener("pointermove", handleGlobalPointerMove);
+  document.removeEventListener("pointerup", handleGlobalPointerUp);
 
-    const handlePointerDown = (evt: PointerEvent) => {
-      const target = evt.target as HTMLElement;
-      const draggableElement = target.closest("[data-draggable]") as HTMLElement;
+  const { state } = active;
+  if (state.element) {
+    state.element.classList.remove("is-dragging");
 
-      const isDirectHandler = el.hasAttribute("data-draggable");
-      if (!draggableElement || (isDirectHandler && draggableElement !== el)) return;
+    const canvasContainer = state.element.closest("[data-canvas-container]");
 
-      evt.preventDefault();
+    const baseStyles = {
+      zIndex: "",
+      pointerEvents: "",
+      willChange: "",
+      width: "",
+      height: "",
+    } as Record<string, string>;
 
-      state.element = draggableElement;
-      state.startPoint = { x: evt.clientX, y: evt.clientY };
-      state.current = { x: evt.clientX, y: evt.clientY };
-      state.hasMoved = false;
+    if (canvasContainer) {
+      Object.assign(state.element.style, baseStyles);
+    } else {
+      const relativeParent = findRelativeParent(state.element);
+      Object.assign(
+        state.element.style,
+        relativeParent && relativeParent !== document.body
+          ? baseStyles
+          : { ...baseStyles, position: "", transform: "", left: "", top: "" }
+      );
+    }
+  }
 
-      const rect = draggableElement.getBoundingClientRect();
+  document.body.classList.remove("is-drag-active");
+  for (const el of document.querySelectorAll(".drop-zone-active")) {
+    el.classList.remove("drop-zone-active");
+  }
 
-      const canvasContainer = draggableElement.closest("[data-canvas-container]");
-      const canvasViewport = document.querySelector("[data-canvas-viewport]");
+  if (state.placeholder) {
+    state.placeholder.remove();
+    state.placeholder = null;
+  }
 
-      if (canvasContainer && canvasViewport) {
-        const viewportRect = canvasViewport.getBoundingClientRect();
-        const transform = parseTransform(window.getComputedStyle(canvasContainer).transform);
+  active = null;
+}
 
-        const canvasClickPos = calculateCanvasPosition(
-          evt.clientX,
-          evt.clientY,
-          viewportRect,
-          transform,
-          { x: 0, y: 0 }
-        );
-
-        const elementStyle = window.getComputedStyle(draggableElement);
-        const elementCanvasX = Number.parseFloat(elementStyle.left) || 0;
-        const elementCanvasY = Number.parseFloat(elementStyle.top) || 0;
-
-        state.offset = {
-          x: canvasClickPos.x - elementCanvasX,
-          y: canvasClickPos.y - elementCanvasY,
-        };
-      } else {
-        state.offset = {
-          x: evt.clientX - rect.left,
-          y: evt.clientY - rect.top,
-        };
-      }
-      state.dimensions = {
-        width: rect.width,
-        height: rect.height,
-      };
-
-      boundPointerMove = handlePointerMove;
-      boundPointerUp = handlePointerUp;
-      document.addEventListener("pointermove", boundPointerMove);
-      document.addEventListener("pointerup", boundPointerUp);
-    };
-
-    const handlePointerMove = (evt: PointerEvent) => {
-      if (!state.element) return;
-
+function handleGlobalPointerMove(evt: PointerEvent) {
+  if (!active || !active.state.element) return;
+  const { state } = active;
       state.current = { x: evt.clientX, y: evt.clientY };
 
       const deltaX = state.current.x - state.startPoint.x;
@@ -438,34 +457,46 @@ const dragAttributePlugin: AttributePlugin = {
         state.hasMoved = true;
         state.isDragging = true;
 
-        const elementId = state.element.id || state.element.dataset.id || null;
+    const element = state.element as HTMLElement;
+    const elementId = element.id || element.dataset.id || null;
 
-        updateDragSignals({
-          isDragging: true,
-          elementId: elementId,
-        });
+    computeAndMergeIfChanged(
+      active.ctx,
+      active.debug,
+      active.lastSent,
+      {
+        [`${active.sig}_is_dragging`]: true,
+        [`${active.sig}_element_id`]: elementId,
+      }
+    );
 
-        state.element.classList.add("is-dragging");
+    element.classList.add("is-dragging");
         document.body.classList.add("is-drag-active");
 
-        state.element.style.width = `${state.dimensions.width}px`;
-        state.element.style.height = `${state.dimensions.height}px`;
+    // Don't set explicit dimensions for canvas elements
+    const isCanvasElement = Boolean(element.closest("[data-canvas-container]"));
+    if (!isCanvasElement) {
+      element.style.width = `${state.dimensions.width}px`;
+      element.style.height = `${state.dimensions.height}px`;
+    }
       }
 
-      throttledUpdatePosition();
-    };
+  active.throttledUpdatePosition();
+}
 
-    const handlePointerUp = () => {
-      if (!state.element) {
-        cleanup();
+function handleGlobalPointerUp() {
+  if (!active) {
+    cleanupActiveDrag();
         return;
       }
 
+  const { ctx, state, config, sig } = active;
+
       if (state.isDragging) {
-        updateDragSignals({
-          isDragging: false,
-          elementId: null,
-          dropZone: null,
+    computeAndMergeIfChanged(ctx, active.debug, active.lastSent, {
+          [`${sig}_is_dragging`]: false,
+          [`${sig}_element_id`]: null,
+          [`${sig}_drop_zone`]: null,
         });
 
         if (config.mode === "sortable") {
@@ -483,92 +514,162 @@ const dragAttributePlugin: AttributePlugin = {
             }
 
             if (sourceZoneName && sourceZone) {
-              mergePatch({
-                [`zone_${sourceZoneName}_items`]: getDropZoneItems(sourceZone),
-              });
+              const srcPatch = { [`${sig}_zone_${sourceZoneName}_items`]: getDropZoneItems(sourceZone) } as Record<string, any>;
+          ctx.mergePatch(srcPatch);
+          
             }
 
             const targetZoneName = dropZone.getAttribute("data-drop-zone");
             if (targetZoneName) {
-              mergePatch({
-                [`zone_${targetZoneName}_items`]: getDropZoneItems(dropZone),
-              });
+              const tgtPatch = { [`${sig}_zone_${targetZoneName}_items`]: getDropZoneItems(dropZone) } as Record<string, any>;
+          ctx.mergePatch(tgtPatch);
+          
             }
           }
         } else if (config.mode === "freeform") {
-          updateDropZoneTracking(config, mergePatch);
-        }
-      }
+      updateDropZoneTracking(config, ctx.mergePatch);
+    }
+  }
 
-      cleanup();
+  cleanupActiveDrag();
+}
+
+function handleGlobalPointerDown(evt: PointerEvent) {
+  const target = evt.target as HTMLElement;
+  const draggableElement = target.closest?.("[data-draggable]") as HTMLElement | null;
+  if (!draggableElement) return;
+
+  const reg = findRegistrationFor(draggableElement);
+  if (!reg) return;
+
+  evt.preventDefault();
+
+  const config = getGlobalConfig();
+  const sig = config.signal ?? "drag";
+  const debug = reg.mods.has("debug");
+
+  const rect = draggableElement.getBoundingClientRect();
+
+  const canvasContainer = draggableElement.closest("[data-canvas-container]");
+  const canvasViewport = document.querySelector("[data-canvas-viewport]");
+
+  let offset: { x: number; y: number };
+  if (canvasContainer && canvasViewport) {
+    const viewportRect = canvasViewport.getBoundingClientRect();
+    const transform = parseTransform(window.getComputedStyle(canvasContainer).transform);        
+    const elementStyle = window.getComputedStyle(draggableElement);
+    const elementCanvasX = Number.parseFloat(elementStyle.left) || 0;
+    const elementCanvasY = Number.parseFloat(elementStyle.top) || 0;
+    
+    const clickInCanvas = calculateCanvasPosition(
+      evt.clientX,
+      evt.clientY,
+      viewportRect,
+      transform,
+      { x: 0, y: 0 }
+    );
+    
+    offset = { 
+      x: (clickInCanvas.x - elementCanvasX) * transform.scale, 
+      y: (clickInCanvas.y - elementCanvasY) * transform.scale 
     };
+  } else {
+    offset = { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
+  }
 
-    const cleanup = () => {
-      if (boundPointerMove) {
-        document.removeEventListener("pointermove", boundPointerMove);
-        boundPointerMove = null;
-      }
-      if (boundPointerUp) {
-        document.removeEventListener("pointerup", boundPointerUp);
-        boundPointerUp = null;
-      }
+  const state: DragState & { placeholder?: HTMLElement | null } = {
+    isDragging: false,
+    element: draggableElement,
+    hasMoved: false,
+    startPoint: { x: evt.clientX, y: evt.clientY },
+    offset: offset,
+    current: { x: evt.clientX, y: evt.clientY },
+    dimensions: { width: rect.width, height: rect.height },
+  };
 
-      if (state.element) {
-        state.element.classList.remove("is-dragging");
+  const throttledUpdatePosition = createRAFThrottle(updateDragPositionActive);
+  const zoneThrottle = Math.max(100, Number(config.throttleMs || 0) || 0);
+  const throttledZoneScan = createTimerThrottle(() => updateDropZoneTracking(config, reg.mergePatch), zoneThrottle);
 
-        const canvasContainer = state.element.closest("[data-canvas-container]");
+  active = {
+    ctx: reg,
+    sig,
+    debug,
+    config,
+    state,
+    lastSent: {},
+    throttledUpdatePosition,
+    throttledZoneScan,
+  };
 
-        const baseStyles = {
-          zIndex: "",
-          pointerEvents: "",
-          willChange: "",
-          width: "",
-          height: "",
-        };
+  document.addEventListener("pointermove", handleGlobalPointerMove);
+  document.addEventListener("pointerup", handleGlobalPointerUp);
+}
 
-        if (canvasContainer) {
-          Object.assign(state.element.style, baseStyles);
-        } else {
-          const relativeParent = findRelativeParent(state.element);
+function attachGlobalPointerDown() {
+  if (globalPointerDownAttached) return;
+  document.addEventListener("pointerdown", handleGlobalPointerDown);
+  globalPointerDownAttached = true;
+}
 
-          Object.assign(
-            state.element.style,
-            relativeParent && relativeParent !== document.body
-              ? baseStyles
-              : { ...baseStyles, position: "", transform: "", left: "", top: "" }
-          );
-        }
-      }
+function detachGlobalPointerDown() {
+  if (!globalPointerDownAttached) return;
+  document.removeEventListener("pointerdown", handleGlobalPointerDown);
+  globalPointerDownAttached = false;
+}
 
-      document.body.classList.remove("is-drag-active");
-      for (const el of document.querySelectorAll(".drop-zone-active")) {
-        el.classList.remove("drop-zone-active");
-      }
+const dragAttributePlugin: AttributePlugin = {
+  type: "attribute",
+  name: "draggable",
+  keyReq: "starts",
+  valReq: "allowed",
+  shouldEvaluate: false,
 
-      if (state.placeholder) {
-        state.placeholder.remove();
-        state.placeholder = null;
-      }
+  onLoad(ctx: RuntimeContext): OnRemovalFn | void {
+    const { el, mergePatch, mods, startBatch, endBatch } = ctx;
 
-      state.element = null;
-      state.isDragging = false;
-      state.hasMoved = false;
-    };
+    const config = getGlobalConfig();
+    const sig = config.signal ?? "drag";
+  
 
-    document.addEventListener("pointerdown", handlePointerDown);
+    const initPatch = {
+      [`${sig}_is_dragging`]: false,
+      [`${sig}_element_id`]: null,
+      [`${sig}_x`]: 0,
+      [`${sig}_y`]: 0,
+      [`${sig}_drop_zone`]: null,
+    } as Record<string, any>;
+    mergePatch(initPatch);
+    
+
+    const dropZoneName = el.getAttribute("data-drop-zone");
+    if (dropZoneName) {
+      const zonePatch = { [`${sig}_zone_${dropZoneName}_items`]: getDropZoneItems(el) } as Record<string, any>;
+      mergePatch(zonePatch);
+      
+    }
+
+    const registration: Registration = { el, mods, mergePatch, startBatch, endBatch };
+    registrations.push(registration);
+    attachGlobalPointerDown();
 
     return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      cleanup();
+      const idx = registrations.findIndex(r => r.el === el);
+      if (idx >= 0) registrations.splice(idx, 1);
+      if (registrations.length === 0) {
+        detachGlobalPointerDown();
+      }
     };
   },
 };
 
 const dragPlugin = {
   ...dragAttributePlugin,
-  argNames,
+  argNames: [] as string[],
   setConfig(config: any) {
     (window as any).__starhtml_drag_config = config;
+    const signal = config?.signal ? String(config.signal) : "drag";
+    (this as any).argNames = getDragArgNames(signal);
   },
 };
 

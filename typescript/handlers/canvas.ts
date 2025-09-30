@@ -38,6 +38,27 @@ interface CanvasConfig {
   contextMenuEnabled: boolean;
   spacebarPan: boolean;
   middleClickPan: boolean;
+  backgroundColor?: string;
+  enableGrid?: boolean;
+  gridSize?: number;
+  gridColor?: string;
+  minorGridSize?: number;
+  minorGridColor?: string;
+}
+
+function getCanvasArgNames(signal = "canvas"): string[] {
+  return [
+    `${signal}_pan_x`,
+    `${signal}_pan_y`,
+    `${signal}_zoom`,
+    `${signal}_reset_view`,
+    `${signal}_zoom_in`,
+    `${signal}_zoom_out`,
+    `${signal}_context_menu_x`,
+    `${signal}_context_menu_y`,
+    `${signal}_context_menu_screen_x`,
+    `${signal}_context_menu_screen_y`,
+  ];
 }
 interface GestureState {
   pointers: Map<number, PointerEvent>;
@@ -64,6 +85,12 @@ function parseConfig(config: any): CanvasConfig {
     contextMenuEnabled: config?.contextMenuEnabled !== false,
     spacebarPan: config?.spacebarPan !== false,
     middleClickPan: config?.middleClickPan !== false,
+    backgroundColor: config?.backgroundColor || "#f8f9fa",
+    enableGrid: config?.enableGrid !== false,
+    gridSize: config?.gridSize || 100,
+    gridColor: config?.gridColor || "#e0e0e0",
+    minorGridSize: config?.minorGridSize || 20,
+    minorGridColor: config?.minorGridColor || "#f0f0f0",
   };
 }
 const ZOOM_FACTOR = 1.2;
@@ -75,6 +102,7 @@ class CanvasController {
   private viewport: HTMLElement | null = null;
   private container: HTMLElement | null = null;
   private config: CanvasConfig;
+  private lastSent: Record<string, any> = {};
   private gestureState: GestureState = {
     pointers: new Map(),
     isGesturing: false,
@@ -84,7 +112,6 @@ class CanvasController {
   private lastPanPoint: Point | null = null;
   private isSpacePressed = false;
   private rafId: number | null = null;
-  private needsRender = false;
   private lastViewportWidth = 0;
   private lastViewportHeight = 0;
   private resizeObserver: ResizeObserver | null = null;
@@ -95,6 +122,9 @@ class CanvasController {
   private boundHandleContextMenu = this.handleContextMenu.bind(this);
   private boundHandlePointerMove = this.handlePointerMove.bind(this);
   private boundHandlePointerUp = this.handlePointerUp.bind(this);
+  private readonly resetViewFn = this.resetView.bind(this);
+  private readonly zoomInFn = this.zoomIn.bind(this);
+  private readonly zoomOutFn = this.zoomOut.bind(this);
   constructor(
     private ctx: RuntimeContext,
     config: CanvasConfig
@@ -102,8 +132,8 @@ class CanvasController {
     this.config = config;
     this.setupEventListeners();
     this.initializeDOMElements();
-    this.startRenderLoop();
   }
+  public setContext(ctx: RuntimeContext) { this.ctx = ctx; }
   private setupEventListeners() {
     document.addEventListener("pointerdown", this.boundHandlePointerDown);
     document.addEventListener("wheel", this.boundHandleWheel, { passive: false });
@@ -171,14 +201,75 @@ class CanvasController {
   }
   private setupViewportStyles() {
     if (!this.viewport) return;
+    
     Object.assign(this.viewport.style, {
       userSelect: "none",
       webkitUserSelect: "none",
       touchAction: "none",
       cursor: "grab",
       willChange: "transform",
+      backgroundColor: this.config.backgroundColor,
       ...(window.devicePixelRatio > 1 && { imageRendering: "pixelated" }),
     });
+    
+    if (this.config.enableGrid) {
+      this.applyGridStyles();
+    }
+  }
+  
+  private applyGridStyles() {
+    if (!this.viewport) return;
+    
+    const gridSize = this.config.gridSize || 100;
+    const gridColor = this.config.gridColor || "rgba(0,0,0,0.1)";
+    const minorSize = this.config.minorGridSize || 20;
+    const minorColor = this.config.minorGridColor || "rgba(0,0,0,0.05)";
+    
+    const bgImage = [
+      `linear-gradient(${gridColor} 1px, transparent 1px)`,
+      `linear-gradient(90deg, ${gridColor} 1px, transparent 1px)`,
+      `linear-gradient(${minorColor} 1px, transparent 1px)`,
+      `linear-gradient(90deg, ${minorColor} 1px, transparent 1px)`,
+    ].join(',');
+    
+    this.viewport.style.backgroundImage = bgImage;
+    this.viewport.style.backgroundSize = [
+      `${gridSize}px ${gridSize}px`,
+      `${gridSize}px ${gridSize}px`,
+      `${minorSize}px ${minorSize}px`,
+      `${minorSize}px ${minorSize}px`,
+    ].join(',');
+    
+    this.updateGridPosition();
+  }
+  
+  private updateGridPosition() {
+    if (!this.viewport || !this.config.enableGrid) return;
+    
+    const gridSize = this.config.gridSize || 100;
+    const minorSize = this.config.minorGridSize || 20;
+    
+    const scaledGridSize = gridSize * this.camera.z;
+    const scaledMinorSize = minorSize * this.camera.z;
+    
+    const majorOffsetX = (this.camera.x * this.camera.z) % scaledGridSize;
+    const majorOffsetY = (this.camera.y * this.camera.z) % scaledGridSize;
+    const minorOffsetX = (this.camera.x * this.camera.z) % scaledMinorSize;
+    const minorOffsetY = (this.camera.y * this.camera.z) % scaledMinorSize;
+    
+    this.viewport.style.backgroundPosition = [
+      `${majorOffsetX}px ${majorOffsetY}px`,
+      `${majorOffsetX}px ${majorOffsetY}px`,
+      `${minorOffsetX}px ${minorOffsetY}px`,
+      `${minorOffsetX}px ${minorOffsetY}px`,
+    ].join(',');
+    
+    this.viewport.style.backgroundSize = [
+      `${scaledGridSize}px ${scaledGridSize}px`,
+      `${scaledGridSize}px ${scaledGridSize}px`,
+      `${scaledMinorSize}px ${scaledMinorSize}px`,
+      `${scaledMinorSize}px ${scaledMinorSize}px`,
+    ].join(',');
   }
   private handlePointerDown(evt: PointerEvent) {
     const target = evt.target as HTMLElement;
@@ -344,12 +435,13 @@ class CanvasController {
       x: evt.clientX - rect.left,
       y: evt.clientY - rect.top,
     });
-    this.ctx.mergePatch({
+    const updates = {
       [`${this.config.signal}_context_menu_x`]: canvasPoint.x,
       [`${this.config.signal}_context_menu_y`]: canvasPoint.y,
       [`${this.config.signal}_context_menu_screen_x`]: evt.clientX,
       [`${this.config.signal}_context_menu_screen_y`]: evt.clientY,
-    });
+    } as Record<string, any>;
+    this.ctx.mergePatch(updates);
   }
   private clampZoom(zoom: number): number {
     return Math.max(this.config.minZoom, Math.min(this.config.maxZoom, zoom));
@@ -407,19 +499,15 @@ class CanvasController {
       y: (pointer1.clientY + pointer2.clientY) / 2,
     };
   }
-  private startRenderLoop() {
-    const render = () => {
-      if (this.needsRender) {
-        this.updateTransform();
-        this.updateSignals();
-        this.needsRender = false;
-      }
-      this.rafId = requestAnimationFrame(render);
-    };
-    this.rafId = requestAnimationFrame(render);
-  }
+  
   private scheduleRender() {
-    this.needsRender = true;
+    if (this.rafId !== null) return;
+    this.rafId = requestAnimationFrame(() => {
+      this.rafId = null;
+      this.updateTransform();
+      this.updateGridPosition();
+      this.updateSignals();
+    });
   }
   private updateTransform() {
     if (!this.container) return;
@@ -428,20 +516,24 @@ class CanvasController {
     this.container.style.transformOrigin = "0 0";
   }
   private updateSignals() {
+    const updates: Record<string, any> = {
+      [`${this.config.signal}_pan_x`]: this.camera.x,
+      [`${this.config.signal}_pan_y`]: this.camera.y,
+      [`${this.config.signal}_zoom`]: this.camera.z,
+      [`${this.config.signal}_reset_view`]: this.resetViewFn,
+      [`${this.config.signal}_zoom_in`]: this.zoomInFn,
+      [`${this.config.signal}_zoom_out`]: this.zoomOutFn,
+    };
+    const patch: Record<string, any> = {};
+    for (const k in updates) {
+      if (this.lastSent[k] !== updates[k]) patch[k] = updates[k];
+    }
+    if (Object.keys(patch).length === 0) return;
     this.ctx.startBatch();
     try {
-      this.ctx.mergePatch({
-        [`${this.config.signal}_pan_x`]: this.camera.x,
-        [`${this.config.signal}_pan_y`]: this.camera.y,
-        [`${this.config.signal}_zoom`]: this.camera.z,
-        [`${this.config.signal}_is_panning`]: this.isPanning,
-        [`${this.config.signal}_reset_view`]: this.resetView.bind(this),
-        [`${this.config.signal}_zoom_in`]: this.zoomIn.bind(this),
-        [`${this.config.signal}_zoom_out`]: this.zoomOut.bind(this),
-      });
+      this.ctx.mergePatch(patch);
       this.ctx.rx(this.camera.x, this.camera.y, this.camera.z, this.isPanning);
-    } catch (error) {
-      console.error("Error executing canvas handler:", error);
+      Object.assign(this.lastSent, patch);
     } finally {
       this.ctx.endBatch();
     }
@@ -478,8 +570,11 @@ const canvasAttributePlugin: AttributePlugin = {
 };
 const canvasPlugin = {
   ...canvasAttributePlugin,
+  argNames: [] as string[],
   setConfig(config: any) {
     window.__starhtml_canvas_config = config;
+    const signal = config?.signal ? String(config.signal) : "canvas";
+    (this as any).argNames = getCanvasArgNames(signal);
   },
 };
 export default canvasPlugin;

@@ -1,5 +1,5 @@
 {
-    "include": ["src", "tests", "demo"],
+    "include": ["src", "tests", "web"],
     "exclude": ["**/node_modules", "**/__pycache__", "**/.venv", "**/build", "**/dist", "**/reference"],
     "pythonVersion": "3.12",
     "pythonPlatform": "All",

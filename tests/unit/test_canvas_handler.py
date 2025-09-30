@@ -1,7 +1,5 @@
 """Tests for canvas_handler behavior and functionality."""
 
-from fastcore.xml import FT
-
 from starhtml.handlers import canvas_handler
 
 
@@ -11,11 +9,17 @@ class TestCanvasHandler:
     def test_canvas_handler_creates_javascript_output(self):
         """Test that canvas_handler creates JavaScript output for the browser."""
         result = canvas_handler()
-        # Should create some form of JavaScript output (Script or list containing Script)
-        if isinstance(result, list):
-            assert any(isinstance(item, FT) for item in result)
-        else:
-            assert isinstance(result, FT)
+
+        # Test that result is a HandlerBundle with scripts and signals
+        assert hasattr(result, "scripts"), "Result should have scripts attribute"
+        assert hasattr(result, "signals"), "Result should have signals attribute"
+
+        # Test that scripts contain the expected canvas handler content
+        script_content = str(result)
+        assert "/static/js/handlers/canvas.js" in script_content
+        assert "import handlerPlugin" in script_content
+        assert "load(handlerPlugin)" in script_content
+        assert "apply()" in script_content
 
     def test_canvas_handler_configuration_passed_through(self):
         """Test that canvas_handler configuration is properly embedded."""
@@ -65,22 +69,20 @@ class TestCanvasHandler:
         assert "touchEnabled" in output_str and "false" in output_str
 
     def test_canvas_handler_grid_feature(self):
-        """Test that grid feature adds visual styling when enabled."""
+        """Test that grid feature configuration is properly embedded."""
         # With grid enabled (default)
         result_with_grid = canvas_handler(enable_grid=True)
         output_str = str(result_with_grid)
 
-        # Should contain grid-related styling
-        assert "linear-gradient" in output_str or "grid" in output_str.lower()
+        # Should contain grid configuration
+        assert "enableGrid" in output_str and "true" in output_str
 
         # With grid disabled
         result_no_grid = canvas_handler(enable_grid=False)
         output_str_no_grid = str(result_no_grid)
 
-        # Grid styling should be different/absent
-        grid_content_with = output_str.count("linear-gradient")
-        grid_content_without = output_str_no_grid.count("linear-gradient")
-        assert grid_content_with != grid_content_without
+        # Grid configuration should be different
+        assert "enableGrid" in output_str_no_grid and "false" in output_str_no_grid
 
     def test_canvas_handler_comprehensive_configuration(self):
         """Test canvas_handler with comprehensive parameter set."""

@@ -7,16 +7,8 @@ from starlette.testclient import TestClient
 
 from starhtml import *
 from starhtml.datastar import (
-    ds_bind,
-    ds_class,
-    ds_on_blur,
-    ds_on_click,
-    ds_on_input,
-    ds_on_submit,
-    ds_show,
-    ds_signals,
-    ds_text,
-    value,
+    Signal,
+    js,
 )
 from starhtml.realtime import elements, format_element_event, format_signal_event, signals
 from starhtml.server import JSONResponse
@@ -30,19 +22,19 @@ class TestDatastarIntegrationScenarios:
         form = Form(
             Div(
                 Input(
-                    ds_bind("user.name"),
-                    ds_on_input("validateName()", debounce="300ms"),
+                    data_bind="user.name",
+                    data_on_input=("validateName()", {"debounce": "300ms"}),
                     type="text",
                     placeholder="Full Name",
                 ),
-                Div("Name is required", ds_show("$errors.name"), style="color: red"),
+                Div("Name is required", data_show=js("$errors.name"), style="color: red"),
             ),
             Div(
-                Input(ds_bind("user.email"), ds_on_blur("validateEmail()"), type="email", placeholder="Email"),
-                Div(ds_text("$errors.email"), ds_show("$errors.email"), style="color: red"),
+                Input(data_bind="user.email", data_on_blur="validateEmail()", type="email", placeholder="Email"),
+                Div(data_text=js("$errors.email"), data_show=js("$errors.email"), style="color: red"),
             ),
-            Button("Submit", ds_on_click("submitForm()"), ds_show("$isFormValid"), type="submit"),
-            ds_on_submit("handleSubmit(event)"),
+            Button("Submit", data_on_click="submitForm()", data_show=js("$isFormValid"), type="submit"),
+            data_on_submit="handleSubmit(event)",
         )
 
         html = str(form)
@@ -86,7 +78,7 @@ class TestDatastarIntegrationScenarios:
             Div(
                 H2("Processing Complete"),
                 P("Data has been successfully processed."),
-                Button("Continue", ds_on_click("nextStep()")),
+                Button("Continue", data_on_click="nextStep()"),
             ),
             "#main-content",
             "inner",
@@ -221,8 +213,8 @@ class TestAttributeHandling:
         """Test mixing regular and Datastar attributes."""
         element = Div(
             "Mixed attributes",
-            ds_show("$isVisible"),
-            ds_on_click("handleClick()"),
+            data_show="$isVisible",
+            data_on_click="handleClick()",
             id="test",
             cls="test-class",
             style="color: blue;",
@@ -254,7 +246,7 @@ class TestNestedStructures:
                         H2("Article Title"),
                         P("First paragraph"),
                         P("Second paragraph"),
-                        Div(Button("Action", ds_on_click("doAction()")), Span("Status", ds_text("$status"))),
+                        Div(Button("Action", data_on_click="doAction()"), Span("Status", data_text="$status")),
                     )
                 )
             ),
@@ -289,11 +281,11 @@ class TestNestedStructures:
                     H3(name, cls="user-name"),
                     P(email, cls="user-email"),
                     Button(
-                        "Follow", ds_on_click(f"followUser('{email}')"), ds_class(active=f"$isFollowing('{email}')")
+                        "Follow", data_on_click=f"followUser('{email}')", data_class_active=f"$isFollowing('{email}')"
                     ),
                     cls="user-info",
                 ),
-                ds_signals(user=value({"name": name, "email": email})),
+                data_signals=[Signal("user", {"name": name, "email": email})],
                 cls="user-card",
             )
 
@@ -310,7 +302,8 @@ class TestNestedStructures:
         assert "john@example.com" in html
         assert "data-on-click=\"followUser('john@example.com')\"" in html
         assert "data-class-active=\"$isFollowing('john@example.com')\"" in html
-        assert "data-signals-user=" in html
+        assert "data-signals=" in html
+        assert "user:" in html
         assert '"name": "John Doe"' in html
         assert '"email": "john@example.com"' in html
 

@@ -38,10 +38,10 @@ jobs:
       run: |
         uv run pytest tests/ -v --tb=short --cov=src/starhtml --cov-report=term-missing --cov-report=xml
         
-    - name: Test demo files
+    - name: Test web files
       run: |
-        echo "Checking demo files for syntax errors..."
-        uv run python -m py_compile demo/*.py
+        echo "Checking web files for syntax errors..."
+        uv run python -m py_compile web/*.py
         
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4

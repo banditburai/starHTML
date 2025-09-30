@@ -12,6 +12,7 @@ export default defineConfig({
         'position': './typescript/handlers/position.ts',
         'throttle': './typescript/handlers/throttle.ts',
         'smooth-scroll': './typescript/handlers/smooth-scroll.ts',
+        'split': './typescript/handlers/split.ts',
         'index': './typescript/handlers/index.ts'
       },
       formats: ['es'],
@@ -22,9 +23,9 @@ export default defineConfig({
     minify: 'terser',
     terserOptions: {
       compress: {
-        drop_console: true,
-        drop_debugger: true,
-        pure_funcs: ['console.log', 'console.debug'],
+        drop_console: false,
+        drop_debugger: false,
+        pure_funcs: [],
         passes: 2,
         unsafe: true,
         unsafe_comps: true,
