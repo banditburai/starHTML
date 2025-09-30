@@ -11,7 +11,6 @@ This module tests all functionality in src/starhtml/html.py including:
 
 from fastcore.xml import FT
 
-from starhtml.datastar import ds_bind, ds_on_click, ds_show, ds_signals, ds_text
 from starhtml.html import _get_tag_name, _is_valid_attr, attrmap_x, fh_cfg, ft_datastar, ft_html, html2ft
 
 
@@ -144,16 +143,16 @@ class TestFtDatastar:
 
     def test_basic_datastar_element(self):
         """Test basic Datastar element creation."""
-        element = ft_datastar("div", "content", ds_show("$isVisible"))
+        element = ft_datastar("div", "content", data_show="$isVisible")
         assert element.tag == "div"
         assert element.children == ("content",)
-        # ds_show should be converted to data-show
+        # data_show should be converted to data-show
         assert "data-show" in element.attrs
 
     def test_datastar_with_regular_attrs(self):
         """Test Datastar element with mixed regular and Datastar attributes."""
         element = ft_datastar(
-            "div", "content", ds_bind("value"), ds_on_click("handleClick()"), id="test-id", cls="test-class"
+            "div", "content", data_bind="value", data_on_click="handleClick()", id="test-id", cls="test-class"
         )
 
         assert element.attrs["id"] == "test-id"
@@ -166,10 +165,10 @@ class TestFtDatastar:
         element = ft_datastar(
             "button",
             "Click me",
-            ds_show("$isVisible"),
-            ds_text("$buttonText"),
-            ds_on_click("handleClick()"),
-            ds_bind("buttonValue"),
+            data_show="$isVisible",
+            data_text="$buttonText",
+            data_on_click="handleClick()",
+            data_bind="buttonValue",
         )
 
         expected_attrs = ["data-show", "data-text", "data-on-click", "data-bind"]
@@ -478,16 +477,16 @@ class TestRealWorldScenarios:
         component = ft_datastar(
             "div",
             ft_html("h2", "Counter"),
-            ft_html("p", "Count: ", ft_html("span", ds_text("$count"))),
-            ft_html("button", "+", ds_on_click("count++")),
-            ft_html("button", "-", ds_on_click("count--")),
-            ds_signals({"count": 0}),
+            ft_html("p", "Count: ", ft_html("span", data_text="$count")),
+            ft_html("button", "+", data_on_click="count++"),
+            ft_html("button", "-", data_on_click="count--"),
+            data_signals={"count": 0},
             cls="counter-component",
         )
 
         assert component.tag == "div"
         assert component.attrs["class"] == "counter-component"
-        # Dict as first arg to ds_signals triggers JSON format
+        # Dict format for data_signals triggers JSON format
         assert "data-signals" in component.attrs
         assert component.attrs["data-signals"] == '{"count": 0}'
 

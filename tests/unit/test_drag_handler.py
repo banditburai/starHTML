@@ -1,7 +1,5 @@
 """Tests for drag_handler behavior and functionality."""
 
-from fastcore.xml import FT
-
 from starhtml.handlers import drag_handler
 
 
@@ -11,7 +9,17 @@ class TestDragHandler:
     def test_drag_handler_creates_javascript_output(self):
         """Test that drag_handler creates JavaScript output for the browser."""
         result = drag_handler()
-        assert isinstance(result, FT)
+
+        # Test that result is a HandlerBundle with scripts and signals
+        assert hasattr(result, "scripts"), "Result should have scripts attribute"
+        assert hasattr(result, "signals"), "Result should have signals attribute"
+
+        # Test that scripts contain the expected drag handler content
+        script_content = str(result)
+        assert "/static/js/handlers/drag.js" in script_content
+        assert "import handlerPlugin" in script_content
+        assert "load(handlerPlugin)" in script_content
+        assert "apply()" in script_content
 
     def test_drag_handler_configuration_passed_through(self):
         """Test that drag_handler configuration is properly embedded."""
@@ -123,22 +131,34 @@ class TestDragHandler:
         except Exception as e:
             raise AssertionError(f"drag_handler should accept various parameter combinations: {e}") from e
 
-    def test_drag_handler_signal_creation_documentation(self):
-        """Test that documentation mentions the signals that will be created."""
-        doc = drag_handler.__doc__
-        if doc is None:
-            raise AssertionError("drag_handler should have documentation")
+    def test_drag_handler_signal_creation_behavior(self):
+        """Test that drag_handler creates the expected signals."""
+        bundle = drag_handler()
 
-        # Should document the reactive signals it creates
-        assert "signal" in doc.lower()
-        assert "dragging" in doc.lower() or "drag" in doc.lower()
+        # Should create standard drag signals
+        expected_signals = ["is_dragging", "element_id", "x", "y", "drop_zone"]
+        for signal_name in expected_signals:
+            assert signal_name in bundle.signals, f"Missing signal: {signal_name}"
 
-    def test_drag_handler_html_attribute_documentation(self):
-        """Test that documentation mentions the HTML attributes to use."""
-        doc = drag_handler.__doc__
-        if doc is None:
-            raise AssertionError("drag_handler should have documentation")
+        # Signals should be accessible via attribute access
+        assert hasattr(bundle, "is_dragging")
+        assert hasattr(bundle, "element_id")
+        assert hasattr(bundle, "x")
+        assert hasattr(bundle, "y")
+        assert hasattr(bundle, "drop_zone")
 
-        # Should mention the HTML attributes users need to use
-        assert "ds_draggable" in doc or "draggable" in doc.lower()
-        assert "ds_drop_zone" in doc or "drop" in doc.lower()
+    def test_drag_handler_zone_mode_behavior(self):
+        """Test that drag_handler in zone modes creates zone_items helper."""
+        # Sortable mode should include zone_items
+        sortable_bundle = drag_handler(mode="sortable")
+        assert "zone_items" in sortable_bundle.signals
+        assert callable(sortable_bundle.signals["zone_items"])
+
+        # Freeform mode should include zone_items
+        freeform_bundle = drag_handler(mode="freeform")
+        assert "zone_items" in freeform_bundle.signals
+        assert callable(freeform_bundle.signals["zone_items"])
+
+        # Non-zone mode should not include zone_items
+        basic_bundle = drag_handler(mode="basic")
+        assert "zone_items" not in basic_bundle.signals

@@ -13,6 +13,7 @@ from fastcore.utils import (
 )
 from fastcore.xml import FT, attrmap, ft, to_xml, valmap, voids
 
+from . import datastar as ds
 from .utils import unqid
 
 __all__ = ["ft_html", "ft_datastar", "html2ft", "attrmap_x", "fh_cfg", "named", "html_attrs", "js_evts"]
@@ -23,17 +24,19 @@ js_evts = "blur change contextmenu focus input invalid reset select submit keydo
 
 
 def attrmap_x(o: str) -> str:
-    """Extended attribute mapping for StarHTML."""
-    return attrmap("@" + o[4:] if o.startswith("_at_") else o)
+    """Extended attribute mapping for StarHTML (e.g., `_at_` -> `@`)."""
+    if o.startswith("_at_"):
+        o = "@" + o[4:]
+    return attrmap(o)
 
 
 fh_cfg = AttrDict(
-    attrmap=attrmap_x,
-    valmap=valmap,
-    ft_cls=FT,
-    auto_id=False,
-    auto_name=True,
-    indent=True,
+    attrmap=attrmap_x,  # How to transform attribute names (e.g., cls -> class)
+    valmap=valmap,  # How to transform attribute values
+    ft_cls=FT,  # Which class to use for HTML elements
+    auto_id=False,  # Whether to auto-generate element IDs
+    auto_name=True,  # Whether to auto-generate name attributes
+    indent=True,  # Whether to indent HTML/XML output
 )
 
 # ============================================================================
@@ -53,82 +56,97 @@ def ft_html(
     ft_cls: type | None = None,
     **kwargs: Any,
 ) -> FT:
-    """Create a basic HTML element using fastcore's ft system."""
+    "Create a basic HTML element using fastcore's ft system"
     ds, c = partition(c, risinstance(dict))
     for d in ds:
         kwargs = {**kwargs, **d}
-
-    ft_cls = ft_cls or fh_cfg.ft_cls
-    attrmap = attrmap or fh_cfg.attrmap
-    valmap = valmap or fh_cfg.valmap
-
+    if ft_cls is None:
+        ft_cls = fh_cfg.ft_cls
+    if attrmap is None:
+        attrmap = fh_cfg.attrmap
+    if valmap is None:
+        valmap = fh_cfg.valmap
     if not id and fh_cfg.auto_id:
         id = True
     if id and isinstance(id, bool):
         id = unqid()
-
-    kwargs.update({"id": id.id if isinstance(id, FT) else id, "cls": cls, "title": title, "style": style})
+    kwargs["id"] = id.id if isinstance(id, FT) else id
+    kwargs["cls"], kwargs["title"], kwargs["style"] = cls, title, style
     tag, c, kw = ft(tag, *c, attrmap=attrmap, valmap=valmap, **kwargs).list
-
-    if fh_cfg.auto_name and tag in named and id and "name" not in kw:
+    if fh_cfg["auto_name"] and tag in named and id and "name" not in kw:
         kw["name"] = kw["id"]
-
     return ft_cls(tag, c, kw, void_=tag in voids)
 
 
-def _apply_slot_attrs_to_children(element: FT, slot_attrs: dict) -> None:
-    """Recursively apply slot_attrs to children with matching data_slot attributes."""
-    from .datastar import DatastarAttr
-
-    if not getattr(element, "children", None):
+def _apply_slot_attrs_to_children(parent, slot_attrs):
+    """Apply slot attributes to matching children."""
+    if not (slot_attrs and hasattr(parent, "children")):
         return
 
-    for child in element.children:
-        if not isinstance(child, FT):
-            continue
+    for child in parent.children:
+        if hasattr(child, "attrs") and isinstance(child.attrs, dict):
+            slot_name = child.attrs.get("data-slot")
+            if slot_name in slot_attrs:
+                attr_value = slot_attrs[slot_name]
 
-        if attrs := getattr(child, "attrs", None):
-            # Support both data_slot and data-slot for flexibility
-            if data_slot := (attrs.get("data_slot") or attrs.get("data-slot")):
-                if data_slot in slot_attrs:
-                    attrs_to_apply = slot_attrs[data_slot]
-                    attrs_to_apply = [attrs_to_apply] if not isinstance(attrs_to_apply, list) else attrs_to_apply
-
-                    for attr in attrs_to_apply:
-                        attr_dict = attr.attrs if isinstance(attr, DatastarAttr) else attr
-                        # Direct attributes take precedence (setdefault won't overwrite)
-                        for key, value in attr_dict.items():
-                            attrs.setdefault(key, value)
+                if isinstance(attr_value, dict):
+                    processed_attrs, _ = ds.process_datastar_kwargs(attr_value)
+                    for key, value in processed_attrs.items():
+                        child.attrs.setdefault(key, value)
+                elif isinstance(attr_value, list):
+                    for attr_dict in attr_value:
+                        if isinstance(attr_dict, dict):
+                            processed_attrs, _ = ds.process_datastar_kwargs(attr_dict)
+                            for key, value in processed_attrs.items():
+                                child.attrs.setdefault(key, value)
 
         _apply_slot_attrs_to_children(child, slot_attrs)
 
 
 def ft_datastar(tag: str, *c: Any, **kwargs: Any) -> FT:
-    """Create an HTML element with support for Datastar attributes."""
-    from .datastar import DatastarAttr, SlotAttrs
+    """Create an HTML element with Datastar support."""
+    slot_attrs_dict = {
+        key[5:].replace("_", "-"): value
+        for key, value in list(kwargs.items())
+        if key.startswith("slot_") and isinstance(value, dict) and kwargs.pop(key)
+    }
 
-    slot_attrs_dict = kwargs.pop("slot_attrs", None)
-    if slot_attrs_dict and isinstance(slot_attrs_dict, dict):
-        slot_attrs_dict = {k.replace("_", "-"): v for k, v in slot_attrs_dict.items()}
+    new_children, collected_signals, defined_signals = [], set(), []
 
-    new_children = []
     for child in c:
-        if isinstance(child, DatastarAttr):
-            kwargs.update(child.attrs)
-        elif isinstance(child, SlotAttrs):
-            slot_attrs_dict = child.slots
-        else:
-            new_children.append(child)
+        match child:
+            case ds.Signal():
+                defined_signals.append(child)
+                if computed_attr := child.get_computed_attr():
+                    attr_name, attr_value = computed_attr
+                    kwargs[attr_name] = attr_value
+            case _:
+                new_children.append(child)
+                if signals := getattr(child, "__signals_found", None):
+                    if isinstance(signals, set | list | tuple):
+                        collected_signals.update(s for s in signals if isinstance(s, ds.Signal))
 
-    element = ft_html(tag, *new_children, **kwargs)
+    processed_kwargs, signals_found = ds.process_datastar_kwargs(kwargs)
+    collected_signals.update(signals_found)
+
+    if defined_signals and not any(k in ("data-signals", "data_signals") for k in (*processed_kwargs, *kwargs)):
+        kwargs["data_signals"] = defined_signals
+        processed_kwargs, new_signals = ds.process_datastar_kwargs(kwargs)
+        collected_signals.update(new_signals)
+
+    result = ft_html(tag, *new_children, **processed_kwargs)
+
+    if collected_signals:
+        result.__signals_found = collected_signals
+
     if slot_attrs_dict:
-        _apply_slot_attrs_to_children(element, slot_attrs_dict)
+        _apply_slot_attrs_to_children(result, slot_attrs_dict)
 
-    return element
+    return result
 
 
 # ============================================================================
-# HTML Conversion Utility
+# HTML Conversion Utility (html2ft)
 # ============================================================================
 
 _re_h2x_attr_key = re.compile(r"^[A-Za-z_-][\w-]*$")
@@ -136,7 +154,7 @@ _attr_cache: dict[str, bool] = {}
 
 
 def _is_valid_attr(key: str) -> bool:
-    """Cached attribute validation."""
+    """Cached attribute validation"""
     return _attr_cache.setdefault(key, _re_h2x_attr_key.match(key) is not None)
 
 
@@ -144,12 +162,12 @@ _tag_cache: dict[str, str] = {}
 
 
 def _get_tag_name(name: str) -> str:
-    """Cached tag name transformation."""
+    """Cached tag name transformation"""
     return _tag_cache.setdefault(name, "[document]" if name == "[document]" else name.capitalize().replace("-", "_"))
 
 
 def html2ft(html, attr1st=False):
-    """Convert HTML to an `ft` expression."""
+    """Convert HTML to an `ft` expression - Optimized version with 2.52x speedup"""
     rev_map = {"class": "cls", "for": "fr"}
 
     def _parse(elm, lvl=0, indent=4):

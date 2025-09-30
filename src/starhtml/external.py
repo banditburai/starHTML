@@ -4,9 +4,8 @@ import re
 
 from fastcore.utils import *
 
-from starhtml.xtend import *
-
 from .tags import Link, Script
+from .xtend import *
 
 __all__ = [
     "DatastarProc",

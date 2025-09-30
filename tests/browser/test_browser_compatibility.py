@@ -224,10 +224,10 @@ class BrowserCompatibilityTestSuite:
     def get_handler_scripts(self) -> dict[str, str]:
         """Get JavaScript content for all handlers."""
         return {
-            "scroll": str(scroll_handler().children[0]),
-            "resize_dom": str(resize_handler().children[0]),
-            "resize_sp": str(resize_handler().children[0]),
-            "persist": str(persist_handler().children[0]),
+            "scroll": str(scroll_handler().scripts[0]),
+            "resize_dom": str(resize_handler().scripts[0]),
+            "resize_sp": str(resize_handler().scripts[0]),
+            "persist": str(persist_handler().scripts[0]),
         }
 
 
@@ -573,10 +573,10 @@ class TestBrowserCompatibilityMatrix:
     def test_javascript_syntax_compatibility(self):
         """Test JavaScript syntax compatibility across browser targets."""
         handlers = {
-            "scroll": str(scroll_handler().children[0]),
-            "resize_dom": str(resize_handler().children[0]),
-            "resize_sp": str(resize_handler().children[0]),
-            "persist": str(persist_handler().children[0]),
+            "scroll": str(scroll_handler().scripts[0]),
+            "resize_dom": str(resize_handler().scripts[0]),
+            "resize_sp": str(resize_handler().scripts[0]),
+            "persist": str(persist_handler().scripts[0]),
         }
 
         # Check for modern JavaScript features that might not be supported
@@ -612,10 +612,10 @@ class TestBrowserCompatibilityMatrix:
     def test_required_browser_apis(self):
         """Test that only supported browser APIs are used."""
         handlers = {
-            "scroll": str(scroll_handler().children[0]),
-            "resize_dom": str(resize_handler().children[0]),
-            "resize_sp": str(resize_handler().children[0]),
-            "persist": str(persist_handler().children[0]),
+            "scroll": str(scroll_handler().scripts[0]),
+            "resize_dom": str(resize_handler().scripts[0]),
+            "resize_sp": str(resize_handler().scripts[0]),
+            "persist": str(persist_handler().scripts[0]),
         }
 
         # APIs that should be available in target browsers
@@ -643,8 +643,8 @@ class TestBrowserCompatibilityMatrix:
     def test_polyfill_requirements(self):
         """Test polyfill requirements for browser compatibility."""
         handlers = {
-            "resize_dom": str(resize_handler().children[0]),
-            "resize_sp": str(resize_handler().children[0]),
+            "resize_dom": str(resize_handler().scripts[0]),
+            "resize_sp": str(resize_handler().scripts[0]),
         }
 
         # APIs that might need polyfills
@@ -667,9 +667,9 @@ class TestBrowserCompatibilityMatrix:
     def test_browser_specific_code_paths(self):
         """Test for browser-specific code paths."""
         handlers = {
-            "scroll": str(scroll_handler().children[0]),
-            "resize_dom": str(resize_handler().children[0]),
-            "persist": str(persist_handler().children[0]),
+            "scroll": str(scroll_handler().scripts[0]),
+            "resize_dom": str(resize_handler().scripts[0]),
+            "persist": str(persist_handler().scripts[0]),
         }
 
         # Browser detection patterns (should be avoided)
@@ -683,8 +683,8 @@ class TestBrowserCompatibilityMatrix:
 
     def test_event_compatibility(self):
         """Test event handling compatibility."""
-        scroll_content = str(scroll_handler().children[0])
-        resize_content = str(resize_handler().children[0])
+        scroll_content = str(scroll_handler().scripts[0])
+        resize_content = str(resize_handler().scripts[0])
 
         # Should use modern module pattern with datastar
         assert "import handlerPlugin from" in scroll_content, "Should use ES6 modules"

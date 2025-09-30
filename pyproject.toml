@@ -14,7 +14,8 @@ dependencies = [
     "fastlite",
     "oauthlib",
     "itsdangerous",
-    "starlette-compress>=1.0.0",    
+    "starlette-compress>=1.0.0",
+    "python-multipart>=0.0.20",
 ]
 
 [project.optional-dependencies]
@@ -25,7 +26,6 @@ test = [
     "pytest-xdist",
     "pytest-watch",
     "pytest-asyncio",
-    "python-multipart>=0.0.20",
     "requests>=2.32.4",
 ]
 dev = [    
@@ -35,6 +35,8 @@ dev = [
     "psutil",
     "brotli>=1.1.0",
 ]
+
+demo = ["starlighter"]
 
 [build-system]
 requires = ["hatchling"]
@@ -105,8 +107,8 @@ exclude_lines = [
 [tool.ruff]
 line-length = 120
 target-version = "py312"
-src = ["src", "tests", "demo"]
-exclude = ["components"]
+src = ["src", "tests", "web"]
+exclude = []
 
 [tool.ruff.lint]
 select = [
@@ -135,30 +137,31 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"demo/*.py" = ["F403", "F405", "PLR2004", "N802", "PLW0603", "N803", "B007"]  # Allow star imports, magic values, capitalized function names, global statements, argument naming, and unused loop vars in demos
-"tests/*.py" = ["F403", "F405", "PLR2004", "N806"]  # Allow star imports, magic values, and constant naming in tests
-"src/starhtml/components.py" = ["N802", "N807", "C901", "PLR0912", "UP007", "PLW2901", "PLE0605"]  # Allow capitalized function names for HTML components and complexity
+"web/*.py" = ["F403", "F405", "PLR2004", "N802", "PLW0603", "N803", "B007", "N999", "E402", "F841", "PLW0602", "PLC0415"]  # Allow star imports, magic values, capitalized function names, global statements, argument naming, unused loop vars, numbered filenames, imports after code, unused variables, global reads, and lazy imports in web demos
+"tests/*.py" = ["F403", "F405", "PLR2004", "N806", "F841", "PLC0415"]  # Allow star imports, magic values, constant naming, unused variables, and lazy imports in tests (test patterns)
 "src/starhtml/svg.py" = ["N802", "N803", "N806"]  # Allow capitalized function names for SVG elements
 "src/starhtml/js.py" = ["N802"]  # Allow capitalized function names for JS components
-"src/starhtml/datastar.py" = ["B904", "PLR2004", "PLR0911"]  # Allow datastar patterns and multiple returns
+"src/starhtml/datastar.py" = ["B904", "PLR2004", "PLR0911", "PLC0415", "PLW1641"]  # Allow datastar patterns, multiple returns, lazy imports, and ABC without __hash__
+"src/starhtml/handlers.py" = ["PLC0415"]  # Allow lazy imports for optional dependencies
 "src/starhtml/live_reload.py" = ["N802"]  # Allow capitalized function names
 "src/starhtml/oauth.py" = ["C901"]  # Allow complexity in OAuth
 "src/starhtml/__init__.py" = ["F401"]  # Allow unused imports in __init__
-"src/starhtml/tags.py" = ["N803", "N806", "E743", "PLE0604"]  # Allow SVG naming conventions, ambiguous function names, and __all__ patterns
+"src/starhtml/starapp.py" = ["PLC0415"]  # Allow lazy imports to avoid circular dependencies
+"src/starhtml/tags.py" = ["N803", "N806", "E743", "PLE0604", "PLC0415"]  # Allow SVG naming conventions, ambiguous function names, __all__ patterns, and lazy imports
 "src/starhtml/tags.pyi" = ["E743", "N803"]  # Allow ambiguous I function and camelCase SVG attrs like viewBox
 "src/starhtml/types.py" = []  # Type definitions file
-"src/starhtml/realtime.py" = ["PLR0911", "PLR2004"]  # Allow complexity and magic values in realtime processing
-"src/starhtml/server.py" = ["PLR0911", "N801", "PLW1508"]  # Allow complexity, internal class naming, and env var patterns
-"src/starhtml/utils.py" = ["N813", "E721"]  # Allow CamelCase imports and type comparisons for compatibility
-"src/starhtml/xtend.py" = ["N802", "UP031", "F811"]  # Allow capitalized function names, % formatting, and Path redefinition
-"src/starhtml/core.py" = ["N813", "E721", "B904", "C901", "PLR0911", "PLR0912", "N802", "E402", "PLR2004", "N801", "F811"]  # Allow various patterns needed for StarHTML
+"src/starhtml/realtime.py" = ["PLR0911", "PLR2004", "PLC0415"]  # Allow complexity, magic values, and lazy imports to avoid circular dependencies
+"src/starhtml/server.py" = ["PLR0911", "N801", "PLW1508", "PLR0915", "PLC0415"]  # Allow complexity, internal class naming, env var patterns, many statements, and lazy imports
+"src/starhtml/utils.py" = ["N813", "E721", "PLC0415"]  # Allow CamelCase imports, type comparisons, and lazy imports
+"src/starhtml/xtend.py" = ["N802", "UP031", "F811", "PLC0415"]  # Allow capitalized function names, % formatting, Path redefinition, and lazy imports
+"src/starhtml/core.py" = ["N813", "E721", "B904", "C901", "PLR0911", "PLR0912", "N802", "E402", "PLR2004", "N801", "F811", "PLR0915", "PLC0415"]  # Allow various patterns needed for StarHTML framework, including complex init and lazy imports
 
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
 
 [tool.pyright]
-include = ["src", "tests", "demo"]
+include = ["src", "tests", "web"]
 exclude = ["**/node_modules", "**/__pycache__", "**/.venv", "**/build", "**/dist"]
 pythonVersion = "3.12"
 pythonPlatform = "All"
@@ -191,12 +194,8 @@ reportArgumentType = false
 
 [dependency-groups]
 dev = [
-    "brotli>=1.1.0",
     "psutil>=7.0.0",
-    "pyright>=1.1.403",
     "pytest-asyncio>=1.1.0",
-    "ruff>=0.11.13",
-]
-test = [
     "python-multipart>=0.0.20",
 ]
+

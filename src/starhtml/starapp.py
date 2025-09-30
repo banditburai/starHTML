@@ -43,9 +43,11 @@ def star_app(
     reload_interval: int = 1000,
     static_path: str = ".",
     body_wrap: Callable = None,
-    auto_unpack: bool = True,
     fouc: str | dict = None,
     compression=None,
+    clipboard: bool = False,
+    iconify: bool = False,
+    plugins: list = None,
     **kwargs: Any,
 ):
     from .core import noop_body
@@ -81,8 +83,10 @@ def star_app(
         reload_attempts=reload_attempts,
         reload_interval=reload_interval,
         body_wrap=body_wrap,
-        auto_unpack=auto_unpack,
         compression=compression,
+        clipboard=clipboard,
+        iconify=iconify,
+        plugins=plugins,
     )
     app.static_route_exts(static_path=static_path)
 
@@ -113,33 +117,38 @@ ICONIFY_VERSION = "2.3.0"
 
 def def_hdrs(
     datastar_version=None,
-    include_iconify=True,
+    iconify=False,
     iconify_version=None,
     fallback_path="/static/datastar.js",
-    include_starhtml_plugins=True,
+    clipboard=False,
+    plugins=None,
 ):
     """Generate default headers for StarHTML apps."""
-    from .datastar import get_starhtml_action_plugins
+    from .handlers import clipboard_action
     from .tags import Meta
     from .xtend import Script
 
     version = datastar_version or DATASTAR_VERSION
     iconify_ver = iconify_version or ICONIFY_VERSION
 
+    plugin_list = [clipboard_action()] if clipboard else []
+    if plugins:
+        plugin_list.extend(plugins if isinstance(plugins, list) else [plugins])
+
     headers = [
         Meta(charset="utf-8"),
         Meta(name="viewport", content="width=device-width, initial-scale=1, viewport-fit=cover"),
     ]
 
-    if include_starhtml_plugins:
-        plugins = get_starhtml_action_plugins()
-        plugin_js = ",\n".join(p["code"] for p in plugins)
+    if plugin_list:
+        plugin_js = ",\n".join(p.get("code", str(p)) for p in plugin_list)
         headers.append(
             Script(
                 f"import {{load, apply}} from 'https://cdn.jsdelivr.net/gh/starfederation/datastar@{version}/bundles/datastar.js';\n"
                 f"[{plugin_js}].forEach(p => load(p));\n"
                 f"apply();",
                 type="module",
+                onerror=f"this.onerror=null;this.src='{fallback_path}'",
             )
         )
     else:
@@ -151,7 +160,7 @@ def def_hdrs(
             )
         )
 
-    if include_iconify:
+    if iconify:
         headers.append(
             Script(
                 src=f"https://cdn.jsdelivr.net/npm/iconify-icon@{iconify_ver}/dist/iconify-icon.min.js", type="module"
@@ -220,9 +229,8 @@ def _app_factory(*args, **kwargs):
 
     if live and not debug:
         if _is_production():
-            live = False  # Silently disable in production
+            live = False
         else:
-            # Silently enable debug mode when live=True (no warning)
             kwargs["debug"] = True
 
     if live:
@@ -230,9 +238,11 @@ def _app_factory(*args, **kwargs):
 
     kwargs.pop("reload_attempts", None)
     kwargs.pop("reload_interval", None)
+
     bodykw = kwargs.pop("bodykw", {})
     if bodykw:
         kwargs.update(bodykw)
+
     return StarHTML(*args, **kwargs)
 
 

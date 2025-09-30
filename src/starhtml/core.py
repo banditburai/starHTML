@@ -76,9 +76,10 @@ class StarHTML(Starlette):
         htmlkw=None,
         canonical=True,
         datastar_version=None,
-        include_iconify=True,
+        iconify=False,
         iconify_version=None,
-        auto_unpack=True,
+        clipboard=False,
+        plugins=None,
         static_path=None,
         compression=None,
         **bodykw,
@@ -86,9 +87,14 @@ class StarHTML(Starlette):
         middleware, before, after = map(_list, (middleware, before, after))
         self.title, self.canonical = title, canonical
         hdrs, ftrs = map(listify, (hdrs, ftrs))
+
+        from .handlers import HandlerBundle
+
+        hdrs = [s for h in hdrs for s in (h.scripts if isinstance(h, HandlerBundle) else [h])]
+
         htmlkw = htmlkw or {}
         if default_hdrs:
-            hdrs = def_hdrs(datastar_version, include_iconify, iconify_version) + hdrs
+            hdrs = def_hdrs(datastar_version, iconify, iconify_version, clipboard=clipboard, plugins=plugins) + hdrs
         on_startup, on_shutdown = listify(on_startup) or None, listify(on_shutdown) or None
         self.lifespan, self.hdrs, self.ftrs = lifespan, hdrs, ftrs
         self.body_wrap, self.before, self.after, self.htmlkw, self.bodykw = body_wrap, before, after, htmlkw, bodykw
@@ -137,7 +143,6 @@ class StarHTML(Starlette):
             on_shutdown=on_shutdown,
             lifespan=lifespan,
         )
-        self.state.auto_unpack = auto_unpack
 
         from pathlib import Path
 
