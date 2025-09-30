@@ -15,7 +15,6 @@ app, rt = star_app(
         """),
     ],
     iconify=True,
-    compression=False,
 )
 
 items_store = []  # mocked in-memory storage

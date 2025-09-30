@@ -12,7 +12,6 @@ app, rt = star_app(
         (scroll := scroll_handler()),  # Assign to variable for signal access
     ],
     iconify=True,
-    compression=False,
 )
 
 

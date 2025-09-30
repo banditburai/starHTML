@@ -91,7 +91,6 @@ app, rt = star_app(
     ],
     live=True,
     iconify=True,
-    compression=False,
     clipboard=True,
 )
 

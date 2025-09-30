@@ -18,7 +18,6 @@ app, rt = star_app(
         resize_handler(),
     ],
     iconify=True,
-    compression=False,
 )
 
 # Global counter for dynamic boxes

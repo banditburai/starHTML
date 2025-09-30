@@ -8,7 +8,6 @@ from starhtml import *
 app, rt = star_app(
     title="✨ Todo List",
     iconify=True,
-    compression=False,
     hdrs=[
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
         persist_handler(),

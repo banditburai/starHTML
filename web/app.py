@@ -2,15 +2,20 @@
 """StarHTML API Documentation - Interactive Documentation (Home Route)"""
 
 import os
-import tomllib
+from importlib.metadata import version
 from pathlib import Path
 
+from starlette.routing import Mount
+
+from demos import app as demos_app
+from demos import setup_demos
+from sections import SECTIONS
 from sections import sections as s
+from shared import get_source_code, support_dropdown
 from starhtml import *
 from starhtml.handlers import position_handler, split_handler
 
-with open(Path(__file__).parent.parent / "pyproject.toml", "rb") as f:
-    VERSION = tomllib.load(f)["project"]["version"]
+VERSION = version("starhtml")
 
 app, rt = star_app(
     title="StarHTML API Documentation",
@@ -128,7 +133,6 @@ app, rt = star_app(
         """),
     ],
     iconify=True,
-    compression=False,
     clipboard=True,
 )
 
@@ -172,10 +176,6 @@ def generate_interactive_docs_sections():
         s.hero_section(),
         core_philosophy_section(),
         s.quick_reference_section(),
-        # s.core_concepts_section(),
-        # s.reactivity_section(),
-        # s.expressions_logic_section(),
-        # s.styling_section(),
         demos_cta_section(),
     ]
 
@@ -202,8 +202,7 @@ def demos_cta_section():
 
 
 def raw_api_markdown_content():
-    api_md_path = Path(__file__).parent.parent / "API.md"
-
+    api_md_path = Path(__file__).parent / "API.md"
     try:
         content = api_md_path.read_text(encoding="utf-8")
         return Pre(
@@ -259,7 +258,7 @@ def docs_navigation(view_mode, support_signal):
             cls="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl bg-white/80 border-b border-gray-200/50",
             data_class_navigation_unselectable=view_mode == "agent",
         ),
-        Div(cls="h-16"),  # Spacer for fixed nav
+        Div(cls="h-16"),
     )
 
 
@@ -347,11 +346,7 @@ def load_composable_tab(req):
     yield elements(s.composable_section(), "#tab-composable", "inner")
 
 
-from shared import get_source_code, support_dropdown
-
 app.route("/api/source-code/{filename:path}")(get_source_code)
-
-from sections import SECTIONS
 
 for section in SECTIONS:
     try:
@@ -363,11 +358,6 @@ for section in SECTIONS:
         print(f"  ✗ Failed to register API routes for {section.title}: {e}")
 
 os.environ["STARHTML_DEMOS_MOUNTED"] = "1"
-from starlette.routing import Mount
-
-from demos import app as demos_app
-from demos import setup_demos
-
 setup_demos()
 app.router.routes.append(Mount("/demos", demos_app))
 

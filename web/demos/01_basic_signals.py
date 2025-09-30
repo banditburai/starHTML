@@ -11,7 +11,6 @@ app, rt = star_app(
         """),
     ],
     iconify=True,
-    compression=False,  # Disable compression for demo
 )
 
 
