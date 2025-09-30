@@ -506,6 +506,7 @@ requires-dist = [
     { name = "oauthlib" },
     { name = "pip-tools", marker = "extra == 'dev'" },
     { name = "psutil", marker = "extra == 'dev'" },
+    { name = "pyright", marker = "extra == 'dev'" },
     { name = "pytest", marker = "extra == 'test'" },
     { name = "pytest-asyncio", marker = "extra == 'test'" },
     { name = "pytest-cov", marker = "extra == 'test'", specifier = ">=6.1.1" },
