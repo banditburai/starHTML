@@ -885,7 +885,9 @@ def home():
             ),
             Div(
                 Div(
-                    H2("Ready to Build?", cls="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-black text-white mb-4"),
+                    H2(
+                        "Ready to Build?", cls="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-black text-white mb-4"
+                    ),
                     P("Your first star awaits.", cls="text-lg md:text-xl text-white/80 mb-8 sm:mb-12"),
                     A(
                         Icon("tabler:star-filled", width="20", height="20", cls="mr-2"),
