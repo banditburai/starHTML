@@ -25,7 +25,6 @@ app, rt = star_app(
         (todos_drag := drag_handler(signal="todos", mode="sortable")),
     ],
     iconify=True,
-    compression=False,
 )
 
 

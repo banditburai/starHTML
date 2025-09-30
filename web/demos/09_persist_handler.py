@@ -16,7 +16,6 @@ app, rt = star_app(
         persist_handler(),  # Enable persistence (configure via data attributes)
     ],
     iconify=True,
-    compression=False,
 )
 
 

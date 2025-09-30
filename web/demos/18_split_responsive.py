@@ -111,7 +111,6 @@ app, rt = star_app(
         """),
     ],
     iconify=True,
-    compression=False,
 )
 
 

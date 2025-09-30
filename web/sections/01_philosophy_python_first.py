@@ -668,7 +668,6 @@ app, rt = star_app(
         Style("body { background: white; font-family: system-ui, sans-serif; }"),
     ],
     iconify=True,
-    compression=False,
 )
 
 

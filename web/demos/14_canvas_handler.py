@@ -17,7 +17,6 @@ app, rt = star_app(
         (canvas := canvas_handler()),
     ],
     iconify=True,
-    compression=False,
 )
 
 

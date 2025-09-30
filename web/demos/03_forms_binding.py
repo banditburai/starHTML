@@ -24,8 +24,6 @@ app, rt = star_app(
         """),
     ],
     iconify=True,
-    compression=False,
-    static_path="demo",  # Serve static files from demo directory when run standalone
 )
 
 
