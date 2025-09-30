@@ -52,7 +52,7 @@ def home():
                         Icon("material-symbols:warning", width="20", height="20"),
                         "Warning",
                         data_on_click=get("notify/warning"),
-                        cls="px-4 py-2 bg-amber-600 text-white font-medium hover:bg-amber-700 transition-colors w-32 mx-2 flex items-center justify-center gap-2",
+                        cls="px-4 py-2 bg-amber-600 text-white font-medium hover:bg-amber-700 transition-colors w-32 flex items-center justify-center gap-2",
                     ),
                     Button(
                         Icon("material-symbols:error", width="20", height="20"),
@@ -60,7 +60,7 @@ def home():
                         data_on_click=get("notify/error"),
                         cls="px-4 py-2 bg-red-600 text-white font-medium hover:bg-red-700 transition-colors w-32 flex items-center justify-center gap-2",
                     ),
-                    cls="mb-4 flex",
+                    cls="mb-4 flex flex-wrap gap-2",
                 ),
                 # Notification container - SSE will auto-target this
                 Div(id="notifications", cls="space-y-2 min-h-[100px]"),
@@ -126,14 +126,14 @@ def home():
                     Button(
                         "Simulate User Activity",
                         data_on_click=get("activity"),
-                        cls="px-4 py-2 bg-black text-white font-medium hover:bg-gray-800 transition-colors mr-2",
+                        cls="px-4 py-2 bg-black text-white font-medium hover:bg-gray-800 transition-colors",
                     ),
                     Button(
                         "Clear Feed",
                         data_on_click=get("clear-feed"),
                         cls="px-4 py-2 border border-gray-300 text-black font-medium hover:border-gray-500 transition-colors",
                     ),
-                    cls="mb-6",
+                    cls="mb-6 flex flex-wrap gap-2",
                 ),
                 # Activity feed container - prepend strategy for newest first
                 Div(

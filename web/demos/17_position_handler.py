@@ -40,7 +40,12 @@ def home():
                     "Floating UI-powered automatic positioning with collision detection",
                     cls="text-lg text-gray-600 mt-4",
                 ),
-                cls="mb-16",
+                cls="mb-8",
+            ),
+            Div(
+                Icon("tabler:info-circle", width="20", height="20", cls="mr-2 flex-shrink-0"),
+                "Best experienced on desktop with mouse/pointer support",
+                cls="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded-lg mb-8 flex items-center text-sm",
             ),
             # === BASIC POPOVER ===
             Div(
@@ -310,8 +315,6 @@ data_position=("triggerId", dict(
                 ),
                 cls="mb-12 p-8 bg-white border border-gray-200",
             ),
-            # Spacer for scrolling
-            Div(cls="h-[1000px]"),
         ),
         # Click outside to close floating elements
         data_on_click="""
@@ -335,7 +338,7 @@ data_position=("triggerId", dict(
                 $context_open = false;
             }
         """,
-        cls="max-w-5xl mx-auto px-8 sm:px-12 lg:px-16 py-16 sm:py-20 md:py-24 bg-white min-h-screen",
+        cls="max-w-5xl mx-auto px-8 sm:px-12 lg:px-16 pt-16 sm:pt-20 md:pt-24 pb-8 bg-white min-h-screen",
     )
 
 

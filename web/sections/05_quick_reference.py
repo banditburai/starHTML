@@ -13,7 +13,7 @@ from starhtml.datastar import clipboard
 
 
 def get_quick_reference_content() -> str:
-    api_md_path = Path(__file__).parents[2] / "API.md"
+    api_md_path = Path(__file__).parents[1] / "API.md"
 
     if not api_md_path.exists():
         return "API.md file not found."

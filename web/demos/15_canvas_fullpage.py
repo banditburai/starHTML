@@ -56,6 +56,12 @@ def fullpage_canvas():
             Div(Span(data_text=f("{z}%", z=(canvas.zoom * 100).round()), cls="zoom-indicator"), cls="status-display"),
             cls="modern-toolbar",
         ),
+        # Desktop notice
+        Div(
+            Icon("tabler:info-circle", width="16", height="16", cls="mr-2 flex-shrink-0"),
+            "Best experienced on desktop with mouse/pointer support",
+            cls="fixed top-4 left-4 bg-blue-50 border border-blue-200 text-blue-800 px-3 py-2 rounded-lg flex items-center text-xs z-[1001]",
+        ),
         # Auto-focus container on load
         data_on_load="el.focus()",
         # Keyboard shortcuts

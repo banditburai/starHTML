@@ -54,7 +54,7 @@ def home():
         playground_value,
         # Header with design system pattern
         Div(
-            H1("20", cls="text-8xl font-black text-gray-100 leading-none"),
+            H1("22", cls="text-8xl font-black text-gray-100 leading-none"),
             H1("Nested Property Access", cls="text-5xl md:text-6xl font-bold text-black mt-2"),
             P("From messy chaining to clean, Pythonic patterns", cls="text-lg text-gray-600 mt-4"),
             cls="mb-16",
@@ -99,7 +99,6 @@ def home():
                         "px-4 py-2 border border-gray-300 text-black font-medium hover:border-gray-500 transition-colors",
                         "px-4 py-2 bg-black text-white font-medium hover:bg-gray-800 transition-colors",
                     ),
-                    cls="mr-2",
                 ),
                 Button(
                     "Show Clean Code",
@@ -109,7 +108,7 @@ def home():
                         "px-4 py-2 border border-gray-300 text-black font-medium hover:border-gray-500 transition-colors",
                     ),
                 ),
-                cls="mb-6",
+                cls="mb-6 flex flex-wrap gap-2",
             ),
             # Messy code example
             Div(

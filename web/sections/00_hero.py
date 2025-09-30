@@ -161,9 +161,9 @@ Button("Add", data_on_click=stars.add(1))
 Span(data_text="Stars in the sky: " + stars)""",
                 cls="text-gray-800 font-mono text-sm lg:text-base leading-relaxed",
             ),
-            cls="m-0 p-0",
+            cls="m-0 p-0 overflow-x-auto",
         ),
-        cls="bg-gray-50 border border-gray-200 rounded-xl p-6 lg:p-8 w-full",
+        cls="bg-gray-50 border border-gray-200 rounded-xl p-6 lg:p-8 w-full overflow-hidden",
     )
 
 
