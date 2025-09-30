@@ -885,27 +885,21 @@ def home():
             ),
             Div(
                 Div(
-                    H2("Production", cls="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-black text-white mb-4"),
-                    P("Ship real applications with confidence.", cls="text-lg md:text-xl text-white/90 mb-8 sm:mb-12"),
-                    Div(
-                        *[demo_card(demo) for demo in demos_by_level("Production")],
-                        cls="grid grid-cols-1 sm:grid-cols-2 gap-6",
+                    H2(
+                        "Ready to Build?", cls="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-black text-white mb-4"
+                    ),
+                    P("Your first star awaits.", cls="text-lg md:text-xl text-white/80 mb-8 sm:mb-12"),
+                    A(
+                        Icon("tabler:star-filled", width="20", height="20", cls="mr-2"),
+                        "Add your star to our galaxy",
+                        href="https://github.com/banditburai/starHTML",
+                        target="_blank",
+                        cls="inline-flex items-center px-6 py-3 text-base font-semibold text-black bg-white rounded-lg hover:bg-gray-100 transition-colors",
                     ),
                     cls="w-full px-6 sm:px-8 lg:px-12",
                 ),
-                cls="py-12 sm:py-16 lg:py-20 bg-gradient-to-br from-gray-900 via-black to-gray-800",
+                cls="pt-12 sm:pt-16 lg:pt-20 pb-24 sm:pb-32 lg:pb-40 bg-gradient-to-b from-gray-100 via-blue-950 to-black",
             ),
-        ),
-        Footer(
-            Div(
-                Div(
-                    P("StarHTML Demo Hub", cls="text-sm font-semibold text-gray-600 mb-2"),
-                    P("© 2025 - Interactive Python Components", cls="text-xs text-gray-400"),
-                    cls="text-center",
-                ),
-                cls="w-full px-6 sm:px-8 lg:px-12 py-8",
-            ),
-            cls="bg-white border-t border-gray-100 mt-12",
         ),
         cls="min-h-screen bg-white",
         data_on_click="""

@@ -2,11 +2,15 @@
 """StarHTML API Documentation - Interactive Documentation (Home Route)"""
 
 import os
+import tomllib
 from pathlib import Path
 
 from sections import sections as s
 from starhtml import *
 from starhtml.handlers import position_handler, split_handler
+
+with open(Path(__file__).parent.parent / "pyproject.toml", "rb") as f:
+    VERSION = tomllib.load(f)["project"]["version"]
 
 app, rt = star_app(
     title="StarHTML API Documentation",
@@ -172,7 +176,29 @@ def generate_interactive_docs_sections():
         # s.reactivity_section(),
         # s.expressions_logic_section(),
         # s.styling_section(),
+        demos_cta_section(),
     ]
+
+
+def demos_cta_section():
+    return Div(
+        Div(
+            H2(
+                "See It In Action",
+                Icon("vaadin:asterisk", cls="ml-2 text-4xl md:text-5xl lg:text-6xl rainbow-sync"),
+                cls="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-black text-black mb-4 flex items-baseline",
+            ),
+            P("Explore interactive examples.", cls="text-lg md:text-xl text-gray-600 mb-8 sm:mb-12"),
+            A(
+                Icon("vaadin:asterisk", width="20", height="20", cls="mr-2 text-white"),
+                "Browse Live Demos",
+                href="/demos",
+                cls="inline-flex items-center px-6 py-3 text-base font-semibold text-white rounded-lg rainbow-sync-bg hover:scale-105 transition-transform",
+            ),
+            cls="w-full px-6 sm:px-8 lg:px-12",
+        ),
+        cls="pt-12 sm:pt-16 lg:pt-20 pb-24 sm:pb-32 lg:pb-40 bg-white border-t border-gray-200",
+    )
 
 
 def raw_api_markdown_content():
@@ -196,7 +222,7 @@ def raw_api_markdown_content():
 def nav_left_section():
     return Div(
         Span("starHTML", cls="text-lg font-bold text-black"),
-        Span("v0.1.26", cls="text-xs font-mono text-gray-400 ml-2"),
+        Span(f"v{VERSION}", cls="text-xs font-mono text-gray-400 ml-2"),
         cls="flex items-baseline",
     )
 
