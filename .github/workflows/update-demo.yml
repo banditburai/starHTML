@@ -58,25 +58,25 @@ jobs:
     
     - name: Update demo requirements
       run: |
-        cd demo
+        cd web
         VERSION="${{ steps.get-version.outputs.version }}"
-        
+
         # First, ensure we have a clean state (in case of previous failures)
         git checkout pyproject.toml 2>/dev/null || true
-        
+
         # Update pyproject.toml to use the exact version
         # Only match starhtml in the dependencies array (with leading spaces)
         sed -i "s/    \"starhtml[^\"]*\"/    \"starhtml>=$VERSION\"/" pyproject.toml
-        
+
         # Update the lock file
         uv lock --upgrade-package starhtml
-        
+
         echo "✅ Updated demo to use starhtml $VERSION"
-    
+
     - name: Commit and push changes
       run: |
         VERSION="${{ steps.get-version.outputs.version }}"
-        
-        git add demo/pyproject.toml demo/uv.lock
-        git commit -m "chore: update demo to use starhtml $VERSION [skip ci]"
+
+        git add web/pyproject.toml web/uv.lock
+        git commit -m "chore: update web to use starhtml $VERSION [skip ci]"
         git push origin main

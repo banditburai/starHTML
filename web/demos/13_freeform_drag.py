@@ -38,7 +38,12 @@ def freeform_drag():
                 H1("13", cls="text-8xl font-black text-gray-100 leading-none"),
                 H1("Freeform Drag", cls="text-5xl md:text-6xl font-bold text-black mt-2"),
                 P("Drag items anywhere within the workspace with zone awareness", cls="text-lg text-gray-600 mt-4"),
-                cls="mb-16",
+                cls="mb-8",
+            ),
+            Div(
+                Icon("tabler:info-circle", width="20", height="20", cls="mr-2 flex-shrink-0"),
+                "Best experienced on desktop with mouse/pointer support",
+                cls="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded-lg mb-8 flex items-center text-sm",
             ),
             # === DRAG WORKSPACE ===
             Div(

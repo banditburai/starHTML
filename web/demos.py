@@ -21,8 +21,12 @@ except ImportError:
 
 
 app, rt = star_app(
-    title="StarHTML Demo Hub",
+    title="starHTML Demos",
     hdrs=[
+        Link(
+            rel="icon",
+            href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">⭐</text></svg>',
+        ),
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
         (splitter := split_handler(signal="demo_split", responsive=True, responsive_breakpoint=768)),
         position_handler(),
@@ -162,6 +166,7 @@ app, rt = star_app(
         """),
     ],
     iconify=True,
+    htmlkw={"lang": "en"},
 )
 
 
@@ -547,7 +552,7 @@ def demo_breadcrumbs(demo, base_url):
         Span(" / ", cls="text-gray-300 mx-1"),
         A("Demos", href=f"{base_url}/", cls="text-xs text-gray-500 hover:text-black transition-colors"),
         Span(" / ", cls="text-gray-300 mx-1"),
-        Span(f"{demo.id.split('-')[0].zfill(2)}. {demo.title}", cls="text-xs font-semibold text-black"),
+        Span(demo.title, cls="text-xs font-semibold text-black"),
         cls="flex items-center",
     )
 

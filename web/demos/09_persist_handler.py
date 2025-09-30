@@ -87,20 +87,20 @@ def home():
                         Div(
                             Button(
                                 "Increment (+1)",
-                                data_on_click=counter.add(1),  # JS: $counter++
-                                cls="px-4 py-2 bg-green-600 text-white font-medium hover:bg-green-700 transition-colors mr-2",
+                                data_on_click=counter.add(1),
+                                cls="px-4 py-2 bg-green-600 text-white font-medium hover:bg-green-700 transition-colors",
                             ),
                             Button(
                                 "Add 5 (+5)",
-                                data_on_click=counter.add(5),  # JS: $counter += 5
-                                cls="px-4 py-2 bg-green-700 text-white font-medium hover:bg-green-800 transition-colors mr-2",
+                                data_on_click=counter.add(5),
+                                cls="px-4 py-2 bg-green-700 text-white font-medium hover:bg-green-800 transition-colors",
                             ),
                             Button(
                                 "Reset to 0",
                                 data_on_click=counter.set(0),
                                 cls="px-4 py-2 border border-gray-300 text-black font-medium hover:border-gray-500 transition-colors",
                             ),
-                            cls="flex gap-2",
+                            cls="flex flex-wrap gap-2",
                         ),
                     ),
                     data_persist=counter,  # Persist the counter signal

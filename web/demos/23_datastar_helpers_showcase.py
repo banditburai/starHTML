@@ -36,7 +36,7 @@ def home():
         (random_num := Signal("random_num", 42)),
         # Header with large number and title
         Div(
-            H1("21", cls="text-8xl font-black text-gray-100 leading-none"),
+            H1("23", cls="text-8xl font-black text-gray-100 leading-none"),
             H1("Datastar Helper Functions", cls="text-5xl md:text-6xl font-bold text-black mt-2"),
             P("Advanced signal patterns and helper utilities", cls="text-lg text-gray-600 mt-4"),
             cls="mb-16",
@@ -142,7 +142,7 @@ def home():
                         data_on_click=random_num.set(js("Math.floor(Math.random() * 100) + 1")),
                         cls="px-4 py-2 bg-black text-white font-medium hover:bg-gray-800 transition-colors",
                     ),
-                    cls="p-8 bg-gray-50 border border-gray-200 flex items-center",
+                    cls="p-8 bg-gray-50 border border-gray-200 flex flex-wrap items-center gap-2",
                 ),
             ),
             cls="mb-12 p-8 bg-gray-50",
@@ -227,14 +227,14 @@ def home():
                 Button(
                     "Add Random Number",
                     data_on_click=numbers.push(js("Math.floor(Math.random() * 10) + 1")),
-                    cls="px-4 py-2 bg-black text-white font-medium hover:bg-gray-800 transition-colors mr-2",
+                    cls="px-4 py-2 bg-black text-white font-medium hover:bg-gray-800 transition-colors",
                 ),
                 Button(
                     "Clear Array",
                     data_on_click=numbers.set([]),
                     cls="px-4 py-2 border border-gray-300 text-black font-medium hover:border-gray-500 transition-colors",
                 ),
-                cls="mb-6",
+                cls="mb-6 flex flex-wrap gap-2",
             ),
             # Array display
             Div(

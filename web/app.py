@@ -18,8 +18,12 @@ from starhtml.handlers import position_handler, split_handler
 VERSION = version("starhtml")
 
 app, rt = star_app(
-    title="StarHTML API Documentation",
+    title="starHTML",
     hdrs=[
+        Link(
+            rel="icon",
+            href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">⭐</text></svg>',
+        ),
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
         Script(src="https://cdn.jsdelivr.net/npm/motion@11.11.13/dist/motion.js"),
         (scroll := scroll_handler()),
@@ -134,6 +138,7 @@ app, rt = star_app(
     ],
     iconify=True,
     clipboard=True,
+    htmlkw={"lang": "en"},
 )
 
 
