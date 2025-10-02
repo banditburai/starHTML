@@ -16,6 +16,7 @@ dependencies = [
     "itsdangerous",
     "starlette-compress>=1.0.0",
     "python-multipart>=0.0.20",
+    "rjsmin>=1.2.4",
 ]
 
 [project.optional-dependencies]

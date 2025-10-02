@@ -93,7 +93,8 @@ class TestStringConcatenation:
         expr1 = js("$count + 1")
         expr2 = js("$total")
         result = expr1 + " / " + expr2
-        assert result.to_js() == "`${$count + 1} / ${$total}`"
+        # Note: js() now minifies, so spaces around operators are removed
+        assert result.to_js() == "`${$count+1} / ${$total}`"
 
     def test_real_world_example(self):
         """Test a real-world concatenation example from the demo."""

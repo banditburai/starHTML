@@ -69,7 +69,8 @@ class TestCoreAttributes:
         html = str(Div("x", data_show=js("$isVisible")))
         assert 'data-show="$isVisible"' in html
         html = str(Div("x", data_show=js("$count > 0")))
-        assert 'data-show="$count > 0"' in html
+        # Note: js() now minifies, so spaces are removed
+        assert 'data-show="$count>0"' in html
 
     def test_data_text(self):
         html = str(Div("x", data_text="Hello"))
@@ -111,7 +112,8 @@ class TestCoreAttributes:
 
     def test_data_computed(self):
         res = attrs_of_kwargs(data_computed_fullName=js("$firstName + ' ' + $lastName"))
-        assert res == {"data-computed-fullName": "$firstName + ' ' + $lastName"}
+        # Note: js() now minifies, so spaces around operators are removed
+        assert res == {"data-computed-fullName": "$firstName+' '+$lastName"}
 
 
 class TestSignals:
