@@ -250,24 +250,90 @@ class TestCookieHandling:
 
 
 class TestFtResponseRendering:
-    """Test FT element response rendering."""
+    """Test FtResponse behavior in HTTP routes."""
 
     def test_ft_response_creation(self):
-        """Test FtResponse stores content properly."""
+        """FtResponse stores constructor parameters properly."""
         element = Div(H1("Title"), P("Content"))
         response = FtResponse(element)
 
         assert response.status_code == 200
         assert response.content == element
 
-    def test_ft_response_with_headers(self):
-        """Test FtResponse with custom headers."""
-        element = Div("Test content")
-        headers = {"X-Frame-Options": "DENY"}
-        response = FtResponse(element, headers=headers)
+    def test_ft_response_headers_in_http_response(self):
+        """FtResponse custom headers appear in HTTP response."""
+        app, rt = star_app()
 
-        assert response.headers is not None and response.headers["X-Frame-Options"] == "DENY"
-        assert response.content == element
+        @rt("/test")
+        def test_route():
+            return FtResponse(
+                Div("Security test"),
+                headers={"X-Frame-Options": "DENY", "Cache-Control": "max-age=3600"}
+            )
+
+        client = TestClient(app)
+        response = client.get("/test")
+
+        assert response.status_code == 200
+        assert response.headers["X-Frame-Options"] == "DENY"
+        assert response.headers["Cache-Control"] == "max-age=3600"
+        assert "Security test" in response.text
+
+    def test_ft_response_custom_status_code(self):
+        """FtResponse respects custom status codes in HTTP response."""
+        app, rt = star_app()
+
+        @rt("/create")
+        def create_item():
+            return FtResponse(
+                Div("Item created"),
+                status_code=201,
+                headers={"Location": "/items/123"}
+            )
+
+        client = TestClient(app)
+        response = client.get("/create")
+
+        assert response.status_code == 201
+        assert response.headers["Location"] == "/items/123"
+        assert "Item created" in response.text
+
+    def test_ft_response_background_task(self):
+        """FtResponse background tasks execute after response."""
+        from starlette.background import BackgroundTask
+
+        task_executed = []
+
+        def bg_task():
+            task_executed.append(True)
+
+        app, rt = star_app()
+
+        @rt("/task")
+        def with_task():
+            return FtResponse(Div("Task scheduled"), background=BackgroundTask(bg_task))
+
+        client = TestClient(app)
+        response = client.get("/task")
+
+        assert response.status_code == 200
+        assert len(task_executed) == 1
+        assert "Task scheduled" in response.text
+
+    def test_ft_response_custom_media_type(self):
+        """FtResponse respects custom media type in HTTP response."""
+        app, rt = star_app()
+
+        @rt("/xhtml")
+        def xhtml_route():
+            return FtResponse(Div("XHTML content"), media_type="application/xhtml+xml")
+
+        client = TestClient(app)
+        response = client.get("/xhtml")
+
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "application/xhtml+xml"
+        assert "XHTML content" in response.text
 
 
 class TestClientFunctionality:
