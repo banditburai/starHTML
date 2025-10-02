@@ -20,6 +20,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Union
 
 from fastcore.xml import NotStr
+from rjsmin import jsmin
 
 # ============================================================================
 # 1. Core Expression System (The Foundation)
@@ -490,8 +491,8 @@ def to_js_value(value: Any) -> str:
 
 
 def js(code: str) -> _JSRaw:
-    """Mark a string as raw JavaScript code."""
-    return _JSRaw(code)
+    "Mark a string as raw JavaScript code (automatically minified)"
+    return _JSRaw(jsmin(code))
 
 
 def value(v: Any) -> _JSLiteral:

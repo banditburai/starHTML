@@ -10,6 +10,7 @@ from fastcore.meta import delegates
 from fastcore.utils import Path
 from fastcore.xml import FT, NotStr, Safe
 from fastcore.xtras import partial_format
+from rjsmin import jsmin
 
 from .html import ft_datastar, ft_html
 from .tags import Div, Iframe, Input, Label, Link, Meta
@@ -18,7 +19,7 @@ __all__ = [
     "A",
     "AX",
     "Form",
-    "Fragment",
+    "Group",
     "Hidden",
     "CheckboxX",
     "Script",
@@ -65,7 +66,7 @@ def Form(*c, enctype="multipart/form-data", **kwargs) -> FT:
     return ft_datastar("form", *c, enctype=enctype, **kwargs)
 
 
-class Fragment(FT):
+class Group(FT):
     "An empty tag, used as a container"
 
     def __init__(self, *c):
@@ -103,8 +104,8 @@ def CheckboxX(checked: bool = False, label=None, value="1", id=None, name=None, 
 
 @delegates(ft_html, keep=True)
 def Script(code: str = "", **kwargs) -> FT:
-    "A Script tag that doesn't escape its code"
-    return ft_html("script", NotStr(code), **kwargs)
+    "A Script tag that doesn't escape its code (automatically minified)"
+    return ft_html("script", NotStr(jsmin(code)), **kwargs)
 
 
 @delegates(ft_html, keep=True)

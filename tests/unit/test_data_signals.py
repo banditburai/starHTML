@@ -164,9 +164,11 @@ class TestDataSignalsAttribute(unittest.TestCase):
 
         # Computed signals create data-computed-* attributes
         self.assertIn("data-computed-amount", html)
+        # Note: BinaryOp generates code, so it's not minified (only js() function minifies)
         self.assertIn("$price * $quantity", html)
         self.assertIn("data-computed-user_name", html)
-        self.assertTrue("$user.name || 'Anonymous'" in html or "$user.name || &#39;Anonymous&#39;" in html)
+        # Note: js() function minifies, so spaces around || are removed in JS expressions
+        self.assertTrue("$user.name||'Anonymous'" in html or "$user.name||&#39;Anonymous&#39;" in html)
 
         # Computed signals do NOT appear in data-signals
         self.assertNotIn("amount:", html.split("data-computed")[0])  # Check only data-signals portion
@@ -304,7 +306,8 @@ class TestDataSignalsAttribute(unittest.TestCase):
         div2 = Div(data_signals=signals_dict)
         html2 = str(div2)
         self.assertIn("count: 0", html2)
-        self.assertIn("doubled: $count * 2", html2)  # Dict format includes js() values
+        # Note: js() now minifies, so spaces around operators are removed
+        self.assertIn("doubled: $count*2", html2)  # Dict format includes js() values
 
     def test_signal_auto_collection(self):
         """Test that Signals are automatically collected from children."""
