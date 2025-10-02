@@ -267,8 +267,7 @@ class TestFtResponseRendering:
         @rt("/test")
         def test_route():
             return FtResponse(
-                Div("Security test"),
-                headers={"X-Frame-Options": "DENY", "Cache-Control": "max-age=3600"}
+                Div("Security test"), headers={"X-Frame-Options": "DENY", "Cache-Control": "max-age=3600"}
             )
 
         client = TestClient(app)
@@ -285,11 +284,7 @@ class TestFtResponseRendering:
 
         @rt("/create")
         def create_item():
-            return FtResponse(
-                Div("Item created"),
-                status_code=201,
-                headers={"Location": "/items/123"}
-            )
+            return FtResponse(Div("Item created"), status_code=201, headers={"Location": "/items/123"})
 
         client = TestClient(app)
         response = client.get("/create")

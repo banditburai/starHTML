@@ -675,26 +675,57 @@ class TestFragmentResponse:
         assert "datastar-selector" not in response.headers
         assert "Content without selector" in response.text
 
-    def test_fragment_modes(self):
-        """Fragment respects different Datastar patch modes."""
+    def test_fragment_mode_outer(self):
+        """Fragment with outer mode (default) has no datastar-mode header."""
         from starlette.testclient import TestClient
 
         from starhtml import Div, star_app
 
-        for mode in ["outer", "inner", "append", "prepend", "before", "after", "replace", "remove"]:
-            app, rt = star_app()
+        app, rt = star_app()
 
-            @rt("/update")
-            def update():
-                return Fragment(Div(f"Mode: {mode}"), selector="#target", mode=mode)
+        @rt("/update")
+        def update():
+            return Fragment(Div("Outer mode"), selector="#target", mode="outer")
+
+        client = TestClient(app)
+        response = client.get("/update")
+        assert "datastar-mode" not in response.headers
+
+    def test_fragment_mode_inner(self):
+        """Fragment with inner mode sets correct header."""
+        from starlette.testclient import TestClient
+
+        from starhtml import Div, star_app
+
+        app, rt = star_app()
+
+        @rt("/update")
+        def update():
+            return Fragment(Div("Inner mode"), selector="#target", mode="inner")
+
+        client = TestClient(app)
+        response = client.get("/update")
+        assert response.headers["datastar-mode"] == "inner"
+
+    def test_fragment_mode_other(self):
+        """Fragment respects append, prepend, before, after, replace, remove modes."""
+        from starlette.testclient import TestClient
+
+        from starhtml import Div, star_app
+
+        def make_handler(mode_value):
+            def handler():
+                return Fragment(Div(f"{mode_value} mode"), selector="#target", mode=mode_value)
+
+            return handler
+
+        for mode in ["append", "prepend", "before", "after", "replace", "remove"]:
+            app, rt = star_app()
+            rt(f"/{mode}")(make_handler(mode))
 
             client = TestClient(app)
-            response = client.get("/update")
-
-            if mode == "outer":
-                assert "datastar-mode" not in response.headers
-            else:
-                assert response.headers["datastar-mode"] == mode
+            response = client.get(f"/{mode}")
+            assert response.headers["datastar-mode"] == mode
 
     def test_fragment_view_transition(self):
         """Fragment with view transition sets correct header."""
