@@ -13,7 +13,7 @@ from http import cookies
 from inspect import iscoroutinefunction
 from pathlib import Path
 from types import GenericAlias
-from typing import Any
+from typing import Any, Literal
 from warnings import warn
 
 from anyio import from_thread
@@ -57,6 +57,7 @@ __all__ = [
     "JSONResponse",
     "Redirect",
     "FtResponse",
+    "Fragment",
     "Client",
     "RouteFuncs",
     "APIRouter",
@@ -300,7 +301,7 @@ class Redirect:
 
 
 class FtResponse:
-    "Wrap an FT response with any Starlette `Response`"
+    "Wrap an FT response with custom status code, headers, or background tasks"
 
     def __init__(
         self,
@@ -315,8 +316,50 @@ class FtResponse:
         self.cls, self.media_type, self.background = cls, media_type, background
 
     def __response__(self, req):
-        """Delegates rendering to the main ResponseRenderer."""
-        return render_response(req, self.content, cls=self.cls, status_code=self.status_code)
+        renderer = ResponseRenderer(req)
+        body_content, kw = renderer._partition_response(self.content)
+        final_content, _ = renderer._render_body(body_content)
+
+        tasks = kw.get("background", self.background)
+        headers = {**(self.headers or {}), **kw.get("headers", {})}
+
+        return self.cls(
+            final_content, status_code=self.status_code, headers=headers, media_type=self.media_type, background=tasks
+        )
+
+
+class Fragment:
+    "Return a Datastar HTML fragment for partial page updates"
+
+    def __init__(
+        self,
+        content,
+        selector: str | None = None,
+        mode: Literal["outer", "inner", "replace", "prepend", "append", "before", "after", "remove"] = "outer",
+        use_view_transition: bool = False,
+        **headers,
+    ):
+        self.content = content
+        self.selector = selector
+        self.mode = mode
+        self.use_view_transition = use_view_transition
+        self.headers = headers
+
+    def __response__(self, req):
+        selector = self.selector
+        if not selector and (element_id := getattr(self.content, "attrs", {}).get("id")):
+            selector = f"#{element_id}"
+
+        headers_dict = {}
+        if selector:
+            headers_dict["datastar-selector"] = selector
+        if self.mode != "outer":
+            headers_dict["datastar-mode"] = self.mode
+        if self.use_view_transition:
+            headers_dict["datastar-use-view-transition"] = "true"
+        headers_dict.update(self.headers)
+
+        return Response(content=to_xml(self.content), media_type="text/html", headers=headers_dict)
 
 
 # ============================================================================
@@ -330,7 +373,12 @@ class ResponseRenderer:
         self.headers = {}
         self.tasks = None
 
-    def process(self, user_response: Any, cls: type = None, status_code: int = 200) -> Response:
+    def process(
+        self,
+        user_response: Any,
+        cls: type = None,
+        status_code: int = 200,
+    ) -> Response:
         """Main method that orchestrates the entire response processing pipeline."""
         if not user_response:
             user_response = ""
@@ -382,7 +430,13 @@ class ResponseRenderer:
             return body, "html"
         return str(body), "html"  # Default to HTML
 
-    def _build_final_response(self, content: Any, content_type: str, cls: type, status_code: int) -> Response:
+    def _build_final_response(
+        self,
+        content: Any,
+        content_type: str,
+        cls: type,
+        status_code: int,
+    ) -> Response:
         """Selects the correct Response class and instantiates it."""
         if cls in (Any, FT, empty):
             cls = None
@@ -391,7 +445,7 @@ class ResponseRenderer:
 
         if content_type == "json":
             return JSONResponse(content, status_code=status_code, headers=self.headers, background=self.tasks)
-        else:  # Default to HTML
+        else:
             return HTMLResponse(content, status_code=status_code, headers=self.headers, background=self.tasks)
 
     def _process_ft_objects(self, resp: Any) -> Any:
@@ -460,11 +514,13 @@ class ResponseRenderer:
         return any(getattr(o, "tag", "") == "html" for o in resp)
 
 
-def render_response(request, user_response: Any, cls: type = None, status_code: int = 200) -> Response:
-    """Main entry point for rendering a user's route return value into an HTTP response.
-
-    This is the clean, modern API for response processing.
-    """
+def render_response(
+    request,
+    user_response: Any,
+    cls: type = None,
+    status_code: int = 200,
+) -> Response:
+    """Main entry point for rendering a user's route return value into an HTTP response."""
     renderer = ResponseRenderer(request)
     return renderer.process(user_response, cls, status_code)
 

@@ -17,6 +17,7 @@ from starlette.responses import FileResponse, HTMLResponse
 
 from starhtml.server import (
     APIRouter,
+    Fragment,
     JSONResponse,
     ResponseRenderer,
     RouteFuncs,
@@ -612,3 +613,152 @@ class TestMkLocfuncMissingCoverage:
         except Exception:
             # qp function may not be available in test context, which is fine
             pass
+
+
+class TestFragmentResponse:
+    """Test Fragment response behavior for Datastar HTML responses."""
+
+    def test_fragment_basic(self):
+        """Fragment with explicit selector returns correct Datastar headers."""
+        from starlette.testclient import TestClient
+
+        from starhtml import Div, star_app
+
+        app, rt = star_app()
+
+        @rt("/update")
+        def update():
+            return Fragment(Div("Updated content", id="foo"), selector="#foo")
+
+        client = TestClient(app)
+        response = client.get("/update")
+
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "text/html; charset=utf-8"
+        assert response.headers["datastar-selector"] == "#foo"
+        assert "datastar-mode" not in response.headers
+        assert "Updated content" in response.text
+
+    def test_fragment_auto_selector(self):
+        """Fragment auto-detects selector from element id attribute."""
+        from starlette.testclient import TestClient
+
+        from starhtml import Div, star_app
+
+        app, rt = star_app()
+
+        @rt("/update")
+        def update():
+            return Fragment(Div("Auto content", id="auto-id"))
+
+        client = TestClient(app)
+        response = client.get("/update")
+
+        assert response.headers["datastar-selector"] == "#auto-id"
+        assert "Auto content" in response.text
+
+    def test_fragment_no_selector(self):
+        """Fragment without selector or id has no datastar-selector header."""
+        from starlette.testclient import TestClient
+
+        from starhtml import Div, star_app
+
+        app, rt = star_app()
+
+        @rt("/update")
+        def update():
+            return Fragment(Div("Content without selector"))
+
+        client = TestClient(app)
+        response = client.get("/update")
+
+        assert "datastar-selector" not in response.headers
+        assert "Content without selector" in response.text
+
+    def test_fragment_mode_outer(self):
+        """Fragment with outer mode (default) has no datastar-mode header."""
+        from starlette.testclient import TestClient
+
+        from starhtml import Div, star_app
+
+        app, rt = star_app()
+
+        @rt("/update")
+        def update():
+            return Fragment(Div("Outer mode"), selector="#target", mode="outer")
+
+        client = TestClient(app)
+        response = client.get("/update")
+        assert "datastar-mode" not in response.headers
+
+    def test_fragment_mode_inner(self):
+        """Fragment with inner mode sets correct header."""
+        from starlette.testclient import TestClient
+
+        from starhtml import Div, star_app
+
+        app, rt = star_app()
+
+        @rt("/update")
+        def update():
+            return Fragment(Div("Inner mode"), selector="#target", mode="inner")
+
+        client = TestClient(app)
+        response = client.get("/update")
+        assert response.headers["datastar-mode"] == "inner"
+
+    def test_fragment_mode_other(self):
+        """Fragment respects append, prepend, before, after, replace, remove modes."""
+        from starlette.testclient import TestClient
+
+        from starhtml import Div, star_app
+
+        def make_handler(mode_value):
+            def handler():
+                return Fragment(Div(f"{mode_value} mode"), selector="#target", mode=mode_value)
+
+            return handler
+
+        for mode in ["append", "prepend", "before", "after", "replace", "remove"]:
+            app, rt = star_app()
+            rt(f"/{mode}")(make_handler(mode))
+
+            client = TestClient(app)
+            response = client.get(f"/{mode}")
+            assert response.headers["datastar-mode"] == mode
+
+    def test_fragment_view_transition(self):
+        """Fragment with view transition sets correct header."""
+        from starlette.testclient import TestClient
+
+        from starhtml import Div, star_app
+
+        app, rt = star_app()
+
+        @rt("/update")
+        def update():
+            return Fragment(Div("Transition content"), selector="#result", use_view_transition=True)
+
+        client = TestClient(app)
+        response = client.get("/update")
+
+        assert response.headers["datastar-use-view-transition"] == "true"
+        assert response.headers["datastar-selector"] == "#result"
+
+    def test_fragment_custom_headers(self):
+        """Fragment supports additional custom headers."""
+        from starlette.testclient import TestClient
+
+        from starhtml import Div, star_app
+
+        app, rt = star_app()
+
+        @rt("/update")
+        def update():
+            return Fragment(Div("Custom header content"), selector="#result", **{"X-Custom": "test-value"})
+
+        client = TestClient(app)
+        response = client.get("/update")
+
+        assert response.headers["X-Custom"] == "test-value"
+        assert response.headers["datastar-selector"] == "#result"
