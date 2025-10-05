@@ -418,7 +418,7 @@ _JS_EXPR_PREFIXES = ("$", "`", "!", "(", "'", "evt.")
 _JS_EXPR_KEYWORDS = {"true", "false", "null", "undefined"}
 
 
-def _to_js(value: Any, allow_expressions: bool = True) -> str:
+def _to_js(value: Any, allow_expressions: bool = True, wrap_objects: bool = True) -> str:
     match value:
         case Expr() as expr:
             return expr.to_js()
@@ -437,7 +437,7 @@ def _to_js(value: Any, allow_expressions: bool = True) -> str:
                 return json.dumps(d)
             except (TypeError, ValueError):
                 items = [f"{_to_js(k, allow_expressions)}: {_to_js(v, allow_expressions)}" for k, v in d.items()]
-                return f"({{{', '.join(items)}}})"
+                return f"({{{', '.join(items)}}})" if wrap_objects else f"{{{', '.join(items)}}}"
         case list() | tuple() as l:
             try:
                 return json.dumps(l)
@@ -716,6 +716,11 @@ def process_datastar_kwargs(kwargs: dict) -> tuple[dict, set[Signal]]:
                     js_str = str(expr)
                 final_key = f"{normalized_key}{_build_modifier_suffix(modifiers)}"
                 processed[final_key] = NotStr(js_str)
+            case dict() as d:
+                for v in d.values():
+                    if isinstance(v, Expr | Signal):
+                        collect(v)
+                processed[normalized_key] = NotStr(_to_js(d, wrap_objects=not key.startswith("data_")))
             case Expr() as expr:
                 collect(expr)
                 js_str = expr.to_js()
@@ -725,7 +730,7 @@ def process_datastar_kwargs(kwargs: dict) -> tuple[dict, set[Signal]]:
                     processed["data-class"] = NotStr(js_str)
                 else:
                     processed[normalized_key] = NotStr(js_str)
-            case _JSLiteral() | _JSRaw() | dict() as val:
+            case _JSLiteral() | _JSRaw() as val:
                 processed[normalized_key] = NotStr(_to_js(val))
             case _:
                 if key.startswith(("data_style_", "data_class_", "data_attr_")):
