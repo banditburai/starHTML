@@ -470,3 +470,101 @@ class TestConsistency:
         processed, _ = process_datastar_kwargs(kwargs)
 
         assert isinstance(processed["data-show"], NotStr)
+
+
+class TestDictWrappingFix:
+    """Test that dicts in data_* attributes are NOT wrapped in parens."""
+
+    def test_data_class_dict_no_parens(self):
+        """data_class dict should produce object literal WITHOUT parens."""
+        active = Signal("active", False)
+        kwargs = {"data_class": {"text-muted": ~active}}
+        processed, signals = process_datastar_kwargs(kwargs)
+
+        value = str(processed["data-class"])
+        assert not value.startswith("(")
+        assert not value.endswith(")")
+        assert "text-muted" in value
+        assert active in signals
+
+    def test_data_style_dict_no_parens(self):
+        """data_style dict should produce object literal WITHOUT parens."""
+        width = Signal("width", 100)
+        kwargs = {"data_style": {"width": width + "px"}}
+        processed, signals = process_datastar_kwargs(kwargs)
+
+        value = str(processed["data-style"])
+        assert not value.startswith("(")
+        assert not value.endswith(")")
+        assert width in signals
+
+    def test_data_attr_dict_no_parens(self):
+        """data_attr dict should produce object literal WITHOUT parens."""
+        disabled = Signal("disabled", False)
+        kwargs = {"data_attr": {"disabled": disabled}}
+        processed, signals = process_datastar_kwargs(kwargs)
+
+        value = str(processed["data-attr"])
+        assert not value.startswith("(")
+        assert not value.endswith(")")
+        assert disabled in signals
+
+    def test_non_data_dict_has_parens(self):
+        """Non-data-* dicts should STILL have parens for backward compatibility."""
+        sig = Signal("test", "value")
+        kwargs = {"custom_attr": {"key": sig}}
+        processed, signals = process_datastar_kwargs(kwargs)
+
+        value = str(processed["custom-attr"])
+        assert value.startswith("(")
+        assert value.endswith(")")
+        assert sig in signals
+
+    def test_data_class_dict_with_hyphenated_keys(self):
+        """data_class dict handles hyphenated class names correctly."""
+        selected = Signal("selected", True)
+        kwargs = {"data_class": {"text-muted-foreground": ~selected, "bg-primary": selected}}
+        processed, signals = process_datastar_kwargs(kwargs)
+
+        value = str(processed["data-class"])
+        assert "text-muted-foreground" in value
+        assert "bg-primary" in value
+        assert not value.startswith("(")
+        assert selected in signals
+
+    def test_data_style_dict_with_multiple_properties(self):
+        """data_style dict with multiple CSS properties."""
+        width = Signal("width", 100)
+        height = Signal("height", 50)
+        kwargs = {"data_style": {"width": width + "px", "height": height + "px"}}
+        processed, signals = process_datastar_kwargs(kwargs)
+
+        value = str(processed["data-style"])
+        assert "width" in value
+        assert "height" in value
+        assert not value.startswith("(")
+        assert width in signals
+        assert height in signals
+
+    def test_data_attr_dict_with_mixed_values(self):
+        """data_attr dict with signals and static values."""
+        disabled = Signal("disabled", False)
+        kwargs = {"data_attr": {"disabled": disabled, "aria-label": "Click me"}}
+        processed, signals = process_datastar_kwargs(kwargs)
+
+        value = str(processed["data-attr"])
+        assert "disabled" in value
+        assert "aria-label" in value
+        assert not value.startswith("(")
+        assert disabled in signals
+
+    def test_dict_signals_are_collected(self):
+        """Signals nested in dicts should be collected."""
+        active = Signal("active", True)
+        disabled = Signal("disabled", False)
+        kwargs = {"data_class": {"active": active, "disabled": ~disabled}}
+        _, signals = process_datastar_kwargs(kwargs)
+
+        assert active in signals
+        assert disabled in signals
+        assert len(signals) == 2
