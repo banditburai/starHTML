@@ -436,8 +436,12 @@ def _to_js(value: Any, allow_expressions: bool = True, wrap_objects: bool = True
             try:
                 return json.dumps(d)
             except (TypeError, ValueError):
-                items = [f"{_to_js(k, allow_expressions)}: {_to_js(v, allow_expressions)}" for k, v in d.items()]
-                return f"({{{', '.join(items)}}})" if wrap_objects else f"{{{', '.join(items)}}}"
+                items = [
+                    f"{_to_js(k.replace('_', '-') if isinstance(k, str) else k, allow_expressions)}: {_to_js(v, allow_expressions)}"
+                    for k, v in d.items()
+                ]
+                obj = f"{{{', '.join(items)}}}"
+                return f"({obj})" if wrap_objects else obj
         case list() | tuple() as l:
             try:
                 return json.dumps(l)
