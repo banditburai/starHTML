@@ -1,16 +1,12 @@
-"""
-Pythonic API for Datastar attributes and signals in StarHTML.
+"""Pythonic API for Datastar attributes and signals in StarHTML.
 
-This module provides a powerful expression system to generate Datastar-compatible
-JavaScript from Python code, enabling a type-safe and intuitive developer experience.
+Provides an expression system to generate Datastar-compatible JavaScript from Python,
+with type safety and operator overloading for building reactive UIs.
 
-Key Concepts:
-- Signal: A typed reference to a reactive piece of state (e.g., Signal("count", 0)).
-- Expr: An abstract base class for objects that can be compiled to a JavaScript expression.
-- Operators: Python operators like `+`, `-`, `==`, `&`, `|`, `~` are overloaded on
-  Signal and Expr objects to build complex reactive expressions pythonically.
-- Helpers: Functions like `match()`, `switch()`, `js()`, and `f()` provide
-  higher-level constructs for common UI patterns.
+Core types:
+- Signal: Typed reactive state reference (e.g., Signal("count", 0))
+- Expr: Abstract base for JavaScript expression generation
+- Helpers: match(), switch(), js(), f() and others for common patterns
 """
 
 import builtins
@@ -22,41 +18,31 @@ from typing import Any, Union
 from fastcore.xml import NotStr
 from rjsmin import jsmin
 
-# ============================================================================
-# 1. Core Expression System (The Foundation)
-# ============================================================================
-
 
 class Expr(ABC):
-    """Abstract base class for objects that can be compiled to JavaScript."""
+    """Base class for objects that compile to JavaScript with operator overloading."""
 
     @abstractmethod
     def to_js(self) -> str:
-        """Compile the expression to a JavaScript string."""
+        """Compile to JavaScript code."""
         pass
 
     def __str__(self) -> str:
-        """Return the JavaScript representation of the expression."""
         return self.to_js()
 
     def __contains__(self, item: str) -> bool:
-        """Check if string is contained in the JavaScript representation."""
         return item in self.to_js()
 
-    # --- Property and Method Access ---
     def __getattr__(self, key: str) -> "PropertyAccess":
-        """Access a property on the expression: `expr.key`."""
         return PropertyAccess(self, key)
 
     def __getitem__(self, index: Any) -> "IndexAccess":
-        """Access an index or key on the expression: `expr[index]`."""
         return IndexAccess(self, index)
 
     @property
     def length(self) -> "PropertyAccess":
         return PropertyAccess(self, "length")
 
-    # --- Logical & Comparison Operators ---
     def __and__(self, other: Any) -> "BinaryOp":
         return BinaryOp(self, "&&", other)
 
@@ -96,7 +82,6 @@ class Expr(ABC):
     def or_(self, other: Any) -> "BinaryOp":
         return BinaryOp(self, "||", other)
 
-    # --- Arithmetic Operators ---
     def __add__(self, other: Any) -> Union["BinaryOp", "TemplateLiteral"]:
         return TemplateLiteral([self, other]) if isinstance(other, str) else BinaryOp(self, "+", other)
 
@@ -145,13 +130,12 @@ class Expr(ABC):
     def mod(self, divisor: Any) -> "Assignment":
         return Assignment(self, self % divisor)
 
-    # --- Control Flow ---
     def if_(self, true_val: Any, false_val: Any = "") -> "Conditional":
-        """Ternary expression: `condition ? true_val : false_val`."""
+        """Ternary: cond.if_(yes, no) → cond ? yes : no"""
         return Conditional(self, true_val, false_val)
 
     def then(self, action: Any) -> "_JSRaw":
-        """Execute action when condition is true: `if (condition) { action }`."""
+        """Execute when true: cond.then(action) → if (cond) { action }"""
         action_js = action if isinstance(action, str) else action.to_js()
         return _JSRaw(f"if ({self.to_js()}) {{ {action_js} }}")
 
@@ -163,7 +147,6 @@ class Expr(ABC):
             result = (self == values[i - 1]).if_(values[i], result)
         return self.set(result)
 
-    # --- String Methods ---
     def lower(self) -> "MethodCall":
         return MethodCall(self, "toLowerCase", [])
 
@@ -176,7 +159,12 @@ class Expr(ABC):
     def contains(self, text: Any) -> "MethodCall":
         return MethodCall(self, "includes", [text])
 
-    # --- Math Methods ---
+    def toggle_in(self, value: Any) -> "Assignment":
+        """Toggle item in array: add if missing, remove if present."""
+        val = _ensure_expr(value).to_js()
+        sig = self.to_js()
+        return Assignment(self, _JSRaw(f"{sig}.includes({val}) ? {sig}.filter(v => v !== {val}) : [...{sig}, {val}]"))
+
     def round(self, digits: int = 0) -> "MethodCall":
         return (
             MethodCall(_JSRaw("Math"), "round", [self])
@@ -196,7 +184,6 @@ class Expr(ABC):
     def clamp(self, min_val: Any, max_val: Any) -> "MethodCall":
         return self.max(min_val).min(max_val)
 
-    # Array methods - simple operations without callbacks
     def append(self, *items: Any) -> "MethodCall":
         return MethodCall(self, "push", [_ensure_expr(item) for item in items])
 
@@ -220,27 +207,27 @@ class Expr(ABC):
             args.append(_ensure_expr(end))
         return MethodCall(self, "slice", args)
 
-    # --- Event Modifiers ---
     def with_(self, **modifiers) -> tuple:
-        """Add event modifiers: expr.with_(prevent=True, debounce=300)"""
         return (self, modifiers)
 
 
 class _JSLiteral(Expr):
-    """Internal: A Python value to be safely encoded as a JavaScript literal."""
-
-    __slots__ = ("value",)
+    __slots__ = ("value", "_js")
 
     def __init__(self, value: Any):
         self.value = value
+        try:
+            self._js = json.dumps(value, separators=(",", ":"))
+        except (TypeError, ValueError):
+            self._js = None
 
     def to_js(self) -> str:
-        return json.dumps(self.value, separators=(",", ":"))
+        if self._js is None:
+            return json.dumps(self.value, separators=(",", ":"))
+        return self._js
 
 
 class TemplateLiteral(Expr):
-    """JS template literal that efficiently combines parts."""
-
     __slots__ = ("parts",)
 
     def __init__(self, parts: list):
@@ -265,8 +252,6 @@ class TemplateLiteral(Expr):
 
 
 class _JSRaw(Expr):
-    """Internal: A raw string of JavaScript code to be passed through verbatim."""
-
     __slots__ = ("code",)
 
     def __init__(self, code: str):
@@ -287,8 +272,6 @@ class _JSRaw(Expr):
 
 
 class BinaryOp(Expr):
-    """A binary operation like `a + b` or `x > y`."""
-
     __slots__ = ("left", "op", "right")
 
     def __init__(self, left: Any, op: str, right: Any):
@@ -301,8 +284,6 @@ class BinaryOp(Expr):
 
 
 class UnaryOp(Expr):
-    """A unary operation like `!x`."""
-
     __slots__ = ("op", "expr")
 
     def __init__(self, op: str, expr: Expr):
@@ -313,8 +294,6 @@ class UnaryOp(Expr):
 
 
 class Conditional(Expr):
-    """A ternary expression: `condition ? true_val : false_val`."""
-
     __slots__ = ("condition", "true_val", "false_val")
 
     def __init__(self, condition: Expr, true_val: Any, false_val: Any):
@@ -325,8 +304,6 @@ class Conditional(Expr):
 
 
 class Assignment(Expr):
-    """An assignment: `target = value`."""
-
     __slots__ = ("target", "value")
 
     def __init__(self, target: Expr, value: Any):
@@ -337,8 +314,6 @@ class Assignment(Expr):
 
 
 class MethodCall(Expr):
-    """A method call: `obj.method(arg1, arg2)`."""
-
     __slots__ = ("obj", "method", "args")
 
     def __init__(self, obj: Expr, method: str, args: list[Any]):
@@ -349,8 +324,6 @@ class MethodCall(Expr):
 
 
 class PropertyAccess(Expr):
-    """Property access: `obj.prop` that can be called like a method."""
-
     __slots__ = ("obj", "prop")
 
     def __init__(self, obj: Expr, prop: str):
@@ -364,8 +337,6 @@ class PropertyAccess(Expr):
 
 
 class IndexAccess(Expr):
-    """Index access for arrays or objects: `obj[index]`."""
-
     __slots__ = ("obj", "index")
 
     def __init__(self, obj: Expr, index: Any):
@@ -376,12 +347,11 @@ class IndexAccess(Expr):
 
 
 def _ensure_expr(value: Any) -> Expr:
-    """Idempotently convert a Python value into an Expr object."""
     return value if isinstance(value, Expr) else _JSLiteral(value)
 
 
 class Signal(Expr):
-    """A typed, validated signal reference."""
+    """Typed reactive state reference that auto-generates JavaScript and data attributes."""
 
     def __init__(
         self,
@@ -398,9 +368,10 @@ class Signal(Expr):
         self._is_computed = isinstance(initial, Expr)
         self.type_ = type_ or self._infer_type(initial)
         self._validate_name()
+        self.id = f"{namespace}_{name}" if namespace else name
+        self._js = f"${self.id}"
 
     def _infer_type(self, initial: Any) -> type:
-        """Infer type from initial value, checking bool before int."""
         if initial is None:
             return str
         if isinstance(initial, bool):
@@ -417,14 +388,10 @@ class Signal(Expr):
         if not re.match(r"^[a-z][a-z0-9_]*$", self._name):
             raise ValueError(f"Signal name must be snake_case: '{self._name}'")
 
-    @property
-    def full_name(self) -> str:
-        return f"{self._namespace}_{self._name}" if self._namespace else self._name
-
     def to_dict(self) -> dict[str, Any]:
         if self._is_computed:
             return {}
-        return {self.full_name: self._initial}
+        return {self.id: self._initial}
 
     def get_computed_attr(self) -> tuple[str, Any] | None:
         if self._is_computed:
@@ -432,7 +399,7 @@ class Signal(Expr):
         return None
 
     def to_js(self) -> str:
-        return f"${self.full_name}"
+        return self._js
 
     def __hash__(self):
         return hash((self._name, self._namespace))
@@ -452,7 +419,6 @@ _JS_EXPR_KEYWORDS = {"true", "false", "null", "undefined"}
 
 
 def _to_js(value: Any, allow_expressions: bool = True) -> str:
-    """Convert Python value to JavaScript string."""
     match value:
         case Expr() as expr:
             return expr.to_js()
@@ -483,20 +449,16 @@ def _to_js(value: Any, allow_expressions: bool = True) -> str:
 
 
 def to_js_value(value: Any) -> str:
-    """Convert Python value to JavaScript expression."""
     return _to_js(value, allow_expressions=True)
 
 
-# --- General Purpose Helpers ---
-
-
 def js(code: str) -> _JSRaw:
-    "Mark a string as raw JavaScript code (automatically minified)"
+    """Embed raw JavaScript (auto-minified)."""
     return _JSRaw(jsmin(code))
 
 
 def value(v: Any) -> _JSLiteral:
-    """Mark a Python value to be safely encoded as a JavaScript literal."""
+    """JSON-encode Python value as JavaScript literal."""
     if isinstance(v, Expr):
         raise TypeError(
             f"value() should not be used with {type(v).__name__} objects. Use the object directly instead of wrapping it with value()."
@@ -505,7 +467,7 @@ def value(v: Any) -> _JSLiteral:
 
 
 def f(template_str: str, **kwargs: Any) -> _JSRaw:
-    """Create reactive JavaScript template literal, like a Python f-string."""
+    """Create JavaScript template literal from Python f-string-like template."""
 
     def replacer(match: re.Match) -> str:
         key = match.group(1)
@@ -519,15 +481,12 @@ def f(template_str: str, **kwargs: Any) -> _JSRaw:
 
 
 def regex(pattern: str) -> _JSRaw:
-    """Create JavaScript regex literal: regex("^todo_") → /^todo_/"""
+    """Create JavaScript regex: regex("^foo") → /^foo/"""
     return _JSRaw(f"/{pattern}/")
 
 
-# --- Conditional Logic Helpers ---
-
-
 def match(subject: Any, /, **patterns: Any) -> _JSRaw:
-    """Pattern matching for conditional values (like Python match/case)."""
+    """Pattern match values: match(status, loading="...", ready="✓", default="?")"""
     subject_expr = _ensure_expr(subject)
     default_val = patterns.pop("default", "")
     result = _ensure_expr(default_val)
@@ -538,7 +497,7 @@ def match(subject: Any, /, **patterns: Any) -> _JSRaw:
 
 
 def switch(cases: list[tuple[Any, Any]], /, default: Any = "") -> _JSRaw:
-    """Sequential condition evaluation (if/elif/else chain)."""
+    """Sequential if/elif/else: switch([(cond1, val1), (cond2, val2)], default=val3)"""
     result = _ensure_expr(default)
     for condition, val in reversed(cases):
         result = _ensure_expr(condition).if_(val, result)
@@ -546,7 +505,7 @@ def switch(cases: list[tuple[Any, Any]], /, default: Any = "") -> _JSRaw:
 
 
 def collect(cases: list[tuple[Any, Any]], /, join_with: str = " ") -> _JSRaw:
-    """Combines values from all true conditions (for CSS classes, etc.)."""
+    """Collect values from true conditions: useful for CSS classes."""
     if not cases:
         return _JSRaw("''")
     parts = [_ensure_expr(condition).if_(val, "").to_js() for condition, val in cases]
@@ -554,11 +513,15 @@ def collect(cases: list[tuple[Any, Any]], /, join_with: str = " ") -> _JSRaw:
     return _JSRaw(f"{array_expr}.filter(Boolean).join('{join_with}')")
 
 
-# --- Logical Aggregation Helpers ---
+def seq(*exprs: Any) -> _JSRaw:
+    """Comma operator sequence: seq(a, b, c) evaluates all, returns last."""
+    if not exprs:
+        return _JSRaw("undefined")
+    expr_strs = [_ensure_expr(e).to_js() for e in exprs]
+    return _JSRaw(f"({', '.join(expr_strs)})")
 
 
 def _iterable_args(*args):
-    """Support Python built-in style: if passed a single iterable, unpack it."""
     return (
         args[0]
         if builtins.len(args) == 1 and hasattr(args[0], "__iter__") and not isinstance(args[0], str | Signal | Expr)
@@ -567,7 +530,6 @@ def _iterable_args(*args):
 
 
 def all(*signals) -> _JSRaw:
-    """Check if all signals are truthy: all(a, b, c) → !!a && !!b && !!c"""
     if not signals:
         return _JSRaw("true")
     signals = _iterable_args(*signals)
@@ -575,14 +537,10 @@ def all(*signals) -> _JSRaw:
 
 
 def any(*signals) -> _JSRaw:
-    """Check if any signal is truthy: any(a, b, c) → !!a || !!b || !!c"""
     if not signals:
         return _JSRaw("false")
     signals = _iterable_args(*signals)
     return _JSRaw(" || ".join(f"!!{_ensure_expr(s).to_js()}" for s in signals))
-
-
-# --- Action Helpers ---
 
 
 def post(url: str, data: dict[str, Any] | None = None, **kwargs) -> _JSRaw:
@@ -614,7 +572,6 @@ def clipboard(text: str = None, element: str = None, signal: str = None) -> _JSR
     if text is not None:
         return _JSRaw(f"@clipboard({to_js_value(text)}{signal_suffix})")
 
-    # Element mode: generate appropriate DOM access
     if element == "el":
         js_expr = "el"
     elif element.startswith(("#", ".")):
@@ -633,8 +590,6 @@ def _action(verb: str, url: str, data: dict[str, Any] | None = None, **kwargs) -
     return _JSRaw(f"@{verb}('{url}', {{{', '.join(parts)}}})")
 
 
-# --- JavaScript Global Objects ---
-
 console = js("console")
 Math = js("Math")
 JSON = js("JSON")
@@ -644,14 +599,12 @@ Date = js("Date")
 Number = js("Number")
 String = js("String")
 Boolean = js("Boolean")
-
-
-# --- Core Datastar Keyword Argument Processing Engine ---
+evt = js("evt")
+document = js("document")
 
 
 def _normalize_data_key(key: str) -> str:
-    """Normalizes a Pythonic key to its `data-*` attribute equivalent."""
-    for prefix in ("data_computed_", "data_on_", "data_attr_", "data_"):
+    for prefix in ("data_computed_", "data_class_", "data_on_", "data_attr_", "data_"):
         if key.startswith(prefix):
             name = key.removeprefix(prefix)
             slug = name if prefix == "data_computed_" else name.replace("_", "-")
@@ -660,7 +613,6 @@ def _normalize_data_key(key: str) -> str:
 
 
 def _build_modifier_suffix(modifiers: dict[str, Any]) -> str:
-    """Builds a modifier suffix (e.g., `__debounce__300ms`) from a dictionary."""
     if not modifiers:
         return ""
     parts = []
@@ -669,7 +621,7 @@ def _build_modifier_suffix(modifiers: dict[str, Any]) -> str:
             case True:
                 parts.append(name)
             case False:
-                parts.append(f"{name}.false")  # Preserve explicit false
+                parts.append(f"{name}.false")
             case int() | float():
                 part = f"n{abs(value)}" if value < 0 else str(value)
                 parts.append(f"{name}.{part}")
@@ -679,8 +631,6 @@ def _build_modifier_suffix(modifiers: dict[str, Any]) -> str:
 
 
 def _expr_list_to_js(items: list[Any], collect_signals: callable) -> str:
-    """Joins a list of expressions into a semicolon-separated JS string."""
-
     def process_item(item):
         if isinstance(item, Expr | Signal):
             collect_signals(item)
@@ -691,7 +641,6 @@ def _expr_list_to_js(items: list[Any], collect_signals: callable) -> str:
 
 
 def _collect_signals(expr: Any, sink: set[Signal]) -> None:
-    """Recursively traverses an expression to find all Signal references."""
     if isinstance(expr, Signal):
         sink.add(expr)
     elif isinstance(expr, Expr):
@@ -712,13 +661,11 @@ def _collect_signals(expr: Any, sink: set[Signal]) -> None:
 
 
 def build_data_signals(signals: dict[str, Any]) -> NotStr:
-    """Builds a non-escaped JavaScript object literal for `data-signals`."""
     parts = [f"{key}: {_to_js(val, allow_expressions=False)}" for key, val in signals.items()]
     return NotStr("{" + ", ".join(parts) + "}")
 
 
 def _handle_data_signals(value: Any) -> Any:
-    """Processes the value for a `data_signals` keyword argument."""
     signal_dict = {}
     match value:
         case list() | tuple():
@@ -733,20 +680,16 @@ def _handle_data_signals(value: Any) -> Any:
 
 
 def _apply_additive_class_behavior(processed: dict) -> None:
-    """Combines cls and data_attr_cls for SSR + reactive classes."""
-    if "cls" in processed and "data_attr_cls" in processed:
+    if "cls" in processed and "data-attr-cls" in processed:
         base_classes = processed.pop("cls")
-        reactive_classes = str(processed.pop("data_attr_cls"))
+        reactive_classes = str(processed.pop("data-attr-cls"))
         if reactive_classes.startswith("(") and reactive_classes.endswith(")"):
             reactive_classes = reactive_classes[1:-1]
         processed["data-attr-class"] = NotStr(f"`{base_classes} ${{{reactive_classes}}}`")
 
 
-# --- Main Engine ---
-
-
 def process_datastar_kwargs(kwargs: dict) -> tuple[dict, set[Signal]]:
-    """Maps Pythonic kwargs to Datastar data-* attributes."""
+    """Transform Python kwargs to Datastar data-* attributes and collect signals."""
     processed: dict[str, Any] = {}
     signals_found: set[Signal] = set()
 
@@ -776,8 +719,8 @@ def process_datastar_kwargs(kwargs: dict) -> tuple[dict, set[Signal]]:
             case Expr() as expr:
                 collect(expr)
                 js_str = expr.to_js()
-                if key == "data_bind" and isinstance(expr, Signal):
-                    processed["data-bind"] = expr.full_name
+                if key in ("data_bind", "data_ref", "data_indicator") and isinstance(expr, Signal):
+                    processed[normalized_key] = expr.id
                 elif key == "data_class":
                     processed["data-class"] = NotStr(js_str)
                 else:
@@ -785,15 +728,14 @@ def process_datastar_kwargs(kwargs: dict) -> tuple[dict, set[Signal]]:
             case _JSLiteral() | _JSRaw() | dict() as val:
                 processed[normalized_key] = NotStr(_to_js(val))
             case _:
-                processed[key] = value
+                if key.startswith(("data_style_", "data_class_", "data_attr_")):
+                    processed[normalized_key] = value if isinstance(value, str) else NotStr(_to_js(value))
+                else:
+                    processed[key] = value
 
     _apply_additive_class_behavior(processed)
     return processed, signals_found
 
-
-# ============================================================================
-# 8. Public API Exports
-# ============================================================================
 
 __all__ = [
     "Signal",
@@ -805,6 +747,7 @@ __all__ = [
     "match",
     "switch",
     "collect",
+    "seq",
     "all",
     "any",
     "post",
@@ -822,6 +765,8 @@ __all__ = [
     "Number",
     "String",
     "Boolean",
+    "evt",
+    "document",
     "process_datastar_kwargs",
     "to_js_value",
 ]

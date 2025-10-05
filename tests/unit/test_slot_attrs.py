@@ -115,7 +115,7 @@ class TestSlotAttrsEdgeCases:
         assert "data-attr-class=" in html
         assert "$active" in html
         assert 'data-show="$enabled"' in html
-        assert 'data_class_hover="bg-blue-600"' in html
+        assert 'data-class-hover="bg-blue-600"' in html
 
     def test_nonexistent_slot_ignored(self):
         """Test that slot_ kwargs for non-existent slots are ignored."""
@@ -186,8 +186,8 @@ class TestSlotAttrsWithDatastar:
         )
 
         html = to_xml(element)
-        assert 'data_class_active="bg-green-500"' in html
-        assert 'data_class_disabled="bg-gray-300"' in html
+        assert 'data-class-active="bg-green-500"' in html
+        assert 'data-class-disabled="bg-gray-300"' in html
 
     def test_with_custom_datastar_attr(self):
         """Test slot_ kwargs with custom attrs dict."""
