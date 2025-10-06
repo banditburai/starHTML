@@ -679,8 +679,9 @@ def _handle_data_signals(value: Any) -> Any:
         case dict() as d:
             signal_dict = d
         case Signal() as s:
-            signal_dict = s.to_dict()
-    return build_data_signals(signal_dict) if signal_dict else value
+            if not s._ref_only:
+                signal_dict = s.to_dict()
+    return build_data_signals(signal_dict) if signal_dict else None
 
 
 def _apply_additive_class_behavior(processed: dict) -> None:
@@ -702,7 +703,9 @@ def process_datastar_kwargs(kwargs: dict) -> tuple[dict, set[Signal]]:
 
     for key, value in kwargs.items():
         if key == "data_signals":
-            processed["data-signals"] = _handle_data_signals(value)
+            result = _handle_data_signals(value)
+            if result is not None:
+                processed["data-signals"] = result
             continue
 
         normalized_key = _normalize_data_key(key)
