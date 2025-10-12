@@ -69,13 +69,13 @@ def infinite_canvas():
                     Div(
                         Span("Pan: ", cls="text-gray-600"),
                         Span(
-                            data_text=f("({x}, {y})", x=canvas.pan_x.round(), y=canvas.pan_y.round()),
+                            data_text=f_("({x}, {y})", x=canvas.pan_x.round(), y=canvas.pan_y.round()),
                             cls="font-mono text-black",
                         ),
                     ),
                     Div(
                         Span("Zoom: ", cls="text-gray-600"),
-                        Span(data_text=f("{z}%", z=(canvas.zoom * 100).round()), cls="font-mono text-black"),
+                        Span(data_text=f_("{z}%", z=(canvas.zoom * 100).round()), cls="font-mono text-black"),
                     ),
                     cls="flex gap-6 text-sm",
                 ),
@@ -95,7 +95,7 @@ def infinite_canvas():
                 ),
                 data_canvas_viewport=True,
                 data_on_canvas=console.log(
-                    f("Canvas: pan=({x},{y}) zoom={z}", x=canvas.pan_x, y=canvas.pan_y, z=canvas.zoom)
+                    f_("Canvas: pan=({x},{y}) zoom={z}", x=canvas.pan_x, y=canvas.pan_y, z=canvas.zoom)
                 ),
                 cls="canvas-viewport",
             ),

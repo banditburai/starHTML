@@ -6,7 +6,7 @@ Demonstrates StarHTML's 'Explicit is Better' principle through clear cause-and-e
 from typing import Any
 
 from starhtml import *
-from starhtml.datastar import f, js, switch, value
+from starhtml.datastar import f_, js, switch
 
 DAMAGE_RANGES = {"attack": (15, 25), "fireball": (35, 45), "monster_counter": (10, 20), "defend_reduced": (5, 10)}
 
@@ -44,7 +44,7 @@ def stat_bar(label: str, current_signal: Any, max_signal: Any, color: str = "red
         Div(
             Div(
                 cls=f"h-5 bg-{color}-500 transition-all duration-300",
-                data_style_width=f("{percent}%", percent=(current_signal / max_signal) * 100),
+                data_style_width=f_("{percent}%", percent=(current_signal / max_signal) * 100),
             ),
             cls="w-full bg-gray-200 rounded overflow-hidden",
         ),
@@ -290,9 +290,9 @@ def battle_actions(
                     player_mana.sub(COSTS["heal"]),
                     player_hp.set((player_hp + REWARDS["heal_amount"]).min(player_max_hp)),
                     combat_log.prepend(
-                        f(
+                        f_(
                             "💚 Healed for {amount} HP",
-                            amount=value(REWARDS["heal_amount"]).min(player_max_hp - player_hp),
+                            amount=expr(REWARDS["heal_amount"]).min(player_max_hp - player_hp),
                         )
                     ),
                 ],
@@ -306,9 +306,9 @@ def battle_actions(
                 [
                     player_mana.set((player_mana + REWARDS["defend_mana"]).min(player_max_mana)),
                     combat_log.prepend(
-                        f(
+                        f_(
                             "🛡️ Defending, gained {amount} MP",
-                            amount=value(REWARDS["defend_mana"]).min(player_max_mana - player_mana),
+                            amount=expr(REWARDS["defend_mana"]).min(player_max_mana - player_mana),
                         )
                     ),
                     js(defend_damage_js()),

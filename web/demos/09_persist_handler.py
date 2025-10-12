@@ -81,7 +81,7 @@ def home():
                     Div(
                         Div(
                             Span("Count: ", cls="text-gray-600"),
-                            Span(data_text=counter | value(0), cls="text-4xl font-bold text-black"),
+                            Span(data_text=counter | expr(0), cls="text-4xl font-bold text-black"),
                             cls="mb-6",
                         ),
                         Div(

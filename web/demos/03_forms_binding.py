@@ -41,7 +41,11 @@ def home():
         (age_error := Signal("age_error", "")),
         (phone_error := Signal("phone_error", "")),
         # Computed signals
-        (is_valid := Signal("is_valid", all(name, email, age) & ~any(name_error, email_error, age_error, phone_error))),
+        (
+            is_valid := Signal(
+                "is_valid", all_(name, email, age) & ~any_(name_error, email_error, age_error, phone_error)
+            )
+        ),
         # Form state signals
         (submitting := Signal("submitting", False)),
         (submitted := Signal("submitted", False)),
@@ -219,25 +223,25 @@ def home():
                 P(
                     Span("Name:", cls="text-gray-500 text-sm"),
                     " ",
-                    Span(data_text=name | value("Not provided"), cls="text-gray-900 text-sm font-medium"),
+                    Span(data_text=name | expr("Not provided"), cls="text-gray-900 text-sm font-medium"),
                     cls="py-2 border-b border-gray-100",
                 ),  # JS: data_text="$name || 'Not provided'"
                 P(
                     Span("Email:", cls="text-gray-500 text-sm"),
                     " ",
-                    Span(data_text=email | value("Not provided"), cls="text-gray-900 text-sm font-medium"),
+                    Span(data_text=email | expr("Not provided"), cls="text-gray-900 text-sm font-medium"),
                     cls="py-2 border-b border-gray-100",
                 ),  # JS: data_text="$email || 'Not provided'"
                 P(
                     Span("Age:", cls="text-gray-500 text-sm"),
                     " ",
-                    Span(data_text=age | value("Not provided"), cls="text-gray-900 text-sm font-medium"),
+                    Span(data_text=age | expr("Not provided"), cls="text-gray-900 text-sm font-medium"),
                     cls="py-2 border-b border-gray-100",
                 ),  # JS: data_text="$age || 'Not provided'"
                 P(
                     Span("Phone:", cls="text-gray-500 text-sm"),
                     " ",
-                    Span(data_text=phone | value("Not provided"), cls="text-gray-900 text-sm font-medium"),
+                    Span(data_text=phone | expr("Not provided"), cls="text-gray-900 text-sm font-medium"),
                     cls="py-2",
                 ),  # JS: data_text="$phone || 'Not provided'"
             ),

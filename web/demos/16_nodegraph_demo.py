@@ -417,7 +417,7 @@ def home():
             ),
             data_canvas_viewport=True,
             data_on_canvas=console.log(
-                f("Canvas interaction: pan=({x},{y}) zoom={z}", x=canvas.pan_x, y=canvas.pan_y, z=canvas.zoom)
+                f_("Canvas interaction: pan=({x},{y}) zoom={z}", x=canvas.pan_x, y=canvas.pan_y, z=canvas.zoom)
             ),
             data_on_load=f"setTimeout(() => {canvas.reset_view()}, 100)",
             cls="canvas-viewport fullpage",

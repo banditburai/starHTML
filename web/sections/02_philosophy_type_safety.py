@@ -2,7 +2,7 @@ import random
 from typing import Any
 
 from starhtml import *
-from starhtml.datastar import collect, js, switch, value
+from starhtml.datastar import collect, js, switch
 
 
 def create_header() -> Div:
@@ -459,12 +459,12 @@ Button(data_text=cookies.if_("ON", "OFF"),
                     cls="mb-1 text-xs",
                 ),
                 Div(
-                    Code("all(a,b,c)", cls="text-green-600 text-xs font-mono bg-green-50 px-2 py-1 rounded"),
+                    Code("all_(a,b,c)", cls="text-green-600 text-xs font-mono bg-green-50 px-2 py-1 rounded"),
                     " → logical AND (all true)",
                     cls="mb-1 text-xs",
                 ),
                 Div(
-                    Code("any(a,b,c)", cls="text-green-600 text-xs font-mono bg-green-50 px-2 py-1 rounded"),
+                    Code("any_(a,b,c)", cls="text-green-600 text-xs font-mono bg-green-50 px-2 py-1 rounded"),
                     " → logical OR (any true)",
                     cls="mb-1 text-xs",
                 ),
@@ -538,15 +538,15 @@ def boolean_demo_interactive(cookies_enabled: Any, analytics_enabled: Any, marke
                             [
                                 (~cookies_enabled, "Maximum Privacy (NOT cookies)"),
                                 (
-                                    all(cookies_enabled, ~analytics_enabled, ~marketing_enabled),
+                                    all_(cookies_enabled, ~analytics_enabled, ~marketing_enabled),
                                     "GDPR Compliant (cookies AND NOT analytics AND NOT marketing)",
                                 ),
                                 (
-                                    all(cookies_enabled, analytics_enabled, ~marketing_enabled),
+                                    all_(cookies_enabled, analytics_enabled, ~marketing_enabled),
                                     "Analytics Active (cookies AND analytics AND NOT marketing)",
                                 ),
                                 (
-                                    all(cookies_enabled, analytics_enabled, marketing_enabled),
+                                    all_(cookies_enabled, analytics_enabled, marketing_enabled),
                                     "Full Tracking (cookies AND analytics AND marketing)",
                                 ),
                             ],
@@ -649,7 +649,7 @@ def list_demo_interactive(playlist: Any, new_song: Any, current_index: Any, song
         Div(
             Icon("material-symbols:music-note", width="24", height="24", cls="mb-2"),
             Div("Now Playing", cls="font-bold text-sm text-gray-600 mb-1"),
-            Div(data_text=playlist[current_index] | value("No songs in playlist"), cls="font-medium mb-3"),
+            Div(data_text=playlist[current_index] | expr("No songs in playlist"), cls="font-medium mb-3"),
             Div(
                 Button(
                     Icon("material-symbols:skip-previous", width="20", height="20"),
@@ -851,7 +851,7 @@ def create_playlist_item(song_title: str, index: int, current_index: Signal) -> 
         ),
         Button(
             Icon("material-symbols:close", width="16", height="16"),
-            data_on_click=post("/api/philosophy/remove-song").with_(selector_song_index=value(index)),
+            data_on_click=post("/api/philosophy/remove-song").with_(selector_song_index=expr(index)),
             cls="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded",
         ),
         cls="flex items-center py-2 px-3 mb-1 border border-transparent hover:border-gray-200 hover:bg-gray-50 rounded",

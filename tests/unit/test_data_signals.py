@@ -3,7 +3,7 @@
 import unittest
 
 from starhtml import Div, P
-from starhtml.datastar import Signal, build_data_signals, f, js
+from starhtml.datastar import Signal, build_data_signals, f_, js
 
 
 class TestDataSignalsAttribute(unittest.TestCase):
@@ -358,18 +358,18 @@ class TestDataSignalsAttribute(unittest.TestCase):
         self.assertEqual(str(and_expr), "(($counter > 0) && ($step > 0))")
 
     def test_f_template_function(self):
-        """Test f() function for template literals."""
-        # f() creates reactive template literals
+        """Test f_() function for template literals."""
+        # f_() creates reactive template literals
         name = Signal("name", "Alice")
         count = Signal("count", 5)
 
-        # Using f() for reactive templates
-        template = f("Hello {name}, you have {count} messages!", name=name, count=count)
+        # Using f_() for reactive templates
+        template = f_("Hello {name}, you have {count} messages!", name=name, count=count)
         expected = "`Hello ${$name}, you have ${$count} messages!`"
         self.assertEqual(str(template), expected)
 
-        # f() with conditional
-        plural = f("{count} {item}", count=count, item=(count == 1).if_("item", "items"))
+        # f_() with conditional
+        plural = f_("{count} {item}", count=count, item=(count == 1).if_("item", "items"))
         self.assertIn("${$count}", str(plural))
         self.assertIn("$count === 1", str(plural))
 

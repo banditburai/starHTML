@@ -49,7 +49,7 @@ next_id = 4
 
 def render_todo_item(todo: Todo, active_filter: Signal):
     """Render a single todo item with bold styling."""
-    is_completed = value(todo.completed)
+    is_completed = expr(todo.completed)
 
     show_condition = (
         active_filter.eq("all")

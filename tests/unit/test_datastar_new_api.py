@@ -3,7 +3,7 @@
 from starhtml import *
 from starhtml.datastar import (
     Signal,
-    f,
+    f_,
     js,
     process_datastar_kwargs,
 )
@@ -35,9 +35,9 @@ def attrs_of_simple(**kwargs):
 
 class TestHelperFunctions:
     def test_template_function(self):
-        assert f("Hello {name}", name=js("$name")) == "`Hello ${$name}`"
+        assert f_("Hello {name}", name=js("$name")) == "`Hello ${$name}`"
         assert (
-            f(
+            f_(
                 "rotate({rotation}deg) scale({scale})",
                 rotation=js("$rotation"),
                 scale=js("$scale"),
@@ -45,7 +45,7 @@ class TestHelperFunctions:
             == "`rotate(${$rotation}deg) scale(${$scale})`"
         )
 
-        result = f(
+        result = f_(
             """Welcome {userName}!
 You have {messageCount} messages.""",
             userName=js("$userName"),
@@ -77,7 +77,7 @@ class TestCoreAttributes:
         assert 'data-text="Hello"' in html
         html = str(Div("x", data_text=js("$message")))
         assert 'data-text="$message"' in html
-        html = str(Div("x", data_text=f("User: {name}", name=js("$name"))))
+        html = str(Div("x", data_text=f_("User: {name}", name=js("$name"))))
         assert 'data-text="`User: ${$name}`"' in html
 
     def test_data_bind(self):
@@ -209,7 +209,7 @@ class TestIntegration:
             **attrs_of_simple(
                 style_background=js("$hovered").if_("#e3f2fd", "#fff").to_js(),
                 style_opacity=js("$loading").if_(0.5, 1).to_js(),
-                style_transform=f("scale({scale})", scale=js("$scale")),
+                style_transform=f_("scale({scale})", scale=js("$scale")),
             ),
         )
         html = str(div)
