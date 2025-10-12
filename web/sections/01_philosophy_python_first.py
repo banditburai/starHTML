@@ -4,7 +4,7 @@ import json
 from starlighter import CodeBlock, StarlighterStyles
 
 from starhtml import *
-from starhtml.datastar import collect, js, match, value
+from starhtml.datastar import collect, js, match
 from starhtml.handlers import split_handler
 
 # ============================================================================
@@ -526,7 +526,7 @@ def employee_row(emp, search, selected, employee_status):
                 data_on_click=employee_status[emp_id].toggle("active", "on_leave", "inactive"),
                 data_attr_class=collect(
                     [
-                        (value(True), "bold-status-badge"),
+                        (expr(True), "bold-status-badge"),
                         (status_ref == "active", "status-active"),
                         (status_ref == "on_leave", "status-on_leave"),
                         (status_ref == "inactive", "status-inactive"),
@@ -537,9 +537,9 @@ def employee_row(emp, search, selected, employee_status):
             cls="p-3",
         ),
         data_show=(search == "")
-        | value(emp["name"]).lower().contains(search.lower())
-        | value(emp["role"]).lower().contains(search.lower())
-        | value(emp["department"]).lower().contains(search.lower()),
+        | expr(emp["name"]).lower().contains(search.lower())
+        | expr(emp["role"]).lower().contains(search.lower())
+        | expr(emp["department"]).lower().contains(search.lower()),
         cls="transition-colors",
     )
 
@@ -605,7 +605,7 @@ def create_examples():
     examples = [
         (
             "Search Filtering",
-            "value(emp['name']).lower()\n  .contains(search.lower())",
+            "expr(emp['name']).lower()\n  .contains(search.lower())",
             "emp.name.toLowerCase()\n  .includes(search.toLowerCase())",
             "blue",
         ),

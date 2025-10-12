@@ -212,10 +212,10 @@ class Expr(ABC):
 
 
 class _JSLiteral(Expr):
-    __slots__ = ("value", "_js")
+    __slots__ = ("_value", "_js")
 
     def __init__(self, value: Any):
-        self.value = value
+        self._value = value
         try:
             self._js = json.dumps(value, separators=(",", ":"))
         except (TypeError, ValueError):
@@ -223,21 +223,21 @@ class _JSLiteral(Expr):
 
     def to_js(self) -> str:
         if self._js is None:
-            return json.dumps(self.value, separators=(",", ":"))
+            return json.dumps(self._value, separators=(",", ":"))
         return self._js
 
 
 class TemplateLiteral(Expr):
-    __slots__ = ("parts",)
+    __slots__ = ("_parts",)
 
     def __init__(self, parts: list):
-        self.parts = parts
+        self._parts = parts
 
     def to_js(self) -> str:
-        if not self.parts:
+        if not self._parts:
             return '""'
         parts = []
-        for part in self.parts:
+        for part in self._parts:
             if isinstance(part, str):
                 parts.append(part.replace("`", "\\`").replace("\\", "\\\\").replace("${", "\\${"))
             else:
@@ -245,20 +245,20 @@ class TemplateLiteral(Expr):
         return f"`{''.join(parts)}`"
 
     def __add__(self, other: Any) -> "TemplateLiteral":
-        return TemplateLiteral(self.parts + [other])
+        return TemplateLiteral(self._parts + [other])
 
     def __radd__(self, other: Any) -> "TemplateLiteral":
-        return TemplateLiteral([other] + self.parts)
+        return TemplateLiteral([other] + self._parts)
 
 
 class _JSRaw(Expr):
-    __slots__ = ("code",)
+    __slots__ = ("_code",)
 
     def __init__(self, code: str):
-        self.code = code
+        self._code = code
 
     def to_js(self) -> str:
-        return self.code
+        return self._code
 
     def __add__(self, other: Any) -> "TemplateLiteral":
         return TemplateLiteral([self, other])
@@ -268,82 +268,82 @@ class _JSRaw(Expr):
 
     def __call__(self, *args: Any) -> "_JSRaw":
         args_js = ", ".join(_ensure_expr(arg).to_js() for arg in args)
-        return _JSRaw(f"{self.code}({args_js})")
+        return _JSRaw(f"{self._code}({args_js})")
 
 
 class BinaryOp(Expr):
-    __slots__ = ("left", "op", "right")
+    __slots__ = ("_left", "_op", "_right")
 
     def __init__(self, left: Any, op: str, right: Any):
-        self.left = _ensure_expr(left)
-        self.op = op
-        self.right = _ensure_expr(right)
+        self._left = _ensure_expr(left)
+        self._op = op
+        self._right = _ensure_expr(right)
 
     def to_js(self) -> str:
-        return f"({self.left.to_js()} {self.op} {self.right.to_js()})"
+        return f"({self._left.to_js()} {self._op} {self._right.to_js()})"
 
 
 class UnaryOp(Expr):
-    __slots__ = ("op", "expr")
+    __slots__ = ("_op", "_expr")
 
     def __init__(self, op: str, expr: Expr):
-        self.op, self.expr = op, expr
+        self._op, self._expr = op, expr
 
     def to_js(self) -> str:
-        return f"{self.op}({self.expr.to_js()})"
+        return f"{self._op}({self._expr.to_js()})"
 
 
 class Conditional(Expr):
-    __slots__ = ("condition", "true_val", "false_val")
+    __slots__ = ("_condition", "_true_val", "_false_val")
 
     def __init__(self, condition: Expr, true_val: Any, false_val: Any):
-        self.condition, self.true_val, self.false_val = condition, _ensure_expr(true_val), _ensure_expr(false_val)
+        self._condition, self._true_val, self._false_val = condition, _ensure_expr(true_val), _ensure_expr(false_val)
 
     def to_js(self) -> str:
-        return f"({self.condition.to_js()} ? {self.true_val.to_js()} : {self.false_val.to_js()})"
+        return f"({self._condition.to_js()} ? {self._true_val.to_js()} : {self._false_val.to_js()})"
 
 
 class Assignment(Expr):
-    __slots__ = ("target", "value")
+    __slots__ = ("_target", "_value")
 
     def __init__(self, target: Expr, value: Any):
-        self.target, self.value = target, _ensure_expr(value)
+        self._target, self._value = target, _ensure_expr(value)
 
     def to_js(self) -> str:
-        return f"{self.target.to_js()} = {self.value.to_js()}"
+        return f"{self._target.to_js()} = {self._value.to_js()}"
 
 
 class MethodCall(Expr):
-    __slots__ = ("obj", "method", "args")
+    __slots__ = ("_obj", "_method", "_args")
 
     def __init__(self, obj: Expr, method: str, args: list[Any]):
-        self.obj, self.method, self.args = obj, method, [_ensure_expr(a) for a in args]
+        self._obj, self._method, self._args = obj, method, [_ensure_expr(a) for a in args]
 
     def to_js(self) -> str:
-        return f"{self.obj.to_js()}.{self.method}({', '.join(arg.to_js() for arg in self.args)})"
+        return f"{self._obj.to_js()}.{self._method}({', '.join(arg.to_js() for arg in self._args)})"
 
 
 class PropertyAccess(Expr):
-    __slots__ = ("obj", "prop")
+    __slots__ = ("_obj", "_prop")
 
     def __init__(self, obj: Expr, prop: str):
-        self.obj, self.prop = obj, prop
+        self._obj, self._prop = obj, prop
 
     def to_js(self) -> str:
-        return f"{self.obj.to_js()}.{self.prop}"
+        return f"{self._obj.to_js()}.{self._prop}"
 
     def __call__(self, *args: Any) -> "MethodCall":
-        return MethodCall(self.obj, self.prop, args)
+        return MethodCall(self._obj, self._prop, args)
 
 
 class IndexAccess(Expr):
-    __slots__ = ("obj", "index")
+    __slots__ = ("_obj", "_index")
 
     def __init__(self, obj: Expr, index: Any):
-        self.obj, self.index = obj, _ensure_expr(index)
+        self._obj, self._index = obj, _ensure_expr(index)
 
     def to_js(self) -> str:
-        return f"{self.obj.to_js()}[{self.index.to_js()}]"
+        return f"{self._obj.to_js()}[{self._index.to_js()}]"
 
 
 def _ensure_expr(value: Any) -> Expr:
@@ -461,17 +461,17 @@ def js(code: str) -> _JSRaw:
     return _JSRaw(jsmin(code))
 
 
-def value(v: Any) -> _JSLiteral:
-    """JSON-encode Python value as JavaScript literal."""
+def expr(v: Any) -> _JSLiteral:
+    """Wrap Python value as JavaScript expression to enable method chaining."""
     if isinstance(v, Expr):
         raise TypeError(
-            f"value() should not be used with {type(v).__name__} objects. Use the object directly instead of wrapping it with value()."
+            f"expr() expects a Python value, not {type(v).__name__}. Use the Expr object directly without wrapping."
         )
     return _JSLiteral(v)
 
 
-def f(template_str: str, **kwargs: Any) -> _JSRaw:
-    """Create JavaScript template literal from Python f-string-like template."""
+def f_(template_str: str, **kwargs: Any) -> _JSRaw:
+    """JavaScript template literal with f-string syntax."""
 
     def replacer(match: re.Match) -> str:
         key = match.group(1)
@@ -485,7 +485,7 @@ def f(template_str: str, **kwargs: Any) -> _JSRaw:
 
 
 def regex(pattern: str) -> _JSRaw:
-    """Create JavaScript regex: regex("^foo") → /^foo/"""
+    """JavaScript regex literal."""
     return _JSRaw(f"/{pattern}/")
 
 
@@ -533,14 +533,16 @@ def _iterable_args(*args):
     )
 
 
-def all(*signals) -> _JSRaw:
+def all_(*signals) -> _JSRaw:
+    """JavaScript AND expression with truthy coercion."""
     if not signals:
         return _JSRaw("true")
     signals = _iterable_args(*signals)
     return _JSRaw(" && ".join(f"!!{_ensure_expr(s).to_js()}" for s in signals))
 
 
-def any(*signals) -> _JSRaw:
+def any_(*signals) -> _JSRaw:
+    """JavaScript OR expression with truthy coercion."""
     if not signals:
         return _JSRaw("false")
     signals = _iterable_args(*signals)
@@ -567,9 +569,17 @@ def delete(url: str, data: dict[str, Any] | None = None, **kwargs) -> _JSRaw:
     return _action("delete", url, data, **kwargs)
 
 
-def clipboard(text: str = None, element: str = None, signal: str = None) -> _JSRaw:
-    if not ((text is None) ^ (element is None)):
+def clipboard(text: str = None, element: str = None, signal: Union[str, "Signal", None] = None) -> _JSRaw:
+    """Copy text to clipboard with optional success signal.
+
+    clipboard("Copied!", signal=success)
+    clipboard(element="code-block", signal=copied)
+    """
+    if (text is None) == (element is None):
         raise ValueError("Must provide exactly one of: text or element")
+
+    if signal is not None and hasattr(signal, "id"):
+        signal = signal.id
 
     signal_suffix = f", {to_js_value(signal)}" if signal else ""
 
@@ -584,6 +594,58 @@ def clipboard(text: str = None, element: str = None, signal: str = None) -> _JSR
         js_expr = f"document.getElementById({to_js_value(element)})"
 
     return _JSRaw(f"@clipboard({js_expr}.textContent{signal_suffix})")
+
+
+def _timer_ref(timer: "Signal", window: bool = False) -> str:
+    timer_id = timer.id if hasattr(timer, "id") else timer
+    return f"window._{timer_id}" if window else f"${timer_id}"
+
+
+def set_timeout(action: Any, ms: Any, *, store: Union["Signal", None] = None, window: bool = False) -> _JSRaw:
+    """Schedule action(s) after delay.
+
+    set_timeout(copied.set(False), 2000)
+    set_timeout([step.set(2), progress.set(40)], 1000, store=timer)
+    """
+    action_js = (
+        _ensure_expr(action).to_js()
+        if not isinstance(action, list)
+        else "; ".join(_ensure_expr(a).to_js() for a in action)
+    )
+    ms_js = _ensure_expr(ms).to_js()
+    timeout_expr = f"setTimeout(() => {{ {action_js} }}, {ms_js})"
+
+    if store:
+        timer_ref = _timer_ref(store, window)
+        return _JSRaw(f"{timer_ref} = {timeout_expr}")
+    return _JSRaw(timeout_expr)
+
+
+def clear_timeout(timer: "Signal", *actions: Any, window: bool = False) -> _JSRaw:
+    """Cancel timeout, optionally run actions.
+
+    clear_timeout(timer)
+    clear_timeout(timer, open.set(False), loading.set(False))
+    """
+    timer_ref = _timer_ref(timer, window)
+    clear = f"clearTimeout({timer_ref})"
+    if not actions:
+        return _JSRaw(clear)
+
+    action_js = "; ".join(_ensure_expr(a).to_js() for a in actions)
+    return _JSRaw(f"{clear}; {action_js}")
+
+
+def reset_timeout(timer: "Signal", ms: Any, *actions: Any, window: bool = False) -> _JSRaw:
+    """Clear and reschedule timeout (debounce pattern).
+
+    reset_timeout(timer, 700, open.set(True))
+    reset_timeout(timer, 50, selected.set(0), window=True)
+    """
+    timer_ref = _timer_ref(timer, window)
+    action_js = "; ".join(_ensure_expr(a).to_js() for a in actions)
+    ms_js = _ensure_expr(ms).to_js()
+    return _JSRaw(f"clearTimeout({timer_ref}); {timer_ref} = setTimeout(() => {{ {action_js} }}, {ms_js})")
 
 
 def _action(verb: str, url: str, data: dict[str, Any] | None = None, **kwargs) -> _JSRaw:
@@ -753,21 +815,24 @@ __all__ = [
     "Signal",
     "Expr",
     "js",
-    "value",
-    "f",
+    "expr",
+    "f_",
     "regex",
     "match",
     "switch",
     "collect",
     "seq",
-    "all",
-    "any",
+    "all_",
+    "any_",
     "post",
     "get",
     "put",
     "patch",
     "delete",
     "clipboard",
+    "set_timeout",
+    "clear_timeout",
+    "reset_timeout",
     "console",
     "Math",
     "JSON",

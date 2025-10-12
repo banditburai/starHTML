@@ -1,6 +1,6 @@
 """Tests for string concatenation with signals and expressions."""
 
-from starhtml.datastar import Signal, js, value
+from starhtml.datastar import Signal, expr, js
 
 
 class TestStringConcatenation:
@@ -37,9 +37,9 @@ class TestStringConcatenation:
         assert result.to_js() == "`(${$count} of ${$total})`"
 
     def test_with_value_fallback(self):
-        """Test concatenation with value() fallback."""
+        """Test concatenation with expr() fallback."""
         signal = Signal("velocity")
-        result = "(" + (signal | value(0)).round() + " px/s)"
+        result = "(" + (signal | expr(0)).round() + " px/s)"
         assert result.to_js() == "`(${Math.round(($velocity || 0))} px/s)`"
 
     def test_conditional_concatenation(self):
@@ -98,9 +98,9 @@ class TestStringConcatenation:
 
     def test_real_world_example(self):
         """Test a real-world concatenation example from the demo."""
-        # Simulating: '(' + round(scroll.velocity | value(0)) + ' px/s)'
+        # Simulating: '(' + round(scroll.velocity | expr(0)) + ' px/s)'
         velocity = js("$velocity")  # scroll.velocity would be js("$velocity")
-        result = "(" + (velocity | value(0)).round() + " px/s)"
+        result = "(" + (velocity | expr(0)).round() + " px/s)"
         assert result.to_js() == "`(${Math.round(($velocity || 0))} px/s)`"
 
     def test_invalid_concatenation(self):

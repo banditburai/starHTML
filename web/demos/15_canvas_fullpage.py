@@ -44,7 +44,7 @@ def fullpage_canvas():
             ),
             data_canvas_viewport=True,
             data_on_canvas=console.log(
-                f("Canvas interaction: pan=({x},{y}) zoom={z}", x=canvas.pan_x, y=canvas.pan_y, z=canvas.zoom)
+                f_("Canvas interaction: pan=({x},{y}) zoom={z}", x=canvas.pan_x, y=canvas.pan_y, z=canvas.zoom)
             ),
             cls="canvas-viewport fullpage",
         ),
@@ -53,7 +53,7 @@ def fullpage_canvas():
             Button("R", data_on_click=canvas.reset_view(), cls="toolbar-btn reset-btn", title="Reset View"),
             Button("−", data_on_click=canvas.zoom_out(), cls="toolbar-btn zoom-btn", title="Zoom Out"),
             Button("+", data_on_click=canvas.zoom_in(), cls="toolbar-btn zoom-btn", title="Zoom In"),
-            Div(Span(data_text=f("{z}%", z=(canvas.zoom * 100).round()), cls="zoom-indicator"), cls="status-display"),
+            Div(Span(data_text=f_("{z}%", z=(canvas.zoom * 100).round()), cls="zoom-indicator"), cls="status-display"),
             cls="modern-toolbar",
         ),
         # Desktop notice

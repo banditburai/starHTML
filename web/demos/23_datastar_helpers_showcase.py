@@ -44,7 +44,10 @@ def home():
         # === 1. LOGICAL OPERATORS ===
         Div(
             H3("Logical Operators", cls="text-2xl font-bold text-black mb-6"),
-            P("Use all(), any() helpers and composable operators: & (AND), | (OR), ~ (NOT)", cls="text-gray-600 mb-6"),
+            P(
+                "Use all_(), any_() helpers and composable operators: & (AND), | (OR), ~ (NOT)",
+                cls="text-gray-600 mb-6",
+            ),
             # Input fields
             Div(
                 Input(
@@ -76,12 +79,12 @@ def home():
             Div(
                 Div(
                     Span("All fields filled: ", cls="text-gray-600"),
-                    Span(data_text=all(name, email, age), cls="text-2xl font-black text-black"),
+                    Span(data_text=all_(name, email, age), cls="text-2xl font-black text-black"),
                     cls="p-6 bg-gray-50 border border-gray-200 mb-4",
                 ),
                 Div(
                     Span("Form valid (using &): ", cls="text-gray-600"),
-                    Span(data_text=all(name, email, terms) & (age >= 13), cls="text-2xl font-black text-black"),
+                    Span(data_text=all_(name, email, terms) & (age >= 13), cls="text-2xl font-black text-black"),
                     cls="p-6 bg-gray-50 border border-gray-200 mb-4",
                 ),
                 Div(
@@ -156,7 +159,7 @@ def home():
                 Div(
                     Span("Basic template: ", cls="text-gray-600 text-lg"),
                     Span(
-                        data_text=f("Hello {name}, you are {age} years old", name=name | value("Anonymous"), age=age),
+                        data_text=f("Hello {name}, you are {age} years old", name=name | expr("Anonymous"), age=age),
                         cls="text-xl font-bold text-black",
                     ),
                     cls="p-6 bg-gray-50 border border-gray-200 mb-6",
@@ -166,7 +169,7 @@ def home():
                     Span(
                         data_text=f(
                             "Email {email} is {status}",
-                            email=email | value("not provided"),
+                            email=email | expr("not provided"),
                             status=email.if_("confirmed", "pending"),
                         ),
                         cls="text-xl font-bold text-black",
@@ -193,18 +196,18 @@ def home():
         ),
         # === 4. VALUE FALLBACKS ===
         Div(
-            H3("Value Fallbacks with value()", cls="text-2xl font-bold text-black mb-6"),
-            P("Handle empty or undefined values gracefully using the value() helper", cls="text-gray-600 mb-6"),
+            H3("Value Fallbacks with expr()", cls="text-2xl font-bold text-black mb-6"),
+            P("Handle empty or undefined values gracefully using the expr() helper", cls="text-gray-600 mb-6"),
             # Fallback examples
             Div(
                 Div(
                     Span("Name with fallback: ", cls="text-gray-600 text-lg"),
-                    Span(data_text=name | value("Anonymous User"), cls="text-2xl font-black text-black"),
+                    Span(data_text=name | expr("Anonymous User"), cls="text-2xl font-black text-black"),
                     cls="p-6 bg-gray-50 border border-gray-200 mb-6",
                 ),
                 Div(
                     Span("Email with fallback: ", cls="text-gray-600 text-lg"),
-                    Span(data_text=email | value("no-email@example.com"), cls="text-2xl font-black text-black"),
+                    Span(data_text=email | expr("no-email@example.com"), cls="text-2xl font-black text-black"),
                     cls="p-6 bg-gray-50 border border-gray-200 mb-6",
                 ),
                 Div(
@@ -267,7 +270,7 @@ def home():
                         height="20",
                         cls="mr-3 text-green-600 flex-shrink-0 mt-1",
                     ),
-                    "Use all() and any() for readable multi-condition logic",
+                    "Use all_() and any_() for readable multi-condition logic",
                     cls="flex items-start p-4 mb-3 bg-green-50 border border-green-200 rounded-lg text-green-900",
                 ),
                 Div(
@@ -332,7 +335,7 @@ if __name__ == "__main__":
     print("   • Logical operators (all, any)")
     print("   • Math functions and calculations")
     print("   • Template strings with f()")
-    print("   • Value fallbacks with value()")
+    print("   • Value fallbacks with expr()")
     print("   • Array operations")
     print("   • Interactive examples")
     serve(port=5023)

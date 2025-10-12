@@ -6,7 +6,7 @@ Interactive demo showing how StarHTML components compose naturally.
 from typing import Any
 
 from starhtml import *
-from starhtml.datastar import all, js
+from starhtml.datastar import js
 
 
 def float_animation_js(rgb: str) -> str:
@@ -126,12 +126,12 @@ def tools_panel(signals: dict[str, Any], show_code: Any) -> Div:
             craft_button("Shovel", "tabler:shovel", {"wood": 3}, "Built a shovel!", "amber", signals),
             cls="space-y-2",
         ),
-        colored_annotation("↑ craft_button() + all() conditions + Signal.sub() actions", "orange"),
+        colored_annotation("↑ craft_button() + all_() conditions + Signal.sub() actions", "orange"),
         collapsible_code_section(
             """def craft_button(item, requirements, signals):
     conditions = [signals[res] >= amt for res, amt in requirements.items()]
     actions = [signals[res].sub(amt) for res, amt in requirements.items()]
-    return Button(item, data_on_click=actions, data_attr_disabled=~all(*conditions))""",
+    return Button(item, data_on_click=actions, data_attr_disabled=~all_(*conditions))""",
             show_code,
         ),
         extra_classes="md:col-span-1",
@@ -311,7 +311,7 @@ def craft_button(
             cls="flex items-center gap-2",
         ),
         data_on_click=actions,
-        data_attr_disabled=~all(*conditions) if conditions else js("false"),
+        data_attr_disabled=~all_(*conditions) if conditions else js("false"),
         cls=f"px-3 py-2 bg-white hover:bg-{color}-50 border border-gray-200 hover:border-{color}-300 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition-all text-left w-full",
     )
 

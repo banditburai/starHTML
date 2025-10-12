@@ -136,7 +136,7 @@ def home():
                             cls="flex items-center p-3 bg-white border border-gray-200 mb-2 hover:border-gray-400 transition-colors",
                             data_id=str(item["id"]),
                             data_show=~filter_text
-                            | value(item["text"].lower()).contains(
+                            | expr(item["text"].lower()).contains(
                                 filter_text.lower()
                             ),  # JS: data_show="!$filter_text || '{{item_text}}'.toLowerCase().includes($filter_text.toLowerCase())"
                         )
@@ -175,7 +175,7 @@ def load_data(req, filter_text: Signal):
             data_id=str(new_item["id"]),
             # Show if filter is empty OR item text contains filter text (case-insensitive)
             data_show=~filter_text
-            | value(new_item["text"].lower()).contains(
+            | expr(new_item["text"].lower()).contains(
                 filter_text.lower()
             ),  # JS: data_show="!$filter_text || '{{text}}'.toLowerCase().includes($filter_text.toLowerCase())"
         )
@@ -215,7 +215,7 @@ def add_item(req, filter_text: Signal):
         data_id=str(new_item["id"]),
         # Show if filter is empty OR item text contains filter text (case-insensitive)
         data_show=~filter_text
-        | value(new_item["text"])
+        | expr(new_item["text"])
         .lower()
         .contains(
             filter_text.lower()
