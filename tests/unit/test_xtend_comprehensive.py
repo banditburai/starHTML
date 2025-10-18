@@ -22,6 +22,7 @@ from starhtml.xtend import (
     Form,
     Group,
     Hidden,
+    Icon,
     Nbsp,
     Script,
     ScriptX,
@@ -384,6 +385,140 @@ class TestScriptAndStyleHelpers:
         html = str(script)
         assert "defer" in html
         assert 'integrity="sha256-xyz"' in html
+
+    def test_nbsp_basic(self):
+        """Test Nbsp returns non-breaking space."""
+        nbsp = Nbsp()
+        assert isinstance(nbsp, Safe)
+        assert str(nbsp) == "&nbsp;"
+
+
+class TestIconComponent:
+    """Test Icon component with layout stability and class support."""
+
+    def test_icon_default(self):
+        """Test default Icon (1em, wrapped)."""
+        icon = Icon("lucide:home")
+        html = str(icon)
+        assert "<span" in html
+        assert "iconify-icon" in html
+        assert 'icon="lucide:home"' in html
+        assert "width:1em" in html or "width=1em" in html
+        assert "height:1em" in html or "height=1em" in html
+        assert "flex-shrink:0" in html
+        assert "vertical-align:middle" in html
+
+    def test_icon_with_size_int(self):
+        """Test Icon with integer size parameter."""
+        icon = Icon("lucide:star", size=20)
+        html = str(icon)
+        assert "20px" in html
+        assert 'icon="lucide:star"' in html
+
+    def test_icon_with_size_string(self):
+        """Test Icon with string size parameter."""
+        icon = Icon("lucide:heart", size="1.5rem")
+        html = str(icon)
+        assert "1.5rem" in html
+        assert 'icon="lucide:heart"' in html
+
+    def test_icon_with_tailwind_size_class(self):
+        """Test Icon extracts Tailwind size-* class and applies to iconify-icon."""
+        icon = Icon("lucide:home", cls="size-4")
+        html = str(icon)
+        assert 'class="size-4"' in html
+        assert "1rem" in html  # size-4 = 1rem
+
+    def test_icon_with_tailwind_w_h_classes(self):
+        """Test Icon extracts Tailwind w-* h-* classes."""
+        icon = Icon("lucide:square", cls="w-6 h-6")
+        html = str(icon)
+        assert 'class="w-6 h-6"' in html
+        assert "1.5rem" in html  # w-6/h-6 = 1.5rem
+
+    def test_icon_size_overrides_class(self):
+        """Test explicit size parameter overrides Tailwind size class."""
+        icon = Icon("lucide:zap", size=32, cls="size-4")
+        html = str(icon)
+        assert "32px" in html
+        assert 'class="size-4"' in html
+
+    def test_icon_with_width_height(self):
+        """Test Icon with explicit width and height."""
+        icon = Icon("lucide:rectangle-horizontal", width=24, height=16)
+        html = str(icon)
+        assert "24px" in html
+        assert "16px" in html
+
+    def test_icon_with_width_only(self):
+        """Test Icon with only width (height matches)."""
+        icon = Icon("lucide:circle", width=20)
+        html = str(icon)
+        assert "20px" in html
+
+    def test_icon_with_height_only(self):
+        """Test Icon with only height (width matches)."""
+        icon = Icon("lucide:circle", height=20)
+        html = str(icon)
+        assert "20px" in html
+
+    def test_icon_with_string_width_height(self):
+        """Test Icon converts string dimensions to px."""
+        icon = Icon("tabler:star", width="18", height="18")
+        html = str(icon)
+        assert "18px" in html
+
+    def test_icon_with_spacing_class(self):
+        """Test Icon preserves spacing classes on wrapper."""
+        icon = Icon("lucide:arrow-right", cls="mr-2")
+        html = str(icon)
+        assert 'class="mr-2"' in html
+
+    def test_icon_with_combined_classes(self):
+        """Test Icon with size + spacing + color classes."""
+        icon = Icon("lucide:home", cls="size-5 mr-2 text-blue-600")
+        html = str(icon)
+        assert 'class="size-5 mr-2 text-blue-600"' in html
+        assert "1.25rem" in html  # size-5 = 1.25rem
+
+    def test_icon_unstable_mode(self):
+        """Test Icon with stable=False returns bare iconify-icon."""
+        icon = Icon("lucide:home", stable=False)
+        html = str(icon)
+        assert "<span" not in html
+        assert "<iconify-icon" in html
+        assert 'icon="lucide:home"' in html
+
+    def test_icon_with_additional_attrs(self):
+        """Test Icon passes through additional attributes."""
+        icon = Icon("lucide:search", size=20, data_show="$visible", id="search-icon")
+        html = str(icon)
+        assert 'data-show="$visible"' in html
+        assert 'id="search-icon"' in html
+
+    def test_icon_zero_size(self):
+        """Test Icon with size=0."""
+        icon = Icon("lucide:circle", size=0)
+        html = str(icon)
+        assert "0px" in html
+
+    def test_icon_cls_preservation(self):
+        """Test Icon preserves all classes on wrapper."""
+        icon = Icon("lucide:home", cls="text-red-500 hover:text-blue-500")
+        html = str(icon)
+        assert 'class="text-red-500 hover:text-blue-500"' in html
+
+    def test_icon_inline_block_display(self):
+        """Test Icon wrapper uses inline-block for inline flow."""
+        icon = Icon("lucide:home")
+        html = str(icon)
+        assert "inline-block" in html
+
+    def test_icon_vertical_align_middle(self):
+        """Test Icon aligns with text via vertical-align:middle."""
+        icon = Icon("lucide:home")
+        html = str(icon)
+        assert "vertical-align:middle" in html
 
 
 class TestSEOComponents:

@@ -13,7 +13,21 @@ from fastcore.xtras import partial_format
 from rjsmin import jsmin
 
 from .html import ft_datastar, ft_html
-from .tags import Div, Iframe, Input, Label, Link, Meta
+from .tags import Div, Iframe, Input, Label, Link, Meta, Span
+
+_TW_SIZES = {
+    "3": "0.75rem",
+    "3.5": "0.875rem",
+    "4": "1rem",
+    "5": "1.25rem",
+    "6": "1.5rem",
+    "7": "1.75rem",
+    "8": "2rem",
+    "9": "2.25rem",
+    "10": "2.5rem",
+    "11": "2.75rem",
+    "12": "3rem",
+}
 
 __all__ = [
     "A",
@@ -181,9 +195,59 @@ def Nbsp() -> Safe:
     return Safe("&nbsp;")
 
 
-def Icon(icon: str, **attrs) -> FT:
-    """Iconify icon element. Usage: Icon("lucide:home", cls="h-4 w-4")"""
-    return ft_datastar("iconify-icon", icon=icon, **attrs)
+def Icon(
+    icon: str,
+    *,
+    size: int | str | None = None,
+    width: int | str | None = None,
+    height: int | str | None = None,
+    cls: str = "",
+    stable: bool = True,
+    **kwargs,
+) -> FT:
+    "Iconify icon with CLS prevention; supports size param, width/height, or Tailwind size classes"
+    if not stable:
+        return ft_datastar("iconify-icon", icon=icon, **kwargs)
+
+    def _to_size(val):
+        if isinstance(val, int):
+            return f"{val}px"
+        return f"{int(val)}px" if isinstance(val, str) and val.isdigit() else val
+
+    def _extract_tw_size(cls_str):
+        if not cls_str:
+            return None, None
+        w = h = None
+        for match in re.finditer(r"\b(size|w|h)-(\d+(?:\.\d+)?|\[[^\]]+\])", cls_str):
+            prop, val = match.groups()
+            css_val = (
+                val[1:-1]
+                if val.startswith("[")
+                else _TW_SIZES.get(val, f"{float(val) * 0.25}rem" if val.replace(".", "").isdigit() else None)
+            )
+            if css_val:
+                if prop == "size":
+                    w = h = css_val
+                elif prop == "w":
+                    w = css_val
+                elif prop == "h":
+                    h = css_val
+        return w, h
+
+    if size is not None:
+        w = h = _to_size(size)
+    elif width is not None or height is not None:
+        w = _to_size(width) if width else None
+        h = _to_size(height) if height else None
+        w = w or h
+        h = h or w
+    else:
+        w, h = _extract_tw_size(cls)
+        w = w or h or "1em"
+        h = h or w
+
+    style = f"display:inline-block;width:{w};height:{h};flex-shrink:0;vertical-align:middle;line-height:0"
+    return Span(ft_datastar("iconify-icon", icon=icon, width=w, height=h, **kwargs), style=style, cls=cls or None)
 
 
 # ============================================================================
