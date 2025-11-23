@@ -568,3 +568,84 @@ class TestDictWrappingFix:
         assert active in signals
         assert disabled in signals
         assert len(signals) == 2
+
+
+class TestAdditiveClassBehavior:
+    """Test that cls + data_attr_cls merge into data-attr:class correctly (RC6 colon syntax)."""
+
+    def test_cls_and_data_attr_cls_merge(self):
+        """When both cls and data_attr_cls are present, they merge into data-attr:class."""
+        active = Signal("active", True)
+        kwargs = {"cls": "base-class", "data_attr_cls": active}
+        processed, signals = process_datastar_kwargs(kwargs)
+
+        # Should NOT have separate cls and data-attr:cls
+        assert "cls" not in processed
+        assert "data-attr:cls" not in processed
+
+        # Should have merged data-attr:class
+        assert "data-attr:class" in processed
+
+        # Value should be a template literal combining both
+        value = str(processed["data-attr:class"])
+        assert "base-class" in value
+        assert "$active" in value
+
+        # Signal should be collected
+        assert active in signals
+
+    def test_cls_and_data_attr_cls_merge_with_expression(self):
+        """Complex expressions in data_attr_cls should merge correctly."""
+        active = Signal("active", True)
+        loading = Signal("loading", False)
+        kwargs = {"cls": "btn btn-primary", "data_attr_cls": active.if_("active", "inactive")}
+        processed, signals = process_datastar_kwargs(kwargs)
+
+        assert "data-attr:class" in processed
+        value = str(processed["data-attr:class"])
+        assert "btn btn-primary" in value
+
+        assert active in signals
+
+    def test_cls_only_passes_through(self):
+        """When only cls is present (no data_attr_cls), it should pass through."""
+        kwargs = {"cls": "static-class"}
+        processed, _ = process_datastar_kwargs(kwargs)
+
+        assert processed["cls"] == "static-class"
+        assert "data-attr:class" not in processed
+
+    def test_data_attr_cls_only_stays_as_is(self):
+        """When only data_attr_cls is present (no cls), it stays as data-attr:cls."""
+        active = Signal("active", True)
+        kwargs = {"data_attr_cls": active}
+        processed, signals = process_datastar_kwargs(kwargs)
+
+        # Should have data-attr:cls (RC6 syntax)
+        assert "data-attr:cls" in processed
+        # Should NOT merge since no static cls
+        assert "data-attr:class" not in processed
+
+        assert active in signals
+
+    def test_merged_class_strips_parentheses(self):
+        """Parentheses around expressions should be stripped in the merge."""
+        active = Signal("active", True)
+        kwargs = {"cls": "base", "data_attr_cls": active.if_("yes", "no")}
+        processed, _ = process_datastar_kwargs(kwargs)
+
+        value = str(processed["data-attr:class"])
+        assert value.startswith("`")
+        assert "base" in value
+
+    def test_merge_produces_template_literal(self):
+        """Merged result should be a JavaScript template literal."""
+        mode = Signal("mode", "light")
+        kwargs = {"cls": "theme", "data_attr_cls": mode}
+        processed, _ = process_datastar_kwargs(kwargs)
+
+        value = str(processed["data-attr:class"])
+        # Should be a template literal: `theme ${$mode}`
+        assert value.startswith("`")
+        assert value.endswith("`")
+        assert "${" in value

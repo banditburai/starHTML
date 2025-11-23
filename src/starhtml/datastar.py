@@ -769,12 +769,11 @@ def _handle_data_signals(value: Any) -> Any:
 
 
 def _apply_additive_class_behavior(processed: dict) -> None:
-    if "cls" in processed and "data-attr-cls" in processed:
-        base_classes = processed.pop("cls")
-        reactive_classes = str(processed.pop("data-attr-cls"))
-        if reactive_classes.startswith("(") and reactive_classes.endswith(")"):
-            reactive_classes = reactive_classes[1:-1]
-        processed["data-attr-class"] = NotStr(f"`{base_classes} ${{{reactive_classes}}}`")
+    if "cls" not in processed or "data-attr:cls" not in processed:
+        return
+    base = processed.pop("cls")
+    reactive = str(processed.pop("data-attr:cls")).strip("()")
+    processed["data-attr:class"] = NotStr(f"`{base} ${{{reactive}}}`")
 
 
 def process_datastar_kwargs(kwargs: dict) -> tuple[dict, set[Signal]]:
