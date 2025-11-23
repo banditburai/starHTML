@@ -4,6 +4,7 @@ from starhtml import *
 
 app, rt = star_app(
     title="Routing Patterns",
+    htmlkw={"lang": "en"},
     hdrs=[
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
         Style("""
@@ -51,10 +52,8 @@ def home():
                 ),
                 # Page content area
                 Div(
-                    Div(
-                        P("Welcome to the home page", cls="text-lg"),
-                    ),
                     id="page-content",
+                    data_init=get("page/home"),
                     cls="p-6 bg-white border border-gray-200 min-h-[150px]",
                 ),
                 cls="mb-12 p-8 bg-gray-50",

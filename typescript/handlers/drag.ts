@@ -1,28 +1,14 @@
 import { createRAFThrottle, createTimerThrottle } from "./throttle.js";
+import type { AttributePlugin, AttributeContext, OnRemovalFn } from "./types.js";
 
-interface AttributePlugin {
-  type: "attribute";
-  name: string;
-  keyReq: "allowed" | "denied" | "starts" | "exact";
-  valReq?: "allowed" | "denied" | "must";
-  shouldEvaluate?: boolean;
-  onLoad: (ctx: RuntimeContext) => OnRemovalFn | void;
+function mergePatch(patch: Record<string, any>): void {
+  const mp = (window as any).__datastar_mergePatch;
+  if (mp) {
+    mp(patch);
+    return;
+  }
+  console.error('Datastar mergePatch not available');
 }
-
-interface RuntimeContext {
-  el: HTMLElement;
-  key: string;
-  value: string;
-  mods: Map<string, any>;
-  rx: (...args: any[]) => any;
-  effect: (fn: () => void) => () => void;
-  getPath: (path: string) => any;
-  mergePatch: (patch: Record<string, any>) => void;
-  startBatch: () => void;
-  endBatch: () => void;
-}
-
-type OnRemovalFn = () => void;
 
 interface DragConfig {
   signal: string;
@@ -41,7 +27,6 @@ interface DragState {
   dimensions: { width: number; height: number };
 }
 
-// Dynamic signal names based on config.signal
 function getDragArgNames(signal = "drag"): string[] {
   return [
     `${signal}_is_dragging`,
@@ -49,17 +34,27 @@ function getDragArgNames(signal = "drag"): string[] {
     `${signal}_x`,
     `${signal}_y`,
     `${signal}_drop_zone`,
+    `${signal}_has_drop_zone`,
   ];
 }
 
 const DEFAULT_THROTTLE = 16;
+
+const injectDragCSS = () => {
+  const styleId = "starhtml-drag-css";
+  if (document.getElementById(styleId)) return;
+
+  const style = document.createElement("style");
+  style.id = styleId;
+  style.textContent = "[data-stardrag] { touch-action: none; }";
+  document.head.appendChild(style);
+};
 
 const parseTransform = (transform: string): { pan: { x: number; y: number }; scale: number } => {
   if (!transform || transform === "none") {
     return { pan: { x: 0, y: 0 }, scale: 1 };
   }
 
-  // Try to match translate(x, y) scale(z) format first
   let matches = transform.match(/translate\(([^,]+),\s*([^)]+)\)\s*scale\(([^)]+)\)/);
   if (matches) {
     return {
@@ -71,16 +66,12 @@ const parseTransform = (transform: string): { pan: { x: number; y: number }; sca
     };
   }
 
-  // Try to match matrix format: matrix(a, b, c, d, tx, ty)
-  // where a = scale x, d = scale y, tx = translate x, ty = translate y
+  // matrix(a, b, c, d, tx, ty): a=scaleX, tx/ty=translate
   matches = transform.match(/matrix\(([^,]+),\s*([^,]+),\s*([^,]+),\s*([^,]+),\s*([^,]+),\s*([^)]+)\)/);
   if (matches) {
     return {
-      pan: {
-        x: Number.parseFloat(matches[5]), // tx
-        y: Number.parseFloat(matches[6]), // ty
-      },
-      scale: Number.parseFloat(matches[1]), // a (scale x)
+      pan: { x: Number.parseFloat(matches[5]), y: Number.parseFloat(matches[6]) },
+      scale: Number.parseFloat(matches[1]),
     };
   }
 
@@ -124,7 +115,7 @@ const findDropZone = (x: number, y: number): Element | null => {
 };
 
 const getDropZoneItems = (zone: Element): string[] => {
-  return Array.from(zone.querySelectorAll("[data-draggable]"))
+  return Array.from(zone.querySelectorAll("[data-stardrag]"))
     .map((el) => el.id || el.getAttribute("data-id"))
     .filter((id): id is string => Boolean(id));
 };
@@ -135,7 +126,7 @@ const findInsertPosition = (
   _draggedElement: HTMLElement
 ): Element | null => {
   const draggableElements = Array.from(
-    dropZone.querySelectorAll("[data-draggable]:not(.is-dragging)")
+    dropZone.querySelectorAll("[data-stardrag]:not(.is-dragging)")
   );
 
   for (const element of draggableElements) {
@@ -150,7 +141,7 @@ const findInsertPosition = (
   return null;
 };
 
-const updateDropZoneTracking = (_config: DragConfig, mergePatch: RuntimeContext["mergePatch"]) => {
+const updateDropZoneTracking = (_config: DragConfig, mergePatchFn: (patch: Record<string, any>) => void) => {
   const allZones = document.querySelectorAll("[data-drop-zone]");
 
   for (const zone of allZones) {
@@ -160,7 +151,7 @@ const updateDropZoneTracking = (_config: DragConfig, mergePatch: RuntimeContext[
     const zoneRect = zone.getBoundingClientRect();
     const items: string[] = [];
 
-    for (const draggable of document.querySelectorAll("[data-draggable]")) {
+    for (const draggable of document.querySelectorAll("[data-stardrag]")) {
       const rect = draggable.getBoundingClientRect();
       const centerX = rect.left + rect.width / 2;
       const centerY = rect.top + rect.height / 2;
@@ -177,7 +168,7 @@ const updateDropZoneTracking = (_config: DragConfig, mergePatch: RuntimeContext[
     }
 
     const sig = _config.signal ?? "drag";
-    mergePatch({
+    mergePatchFn({
       [`${sig}_zone_${zoneName}_items`]: items,
     });
   }
@@ -216,19 +207,13 @@ function ensureAndPlacePlaceholder(state: DragState & { placeholder?: HTMLElemen
   }
 }
 
-// Global drag manager: single delegated pointerdown, shared active state
 type Registration = {
   el: HTMLElement;
   mods: Map<string, any>;
-  mergePatch: RuntimeContext["mergePatch"];
-  startBatch: RuntimeContext["startBatch"];
-  endBatch: RuntimeContext["endBatch"];
 };
 
 type ActiveDrag = {
-  ctx: Registration;
   sig: string;
-  debug: boolean;
   config: DragConfig;
   state: DragState & { placeholder?: HTMLElement | null };
   lastSent: Record<string, any>;
@@ -255,7 +240,7 @@ function findRegistrationFor(draggableEl: HTMLElement): Registration | null {
   while (node && node !== document.body) {
     const reg = registrations.find(r => r.el === node) || null;
     if (reg) {
-      const isDirectHandler = reg.el.hasAttribute("data-draggable");
+      const isDirectHandler = reg.el.hasAttribute("data-stardrag");
       if (!isDirectHandler || reg.el === draggableEl) {
         return reg;
       }
@@ -265,7 +250,7 @@ function findRegistrationFor(draggableEl: HTMLElement): Registration | null {
   return null;
 }
 
-function computeAndMergeIfChanged(ctx: Registration, _debug: boolean, last: Record<string, any>, updates: Record<string, any>) {
+function computeAndMergeIfChanged(last: Record<string, any>, updates: Record<string, any>) {
   const patch: Record<string, any> = {};
   for (const k of Object.keys(updates)) {
     if (last[k] !== updates[k]) {
@@ -273,125 +258,111 @@ function computeAndMergeIfChanged(ctx: Registration, _debug: boolean, last: Reco
       last[k] = updates[k];
     }
   }
-  if (Object.keys(patch).length === 0) return;
-  ctx.startBatch();
-  try {
-    ctx.mergePatch(patch);
-        
-      } finally {
-    ctx.endBatch();
+  if (Object.keys(patch).length > 0) {
+    mergePatch(patch);
   }
-      }
+}
 
 function updateDragPositionActive() {
   if (!active) return;
-  const { ctx, state, sig, config } = active;
-      if (!state.element || !state.isDragging) return;
+  const { state, sig, config } = active;
+  if (!state.element || !state.isDragging) return;
 
-      const { x, y } = state.current;
+  const { x, y } = state.current;
+  const canvasContainer = state.element.closest("[data-canvas-container]");
+  const canvasViewport = document.querySelector("[data-canvas-viewport]");
 
-      const canvasContainer = state.element.closest("[data-canvas-container]");
-      const canvasViewport = document.querySelector("[data-canvas-viewport]");
-
-      let finalX: number;
-      let finalY: number;
+  let finalX: number;
+  let finalY: number;
 
   const useCanvas = Boolean(canvasContainer && canvasViewport);
   const relativeParent = useCanvas ? null : findRelativeParent(state.element);
   const useRelative = Boolean(!useCanvas && relativeParent && relativeParent !== document.body);
 
   if (useCanvas && canvasContainer && canvasViewport) {
-        const viewportRect = canvasViewport.getBoundingClientRect();
-        const transform = parseTransform(window.getComputedStyle(canvasContainer).transform);
-        const canvasPos = calculateCanvasPosition(x, y, viewportRect, transform, state.offset);
-        finalX = Math.round(canvasPos.x);
-        finalY = Math.round(canvasPos.y);
-        Object.assign(state.element.style, {
-          left: `${canvasPos.x}px`,
-          top: `${canvasPos.y}px`,
-          position: "absolute",
-          zIndex: "1000",          
-          transform: "",
-          transformOrigin: "top left",
-        });
+    const viewportRect = canvasViewport.getBoundingClientRect();
+    const transform = parseTransform(window.getComputedStyle(canvasContainer).transform);
+    const canvasPos = calculateCanvasPosition(x, y, viewportRect, transform, state.offset);
+    finalX = Math.round(canvasPos.x);
+    finalY = Math.round(canvasPos.y);
+    Object.assign(state.element.style, {
+      left: `${canvasPos.x}px`,
+      top: `${canvasPos.y}px`,
+      position: "absolute",
+      zIndex: "1000",
+      transform: "",
+      transformOrigin: "top left",
+    });
   } else if (useRelative && relativeParent) {
-          const parentRect = relativeParent.getBoundingClientRect();
-          let relativePos = {
-            x: x - parentRect.left - state.offset.x,
-            y: y - parentRect.top - state.offset.y,
-          };
-          if (config.constrainToParent) {
-            relativePos = applyConstraints(
-              relativePos.x,
-              relativePos.y,
-              relativeParent,
-              state.dimensions
-            );
-          }
-          finalX = Math.round(relativePos.x);
-          finalY = Math.round(relativePos.y);
-          Object.assign(state.element.style, {
-            left: `${relativePos.x}px`,
-            top: `${relativePos.y}px`,
-            position: "absolute",
-            zIndex: "1000",
-          });
-        } else {
-          let transformX = x - state.offset.x;
-          let transformY = y - state.offset.y;
-          if (config.constrainToParent && state.element.parentElement) {
-            const parentRect = state.element.parentElement.getBoundingClientRect();
-            const minX = parentRect.left - state.offset.x;
-            const minY = parentRect.top - state.offset.y;
-            const maxX = parentRect.right - state.dimensions.width - state.offset.x;
-            const maxY = parentRect.bottom - state.dimensions.height - state.offset.y;
-            transformX = Math.max(minX, Math.min(maxX, transformX));
-            transformY = Math.max(minY, Math.min(maxY, transformY));
-          }
-          finalX = Math.round(transformX + state.offset.x);
-          finalY = Math.round(transformY + state.offset.y);
-          Object.assign(state.element.style, {
-            position: "fixed",
-            transform: `translate(${transformX}px, ${transformY}px)`,
-            left: "0",
-            top: "0",
-            zIndex: "9999",
-            pointerEvents: "none",
-            willChange: "transform",
-          });
-      }
+    const parentRect = relativeParent.getBoundingClientRect();
+    let relativePos = {
+      x: x - parentRect.left - state.offset.x,
+      y: y - parentRect.top - state.offset.y,
+    };
+    if (config.constrainToParent) {
+      relativePos = applyConstraints(relativePos.x, relativePos.y, relativeParent, state.dimensions);
+    }
+    finalX = Math.round(relativePos.x);
+    finalY = Math.round(relativePos.y);
+    Object.assign(state.element.style, {
+      left: `${relativePos.x}px`,
+      top: `${relativePos.y}px`,
+      position: "absolute",
+      zIndex: "1000",
+    });
+  } else {
+    let transformX = x - state.offset.x;
+    let transformY = y - state.offset.y;
+    if (config.constrainToParent && state.element.parentElement) {
+      const parentRect = state.element.parentElement.getBoundingClientRect();
+      const minX = parentRect.left - state.offset.x;
+      const minY = parentRect.top - state.offset.y;
+      const maxX = parentRect.right - state.dimensions.width - state.offset.x;
+      const maxY = parentRect.bottom - state.dimensions.height - state.offset.y;
+      transformX = Math.max(minX, Math.min(maxX, transformX));
+      transformY = Math.max(minY, Math.min(maxY, transformY));
+    }
+    finalX = Math.round(transformX + state.offset.x);
+    finalY = Math.round(transformY + state.offset.y);
+    Object.assign(state.element.style, {
+      position: "fixed",
+      transform: `translate(${transformX}px, ${transformY}px)`,
+      left: "0",
+      top: "0",
+      zIndex: "9999",
+      pointerEvents: "none",
+      willChange: "transform",
+    });
+  }
 
-      if (state.element) {
-        state.element.style.pointerEvents = "none";
-        const dropZone = findDropZone(state.current.x, state.current.y);
-        state.element.style.pointerEvents = "";
+  if (state.element) {
+    state.element.style.pointerEvents = "none";
+    const dropZone = findDropZone(state.current.x, state.current.y);
+    state.element.style.pointerEvents = "";
 
-        const dropZoneName = dropZone?.getAttribute("data-drop-zone") ?? null;
-        const elementId = state.element.id || state.element.dataset.id || null;
+    // Use empty string instead of null - Datastar RC6 deletes signals set to null
+    const dropZoneName = dropZone?.getAttribute("data-drop-zone") ?? "";
+    const elementId = state.element.id || state.element.dataset.id || null;
 
-    computeAndMergeIfChanged(
-      ctx,
-      active.debug,
-      active.lastSent,
-      {
-          [`${sig}_is_dragging`]: true,
-          [`${sig}_element_id`]: elementId,
-          [`${sig}_x`]: finalX,
-          [`${sig}_y`]: finalY,
-          [`${sig}_drop_zone`]: dropZoneName,
-      }
-    );
+    computeAndMergeIfChanged(active.lastSent, {
+      [`${sig}_is_dragging`]: true,
+      [`${sig}_element_id`]: elementId,
+      [`${sig}_x`]: finalX,
+      [`${sig}_y`]: finalY,
+      [`${sig}_drop_zone`]: dropZoneName,
+      [`${sig}_has_drop_zone`]: dropZoneName !== null,
+    });
 
-        for (const zone of document.querySelectorAll("[data-drop-zone]")) {
-          zone.classList.toggle("drop-zone-active", zone === dropZone);
-        }
+    for (const zone of document.querySelectorAll("[data-drop-zone]")) {
+      zone.classList.toggle("drop-zone-active", zone === dropZone);
+    }
 
-        if (config.mode === "sortable" && dropZone) {
-          ensureAndPlacePlaceholder(state, dropZone);
-        }
-      }
+    if (config.mode === "sortable" && dropZone) {
+      ensureAndPlacePlaceholder(state, dropZone);
+    }
+  }
 
-      if (state.isDragging && config.mode === "freeform") {
+  if (state.isDragging && config.mode === "freeform") {
     active.throttledZoneScan();
   }
 }
@@ -445,41 +416,35 @@ function cleanupActiveDrag() {
 function handleGlobalPointerMove(evt: PointerEvent) {
   if (!active || !active.state.element) return;
   const { state } = active;
-      state.current = { x: evt.clientX, y: evt.clientY };
+  state.current = { x: evt.clientX, y: evt.clientY };
 
-      const deltaX = state.current.x - state.startPoint.x;
-      const deltaY = state.current.y - state.startPoint.y;
-      const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+  const deltaX = state.current.x - state.startPoint.x;
+  const deltaY = state.current.y - state.startPoint.y;
+  const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
 
-      if (!state.hasMoved && distance < 5) return;
+  if (!state.hasMoved && distance < 5) return;
 
-      if (!state.hasMoved) {
-        state.hasMoved = true;
-        state.isDragging = true;
+  if (!state.hasMoved) {
+    state.hasMoved = true;
+    state.isDragging = true;
 
     const element = state.element as HTMLElement;
     const elementId = element.id || element.dataset.id || null;
 
-    computeAndMergeIfChanged(
-      active.ctx,
-      active.debug,
-      active.lastSent,
-      {
-        [`${active.sig}_is_dragging`]: true,
-        [`${active.sig}_element_id`]: elementId,
-      }
-    );
+    computeAndMergeIfChanged(active.lastSent, {
+      [`${active.sig}_is_dragging`]: true,
+      [`${active.sig}_element_id`]: elementId,
+    });
 
     element.classList.add("is-dragging");
-        document.body.classList.add("is-drag-active");
+    document.body.classList.add("is-drag-active");
 
-    // Don't set explicit dimensions for canvas elements
-    const isCanvasElement = Boolean(element.closest("[data-canvas-container]"));
-    if (!isCanvasElement) {
+    // Canvas elements shouldn't have explicit dimensions set
+    if (!element.closest("[data-canvas-container]")) {
       element.style.width = `${state.dimensions.width}px`;
       element.style.height = `${state.dimensions.height}px`;
     }
-      }
+  }
 
   active.throttledUpdatePosition();
 }
@@ -487,47 +452,43 @@ function handleGlobalPointerMove(evt: PointerEvent) {
 function handleGlobalPointerUp() {
   if (!active) {
     cleanupActiveDrag();
-        return;
+    return;
+  }
+
+  const { state, config, sig } = active;
+
+  if (state.isDragging) {
+    computeAndMergeIfChanged(active.lastSent, {
+      [`${sig}_is_dragging`]: false,
+      [`${sig}_element_id`]: "",
+      [`${sig}_drop_zone`]: "",
+      [`${sig}_has_drop_zone`]: false,
+    });
+
+    if (config.mode === "sortable") {
+      const dropZone = document.querySelector("[data-drop-zone].drop-zone-active");
+      if (dropZone && state.element) {
+        const sourceZone = state.element.parentElement?.closest("[data-drop-zone]");
+        const sourceZoneName = sourceZone?.getAttribute("data-drop-zone");
+
+        const insertBefore = findInsertPosition(dropZone, state.current.y, state.element);
+        if (insertBefore) {
+          dropZone.insertBefore(state.element, insertBefore);
+        } else {
+          dropZone.appendChild(state.element);
+        }
+
+        if (sourceZoneName && sourceZone) {
+          mergePatch({ [`${sig}_zone_${sourceZoneName}_items`]: getDropZoneItems(sourceZone) });
+        }
+
+        const targetZoneName = dropZone.getAttribute("data-drop-zone");
+        if (targetZoneName) {
+          mergePatch({ [`${sig}_zone_${targetZoneName}_items`]: getDropZoneItems(dropZone) });
+        }
       }
-
-  const { ctx, state, config, sig } = active;
-
-      if (state.isDragging) {
-    computeAndMergeIfChanged(ctx, active.debug, active.lastSent, {
-          [`${sig}_is_dragging`]: false,
-          [`${sig}_element_id`]: null,
-          [`${sig}_drop_zone`]: null,
-        });
-
-        if (config.mode === "sortable") {
-          const dropZone = document.querySelector("[data-drop-zone].drop-zone-active");
-          if (dropZone && state.element) {
-            const sourceZone = state.element.parentElement?.closest("[data-drop-zone]");
-            const sourceZoneName = sourceZone?.getAttribute("data-drop-zone");
-
-            const insertBefore = findInsertPosition(dropZone, state.current.y, state.element);
-
-            if (insertBefore) {
-              dropZone.insertBefore(state.element, insertBefore);
-            } else {
-              dropZone.appendChild(state.element);
-            }
-
-            if (sourceZoneName && sourceZone) {
-              const srcPatch = { [`${sig}_zone_${sourceZoneName}_items`]: getDropZoneItems(sourceZone) } as Record<string, any>;
-          ctx.mergePatch(srcPatch);
-          
-            }
-
-            const targetZoneName = dropZone.getAttribute("data-drop-zone");
-            if (targetZoneName) {
-              const tgtPatch = { [`${sig}_zone_${targetZoneName}_items`]: getDropZoneItems(dropZone) } as Record<string, any>;
-          ctx.mergePatch(tgtPatch);
-          
-            }
-          }
-        } else if (config.mode === "freeform") {
-      updateDropZoneTracking(config, ctx.mergePatch);
+    } else if (config.mode === "freeform") {
+      updateDropZoneTracking(config, mergePatch);
     }
   }
 
@@ -536,7 +497,7 @@ function handleGlobalPointerUp() {
 
 function handleGlobalPointerDown(evt: PointerEvent) {
   const target = evt.target as HTMLElement;
-  const draggableElement = target.closest?.("[data-draggable]") as HTMLElement | null;
+  const draggableElement = target.closest?.("[data-stardrag]") as HTMLElement | null;
   if (!draggableElement) return;
 
   const reg = findRegistrationFor(draggableElement);
@@ -546,8 +507,6 @@ function handleGlobalPointerDown(evt: PointerEvent) {
 
   const config = getGlobalConfig();
   const sig = config.signal ?? "drag";
-  const debug = reg.mods.has("debug");
-
   const rect = draggableElement.getBoundingClientRect();
 
   const canvasContainer = draggableElement.closest("[data-canvas-container]");
@@ -589,12 +548,10 @@ function handleGlobalPointerDown(evt: PointerEvent) {
 
   const throttledUpdatePosition = createRAFThrottle(updateDragPositionActive);
   const zoneThrottle = Math.max(100, Number(config.throttleMs || 0) || 0);
-  const throttledZoneScan = createTimerThrottle(() => updateDropZoneTracking(config, reg.mergePatch), zoneThrottle);
+  const throttledZoneScan = createTimerThrottle(() => updateDropZoneTracking(config, mergePatch), zoneThrottle);
 
   active = {
-    ctx: reg,
     sig,
-    debug,
     config,
     state,
     lastSent: {},
@@ -619,37 +576,43 @@ function detachGlobalPointerDown() {
 }
 
 const dragAttributePlugin: AttributePlugin = {
-  type: "attribute",
-  name: "draggable",
-  keyReq: "starts",
-  valReq: "allowed",
-  shouldEvaluate: false,
+  name: "stardrag",
+  requirement: {
+    key: "allowed",
+    value: "allowed",
+  },
 
-  onLoad(ctx: RuntimeContext): OnRemovalFn | void {
-    const { el, mergePatch, mods, startBatch, endBatch } = ctx;
+  apply(ctx: AttributeContext): OnRemovalFn | void {
+    injectDragCSS();
+    const { el, mods } = ctx;
 
     const config = getGlobalConfig();
     const sig = config.signal ?? "drag";
-  
 
+    // Use empty string instead of null - Datastar RC6 deletes signals set to null
     const initPatch = {
       [`${sig}_is_dragging`]: false,
-      [`${sig}_element_id`]: null,
+      [`${sig}_element_id`]: "",
       [`${sig}_x`]: 0,
       [`${sig}_y`]: 0,
-      [`${sig}_drop_zone`]: null,
+      [`${sig}_drop_zone`]: "",
+      [`${sig}_has_drop_zone`]: false,
     } as Record<string, any>;
     mergePatch(initPatch);
-    
 
-    const dropZoneName = el.getAttribute("data-drop-zone");
-    if (dropZoneName) {
-      const zonePatch = { [`${sig}_zone_${dropZoneName}_items`]: getDropZoneItems(el) } as Record<string, any>;
-      mergePatch(zonePatch);
-      
+    // Initialize ALL drop zones on the page (run once on first registration)
+    if (registrations.length === 0) {
+      const allZones = document.querySelectorAll("[data-drop-zone]");
+      for (const zone of allZones) {
+        const zoneName = zone.getAttribute("data-drop-zone");
+        if (zoneName) {
+          const zonePatch = { [`${sig}_zone_${zoneName}_items`]: getDropZoneItems(zone) } as Record<string, any>;
+          mergePatch(zonePatch);
+        }
+      }
     }
 
-    const registration: Registration = { el, mods, mergePatch, startBatch, endBatch };
+    const registration: Registration = { el, mods };
     registrations.push(registration);
     attachGlobalPointerDown();
 

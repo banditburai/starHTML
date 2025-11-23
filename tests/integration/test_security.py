@@ -55,7 +55,7 @@ class TestXSSPrevention:
         html = str(element)
 
         # Test that Datastar attribute is properly converted
-        assert "data-on-click=" in html
+        assert "data-on:click=" in html
         assert "handleClick" in html
 
         # The malicious JS should be contained within the attribute value
@@ -422,7 +422,7 @@ class TestContentSecurityPolicy:
         html = str(element)
 
         # Test that Datastar attributes are properly converted to data- attributes
-        assert "data-on-click=" in html and "handleClick" in html
+        assert "data-on:click=" in html and "handleClick" in html
         assert "data-text=" in html and "user.name" in html
 
         # Critical security test: no inline event handlers

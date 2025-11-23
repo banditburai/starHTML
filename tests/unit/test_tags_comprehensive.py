@@ -72,9 +72,9 @@ class TestHTMLTagFactories:
     def test_html_tags_with_datastar_attrs(self):
         """Test HTML tags with Datastar attributes."""
         button = Button("Click me", data_on_click="handleClick()", data_show="$isVisible")
-        assert "data-on-click" in button.attrs
+        assert "data-on:click" in button.attrs
         assert "data-show" in button.attrs
-        assert button.attrs["data-on-click"] == "handleClick()"
+        assert button.attrs["data-on:click"] == "handleClick()"
         assert button.attrs["data-show"] == "$isVisible"
 
     def test_nested_html_elements(self):

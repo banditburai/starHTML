@@ -754,13 +754,13 @@ def create_list_demo(selected_type: Any) -> Div:
         ),
         style="display: none",
         data_show=selected_type == "list",
-        data_on_intersect=get("/api/philosophy/load-sample-playlist").with_(once=True),
     )
 
 
 def type_safety_section() -> Div:
     return Div(
         (selected_type := Signal("selected_type", "string")),
+        (playlist_loaded := Signal("playlist_loaded", False)),
         Style("""
             body { background: white; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; -webkit-font-smoothing: antialiased; }
             .type-tab { transition: all 200ms ease; }
@@ -804,7 +804,10 @@ def type_safety_section() -> Div:
                 ),
                 Button(
                     "List",
-                    data_on_click=selected_type.set("list"),
+                    data_on_click=[
+                        selected_type.set("list"),
+                        js("if (!$playlist_loaded) { @get('/api/philosophy/load-sample-playlist') }"),
+                    ],
                     data_class_active=selected_type == "list",
                     cls="type-tab px-4 py-2 border border-gray-200 font-medium",
                 ),
@@ -851,8 +854,9 @@ def create_playlist_item(song_title: str, index: int, current_index: Signal) -> 
         ),
         Button(
             Icon("material-symbols:close", width="16", height="16"),
-            data_on_click=post("/api/philosophy/remove-song").with_(selector_song_index=expr(index)),
+            data_on_click=post(f"/api/philosophy/remove-song?selector_song_index={index}"),
             cls="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded",
+            title=f"Remove: {song_title}",
         ),
         cls="flex items-center py-2 px-3 mb-1 border border-transparent hover:border-gray-200 hover:bg-gray-50 rounded",
         data_class_playlist_active=current_index == index,
@@ -865,7 +869,7 @@ def create_playlist_item(song_title: str, index: int, current_index: Signal) -> 
 def load_sample_playlist(req, current_index: Signal):
     clean_playlist = [song for song in playlist_store if song and song.strip()]
 
-    yield signals(playlist=clean_playlist, current_index=0, song_count=len(clean_playlist))
+    yield signals(playlist=clean_playlist, current_index=0, song_count=len(clean_playlist), playlist_loaded=True)
 
     for i, song_title in enumerate(clean_playlist):
         yield elements(create_playlist_item(song_title, i, current_index), "#playlist-items", "append")

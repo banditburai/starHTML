@@ -19,11 +19,11 @@ class TestFlattenedSyntaxBehavior:
     """Test that flattened syntax produces valid Datastar attributes."""
 
     def test_flattened_class_normalizes_key_correctly(self):
-        """data_class_hover_blue_500 should normalize to data-class-* format."""
+        """data_class_hover_blue_500 should normalize to data-class:* format (RC6 colon syntax)."""
         kwargs = {"data_class_hover_blue_500": "active"}
         processed, _ = process_datastar_kwargs(kwargs)
 
-        assert "data-class-hover-blue-500" in processed
+        assert "data-class:hover-blue-500" in processed
 
     def test_flattened_class_with_signal_collects_signal(self):
         """Using a Signal in flattened data_class should collect that signal."""
@@ -40,7 +40,7 @@ class TestFlattenedSyntaxBehavior:
         kwargs = {"data_class_active": ~selected}
         processed, signals = process_datastar_kwargs(kwargs)
 
-        value = str(processed["data-class-active"])
+        value = str(processed["data-class:active"])  # RC6 colon syntax
         assert "$selected" in value or "selected" in value
         assert selected in signals
 
@@ -50,28 +50,28 @@ class TestFlattenedSyntaxBehavior:
         processed, _ = process_datastar_kwargs(kwargs)
 
         # Should NOT wrap in quotes
-        assert processed["data-class-active"] == "bg-blue-500"
+        assert processed["data-class:active"] == "bg-blue-500"
 
     def test_flattened_class_preserves_js_expressions(self):
         """JavaScript expression strings starting with $ should pass through."""
         kwargs = {"data_class_active": "$isActive"}
         processed, _ = process_datastar_kwargs(kwargs)
 
-        assert processed["data-class-active"] == "$isActive"
+        assert processed["data-class:active"] == "$isActive"
 
     def test_flattened_style_normalizes_key_correctly(self):
-        """data_style_background_color should normalize to data-style-background-color."""
+        """data_style_background_color should normalize to data-style:background-color (RC6 colon syntax)."""
         kwargs = {"data_style_background_color": "red"}
         processed, _ = process_datastar_kwargs(kwargs)
 
-        assert "data-style-background-color" in processed
+        assert "data-style:background-color" in processed
 
     def test_flattened_style_preserves_string_values(self):
         """Style string values should not be JSON-encoded."""
         kwargs = {"data_style_color": "red"}
         processed, _ = process_datastar_kwargs(kwargs)
 
-        assert processed["data-style-color"] == "red"
+        assert processed["data-style:color"] == "red"
 
     def test_flattened_style_with_signal_works(self):
         """Using Signals in flattened data_style should work."""
@@ -79,15 +79,15 @@ class TestFlattenedSyntaxBehavior:
         kwargs = {"data_style_color": color}
         processed, signals = process_datastar_kwargs(kwargs)
 
-        assert "data-style-color" in processed
+        assert "data-style:color" in processed
         assert color in signals
 
     def test_flattened_attr_normalizes_key_correctly(self):
-        """data_attr_disabled should normalize to data-attr-disabled."""
+        """data_attr_disabled should normalize to data-attr:disabled (RC6 colon syntax)."""
         kwargs = {"data_attr_disabled": "true"}
         processed, _ = process_datastar_kwargs(kwargs)
 
-        assert "data-attr-disabled" in processed
+        assert "data-attr:disabled" in processed
 
     def test_flattened_attr_with_signal_collects_signal(self):
         """Using Signals in flattened data_attr should collect the signal."""
@@ -109,9 +109,9 @@ class TestFlattenedSyntaxBehavior:
         }
         processed, signals = process_datastar_kwargs(kwargs)
 
-        assert "data-class-bg-blue" in processed
-        assert "data-style-color" in processed
-        assert "data-attr-title" in processed
+        assert "data-class:bg-blue" in processed
+        assert "data-style:color" in processed
+        assert "data-attr:title" in processed
         assert active in signals
 
 
@@ -154,34 +154,34 @@ class TestKeyNormalization:
     """Test that keys are normalized correctly."""
 
     def test_underscores_become_hyphens_in_class_keys(self):
-        """data_class_hover_blue_500 → data-class-hover-blue-500."""
+        """data_class_hover_blue_500 → data-class:hover-blue-500."""
         kwargs = {"data_class_hover_blue_500": "active"}
         processed, _ = process_datastar_kwargs(kwargs)
 
-        assert "data-class-hover-blue-500" in processed
+        assert "data-class:hover-blue-500" in processed
         assert "data_class_hover_blue_500" not in processed
 
     def test_underscores_become_hyphens_in_style_keys(self):
-        """data_style_background_color → data-style-background-color."""
+        """data_style_background_color → data-style:background-color (RC6 colon syntax)."""
         kwargs = {"data_style_background_color": "red"}
         processed, _ = process_datastar_kwargs(kwargs)
 
-        assert "data-style-background-color" in processed
+        assert "data-style:background-color" in processed
 
     def test_underscores_become_hyphens_in_attr_keys(self):
-        """data_attr_aria_label → data-attr-aria-label."""
+        """data_attr_aria_label → data-attr:aria-label (RC6 colon syntax)."""
         kwargs = {"data_attr_aria_label": "Help"}
         processed, _ = process_datastar_kwargs(kwargs)
 
-        assert "data-attr-aria-label" in processed
+        assert "data-attr:aria-label" in processed
 
     def test_data_computed_preserves_case_after_prefix(self):
-        """data_computed_fullName should preserve the camelCase part."""
+        """data_computed_fullName should preserve the camelCase part (RC6 colon syntax)."""
         kwargs = {"data_computed_fullName": js("$first + $last")}
         processed, _ = process_datastar_kwargs(kwargs)
 
-        # The prefix becomes data-computed-, but the name part is preserved
-        assert "data-computed-fullName" in processed
+        # The prefix becomes data-computed:, and the name part is preserved
+        assert "data-computed:fullName" in processed
 
 
 class TestSignalCollection:
@@ -303,7 +303,7 @@ class TestNonDatastarAttributes:
         assert processed["id"] == "my-element"
         assert processed["class"] == "container"
         assert processed["aria_label"] == "Help"
-        assert "data-class-active" in processed
+        assert "data-class:active" in processed
 
     def test_mixed_datastar_and_regular_attrs(self):
         """Mix of Datastar and regular attrs should all process correctly."""
@@ -319,7 +319,7 @@ class TestNonDatastarAttributes:
         assert processed["id"] == "counter"
         assert processed["class"] == "btn"
         assert "data-bind" in processed
-        assert "data-class-active" in processed
+        assert "data-class:active" in processed
         assert count in signals
 
 
@@ -339,10 +339,10 @@ class TestRealWorldUseCases:
         }
         processed, signals = process_datastar_kwargs(kwargs)
 
-        # All attributes should be present
-        assert "data-class-opacity-50" in processed
-        assert "data-class-cursor-not-allowed" in processed
-        assert "data-attr-disabled" in processed
+        # All attributes should be present (RC6 colon syntax)
+        assert "data-class:opacity-50" in processed
+        assert "data-class:cursor-not-allowed" in processed
+        assert "data-attr:disabled" in processed
 
         # Both signals should be collected
         assert loading in signals
@@ -361,8 +361,8 @@ class TestRealWorldUseCases:
         processed, signals = process_datastar_kwargs(kwargs)
 
         assert processed["data-bind"] == "value"
-        assert "data-class-border-red" in processed
-        assert "data-style-border-color" in processed
+        assert "data-class:border-red" in processed
+        assert "data-style:border-color" in processed
         assert value in signals
         assert error in signals
 
@@ -379,7 +379,7 @@ class TestRealWorldUseCases:
         processed, signals = process_datastar_kwargs(kwargs)
 
         assert "data-show" in processed
-        assert "data-class-hidden" in processed
+        assert "data-class:hidden" in processed
         assert "data-text" in processed
         assert show in signals
         assert count in signals
@@ -393,22 +393,22 @@ class TestEdgeCases:
         kwargs = {"data_class_hidden": ""}
         processed, _ = process_datastar_kwargs(kwargs)
 
-        assert processed["data-class-hidden"] == ""
+        assert processed["data-class:hidden"] == ""
 
     def test_numeric_values_convert_to_notstr(self):
         """Numeric values should be wrapped in NotStr."""
         kwargs = {"data_style_opacity": 0.5}
         processed, _ = process_datastar_kwargs(kwargs)
 
-        assert "data-style-opacity" in processed
-        assert isinstance(processed["data-style-opacity"], NotStr)
+        assert "data-style:opacity" in processed
+        assert isinstance(processed["data-style:opacity"], NotStr)
 
     def test_boolean_values_work(self):
         """Boolean values should be handled."""
         kwargs = {"data_class_active": True}
         processed, _ = process_datastar_kwargs(kwargs)
 
-        assert "data-class-active" in processed
+        assert "data-class:active" in processed
 
     def test_list_values_for_event_handlers(self):
         """List values should work for event handlers."""
@@ -417,7 +417,7 @@ class TestEdgeCases:
         kwargs = {"data_on_click": [action1, action2]}
         processed, _ = process_datastar_kwargs(kwargs)
 
-        assert "data-on-click" in processed
+        assert "data-on:click" in processed
 
 
 class TestConsistency:
@@ -448,7 +448,7 @@ class TestConsistency:
         processed, _ = process_datastar_kwargs(kwargs)
 
         # Should be plain string, not JSON string with quotes
-        value = processed["data-class-active"]
+        value = processed["data-class:active"]
         assert value == "bg-blue-500"
         assert not value.startswith('"')
 

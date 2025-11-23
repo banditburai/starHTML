@@ -37,7 +37,7 @@ At the core of Datastar are [data-*](https://developer.mozilla.org/en-US/docs/We
 The [`data-on`](#data-on) attribute can be used to attach an event listener to an element and execute an expression whenever the event is triggered. The value of the attribute is a [Datastar expression](#datastar-expressions) in which JavaScript can be used.
 
 ```html
-<button data-on-click="alert('I’m sorry, Dave. I’m afraid I can’t do that.')">
+<button data-on:click="alert('I’m sorry, Dave. I’m afraid I can’t do that.')">
     Open the pod bay doors, HAL.
 </button>
 ```
@@ -54,7 +54,7 @@ Datastar receives elements from the backend and manipulates the DOM using a morp
 Datastar provides [actions](#backend-actions) for sending requests to the backend. The [`@get()`](#get) action sends a `GET` request to the provided URL using a browser native [fetch](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API).
 
 ```html
-<button data-on-click="@get('/endpoint')">
+<button data-on:click="@get('/endpoint')">
     Open the pod bay doors, HAL.
 </button>
 <div id="hal"></div>
@@ -97,8 +97,8 @@ Datastar’s data attributes enable declarative signals and expressions, providi
 Datastar expressions are strings that are evaluated by Datastar [attributes](/reference/attributes) and [actions](/reference/actions). While they are similar to JavaScript, there are some important differences that are explained in the [next section of the guide](/guide/datastar_expressions).
 
 ```html
-<div data-signals-hal="'...'">
-    <button data-on-click="$hal = 'Affirmative, Dave. I read you.'">
+<div data-signals:hal="'...'">
+    <button data-on:click="$hal = 'Affirmative, Dave. I read you.'">
         HAL, do you read me?
     </button>
     <div data-text="$hal"></div>
@@ -108,10 +108,10 @@ Datastar expressions are strings that are evaluated by Datastar [attributes](/re
 ```html
 <div
     data-signals="{response: '', answer: 'bread'}"
-    data-computed-correct="$response.toLowerCase() == $answer"
+    data-computed:correct="$response.toLowerCase() == $answer"
 >
     <div id="question">What do you put in a toaster?</div>
-    <button data-on-click="$response = prompt('Answer:') ?? ''">BUZZ</button>
+    <button data-on:click="$response = prompt('Answer:') ?? ''">BUZZ</button>
     <div data-show="$response != ''">
         You answered “<span data-text="$response"></span>”.
         <span data-show="$correct">That is correct ✅</span>
@@ -130,8 +130,8 @@ Datastar expressions are strings that are evaluated by Datastar [attributes](/re
 Remember that in a hypermedia approach, the backend drives state to the frontend. Just like with elements, frontend signals can be **patched** (added, updated and removed) from the backend using [backend actions](#backend-actions).
 
 ```html
-<div data-signals-hal="'...'">
-    <button data-on-click="@get('/endpoint')">
+<div data-signals:hal="'...'">
+    <button data-on:click="@get('/endpoint')">
         HAL, do you read me?
     </button>
     <div data-text="$hal"></div>
@@ -158,7 +158,7 @@ Datastar expressions are strings that are evaluated by `data-*` attributes. Whil
 The following example outputs `1` because we’ve defined `foo` as a signal with the initial value `1`, and are using `$foo` in a `data-*` attribute.
 
 ```html
-<div data-signals-foo="1">
+<div data-signals:foo="1">
     <div data-text="$foo"></div>
 </div>
 ```
@@ -187,7 +187,7 @@ JavaScript operators are also available in Datastar expressions. This includes (
 </div>
 
 // Only send a request if the signal is truthy
-<button data-on-click="$landingGearRetracted && @post('/launch')">
+<button data-on:click="$landingGearRetracted && @post('/launch')">
     Launch
 </button>
 ```
@@ -195,8 +195,8 @@ JavaScript operators are also available in Datastar expressions. This includes (
 Multiple statements can be used in a single expression by separating them with a semicolon.
 
 ```html
-<div data-signals-foo="1">
-    <button data-on-click="$landingGearRetracted = true; @post('/launch')">
+<div data-signals:foo="1">
+    <button data-on:click="$landingGearRetracted = true; @post('/launch')">
         Force launch
     </button>
 </div>
@@ -205,8 +205,8 @@ Multiple statements can be used in a single expression by separating them with a
 Expressions may span multiple lines, but a semicolon must be used to separate statements. Unlike JavaScript, line breaks alone are not sufficient to separate statements.
 
 ```html
-<div data-signals-foo="1">
-    <button data-on-click="
+<div data-signals:foo="1">
+    <button data-on:click="
         $landingGearRetracted = true; 
         @post('/launch')
     ">
@@ -233,9 +233,9 @@ When using external scripts, pass data into functions via arguments and return a
 In this way, the function is encapsulated – all it knows is that it receives input via an argument, acts on it, and optionally returns a result or dispatches a custom event – and `data-*` attributes can be used to drive reactivity.
 
 ```html
-<div data-signals-result>
-    <input data-bind-foo 
-        data-on-input="$result = myfunction($foo)"
+<div data-signals:result>
+    <input data-bind:foo 
+        data-on:input="$result = myfunction($foo)"
     >
     <span data-text="$result"></span>
 </div>
@@ -250,10 +250,10 @@ function myfunction(data) {
 If your function call is asynchronous then it will need to dispatch a custom event containing the result. While asynchronous code *can* be placed within Datastar expressions, Datastar will *not* await it.
 
 ```html
-<div data-signals-result>
-    <input data-bind-foo 
-           data-on-input="myfunction(el, $foo)"
-           data-on-mycustomevent__window="$result = evt.detail.value"
+<div data-signals:result>
+    <input data-bind:foo 
+           data-on:input="myfunction(el, $foo)"
+           data-on:mycustomevent__window="$result = evt.detail.value"
     >
     <span data-text="$result"></span>
 </div>
@@ -282,11 +282,11 @@ When using web components, pass data into them via attributes and listen for cus
 In this way, the web component is encapsulated – all it knows is that it receives input via an attribute, acts on it, and optionally dispatches a custom event containing the result – and `data-*` attributes can be used to drive reactivity.
 
 ```html
-<div data-signals-result="''">
-    <input data-bind-foo />
+<div data-signals:result="''">
+    <input data-bind:foo />
     <my-component
-        data-attr-src="$foo"
-        data-on-mycustomevent="$result = evt.detail.value"
+        data-attr:src="$foo"
+        data-on:mycustomevent="$result = evt.detail.value"
     ></my-component>
     <span data-text="$result"></span>
 </div>
@@ -319,7 +319,7 @@ See the [web component example](/examples/web_component).
 Just like elements and signals, the backend can also send JavaScript to be executed on the frontend using [backend actions](#backend-actions).
 
 ```html
-<button data-on-click="@get('/endpoint')">
+<button data-on:click="@get('/endpoint')">
     What are you talking about, HAL?
 </button>```
 
@@ -351,7 +351,7 @@ Signals can be nested, making it easier to target signals in a more granular way
 Using dot-notation:
 
 ```html
-<div data-signals-foo.bar="1"></div>
+<div data-signals:foo.bar="1"></div>
 ```
 
 Using object syntax:
@@ -363,14 +363,14 @@ Using object syntax:
 Using two-way binding:
 
 ```html
-<input data-bind-foo.bar />
+<input data-bind:foo.bar />
 ```
 
 A practical use-case of nested signals is when you have repetition of state on a page. The following example tracks the open/closed state of a menu on both desktop and mobile devices, and the [`toggleAll()`](#toggleall) action to toggle the state of all menus at once.
 
 ```html
 <div data-signals="{menu: {isOpen: {desktop: false, mobile: false}}}">
-    <button data-on-click="@toggleAll({include: /^menu\.isOpen\./})">
+    <button data-on:click="@toggleAll({include: /^menu\.isOpen\./})">
         Open/close menu
     </button>
 </div>
@@ -392,13 +392,13 @@ Here's an example that combines backend-driven state with frontend interactivity
 ```html
 <div
     data-signals="{response: '', answer: ''}"
-    data-computed-correct="$response.toLowerCase() == $answer"
+    data-computed:correct="$response.toLowerCase() == $answer"
 >
     <div id="question"></div>
-    <button data-on-click="@get('/actions/quiz')">Fetch a question</button>
+    <button data-on:click="@get('/actions/quiz')">Fetch a question</button>
     <button
         data-show="$answer != ''"
-        data-on-click="$response = prompt('Answer:') ?? ''"
+        data-on:click="$response = prompt('Answer:') ?? ''"
     >
         BUZZ
     </button>
@@ -419,7 +419,7 @@ Now when the `Fetch a question` button is clicked, the server will respond with 
 Datastar provides backend actions for all HTTP methods. For example, here's how to send data to the server using a `POST` request:
 
 ```html
-<button data-on-click="@post('/actions/quiz')">
+<button data-on:click="@post('/actions/quiz')">
     Submit answer
 </button>
 ```
@@ -441,7 +441,7 @@ Data attributes have special [casing](#attribute-casing) rules, can be [aliased]
 Sets the value of any HTML attribute to an expression, and keeps it in sync.
 
 ```html
-<div data-attr-title="$foo"></div>
+<div data-attr:title="$foo"></div>
 ```
 
 The `data-attr` attribute can also be used to set the values of multiple attributes on an element using a set of key-value pairs, where the keys represent attribute names and the values represent expressions.
@@ -458,7 +458,7 @@ Creates a signal (if one doesn’t already exist) and sets up two-way data bindi
 The `data-bind` attribute can be placed on any HTML element on which data can be input or choices selected from (`input`, `select`,`textarea` elements, and web components). Event listeners are added for `change`, `input` and `keydown` events.
 
 ```html
-<input data-bind-foo />
+<input data-bind:foo />
 ```
 
 The signal name can be specified in the key (as above), or in the value (as below). This can be useful depending on the templating language you are using.
@@ -470,23 +470,23 @@ The signal name can be specified in the key (as above), or in the value (as belo
 The initial value of the signal is set to the value of the element, unless a signal has already been defined. So in the example below, `$foo` is set to `bar`.
 
 ```html
-<input data-bind-foo value="bar" />
+<input data-bind:foo value="bar" />
 ```
 
 Whereas in the example below, `$foo` inherits the value `baz` of the predefined signal.
 
 ```html
-<div data-signals-foo="baz">
-    <input data-bind-foo value="bar" />
+<div data-signals:foo="baz">
+    <input data-bind:foo value="bar" />
 </div>
 ```
 
 Multiple input values can be assigned to a single signal by predefining the signal as an array. So in the example below, `$foo` is set to `['bar', 'baz']` when both checkboxes are checked.
 
 ```html
-<div data-signals-foo="[]">
-    <input data-bind-foo type="checkbox" value="bar" />
-    <input data-bind-foo type="checkbox" value="baz" />
+<div data-signals:foo="[]">
+    <input data-bind:foo type="checkbox" value="bar" />
+    <input data-bind:foo type="checkbox" value="baz" />
 </div>
 ```
 
@@ -501,7 +501,7 @@ Modifiers allow you to modify behavior when binding signals.
     *   `.pascal` – Pascal case: `MySignal`
 
 ```html
-<input data-bind-my-signal__case.kebab />
+<input data-bind:my-signal__case.kebab />
 ```
 
 <a id="data-class"></a>
@@ -510,7 +510,7 @@ Modifiers allow you to modify behavior when binding signals.
 Adds or removes a class to or from an element based on an expression.
 
 ```html
-<div data-class-hidden="$foo"></div>
+<div data-class:hidden="$foo"></div>
 ```
 
 If the expression evaluates to `true`, the `hidden` class is added to the element; otherwise, it is removed.
@@ -532,7 +532,7 @@ Modifiers allow you to modify behavior when defining a class name.
     *   `.pascal` – Pascal case: `MyClass`
 
 ```html
-<div data-class-my-class__case.camel="$foo"></div>
+<div data-class:my-class__case.camel="$foo"></div>
 ```
 
 <a id="data-computed"></a>
@@ -541,13 +541,13 @@ Modifiers allow you to modify behavior when defining a class name.
 Creates a signal that is computed based on an expression. The computed signal is read-only, and its value is automatically updated when any signals in the expression are updated.
 
 ```html
-<div data-computed-foo="$bar + $baz"></div>
+<div data-computed:foo="$bar + $baz"></div>
 ```
 
 Computed signals are useful for memoizing expressions containing other signals. Their values can be used in other expressions.
 
 ```html
-<div data-computed-foo="$bar + $baz"></div>
+<div data-computed:foo="$bar + $baz"></div>
 <div data-text="$foo"></div>
 ```
 
@@ -564,7 +564,7 @@ Modifiers allow you to modify behavior when defining computed signals.
     *   `.pascal` – Pascal case: `MySignal`
 
 ```html
-<div data-computed-my-signal__case.kebab="$bar + $baz"></div>
+<div data-computed:my-signal__case.kebab="$bar + $baz"></div>
 ```
 
 <a id="data-effect"></a>
@@ -612,17 +612,17 @@ Similar to the `data-ignore` attribute, the `data-ignore-morph` attribute tells 
 Creates a signal and sets its value to `true` while an SSE request is in flight, otherwise `false`. The signal can be used to show a loading indicator.
 
 ```html
-<button data-on-click="@get('/endpoint')"
-        data-indicator-fetching
+<button data-on:click="@get('/endpoint')"
+        data-indicator:fetching
 ></button>
 ```
 
 This can be useful for showing a loading spinner, disabling a button, etc.
 
 ```html
-<button data-on-click="@get('/endpoint')"
-        data-indicator-fetching
-        data-attr-disabled="$fetching"
+<button data-on:click="@get('/endpoint')"
+        data-indicator:fetching
+        data-attr:disabled="$fetching"
 ></button>
 <div data-show="$fetching">Loading...</div>
 ```
@@ -683,16 +683,16 @@ Modifiers allow you to modify the output format.
 Attaches an event listener to an element, executing an expression whenever the event is triggered.
 
 ```html
-<button data-on-click="$foo = ''">Reset</button>
+<button data-on:click="$foo = ''">Reset</button>
 ```
 
 An `evt` variable that represents the event object is available in the expression.
 
 ```html
-<div data-on-myevent="$foo = evt.detail"></div>
+<div data-on:myevent="$foo = evt.detail"></div>
 ```
 
-The `data-on` attribute works with [events](https://developer.mozilla.org/en-US/docs/Web/Events) and [custom events](https://developer.mozilla.org/en-US/docs/Web/Events/Creating_and_triggering_events). The `data-on-submit` event listener prevents the default submission behavior of forms.
+The `data-on` attribute works with [events](https://developer.mozilla.org/en-US/docs/Web/Events) and [custom events](https://developer.mozilla.org/en-US/docs/Web/Events/Creating_and_triggering_events). The `data-on:submit` event listener prevents the default submission behavior of forms.
 
 > Events listeners are only triggered when the event is [trusted](https://developer.mozilla.org/en-US/docs/Web/API/Event/isTrusted). This behavior can be bypassed using the `__trusted` modifier.
 
@@ -731,17 +731,17 @@ Modifiers allow you to modify behavior when events are triggered. Some modifiers
 _* Only works with built-in events._
 
 ```html
-<button data-on-click__window__debounce.500ms.leading="$foo = ''"></button>
+<button data-on:click__window__debounce.500ms.leading="$foo = ''"></button>
 <div data-on-my-event__case.camel__trusted="$foo = ''"></div>
 ```
 
-<a id="data-on-intersect"></a>
-### `data-on-intersect`
+<a id="data-on:intersect"></a>
+### `data-on:intersect`
 
 Runs an expression when the element intersects with the viewport.
 
 ```html
-<div data-on-intersect="$intersected = true"></div>
+<div data-on:intersect="$intersected = true"></div>
 ```
 
 #### Modifiers
@@ -767,16 +767,16 @@ Modifiers allow you to modify the element intersection behavior and the timing o
 *   `__viewtransition` – Wraps the expression in `document.startViewTransition()` when the View Transition API is available.
 
 ```html
-<div data-on-intersect__once__full="$fullyIntersected = true"></div>
+<div data-on:intersect__once__full="$fullyIntersected = true"></div>
 ```
 
-<a id="data-on-interval"></a>
-### `data-on-interval`
+<a id="data-on:interval"></a>
+### `data-on:interval`
 
 Runs an expression at a regular interval. The interval duration defaults to one second and can be modified using the `__duration` modifier.
 
 ```html
-<div data-on-interval="$count++"></div>
+<div data-on:interval="$count++"></div>
 ```
 
 #### Modifiers
@@ -790,16 +790,16 @@ Modifiers allow you to modify the interval duration.
 *   `__viewtransition` – Wraps the expression in `document.startViewTransition()` when the View Transition API is available.
 
 ```html
-<div data-on-interval__duration.500ms="$count++"></div>
+<div data-on:interval__duration.500ms="$count++"></div>
 ```
 
-<a id="data-on-load"></a>
-### `data-on-load`
+<a id="data-on:load"></a>
+### `data-on:load`
 
 Runs an expression when the element is loaded into the DOM.
 
 ```html
-<div data-on-load="$count = 1"></div>
+<div data-on:load="$count = 1"></div>
 ```
 
 #### Modifiers
@@ -812,25 +812,25 @@ Modifiers allow you to add a delay to the event listener.
 *   `__viewtransition` – Wraps the expression in `document.startViewTransition()` when the View Transition API is available.
 
 ```html
-<div data-on-load__delay.500ms="$count = 1"></div>
+<div data-on:load__delay.500ms="$count = 1"></div>
 ```
 
-<a id="data-on-signal-patch"></a>
-### `data-on-signal-patch`
+<a id="data-on:signal-patch"></a>
+### `data-on:signal-patch`
 
 Runs an expression whenever one or more signals are patched. This is useful for tracking changes, updating computed values, or triggering side effects when data updates.
 
 ```html
-<div data-on-signal-patch="console.log('A signal changed!')"></div>
+<div data-on:signal-patch="console.log('A signal changed!')"></div>
 ```
 
 The `patch` variable is available in the expression and contains the signal patch details.
 
 ```html
-<div data-on-signal-patch="console.log('Signal patch:', patch)"></div>
+<div data-on:signal-patch="console.log('Signal patch:', patch)"></div>
 ```
 
-You can filter which signals to watch using the [`data-on-signal-patch-filter`](#data-on-signal-patch-filter) attribute.
+You can filter which signals to watch using the [`data-on:signal-patch-filter`](#data-on:signal-patch-filter) attribute.
 
 #### Modifiers
 
@@ -851,25 +851,25 @@ Modifiers allow you to modify the timing of the event listener.
     *   `.trail` – Throttle with trailing edge.
 
 ```html
-<div data-on-signal-patch__debounce.500ms="doSomething()"></div>
+<div data-on:signal-patch__debounce.500ms="doSomething()"></div>
 ```
 
-<a id="data-on-signal-patch-filter"></a>
-### `data-on-signal-patch-filter`
+<a id="data-on:signal-patch-filter"></a>
+### `data-on:signal-patch-filter`
 
-Filters which signals to watch when using the [`data-on-signal-patch`](#data-on-signal-patch) attribute.
+Filters which signals to watch when using the [`data-on:signal-patch`](#data-on:signal-patch) attribute.
 
-The `data-on-signal-patch-filter` attribute accepts an object with `include` and/or `exclude` properties that are regular expressions.
+The `data-on:signal-patch-filter` attribute accepts an object with `include` and/or `exclude` properties that are regular expressions.
 
 ```html
 <!-- Only react to counter signal changes -->
-<div data-on-signal-patch-filter="{include: /^counter$/}"></div>
+<div data-on:signal-patch-filter="{include: /^counter$/}"></div>
 
 <!-- React to all changes except those ending with "changes" -->
-<div data-on-signal-patch-filter="{exclude: /changes$/}"></div>
+<div data-on:signal-patch-filter="{exclude: /changes$/}"></div>
 
 <!-- Combine include and exclude filters -->
-<div data-on-signal-patch-filter="{include: /user/, exclude: /password/}"></div>
+<div data-on:signal-patch-filter="{include: /user/, exclude: /password/}"></div>
 ```
 
 <a id="data-preserve-attr"></a>
@@ -899,7 +899,7 @@ You can preserve multiple attributes by separating them with a space.
 Creates a new signal that is a reference to the element on which the data attribute is placed.
 
 ```html
-<div data-ref-foo></div>
+<div data-ref:foo></div>
 ```
 
 The signal name can be specified in the key (as above), or in the value (as below). This can be useful depending on the templating language you are using.
@@ -925,7 +925,7 @@ Modifiers allow you to modify behavior when defining references.
     *   `.pascal` – Pascal case: `MyKey`
 
 ```html
-<div data-ref-my-signal__case.kebab></div>
+<div data-ref:my-signal__case.kebab></div>
 ```
 
 <a id="data-show"></a>
@@ -949,13 +949,13 @@ To prevent flickering of the element before Datastar has processed the DOM, you 
 Patches (adds, updates or removes) one or more signals into the existing signals. Values defined later in the DOM tree override those defined earlier.
 
 ```html
-<div data-signals-foo="1"></div>
+<div data-signals:foo="1"></div>
 ```
 
 Signals can be nested using dot-notation.
 
 ```html
-<div data-signals-foo.bar="1"></div>
+<div data-signals:foo.bar="1"></div>
 ```
 
 The `data-signals` attribute can also be used to patch multiple signals using a set of key-value pairs, where the keys represent signal names and the values represent expressions.
@@ -972,7 +972,7 @@ Setting a signal’s value to `null` will remove the signal.
 <div data-signals="{foo: null}"></div>
 ```
 
-Keys used in `data-signals-*` are converted to camel case, so the signal name `mySignal` must be written as `data-signals-my-signal` or `data-signals="{mySignal: 1}"`.
+Keys used in `data-signals-*` are converted to camel case, so the signal name `mySignal` must be written as `data-signals:my-signal` or `data-signals="{mySignal: 1}"`.
 
 Signals beginning with an underscore are *not* included in requests to the backend by default. You can opt to include them by modifying the value of the [`filterSignals`](#filterSignals) option.
 
@@ -990,8 +990,8 @@ Modifiers allow you to modify behavior when patching signals.
 *   `__ifmissing` Only patches signals if their keys do not already exist. This is useful for setting defaults without overwriting existing values.
 
 ```html
-<div data-signals-my-signal__case.kebab="1"
-     data-signals-foo__ifmissing="1"
+<div data-signals:my-signal__case.kebab="1"
+     data-signals:foo__ifmissing="1"
 ></div>
 ```
 
@@ -1001,8 +1001,8 @@ Modifiers allow you to modify behavior when patching signals.
 Sets the value of inline CSS styles on an element based on an expression, and keeps them in sync.
 
 ```html
-<div data-style-background-color="$usingRed ? 'red' : 'blue'"></div>
-<div data-style-display="$hiding && 'none'"></div>
+<div data-style:background-color="$usingRed ? 'red' : 'blue'"></div>
+<div data-style:display="$hiding && 'none'"></div>
 ```
 
 The `data-style` attribute can also be used to set multiple style properties on an element using a set of key-value pairs, where the keys represent CSS property names and the values represent expressions.
@@ -1021,10 +1021,10 @@ Empty string, `null`, `undefined`, or `false` values will restore the original i
 
 ```html
 <!-- When $x is false, color remains red from inline style -->
-<div style="color: red;" data-style-color="$x && 'green'"></div>
+<div style="color: red;" data-style:color="$x && 'green'"></div>
 
 <!-- When $hiding is true, display becomes none; when false, reverts to flex from inline style -->
-<div style="display: flex;" data-style-display="$hiding && 'none'"></div>
+<div style="display: flex;" data-style:display="$hiding && 'none'"></div>
 ```
 
 The plugin tracks initial inline style values and restores them when data-style expressions become falsy or during cleanup. This ensures existing inline styles are preserved and only the dynamic changes are managed by Datastar.
@@ -1091,13 +1091,13 @@ Sets the value of all matching signals.
 
 ```html
 <!-- Sets the `foo` signal only -->
-<div data-signals-foo="false">
-    <button data-on-click="@setAll(true, {include: /^foo$/})"></button>
+<div data-signals:foo="false">
+    <button data-on:click="@setAll(true, {include: /^foo$/})"></button>
 </div>
 
 <!-- Sets all signals starting with `user.` -->
 <div data-signals="{user: {name: '', nickname: ''}}">
-    <button data-on-click="@setAll('johnny', {include: /^user\./})"></button>
+    <button data-on:click="@setAll('johnny', {include: /^user\./})"></button>
 </div>
 ```
 
@@ -1111,7 +1111,7 @@ Toggles the boolean value of all matching signals.
 ```html
 <!-- Toggles all signals starting with `is` -->
 <div data-signals="{isOpen: false, isActive: true, isEnabled: false}">
-    <button data-on-click="@toggleAll({include: /^is/})"></button>
+    <button data-on:click="@toggleAll({include: /^is/})"></button>
 </div>
 ```
 
@@ -1126,7 +1126,7 @@ Toggles the boolean value of all matching signals.
 Sends a `GET` request using the Fetch API. The response should contain Datastar SSE events.
 
 ```html
-<button data-on-click="@get('/endpoint')"></button>
+<button data-on:click="@get('/endpoint')"></button>
 ```
 
 By default, requests include a `Datastar-Request: true` header and all signals (except those prefixed with `_`) as a `datastar` query parameter. This can be changed with the `filterSignals` option.
@@ -1134,13 +1134,13 @@ By default, requests include a `Datastar-Request: true` header and all signals (
 To keep the connection open when the page is hidden, set `openWhenHidden: true`.
 
 ```html
-<button data-on-click="@get('/endpoint', {openWhenHidden: true})"></button>
+<button data-on:click="@get('/endpoint', {openWhenHidden: true})"></button>
 ```
 
 To send form-encoded requests, use `contentType: 'form'`.
 
 ```html
-<button data-on-click="@get('/endpoint', {contentType: 'form'})"></button>
+<button data-on:click="@get('/endpoint', {contentType: 'form'})"></button>
 ```
 
 For file uploads, use `multipart/form-data` encoding on the form element. See the [form data example](/examples/form_data).
@@ -1148,7 +1148,7 @@ For file uploads, use `multipart/form-data` encoding on the form element. See th
 ```html
 <form enctype="multipart/form-data">
     <input type="file" name="file" />
-    <button data-on-click="@get('/endpoint', {contentType: 'form'})"></button>
+    <button data-on:click="@get('/endpoint', {contentType: 'form'})"></button>
 </form>
 ```
 
@@ -1188,12 +1188,12 @@ By default, a new request on an element cancels any existing request on the same
 
 ```html
 <!-- Allow concurrent requests -->
-<button data-on-click="@get('/endpoint', {requestCancellation: 'disabled'})">Allow Multiple</button>
+<button data-on:click="@get('/endpoint', {requestCancellation: 'disabled'})">Allow Multiple</button>
 
 <!-- Custom abort controller -->
-<div data-signals-controller="new AbortController()">
-    <button data-on-click="@get('/endpoint', {requestCancellation: $controller})">Start Request</button>
-    <button data-on-click="$controller.abort()">Cancel Request</button>
+<div data-signals:controller="new AbortController()">
+    <button data-on:click="@get('/endpoint', {requestCancellation: $controller})">Start Request</button>
+    <button data-on:click="$controller.abort()">Cancel Request</button>
 </div>
 ```
 
@@ -1251,7 +1251,7 @@ response.body = 'console.log("Hello from server!");'
 All backend actions trigger `datastar-fetch` events: `started`, `finished`, `error`, `retrying`, `retries-failed`.
 
 ```html
-<div data-on-datastar-fetch="
+<div data-on:datastar-fetch="
     evt.detail.type === 'error' && console.log('Fetch error encountered')
 "></div>
 ```

@@ -603,11 +603,13 @@ class TestBrowserCompatibilityMatrix:
             if feature_counts.get("=>", 0) > 10:
                 print(f"Warning: Many arrow functions in {handler_name}: {feature_counts['=>']}")
 
-            # Optional chaining might not be supported in older browsers
-            assert feature_counts.get("?.", 0) == 0, f"Optional chaining used in {handler_name} (compatibility issue)"
-
-            # Async/await might not be needed
-            assert feature_counts.get("async ", 0) == 0, f"Async/await used in {handler_name} (might not be needed)"
+            # Optional chaining and async/await are used in RC6 pattern
+            # Datastar RC6 itself requires modern browser features, so these are acceptable
+            # Note: setConfig?.() pattern is used for optional handler config
+            if feature_counts.get("?.", 0) > 0:
+                print(f"Note: Optional chaining in {handler_name} (RC6 pattern, requires modern browser)")
+            if feature_counts.get("async ", 0) > 0:
+                print(f"Note: Async/await in {handler_name} (RC6 dynamic imports)")
 
     def test_required_browser_apis(self):
         """Test that only supported browser APIs are used."""
@@ -686,9 +688,9 @@ class TestBrowserCompatibilityMatrix:
         scroll_content = str(scroll_handler().scripts[0])
         resize_content = str(resize_handler().scripts[0])
 
-        # Should use modern module pattern with datastar
-        assert "import handlerPlugin from" in scroll_content, "Should use ES6 modules"
-        assert "import handlerPlugin from" in resize_content, "Should use ES6 modules"
+        # RC6 uses dynamic import pattern: await import(...)
+        assert "import(" in scroll_content, "Should use dynamic imports"
+        assert "import(" in resize_content, "Should use dynamic imports"
         assert "datastar" in scroll_content, "Should use datastar"
         assert "datastar" in resize_content, "Should use datastar"
 

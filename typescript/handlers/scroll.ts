@@ -1,28 +1,24 @@
 import { SmoothScroll } from "./smooth-scroll.js";
 import { createRAFThrottle, createTimerThrottle } from "./throttle.js";
+import type { AttributePlugin, AttributeContext, OnRemovalFn } from "./types.js";
 
-interface AttributePlugin {
-  type: "attribute";
-  name: string;
-  keyReq: "allowed" | "denied" | "starts" | "exact";
-  valReq?: "allowed" | "denied" | "must";
-  argNames?: string[];
-  onLoad: (ctx: RuntimeContext) => OnRemovalFn | void;
+function mergePatch(patch: Record<string, any>): void {
+  const mp = (window as any).__datastar_mergePatch;
+  if (mp) {
+    mp(patch);
+  } else {
+    console.error('Datastar mergePatch not available');
+  }
 }
 
-interface RuntimeContext {
-  el: HTMLElement;
-  key: string;
-  value: string;
-  mods: Map<string, any>;
-  rx: (...args: any[]) => any;
-  mergePatch: (patch: Record<string, any>) => void;
-  startBatch: () => void;
-  endBatch: () => void;
-  getPath: (path: string) => any;
+function getPath(path: string): any {
+  const gp = (window as any).__datastar_getPath;
+  if (gp) {
+    return gp(path);
+  }
+    console.error('Datastar getPath not available');
+    return undefined;
 }
-
-type OnRemovalFn = () => void;
 
 const DEFAULT_THROTTLE = 100;
 const VELOCITY_DECAY_MS = 50; // Faster decay for more responsive feel
@@ -65,14 +61,15 @@ function getThrottleMs(mods: Map<string, any>): number {
 }
 
 const scrollAttributePlugin: AttributePlugin = {
-  type: "attribute",
   name: "scroll",
-  keyReq: "allowed",
-  valReq: "allowed",
+  requirement: {
+    key: "allowed",
+    value: "allowed",
+  },
   argNames: [...SCROLL_ARG_NAMES],
 
-  onLoad(ctx: RuntimeContext): OnRemovalFn | void {
-    const { el, value, mods, rx, mergePatch, startBatch, endBatch, getPath } = ctx;
+  apply(ctx: AttributeContext): OnRemovalFn | void {
+    const { el, value, mods, rx } = ctx;
     
     const shouldManageGlobal = !globalScrollInitialized;
     if (shouldManageGlobal) {
@@ -209,13 +206,10 @@ const scrollAttributePlugin: AttributePlugin = {
       mergePatch(elementPatch);
       
       if (hasExpression) {
-        startBatch();
-        try {          
-          rx(value);
+        try {
+          rx?.(value);
         } catch (error) {
           console.error("Error executing scroll expression:", error);
-        } finally {
-          endBatch();
         }
       }
     };

@@ -8,17 +8,17 @@ from starhtml import *
 
 app, rt = star_app(
     title="Freeform Drag Demo",
+    htmlkw={"lang": "en"},
     hdrs=[
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
         Style("""
             body { background: white; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; -webkit-font-smoothing: antialiased; }
         """),
-        # Freeform drag handler with zone awareness
         (
             drag := drag_handler(
                 signal="drag",
-                mode="freeform",  # Freeform mode with zone tracking
-                throttle_ms=16,  # 60fps smooth dragging
+                mode="freeform",
+                throttle_ms=16,
                 constrain_to_parent=True,
             )
         ),
@@ -29,11 +29,8 @@ app, rt = star_app(
 
 @rt("/")
 def freeform_drag():
-    """Freeform drag demo with zone awareness."""
     return Div(
-        # Main container
         Div(
-            # Header
             Div(
                 H1("13", cls="text-8xl font-black text-gray-100 leading-none"),
                 H1("Freeform Drag", cls="text-5xl md:text-6xl font-bold text-black mt-2"),
@@ -45,16 +42,13 @@ def freeform_drag():
                 "Best experienced on desktop with mouse/pointer support",
                 cls="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded-lg mb-8 flex items-center text-sm",
             ),
-            # === DRAG WORKSPACE ===
             Div(
                 H3("Interactive Workspace", cls="text-2xl font-bold text-black mb-6"),
                 P(
                     "Drag the packages anywhere. Drop zones will detect when items are over them.",
                     cls="text-gray-600 mb-6",
                 ),
-                # Main workspace
                 Div(
-                    # Draggable items (positioned absolutely)
                     Div(
                         Icon(
                             "material-symbols:package-2",
@@ -63,7 +57,7 @@ def freeform_drag():
                             cls="inline mr-1 lg:w-6 lg:h-6 lg:mr-2",
                         ),
                         Span("Package A", cls="text-sm lg:text-base"),
-                        data_draggable=True,
+                        data_stardrag=True,
                         id="package-a",
                         cls="draggable-item bg-black text-white",
                         style="left: 20px; top: 30px;",
@@ -71,7 +65,7 @@ def freeform_drag():
                     Div(
                         Icon("material-symbols:mail", width="20", height="20", cls="inline mr-1 lg:w-6 lg:h-6 lg:mr-2"),
                         Span("Package B", cls="text-sm lg:text-base"),
-                        data_draggable=True,
+                        data_stardrag=True,
                         id="package-b",
                         cls="draggable-item bg-black text-white",
                         style="left: 20px; top: 100px;",
@@ -81,12 +75,11 @@ def freeform_drag():
                             "material-symbols:redeem", width="20", height="20", cls="inline mr-1 lg:w-6 lg:h-6 lg:mr-2"
                         ),
                         Span("Package C", cls="text-sm lg:text-base"),
-                        data_draggable=True,
+                        data_stardrag=True,
                         id="package-c",
                         cls="draggable-item bg-black text-white",
                         style="left: 20px; top: 170px;",
                     ),
-                    # Drop zones - responsive grid at bottom on mobile, side on desktop
                     Div(
                         Div(
                             H4("Inbox", cls="text-sm font-bold text-black mb-2 text-center lg:text-base"),
@@ -139,7 +132,6 @@ def freeform_drag():
                 ),
                 cls="mb-12 p-8 bg-white border border-gray-200",
             ),
-            # === STATUS DISPLAY ===
             Div(
                 H3("Drag Status", cls="text-2xl font-bold text-black mb-6"),
                 Div(
@@ -162,7 +154,6 @@ def freeform_drag():
                 ),
                 cls="mb-12 p-8 bg-gray-50",
             ),
-            # CSS Styles
             Style("""
                 .workspace {
                     position: relative;
@@ -279,6 +270,14 @@ def freeform_drag():
                 }
             """),
         ),
+        data_signals={
+            "drag_is_dragging": False,
+            "drag_element_id": "",
+            "drag_x": 0,
+            "drag_y": 0,
+            "drag_drop_zone": "",
+            "drag_has_drop_zone": False,
+        },
         cls="max-w-5xl mx-auto px-8 sm:px-12 lg:px-16 py-16 sm:py-20 md:py-24 bg-white min-h-screen",
     )
 

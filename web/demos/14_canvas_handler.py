@@ -1,19 +1,18 @@
 """Demo: Canvas Handler - Infinite Canvas with Pan/Zoom
 
 This demo shows the canvas_handler in action with a pannable/zoomable canvas.
-Demonstrates the 5-line Python implementation from the refined PRD.
 """
 
 from starhtml import *
 
 app, rt = star_app(
     title="Canvas Handler Demo",
+    htmlkw={"lang": "en"},
     hdrs=[
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
         Style(
             """body{background:#fff;color:#000;margin:0;padding:0;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}::selection{background:#000;color:#fff}.canvas-viewport{width:100%;height:500px;border:1px solid #e5e7eb;border-top:0;border-radius:0 0 0.5rem 0.5rem;overflow:hidden;position:relative;cursor:grab;background:#fafafa}.canvas-viewport:active{cursor:grabbing}.canvas-container{position:relative;width:100%;height:100%;transform-origin:0 0;z-index:1}.canvas-item{position:absolute;padding:0.5rem 1rem;background:#3b82f6;color:white;border-radius:6px;font-size:0.9rem;font-weight:500;box-shadow:0 2px 4px rgba(0,0,0,0.1);user-select:none;transform:translate(-50%, -50%)}"""
         ),
-        # Canvas handler with default gray grid
         (canvas := canvas_handler()),
     ],
     iconify=True,
@@ -22,9 +21,7 @@ app, rt = star_app(
 
 @rt("/")
 def infinite_canvas():
-    """Infinite canvas demo - exactly 5 lines of Python as promised."""
     return Div(
-        # Header section with large number
         Div(
             H1("14", cls="text-8xl font-black text-gray-100 leading-none"),
             H1("Canvas Handler", cls="text-5xl md:text-6xl font-bold text-black mt-2"),
@@ -36,13 +33,10 @@ def infinite_canvas():
             "Best experienced on desktop with mouse/pointer support",
             cls="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded-lg mb-8 flex items-center text-sm",
         ),
-        # Interactive Canvas Section - All integrated
         Div(
             H3("Interactive Canvas", cls="text-2xl font-bold text-black mb-6"),
             P("Click and drag to pan, scroll to zoom", cls="text-gray-600 mb-6"),
-            # Controls bar at top of canvas
             Div(
-                # Left side - controls
                 Div(
                     Button(
                         Icon("material-symbols:reset-wrench", cls="mr-2"),
@@ -64,7 +58,6 @@ def infinite_canvas():
                     ),
                     cls="flex flex-wrap gap-2",
                 ),
-                # Right side - status
                 Div(
                     Div(
                         Span("Pan: ", cls="text-gray-600"),
@@ -81,10 +74,8 @@ def infinite_canvas():
                 ),
                 cls="flex flex-wrap justify-between items-center p-4 bg-gray-50 border border-gray-200 border-b-0 rounded-t-lg",
             ),
-            # Canvas viewport - directly attached to controls
             Div(
                 Div(
-                    # Sample canvas content
                     Div("Center Point", cls="canvas-item", style="left: 0px; top: 0px;"),
                     Div("Point A", cls="canvas-item", style="left: -400px; top: -200px;"),
                     Div("Point B", cls="canvas-item", style="left: 300px; top: -150px;"),
@@ -94,14 +85,11 @@ def infinite_canvas():
                     cls="canvas-container",
                 ),
                 data_canvas_viewport=True,
-                data_on_canvas=console.log(
-                    f_("Canvas: pan=({x},{y}) zoom={z}", x=canvas.pan_x, y=canvas.pan_y, z=canvas.zoom)
-                ),
+                data_canvas=True,
                 cls="canvas-viewport",
             ),
             cls="mb-12 p-8 bg-white border border-gray-200",
         ),
-        # Instructions
         Div(
             H3("Instructions", cls="text-2xl font-bold text-black mb-6"),
             Ul(
@@ -118,15 +106,5 @@ def infinite_canvas():
 
 
 if __name__ == "__main__":
-    print("=" * 60)
-    print("🎯 INFINITE CANVAS DEMO")
-    print("=" * 60)
-    print("📍 Running on: http://localhost:5001")
-    print("🎨 Features:")
-    print("   • Infinite pan/zoom canvas")
-    print("   • Grid background pattern")
-    print("   • Touch and trackpad support")
-    print("   • Smooth viewport preservation")
-    print("   • 5-line Python implementation")
-    print("=" * 60)
-    serve(port=5001)
+    print("Canvas Handler Demo running on http://localhost:5014")
+    serve(port=5014)

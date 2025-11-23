@@ -7,6 +7,7 @@ from starhtml import *
 
 app, rt = star_app(
     title="Live Updates",
+    htmlkw={"lang": "en"},
     hdrs=[
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
         Style("""
@@ -244,7 +245,7 @@ async def send_notification_helper(type: str, message: str):
             const notif = document.getElementById('{notification_id}');
             if (notif) {{
                 // Trigger the dismiss endpoint
-                fetch('/dismiss-notification/{notification_id}');
+                fetch('dismiss-notification/{notification_id}');
                 // Fade out and remove
                 notif.classList.add('notification-exit');
                 setTimeout(() => notif.remove(), 200);

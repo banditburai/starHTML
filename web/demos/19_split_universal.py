@@ -8,6 +8,7 @@ from starhtml.handlers import split_handler
 
 app, rt = star_app(
     title="Universal Split Demo",
+    htmlkw={"lang": "en"},
     hdrs=[
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
         # Separate handlers for independent splits

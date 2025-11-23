@@ -8,6 +8,7 @@ from starhtml import *
 
 app, rt = star_app(
     title="Advanced Toggle Patterns",
+    htmlkw={"lang": "en"},
     hdrs=[
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
         Style(

@@ -8,6 +8,7 @@ from starhtml import *
 
 app, rt = star_app(
     title="Persist Handler Demo",
+    htmlkw={"lang": "en"},
     hdrs=[
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
         Style("""

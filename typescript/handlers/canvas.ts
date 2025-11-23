@@ -1,24 +1,9 @@
-interface AttributePlugin {
-  type: "attribute";
-  name: string;
-  keyReq: "allowed" | "denied" | "starts" | "exact";
-  valReq?: "allowed" | "denied" | "must";
-  shouldEvaluate?: boolean;
-  onLoad: (ctx: RuntimeContext) => OnRemovalFn | void;
+import type { AttributePlugin, AttributeContext, OnRemovalFn } from "./types.js";
+
+function mergePatch(patch: Record<string, any>): void {
+  const mp = (window as any).__datastar_mergePatch;
+  if (mp) { mp(patch); } else { console.error('Datastar mergePatch not available'); }
 }
-interface RuntimeContext {
-  el: HTMLElement;
-  key: string;
-  value: string;
-  mods: Map<string, any>;
-  rx: (...args: any[]) => any;
-  effect: (fn: () => void) => () => void;
-  getPath: (path: string) => any;
-  mergePatch: (patch: Record<string, any>) => void;
-  startBatch: () => void;
-  endBatch: () => void;
-}
-type OnRemovalFn = () => void;
 interface Point {
   x: number;
   y: number;
@@ -122,18 +107,20 @@ class CanvasController {
   private boundHandleContextMenu = this.handleContextMenu.bind(this);
   private boundHandlePointerMove = this.handlePointerMove.bind(this);
   private boundHandlePointerUp = this.handlePointerUp.bind(this);
-  private readonly resetViewFn = this.resetView.bind(this);
-  private readonly zoomInFn = this.zoomIn.bind(this);
-  private readonly zoomOutFn = this.zoomOut.bind(this);
   constructor(
-    private ctx: RuntimeContext,
+    private ctx: AttributeContext,
     config: CanvasConfig
   ) {
     this.config = config;
     this.setupEventListeners();
     this.initializeDOMElements();
+    this.registerInGlobalRegistry();
   }
-  public setContext(ctx: RuntimeContext) { this.ctx = ctx; }
+
+  private registerInGlobalRegistry() {
+    controllerRegistry[this.config.signal] = this;
+  }
+  public setContext(ctx: AttributeContext) { this.ctx = ctx; }
   private setupEventListeners() {
     document.addEventListener("pointerdown", this.boundHandlePointerDown);
     document.addEventListener("wheel", this.boundHandleWheel, { passive: false });
@@ -273,7 +260,7 @@ class CanvasController {
   }
   private handlePointerDown(evt: PointerEvent) {
     const target = evt.target as HTMLElement;
-    const draggableElement = target.closest("[data-draggable]");
+    const draggableElement = target.closest("[data-stardrag]");
     if (draggableElement) {
       return;
     }
@@ -441,7 +428,7 @@ class CanvasController {
       [`${this.config.signal}_context_menu_screen_x`]: evt.clientX,
       [`${this.config.signal}_context_menu_screen_y`]: evt.clientY,
     } as Record<string, any>;
-    this.ctx.mergePatch(updates);
+    mergePatch(updates);
   }
   private clampZoom(zoom: number): number {
     return Math.max(this.config.minZoom, Math.min(this.config.maxZoom, zoom));
@@ -465,15 +452,15 @@ class CanvasController {
     const centerY = rect.height / 2;
     this.zoomAtPoint(centerX, centerY, zoomFactor);
   }
-  private resetView() {
+  public resetView() {
     this.camera.z = 1.0;
     this.centerCanvas();
     this.scheduleRender();
   }
-  private zoomIn() {
+  public zoomIn() {
     this.zoomAtCenter(ZOOM_FACTOR);
   }
-  private zoomOut() {
+  public zoomOut() {
     this.zoomAtCenter(1 / ZOOM_FACTOR);
   }
   private screenToCanvas(point: Point): Point {
@@ -520,24 +507,17 @@ class CanvasController {
       [`${this.config.signal}_pan_x`]: this.camera.x,
       [`${this.config.signal}_pan_y`]: this.camera.y,
       [`${this.config.signal}_zoom`]: this.camera.z,
-      [`${this.config.signal}_reset_view`]: this.resetViewFn,
-      [`${this.config.signal}_zoom_in`]: this.zoomInFn,
-      [`${this.config.signal}_zoom_out`]: this.zoomOutFn,
     };
     const patch: Record<string, any> = {};
     for (const k in updates) {
       if (this.lastSent[k] !== updates[k]) patch[k] = updates[k];
     }
     if (Object.keys(patch).length === 0) return;
-    this.ctx.startBatch();
-    try {
-      this.ctx.mergePatch(patch);
-      this.ctx.rx(this.camera.x, this.camera.y, this.camera.z, this.isPanning);
-      Object.assign(this.lastSent, patch);
-    } finally {
-      this.ctx.endBatch();
-    }
+    mergePatch(patch);
+    this.ctx.rx?.(this.camera.x, this.camera.y, this.camera.z, this.isPanning);
+    Object.assign(this.lastSent, patch);
   }
+
   public destroy() {
     if (this.rafId) {
       cancelAnimationFrame(this.rafId);
@@ -545,6 +525,9 @@ class CanvasController {
     if (this.resizeObserver) {
       this.resizeObserver.disconnect();
     }
+    // Remove from registry
+    controllerRegistry[this.config.signal] = null;
+
     document.removeEventListener("pointerdown", this.boundHandlePointerDown);
     document.removeEventListener("wheel", this.boundHandleWheel);
     document.removeEventListener("keydown", this.boundHandleKeyDown);
@@ -554,12 +537,9 @@ class CanvasController {
   }
 }
 const canvasAttributePlugin: AttributePlugin = {
-  type: "attribute",
-  name: "onCanvas",
-  keyReq: "starts",
-  onLoad(ctx: RuntimeContext): OnRemovalFn | void {
-    const { value } = ctx;
-    if (!value) return;
+  name: "canvas",
+  requirement: { key: "allowed", value: "allowed" },
+  apply(ctx: AttributeContext): OnRemovalFn | void {
     const globalConfig = window.__starhtml_canvas_config;
     const config = parseConfig(globalConfig);
     const controller = new CanvasController(ctx, config);
@@ -568,6 +548,20 @@ const canvasAttributePlugin: AttributePlugin = {
     };
   },
 };
+// Global controller registry for action dispatch
+const controllerRegistry: Record<string, CanvasController | null> = {};
+
+function registerCanvasActions(signal: string) {
+  const actionsKey = `__${signal}`;
+  if ((window as any)[actionsKey]) return;
+
+  (window as any)[actionsKey] = {
+    resetView: () => controllerRegistry[signal]?.resetView(),
+    zoomIn: () => controllerRegistry[signal]?.zoomIn(),
+    zoomOut: () => controllerRegistry[signal]?.zoomOut(),
+  };
+}
+
 const canvasPlugin = {
   ...canvasAttributePlugin,
   argNames: [] as string[],
@@ -575,6 +569,8 @@ const canvasPlugin = {
     window.__starhtml_canvas_config = config;
     const signal = config?.signal ? String(config.signal) : "canvas";
     (this as any).argNames = getCanvasArgNames(signal);
+    // Register actions immediately so buttons work before controller is created
+    registerCanvasActions(signal);
   },
 };
 export default canvasPlugin;

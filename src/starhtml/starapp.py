@@ -113,7 +113,7 @@ def star_app(
     return app, app.route, *db_tables
 
 
-DATASTAR_VERSION = "release-candidate"
+DATASTAR_VERSION = "1.0.0-RC.6"
 ICONIFY_VERSION = "2.3.0"
 
 
@@ -140,23 +140,26 @@ def def_hdrs(
     headers = [
         Meta(charset="utf-8"),
         Meta(name="viewport", content="width=device-width, initial-scale=1, viewport-fit=cover"),
+        Script(
+            src=f"https://cdn.jsdelivr.net/gh/starfederation/datastar@{version}/bundles/datastar.js",
+            type="module",
+            onerror=f"this.onerror=null;this.src='{fallback_path}'",
+        ),
     ]
 
     if plugin_list:
-        plugin_js = ",\n".join(p.get("code", str(p)) for p in plugin_list)
+        types_used = set()
+        registration_calls = []
+
+        for p in plugin_list:
+            plugin_type = p.get("type", "action")
+            plugin_code = p.get("code", str(p))
+            types_used.add(plugin_type)
+            registration_calls.append(f"{plugin_type}({plugin_code});")
+
         headers.append(
             Script(
-                f"import {{load, apply}} from 'https://cdn.jsdelivr.net/gh/starfederation/datastar@{version}/bundles/datastar.js';\n"
-                f"[{plugin_js}].forEach(p => load(p));\n"
-                f"apply();",
-                type="module",
-                onerror=f"this.onerror=null;this.src='{fallback_path}'",
-            )
-        )
-    else:
-        headers.append(
-            Script(
-                src=f"https://cdn.jsdelivr.net/gh/starfederation/datastar@{version}/bundles/datastar.js",
+                f"import {{{', '.join(sorted(types_used))}}} from 'https://cdn.jsdelivr.net/gh/starfederation/datastar@{version}/bundles/datastar.js';\n{'\n'.join(registration_calls)}",
                 type="module",
                 onerror=f"this.onerror=null;this.src='{fallback_path}'",
             )

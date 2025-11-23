@@ -141,12 +141,12 @@ class TestDataSignalsAttribute(unittest.TestCase):
         self.assertIn("include_tax: true", html)
 
         # Computed signals (with js()) are NOT included in data-signals when passed via kwarg
-        # They return {} from to_dict() and must be passed as children to create data-computed-* attributes
+        # They return {} from to_dict() and must be passed as children to create data-computed:* attributes
         self.assertNotIn("$price * $quantity", html)
         self.assertNotIn("$user.name", html)
 
     def test_computed_signals_as_children(self):
-        """Test computed signals create data-computed-* attributes when passed as children."""
+        """Test computed signals create data-computed:* attributes when passed as children."""
         # The correct pattern for computed signals: pass as children (walrus pattern)
         div = Div(
             (price := Signal("price", 10)),
@@ -162,11 +162,11 @@ class TestDataSignalsAttribute(unittest.TestCase):
         self.assertIn("price: 10", html)
         self.assertIn("quantity: 5", html)
 
-        # Computed signals create data-computed-* attributes
-        self.assertIn("data-computed-amount", html)
+        # Computed signals create data-computed:* attributes
+        self.assertIn("data-computed:amount", html)
         # Note: BinaryOp generates code, so it's not minified (only js() function minifies)
         self.assertIn("$price * $quantity", html)
-        self.assertIn("data-computed-user_name", html)
+        self.assertIn("data-computed:user_name", html)
         # Note: js() function minifies, so spaces around || are removed in JS expressions
         self.assertTrue("$user.name||'Anonymous'" in html or "$user.name||&#39;Anonymous&#39;" in html)
 
@@ -207,8 +207,8 @@ class TestDataSignalsAttribute(unittest.TestCase):
             "Content",
         )
         html3 = str(div3)
-        # Computed signals as children create data-computed-* attributes
-        self.assertIn("data-computed-signal", html3)
+        # Computed signals as children create data-computed:* attributes
+        self.assertIn("data-computed:signal", html3)
         self.assertIn("$activeTab", html3)
 
     def test_signal_name_validation(self):
@@ -306,8 +306,8 @@ class TestDataSignalsAttribute(unittest.TestCase):
         div2 = Div(data_signals=signals_dict)
         html2 = str(div2)
         self.assertIn("count: 0", html2)
-        # Note: js() now minifies, so spaces around operators are removed
-        self.assertIn("doubled: $count*2", html2)  # Dict format includes js() values
+        # js() preserves the expression as-is
+        self.assertIn("doubled: $count * 2", html2)  # Dict format includes js() values
 
     def test_signal_auto_collection(self):
         """Test that Signals are automatically collected from children."""

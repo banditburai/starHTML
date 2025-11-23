@@ -10,6 +10,7 @@ from starhtml import *
 
 app, rt = star_app(
     title="Datastar Control Attributes Demo",
+    htmlkw={"lang": "en"},
     hdrs=[
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
         Style("""
@@ -129,7 +130,7 @@ def home():
                             data_text=js("JSON.stringify($user_data, null, 2) || 'Loading user data...'"),
                             cls="text-green-400",
                         ),
-                        data_on_load=get("fetch-user-data"),
+                        data_init=get("fetch-user-data"),
                         cls="bg-gray-900 p-4 font-mono text-sm overflow-auto whitespace-pre border border-gray-200",
                     ),
                     cls="p-6 bg-blue-50 border border-blue-200 mb-6",
@@ -140,7 +141,7 @@ def home():
                     Div(
                         Span("Status: ", cls="text-gray-600"),
                         Span(data_text=component_status, cls="font-bold text-black"),
-                        data_on_load=(
+                        data_init=(
                             component_status.set(js("'Component ready at ' + new Date().toLocaleTimeString()")),
                             dict(delay="300ms"),
                         ),
@@ -153,7 +154,7 @@ def home():
                     Div(
                         Span("Analytics sent: ", cls="text-gray-600"),
                         Span(data_text=analytics_sent.if_("✅ Yes", "⏳ No"), cls="font-bold text-black"),
-                        data_on_load=analytics_sent.set(True),
+                        data_init=analytics_sent.set(True),
                     ),
                     cls="p-6 bg-purple-50 border border-purple-200 mb-6",
                 ),
@@ -334,6 +335,7 @@ def home():
                             Span(data_text=form_valid.if_("✅ Valid", "❌ Invalid"), cls="font-bold text-black"),
                             cls="mt-4",
                         ),
+                        cls="mt-6",
                     ),
                     cls="mb-8 p-6 bg-white border border-gray-200",
                 ),

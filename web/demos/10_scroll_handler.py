@@ -4,6 +4,7 @@ from starhtml import *  # This imports scroll namespace automatically
 
 app, rt = star_app(
     title="Scroll Handler Demo",
+    htmlkw={"lang": "en"},
     hdrs=[
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
         Style("""

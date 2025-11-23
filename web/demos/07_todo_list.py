@@ -8,6 +8,7 @@ from starhtml import *
 app, rt = star_app(
     title="✨ Todo List",
     iconify=True,
+    htmlkw={"lang": "en"},
     hdrs=[
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
         persist_handler(),
@@ -182,7 +183,7 @@ def home():
                         Span(cls="text-sm font-medium text-gray-600", data_text=(progress_percent + "% complete")),
                         Span(
                             cls="text-sm font-medium text-gray-500",
-                            data_text=f("{c} of {t} done", c=completed_count, t=total_count),
+                            data_text=f_("{c} of {t} done", c=completed_count, t=total_count),
                         ),
                         cls="flex justify-between mt-3",
                     ),
@@ -211,7 +212,7 @@ def home():
                                     "Add",
                                     type="button",
                                     cls="bold-button px-6 py-4 text-lg font-bold text-white flex items-center",
-                                    data_on_click=post("/todos/add", todo_text=todo_text),
+                                    data_on_click=post("todos/add", todo_text=todo_text),
                                     data_attr_disabled=~can_add_todo,
                                 ),
                                 cls="flex gap-4",

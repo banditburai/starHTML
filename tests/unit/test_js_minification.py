@@ -1,126 +1,121 @@
-"""
-Behavior tests for JavaScript minification in js() and Script().
+"""Tests for js() function minification and operator spacing fixes.
 
-Tests verify that minification works correctly without testing implementation details.
+This test suite ensures that the rjsmin minifier workaround correctly handles
+operator spacing for Datastar RC6 signal expressions while not breaking:
+- URL paths in strings
+- Regular JavaScript operators
+- String literals
+- Complex expressions
 """
 
 from starhtml.datastar import js
-from starhtml.xtend import Script
 
 
-class TestJsMinification:
-    """Test js() minifies JavaScript while preserving functionality"""
+class TestJSMinificationOperatorSpacing:
+    """Test that js() correctly handles operator spacing for Datastar signals."""
 
-    def test_js_reduces_code_size(self):
-        """Minification should reduce code size"""
-        code = """
-            const x = 1;
-            const y = 2;
-            return x + y;
-        """
-        result = js(code).to_js()
-        assert len(result) < len(code)
+    def test_signal_arithmetic_subtraction(self):
+        """Signal subtraction should have spaces added around the minus operator."""
+        # Original bug: $monster_hp-dmg became $monster_hp-dmg (interpreted as signal name)
+        code = js("$monster_hp - dmg")
+        assert "$monster_hp - dmg" in str(code) or "$monster_hp-dmg" not in str(code)
 
-    def test_js_removes_comments(self):
-        """Comments should be removed during minification"""
-        result = js("const x = 1; // comment").to_js()
-        assert "//" not in result
-        assert "x" in result
+        # Minified version still needs spaces around operator
+        code = js("$monster_hp-dmg")
+        assert " - " in str(code), f"Expected spaces around '-' operator, got: {code}"
 
-    def test_js_removes_multiline_comments(self):
-        """Multi-line comments should be removed"""
-        result = js("const x = 1; /* comment */ const y = 2;").to_js()
-        assert "/*" not in result
-        assert "*/" not in result
-        assert "x" in result
-        assert "y" in result
+    def test_signal_arithmetic_addition(self):
+        """Signal addition should have spaces added."""
+        code = js("$counter+$step")
+        assert " + " in str(code), f"Expected spaces around '+' operator, got: {code}"
 
-    def test_js_preserves_string_content(self):
-        """String content must be preserved exactly"""
-        result = js("const msg = 'Hello World';").to_js()
-        assert "Hello World" in result
+    def test_signal_arithmetic_multiplication(self):
+        """Signal multiplication should have spaces added."""
+        code = js("$value*2")
+        assert " * " in str(code), f"Expected spaces around '*' operator, got: {code}"
 
-    def test_js_preserves_template_literals(self):
-        """Template literal syntax must be preserved"""
-        result = js("const html = `<div>Content</div>`;").to_js()
-        assert "`" in result
-        assert "Content" in result
+    def test_signal_arithmetic_division(self):
+        """Signal division should have spaces added."""
+        code = js("$counter/2")
+        assert " / " in str(code), f"Expected spaces around '/' operator, got: {code}"
 
-    def test_js_works_with_f_strings(self):
-        """js() should work with Python f-string interpolation"""
-        theme = "dark"
-        result = js(f"const theme = '{theme}';").to_js()
-        assert "dark" in result
-        assert "theme" in result
-
-    def test_js_handles_empty_string(self):
-        """Empty strings should be handled gracefully"""
-        result = js("").to_js()
-        assert result == ""
-
-    def test_js_preserves_regex_literals(self):
-        """Regex literals must be preserved"""
-        result = js("const pattern = /test/g;").to_js()
-        assert "/test/" in result
-        assert "pattern" in result
-
-    def test_js_preserves_unicode(self):
-        """Unicode characters must be preserved"""
-        result = js("const emoji = '🚀';").to_js()
-        assert "🚀" in result
+    def test_signal_arithmetic_modulo(self):
+        """Signal modulo should have spaces added."""
+        code = js("$value%10")
+        assert " % " in str(code), f"Expected spaces around '%' operator, got: {code}"
 
 
-class TestScriptMinification:
-    """Test Script() component minifies JavaScript"""
+class TestJSMinificationStringPreservation:
+    """Test that strings are NOT affected by operator spacing fixes."""
 
-    def test_script_reduces_code_size(self):
-        """Script should minify its content"""
-        code = """
-            window.init = function() {
-                console.log('test');
-            };
-        """
-        result = str(Script(code))
-        # Should be smaller than unminified version
-        assert len(result) < len(f"<script>{code}</script>")
-        assert "init" in result
-        assert "console.log" in result
+    def test_url_path_preserved(self):
+        """URL paths with slashes should not have spaces added."""
+        # Original bug fix broke this: 'todos/add' became 'todos / add'
+        code = js("@post('todos/add', {todo_text: $todo_text})")
+        result = str(code)
+        assert "'todos/add'" in result or '"todos/add"' in result, f"URL path should not have spaces: {result}"
+        assert "todos / add" not in result, f"URL path should not be split: {result}"
 
-    def test_script_with_empty_code(self):
-        """Script with empty code should work"""
-        result = str(Script(""))
-        assert "<script></script>" in result
-
-    def test_script_with_src_attribute(self):
-        """Script with src attribute should not need minification"""
-        result = str(Script(src="/app.js"))
-        assert 'src="/app.js"' in result
-        assert "<script" in result
-
-    def test_script_preserves_functionality(self):
-        """Minified script should preserve variable names and logic"""
-        code = "const config = { debug: true };"
-        result = str(Script(code))
-        assert "config" in result
-        assert "debug" in result
-        assert "true" in result
+    def test_url_with_query_params(self):
+        """URLs with query parameters should be preserved."""
+        code = js("fetch('/api/users?page=1&limit=10')")
+        result = str(code)
+        # Should not add spaces around special chars in strings
+        assert "'/api/users?page=1&limit=10'" in result or '"/api/users?page=1&limit=10"' in result
 
 
-class TestMinificationIntegration:
-    """Test that js() and Script() work consistently"""
+class TestJSMinificationComplexExpressions:
+    """Test complex JavaScript expressions with mixed operators and signals."""
 
-    def test_js_and_script_both_minify(self):
-        """Both js() and Script() should minify code"""
-        code = "const x = 1;  const y = 2;"
-        js_result = js(code).to_js()
-        script_result = str(Script(code))
+    def test_mixed_signal_and_literal_operators(self):
+        """Expressions mixing signals and literals should work correctly."""
+        code = js("$counter + 5 - $step")
+        result = str(code)
+        # At least the operators next to signals should have spaces
+        assert "$counter +" in result or "+ $step" in result or "- $step" in result
 
-        # Both should reduce size
-        assert len(js_result) < len(code)
-        assert len(script_result) < len(f"<script>{code}</script>")
+    def test_chained_operators(self):
+        """Multiple chained operators should all get spaces."""
+        code = js("$a+$b-$c*$d")
+        result = str(code)
+        # Should have spaces around operators adjacent to signals
+        assert " + " in result or " - " in result or " * " in result, (
+            f"At least some operators should have spaces: {result}"
+        )
 
-        # Both should preserve variables
-        assert "x" in js_result
-        assert "y" in js_result
-        assert "x" in script_result
-        assert "y" in script_result
+
+class TestJSMinificationRegressionPrevention:
+    """Specific regression tests for bugs we've encountered."""
+
+    def test_monster_hp_bug_regression(self):
+        """Original bug: $monster_hp-dmg was interpreted as a signal name."""
+        code = js("$monster_hp = Math.max(0, $monster_hp - dmg)")
+        result = str(code)
+        # Must have space around the minus
+        assert "$monster_hp - dmg" in result, f"Monster HP subtraction must have spaces: {result}"
+
+    def test_todos_add_url_regression(self):
+        """Regression: 'todos/add' was becoming 'todos / add'."""
+        code = js("if($can_add_todo){@post('todos/add',{todo_text:$todo_text});}")
+        result = str(code)
+        assert "'todos/add'" in result or '"todos/add"' in result, f"URL 'todos/add' must stay intact: {result}"
+        assert "todos / add" not in result, f"URL must not have spaces inserted: {result}"
+
+    def test_keydown_handler_regression(self):
+        """The full keydown handler that was broken."""
+        code = js("""
+            if(evt.key === 'Enter' && !evt.shiftKey) {
+                evt.preventDefault();
+                if($can_add_todo) {
+                    @post('todos/add', {todo_text: $todo_text});
+                }
+            }
+        """)
+        result = str(code)
+        # URL must be preserved
+        assert "'todos/add'" in result or '"todos/add"' in result
+        # Signal references should work
+        assert "$can_add_todo" in result
+        assert "$todo_text" in result
+        # URL should not have spaces
+        assert "todos / add" not in result

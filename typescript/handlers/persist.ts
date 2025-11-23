@@ -1,27 +1,33 @@
 import { createDebounce } from "./throttle.js";
+import type { AttributePlugin, AttributeContext, OnRemovalFn } from "./types.js";
 
-interface AttributePlugin {
-  type: "attribute";
-  name: string;
-  keyReq: "allowed" | "denied" | "starts" | "exact";
-  valReq?: "allowed" | "denied" | "must";
-  shouldEvaluate?: boolean;
-  onLoad: (ctx: RuntimeContext) => OnRemovalFn | void;
+
+function mergePatch(patch: Record<string, any>): void {
+  const mp = (window as any).__datastar_mergePatch;
+  if (mp) {
+    mp(patch);
+  } else {
+    console.error('Datastar mergePatch not available');
+  }
 }
 
-interface RuntimeContext {
-  el: HTMLElement;
-  key: string;
-  value: string;
-  mods: Map<string, any>;
-  effect: (fn: () => void) => () => void;
-  getPath: (path: string) => any;
-  mergePatch: (patch: Record<string, any>) => void;
-  startBatch: () => void;
-  endBatch: () => void;
+function getPath(path: string): any {
+  const gp = (window as any).__datastar_getPath;
+  if (gp) {
+    return gp(path);
+  }
+    console.error('Datastar getPath not available');
+    return undefined;
 }
 
-type OnRemovalFn = () => void;
+function effect(fn: () => void): () => void {
+  const eff = (window as any).__datastar_effect;
+  if (eff) {
+    return eff(fn);
+  }
+    console.error('Datastar effect not available');
+    return () => {};
+}
 
 const DEFAULT_STORAGE_KEY = "starhtml-persist";
 const DEFAULT_THROTTLE = 500;
@@ -51,28 +57,23 @@ function parseSignals(value: string): string[] {
     .filter(Boolean);
 }
 
-function loadFromStorage(storage: Storage, key: string, signals: string[], ctx: RuntimeContext): void {
+function loadFromStorage(storage: Storage, key: string, signals: string[]): void {
   try {
     const stored = storage.getItem(key);
     if (!stored) return;
-    
+
     const data = JSON.parse(stored);
     if (!data || typeof data !== "object") return;
-    
+
     if (signals.length === 0) return;
 
-    ctx.startBatch();
-    try {
-      const patch = Object.fromEntries(
-        signals
-          .filter(signal => signal in data)
-          .map(signal => [signal, data[signal]])
-      );
-      if (Object.keys(patch).length > 0) {
-        ctx.mergePatch(patch);
-      }
-    } finally {
-      ctx.endBatch();
+    const patch = Object.fromEntries(
+      signals
+        .filter(signal => signal in data)
+        .map(signal => [signal, data[signal]])
+    );
+    if (Object.keys(patch).length > 0) {
+      mergePatch(patch);
     }
   } catch {}
 }
@@ -88,13 +89,13 @@ function saveToStorage(storage: Storage, key: string, data: Record<string, any>)
 }
 
 const persistAttributePlugin: AttributePlugin = {
-  type: "attribute",
   name: "persist",
-  keyReq: "allowed",
-  valReq: "allowed",
-  shouldEvaluate: false,
+  requirement: {
+    key: "allowed",
+    value: "allowed",
+  },
 
-  onLoad(ctx: RuntimeContext): OnRemovalFn | void {
+  apply(ctx: AttributeContext): OnRemovalFn | void {
     const { key, value, mods } = ctx;
     const storage = getStorage(mods.has("session"));
     if (!storage) return;
@@ -108,7 +109,7 @@ const persistAttributePlugin: AttributePlugin = {
     const signals = trimmed ? parseSignals(trimmed) : [];
 
     if (signals.length > 0) {
-      loadFromStorage(storage, storageKey, signals, ctx);
+      loadFromStorage(storage, storageKey, signals);
     }
 
     const throttleMs = mods.has("immediate") 
@@ -137,11 +138,11 @@ const persistAttributePlugin: AttributePlugin = {
 
     if (signals.length === 0) return;
 
-    return ctx.effect(() => {
+    return effect(() => {
       const data: Record<string, any> = {};
       for (const signal of signals) {
         try {
-          data[signal] = ctx.getPath(signal);
+          data[signal] = getPath(signal);
         } catch {}
       }
       cachedData = data;
