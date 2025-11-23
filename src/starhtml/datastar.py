@@ -772,7 +772,7 @@ def _apply_additive_class_behavior(processed: dict) -> None:
     if "cls" not in processed or "data-attr:cls" not in processed:
         return
     base = processed.pop("cls")
-    reactive = str(processed.pop("data-attr:cls")).strip("()")
+    reactive = str(processed.pop("data-attr:cls"))
     processed["data-attr:class"] = NotStr(f"`{base} ${{{reactive}}}`")
 
 
