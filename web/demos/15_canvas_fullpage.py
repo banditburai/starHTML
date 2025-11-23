@@ -11,6 +11,7 @@ from starhtml import *
 
 app, rt = star_app(
     title="Full-Page Canvas Demo",
+    htmlkw={"lang": "en"},
     hdrs=[
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4", iconify=True),
         Style(
@@ -43,9 +44,7 @@ def fullpage_canvas():
                 cls="canvas-container",
             ),
             data_canvas_viewport=True,
-            data_on_canvas=console.log(
-                f_("Canvas interaction: pan=({x},{y}) zoom={z}", x=canvas.pan_x, y=canvas.pan_y, z=canvas.zoom)
-            ),
+            data_canvas=True,
             cls="canvas-viewport fullpage",
         ),
         # Modern dark toolbar - bottom right
@@ -63,7 +62,7 @@ def fullpage_canvas():
             cls="fixed top-4 left-4 bg-blue-50 border border-blue-200 text-blue-800 px-3 py-2 rounded-lg flex items-center text-xs z-[1001]",
         ),
         # Auto-focus container on load
-        data_on_load="el.focus()",
+        data_init="el.focus()",
         # Keyboard shortcuts
         data_on_keydown=f"""
               if (evt.target.tagName === 'INPUT') return;

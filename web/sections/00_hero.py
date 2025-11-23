@@ -87,6 +87,7 @@ def hero_title(show_rainbow):
         Icon(
             "vaadin:asterisk",
             cls="ml-1 pb-1 sm:pb-2 text-4xl md:text-5xl lg:text-6xl",
+            style="color: #fbbf24",
             data_class_rainbow_sync=show_rainbow,
             id="title-asterisk",
         ),
@@ -100,6 +101,7 @@ def typewriter_tagline(show_rainbow):
             "vaadin:asterisk",
             id="asterisk",
             cls="rainbow-sync sm:pb-2 text-4xl md:text-5xl lg:text-6xl opacity-0",
+            style="color: #fbbf24",
             data_class_rainbow_sync=show_rainbow,
         ),
         Span(" ", id="space", cls="opacity-0 text-gray-300"),
@@ -107,19 +109,19 @@ def typewriter_tagline(show_rainbow):
             data_on_load="""
                 if (window.typewriterInitialized) return;
                 window.typewriterInitialized = true;
-                
+
                 const texts = ['Write Python', 'Build anything', 'Stay brilliant'];
                 let index = 0, isAnimating = false;
                 const [asterisk, space, titleAsterisk] = ['asterisk', 'space', 'title-asterisk'].map(id => document.getElementById(id));
                 const { animate } = window.Motion || {};
-                
+
                 const typewriter = async (text) => {
                     if (!animate || isAnimating) return;
                     isAnimating = true;
-                    
+
                     await Promise.all([asterisk, space, el, titleAsterisk].map(elem => animate(elem, { opacity: 0 }, { duration: 0.2 })));
                     el.textContent = '';
-                                        
+
                     await Promise.all([
                         animate(asterisk, { opacity: 1 }, { duration: 0.2 }),
                         animate(titleAsterisk, { opacity: 1 }, { duration: 0.2 })
@@ -128,16 +130,16 @@ def typewriter_tagline(show_rainbow):
                     await animate(space, { opacity: 1 }, { duration: 0.2 });
                     await new Promise(r => setTimeout(r, 80));
                     await animate(el, { opacity: 1 }, { duration: 0.2 });
-                    
+
                     for (const char of text) {
                         el.textContent += char;
                         await new Promise(r => setTimeout(r, 80));
                     }
-                    
+
                     isAnimating = false;
                     setTimeout(() => !isAnimating && typewriter(texts[++index % texts.length]), 2500);
                 };
-                
+
                 setTimeout(() => typewriter(texts[0]), 500);
             """,
             id="typewriter-text",

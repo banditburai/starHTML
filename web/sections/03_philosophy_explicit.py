@@ -207,10 +207,11 @@ def random_damage_js(min_dmg: int, max_dmg: int) -> str:
 
 def attack_damage_js(min_dmg: int, max_dmg: int, attack_type: str) -> str:
     min_counter, max_counter = DAMAGE_RANGES["monster_counter"]
+    damage_expr = random_damage_js(min_dmg, max_dmg)
     return f"""
-        const damage = {random_damage_js(min_dmg, max_dmg)};
-        $monster_hp = Math.max(0, $monster_hp - damage);
-        $combat_log.unshift(`{attack_type} for ${{damage}} damage!`);
+        const dmg = {damage_expr};
+        $monster_hp = Math.max(0, $monster_hp - dmg);
+        $combat_log.unshift(`{attack_type} for ${{dmg}} damage!`);
         if ($monster_hp <= 0) {{
             $combat_log.unshift('🎉 Victory! Monster defeated!');
         }} else {{

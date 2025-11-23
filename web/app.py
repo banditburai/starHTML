@@ -267,11 +267,16 @@ def docs_navigation(view_mode, support_signal):
     )
 
 
-def philosophy_tab_button(tab_id, icon, label, active_tab):
+def philosophy_tab_button(tab_id, icon, label, active_tab, loaded_tabs):
+    if tab_id == "python":
+        click_action = active_tab.set(tab_id)
+    else:
+        click_action = f"{active_tab.set(tab_id)}; if (!$loaded_tabs.includes('{tab_id}')) {{ @get('/api/philosophy-tabs/{tab_id}') }}"
+
     return Button(
         Icon(f"tabler:{icon}", width="20", height="20", cls="mr-2"),
         label,
-        data_on_click=active_tab.set(tab_id),
+        data_on_click=click_action,
         data_attr_class=(active_tab == tab_id).if_(
             "flex items-center px-4 py-3 bg-black text-white font-semibold rounded-t-lg",
             "flex items-center px-4 py-3 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-t-lg transition-colors",
@@ -279,51 +284,36 @@ def philosophy_tab_button(tab_id, icon, label, active_tab):
     )
 
 
-def philosophy_tabs(active_tab):
+def philosophy_tabs(active_tab, loaded_tabs):
     return Div(
-        philosophy_tab_button("python", "brand-python", "Python First", active_tab),
-        philosophy_tab_button("types", "shield-check", "Type Safety", active_tab),
-        philosophy_tab_button("explicit", "eye", "Explicit", active_tab),
-        philosophy_tab_button("composable", "puzzle", "Composable", active_tab),
+        philosophy_tab_button("python", "brand-python", "Python First", active_tab, loaded_tabs),
+        philosophy_tab_button("types", "shield-check", "Type Safety", active_tab, loaded_tabs),
+        philosophy_tab_button("explicit", "eye", "Explicit", active_tab, loaded_tabs),
+        philosophy_tab_button("composable", "puzzle", "Composable", active_tab, loaded_tabs),
         cls="flex flex-wrap gap-2",
     )
 
 
 def philosophy_tab_content(active_tab):
     return Div(
-        # Load first tab immediately (default)
-        Div(s.python_first_section(), data_show=active_tab == "python", style="display: none"),
-        # Lazy load other tabs on first view
-        Div(
-            data_show=active_tab == "types",
-            data_on_intersect=get("/api/philosophy-tabs/types").with_(once=True),
-            style="display: none",
-            id="tab-types",
-        ),
-        Div(
-            data_show=active_tab == "explicit",
-            data_on_intersect=get("/api/philosophy-tabs/explicit").with_(once=True),
-            style="display: none",
-            id="tab-explicit",
-        ),
-        Div(
-            data_show=active_tab == "composable",
-            data_on_intersect=get("/api/philosophy-tabs/composable").with_(once=True),
-            style="display: none",
-            id="tab-composable",
-        ),
+        Div(s.python_first_section(), id="tab-python", data_show=active_tab == "python", style="display: none"),
+        Div(id="tab-types", data_show=active_tab == "types", style="display: none"),
+        Div(id="tab-explicit", data_show=active_tab == "explicit", style="display: none"),
+        Div(id="tab-composable", data_show=active_tab == "composable", style="display: none"),
         cls="bg-white border-2 border-gray-200 rounded-b-lg rounded-tr-lg p-4 sm:p-8 min-h-[400px]",
     )
 
 
 def core_philosophy_section():
     active_tab = Signal("philosophy_tab", "python")
+    loaded_tabs = Signal("loaded_tabs", [])
     return Section(
         active_tab,
+        loaded_tabs,
         Div(
             H2("Core Philosophy", cls="text-5xl md:text-6xl font-black text-black mb-8"),
             P("Four principles that make StarHTML powerful yet simple", cls="text-xl text-gray-600 mb-12"),
-            philosophy_tabs(active_tab),
+            philosophy_tabs(active_tab, loaded_tabs),
             philosophy_tab_content(active_tab),
             cls="fade-in-up w-full px-6 sm:px-8 lg:px-12 py-10",
         ),
@@ -337,18 +327,21 @@ def core_philosophy_section():
 @sse
 def load_type_safety_tab(req):
     yield elements(s.type_safety_section(), "#tab-types", "inner")
+    yield signals({"loaded_tabs": ["types"]}, merge="append")
 
 
 @rt("/api/philosophy-tabs/explicit")
 @sse
 def load_explicit_tab(req):
     yield elements(s.explicit_section(), "#tab-explicit", "inner")
+    yield signals({"loaded_tabs": ["explicit"]}, merge="append")
 
 
 @rt("/api/philosophy-tabs/composable")
 @sse
 def load_composable_tab(req):
     yield elements(s.composable_section(), "#tab-composable", "inner")
+    yield signals({"loaded_tabs": ["composable"]}, merge="append")
 
 
 app.route("/api/source-code/{filename:path}")(get_source_code)

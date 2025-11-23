@@ -22,7 +22,9 @@ except ImportError:
 
 app, rt = star_app(
     title="starHTML Demos",
+    htmlkw={"lang": "en", "translate": "no", "cls": "notranslate"},
     hdrs=[
+        Meta(name="google", content="notranslate"),
         Link(
             rel="icon",
             href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">⭐</text></svg>',
@@ -166,7 +168,6 @@ app, rt = star_app(
         """),
     ],
     iconify=True,
-    htmlkw={"lang": "en"},
 )
 
 
@@ -643,7 +644,10 @@ def demo_navigation_bar(demo, view_mode, support_open, prev_demo, next_demo, bas
 def demo_content_views(demo, view_mode):
     return Div(
         Iframe(
-            src=demo.route_path, data_show=view_mode == "demo", cls="absolute inset-0 w-full h-full border-0 bg-white"
+            src=demo.route_path,
+            translate="no",
+            data_show=view_mode == "demo",
+            cls="absolute inset-0 w-full h-full border-0 bg-white notranslate",
         ),
         Div(
             Div(id=f"code-{demo.id}", cls="h-full overflow-auto p-4"),
@@ -652,7 +656,9 @@ def demo_content_views(demo, view_mode):
         ),
         Div(
             Div(
-                Iframe(src=demo.route_path, cls="panel left w-full h-full border-0 bg-white"),
+                Iframe(
+                    src=demo.route_path, translate="no", cls="panel left w-full h-full border-0 bg-white notranslate"
+                ),
                 Div(data_split="demo_split:horizontal:50,50"),
                 Div(Div(id=f"split-code-{demo.id}", cls="h-full overflow-auto p-4"), cls="panel right"),
                 cls="split-container",

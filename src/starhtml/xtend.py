@@ -53,10 +53,6 @@ __all__ = [
     "replace_css_vars",
 ]
 
-# ============================================================================
-# Core Component Extensions
-# ============================================================================
-
 
 @delegates(ft_datastar, keep=True)
 def A(*c, get=None, target_id=None, href="#", **kwargs) -> FT:
@@ -87,11 +83,6 @@ class Group(FT):
         super().__init__("", c, {}, void_=True)
 
 
-# ============================================================================
-# Form Helpers
-# ============================================================================
-
-
 @delegates(ft_datastar, keep=True)
 def Hidden(value: Any = "", id: Any = None, **kwargs) -> FT:
     "An Input of type 'hidden'"
@@ -109,11 +100,6 @@ def CheckboxX(checked: bool = False, label=None, value="1", id=None, name=None, 
     if label:
         res = Label(res, label)
     return Hidden(name=name, skip=True, value=""), res
-
-
-# ============================================================================
-# Script, Style, Icon Helpers
-# ============================================================================
 
 
 @delegates(ft_html, keep=True)
@@ -246,13 +232,14 @@ def Icon(
         w = w or h or "1em"
         h = h or w
 
-    style = f"display:inline-block;width:{w};height:{h};flex-shrink:0;vertical-align:middle;line-height:0"
-    return Span(ft_datastar("iconify-icon", icon=icon, width=w, height=h, **kwargs), style=style, cls=cls or None)
-
-
-# ============================================================================
-# SEO, Social Media, and Misc
-# ============================================================================
+    wrapper_style = f"display:inline-block;width:{w};height:{h};flex-shrink:0;vertical-align:middle;line-height:0"
+    wrapper_id = kwargs.pop("id", None)
+    return Span(
+        ft_datastar("iconify-icon", icon=icon, width=w, height=h, **kwargs),
+        style=wrapper_style,
+        cls=cls or None,
+        id=wrapper_id,
+    )
 
 
 def Socials(
@@ -345,11 +332,6 @@ def YouTubeEmbed(
         ),
         cls=cls,
     )
-
-
-# ============================================================================
-# Advanced String Formatting Utilities
-# ============================================================================
 
 
 def double_braces(s: str) -> str:

@@ -1,28 +1,14 @@
 import { createDebounce, createRAFThrottle, createTimerThrottle } from "./throttle.js";
+import type { AttributePlugin, AttributeContext, OnRemovalFn } from "./types.js";
 
-interface AttributePlugin {
-  type: "attribute";
-  name: string;
-  keyReq: "starts" | "exact" | "allowed";
-  valReq?: "allowed";
-  argNames?: string[];
-  onLoad: (ctx: RuntimeContext) => OnRemovalFn | void;
+function mergePatch(patch: Record<string, any>): void {
+  const mp = (window as any).__datastar_mergePatch;
+  if (mp) {
+    mp(patch);
+  } else {
+    console.error('Datastar mergePatch not available');
+  }
 }
-
-interface RuntimeContext {
-  el: HTMLElement;
-  key: string;
-  value: string;
-  mods: Map<string, any>;
-  rx: (...args: any[]) => any;
-  effect: (fn: () => void) => () => void;
-  mergePatch: (patch: Record<string, any>) => void;
-  getPath: (path: string) => any;
-  startBatch: () => void;
-  endBatch: () => void;
-}
-
-type OnRemovalFn = () => void;
 
 interface ResizeConfig {
   debug?: boolean;
@@ -38,7 +24,6 @@ const BREAKPOINT_THRESHOLDS = {
   xl: 1536,
 } as const;
 
-// Flattened resize variables like scroll handler
 const RESIZE_ARG_NAMES = [
   "resize_width",
   "resize_height",
@@ -104,14 +89,15 @@ function createResizeContext(el: HTMLElement, windowWidth: number, windowHeight:
 }
 
 const resizeAttributePlugin: AttributePlugin = {
-  type: "attribute",
   name: "resize",
-  keyReq: "allowed",
-  valReq: "allowed",
+  requirement: {
+    key: "allowed",
+    value: "allowed",
+  },
   argNames: [...RESIZE_ARG_NAMES],
 
-  onLoad(ctx: RuntimeContext): OnRemovalFn | void {
-    const { el, value, mods, rx, mergePatch, startBatch, endBatch } = ctx;
+  apply(ctx: AttributeContext): OnRemovalFn | void {
+    const { el, value, mods, rx } = ctx;
         
     const initialContext = createResizeContext(el, window.innerWidth, window.innerHeight);
     const initPatch = {
@@ -132,8 +118,7 @@ const resizeAttributePlugin: AttributePlugin = {
     const handleResize = () => {
       const context = createResizeContext(el, window.innerWidth, window.innerHeight);
 
-      startBatch();
-      try {        
+      try {
         const patch = {
           resize_width: context.width,
           resize_height: context.height,
@@ -146,12 +131,10 @@ const resizeAttributePlugin: AttributePlugin = {
           resize_is_desktop: context.is_desktop,
         };
         mergePatch(patch);
-                
-        if (value) rx(value);
+
+        if (value) rx?.(value);
       } catch (error) {
         console.error("Error during resize handler:", error);
-      } finally {
-        endBatch();
       }
     };
 

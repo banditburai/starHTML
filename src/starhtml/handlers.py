@@ -9,8 +9,21 @@ from typing import Any
 
 from fastcore.xml import FT
 
-from .datastar import Signal, js
+from .datastar import Signal, _JSRaw, js
 from .xtend import Script
+
+
+class ActionSignal(_JSRaw):
+    """An action that calls a window-registered function."""
+
+    def __init__(self, signal: str, action_name: str):
+        self._signal = signal
+        self._action_name = action_name
+        super().__init__(f"window.__{signal}.{action_name}")
+
+    def __call__(self) -> _JSRaw:
+        return _JSRaw(f"window.__{self._signal}.{self._action_name}()")
+
 
 __all__ = [
     "HandlerBundle",
@@ -54,25 +67,23 @@ def _load_handler(name: str, config: dict | None = None, debug: bool = False) ->
     return [
         Script(
             f"""
-        import handlerPlugin from '/static/js/handlers/{name}.js{cache_bust}';
-        import {{ load, apply }} from '{datastar_cdn}';
-        
-        if (!window.__starhtml_handlers) window.__starhtml_handlers = {{}};
-        
-        if (!window.__starhtml_handlers['{name}']) {{
-            window.__starhtml_handlers['{name}'] = handlerPlugin;
-            load(handlerPlugin);
-            apply();
-            {f'console.log("[{name.upper()}] Handler loaded");' if debug else ""}
+        if (!window.__starhtml_handlers) {{
+            const {{ attribute, getPath, mergePatch, effect }} = await import('{datastar_cdn}');
+            window.__datastar_getPath = getPath;
+            window.__datastar_mergePatch = mergePatch;
+            window.__datastar_effect = effect;
+            window.__datastar_attribute = attribute;
+            window.__starhtml_handlers = {{}};
         }}
-        
-        if (handlerPlugin.setConfig) {{
-            handlerPlugin.setConfig({config_json});
-            {f'console.log("[{name.upper()}] Configured:", {config_json});' if debug else ""}
-        }}
+
+        const handlerPlugin = await import('/static/js/handlers/{name}.js{cache_bust}').then(m => m.default);
+        window.__starhtml_handlers['{name}'] = handlerPlugin;
+        {f'console.log("[{name.upper()}] Handler loaded");' if debug else ""}
+        {f'if (handlerPlugin.setConfig) {{ handlerPlugin.setConfig({config_json}); console.log("[{name.upper()}] Configured:", {config_json}); }}' if debug else f"handlerPlugin.setConfig?.({config_json});"}
+        window.__datastar_attribute(handlerPlugin);
     """,
             type="module",
-        )
+        ),
     ]
 
 
@@ -161,6 +172,7 @@ def drag_handler(
         "x": js(f"${signal}_x"),
         "y": js(f"${signal}_y"),
         "drop_zone": js(f"${signal}_drop_zone"),
+        "has_drop_zone": js(f"${signal}_has_drop_zone"),
     }
 
     if mode in ("sortable", "freeform"):
@@ -259,18 +271,20 @@ def canvas_handler(
     debug: bool = False,
 ) -> HandlerBundle:
     """Canvas drawing handler with infinite pan/zoom capabilities."""
-    signal_names = [
+    value_signals = [
         "pan_x",
         "pan_y",
         "zoom",
-        "reset_view",
-        "zoom_in",
-        "zoom_out",
         "context_menu_x",
         "context_menu_y",
         "context_menu_screen_x",
         "context_menu_screen_y",
     ]
+
+    signals = {name: js(f"${signal}_{name}") for name in value_signals}
+    signals["reset_view"] = ActionSignal(signal, "resetView")
+    signals["zoom_in"] = ActionSignal(signal, "zoomIn")
+    signals["zoom_out"] = ActionSignal(signal, "zoomOut")
 
     return HandlerBundle(
         _load_handler(
@@ -291,7 +305,7 @@ def canvas_handler(
             },
             debug=debug,
         ),
-        {name: js(f"${signal}_{name}") for name in signal_names},
+        signals,
     )
 
 
@@ -381,11 +395,17 @@ def clipboard_action() -> dict:
         "type": "action",
         "name": "clipboard",
         "code": """{
-    type: 'action',
     name: 'clipboard',
-    fn: ({ peek, mergePatch }, text, signal, timeout = 2000) => {
-        const setSignal = (value) => signal && peek(() => mergePatch({ [signal]: value }));
-        
+    apply: async ({ el, evt, error }, text, signal, timeout = 2000) => {
+        const setSignal = (value) => {
+            if (signal) {
+                const event = new CustomEvent('datastar-signal-patch', {
+                    detail: { [signal]: value }
+                });
+                document.dispatchEvent(event);
+            }
+        };
+
         const fallback = () => {
             const ta = document.createElement('textarea');
             ta.value = text;
@@ -399,7 +419,7 @@ def clipboard_action() -> dict:
                 document.body.removeChild(ta);
             }
         };
-        
+
         if (navigator.clipboard?.writeText) {
             navigator.clipboard.writeText(text).then(() => {
                 setSignal(true);

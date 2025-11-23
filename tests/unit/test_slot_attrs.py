@@ -15,7 +15,7 @@ class TestSlotAttrsBasic:
 
         html = to_xml(element)
         assert 'data-slot="label"' in html
-        assert "data-attr-class=" in html
+        assert "data-attr:class=" in html
         assert "$done" in html
         assert "line-through" in html
 
@@ -33,7 +33,7 @@ class TestSlotAttrsBasic:
         html = to_xml(element)
         assert 'data-slot="label"' in html
         assert 'data-slot="content"' in html
-        assert "data-attr-class=" in html
+        assert "data-attr:class=" in html
         assert "$active" in html
         assert 'data-show="$visible"' in html
 
@@ -47,7 +47,7 @@ class TestSlotAttrsBasic:
 
         html = to_xml(element)
         assert 'data-slot="label"' in html
-        assert "data-attr-class=" in html
+        assert "data-attr:class=" in html
         assert "$highlight" in html
 
     def test_multiple_elements_same_slot(self):
@@ -60,7 +60,7 @@ class TestSlotAttrsBasic:
         )
 
         html = to_xml(element)
-        count = html.count("data-attr-class=")
+        count = html.count("data-attr:class=")
         assert count == 2, f"Expected 2 occurrences, found {count}"
         assert "$active" in html
 
@@ -112,10 +112,10 @@ class TestSlotAttrsEdgeCases:
         )
 
         html = to_xml(element)
-        assert "data-attr-class=" in html
+        assert "data-attr:class=" in html
         assert "$active" in html
         assert 'data-show="$enabled"' in html
-        assert 'data-class-hover="bg-blue-600"' in html
+        assert 'data-class:hover="bg-blue-600"' in html
 
     def test_nonexistent_slot_ignored(self):
         """Test that slot_ kwargs for non-existent slots are ignored."""
@@ -128,7 +128,7 @@ class TestSlotAttrsEdgeCases:
         )
 
         html = to_xml(element)
-        assert "data-attr-class=" in html
+        assert "data-attr:class=" in html
         assert "$active" in html
         assert "$never" not in html
 
@@ -186,15 +186,15 @@ class TestSlotAttrsWithDatastar:
         )
 
         html = to_xml(element)
-        assert 'data-class-active="bg-green-500"' in html
-        assert 'data-class-disabled="bg-gray-300"' in html
+        assert 'data-class:active="bg-green-500"' in html
+        assert 'data-class:disabled="bg-gray-300"' in html
 
     def test_with_custom_datastar_attr(self):
         """Test slot_ kwargs with custom attrs dict."""
         element = Div(Span("Text", data_slot="span"), slot_span={"data_custom": "value"})
 
         html = to_xml(element)
-        assert 'data_custom="value"' in html
+        assert 'data-custom="value"' in html
 
 
 class TestSlotAttrsRealWorldScenarios:
@@ -290,7 +290,7 @@ class TestSlotAttrsWithDictAttributes:
         element = Div(Span("Text", data_slot="span"), slot_span={"data_test": "value", "id": "my-span"})
 
         html = to_xml(element)
-        assert 'data_test="value"' in html
+        assert 'data-test="value"' in html
         assert 'id="my-span"' in html
 
     def test_mixed_datastar_and_dict(self):
@@ -302,9 +302,9 @@ class TestSlotAttrsWithDictAttributes:
         )
 
         html = to_xml(element)
-        assert "data-attr-class=" in html
+        assert "data-attr:class=" in html
         assert "$active" in html
-        assert 'data_custom="value"' in html
+        assert 'data-custom="value"' in html
 
 
 class TestSlotAttrsNormalization:
@@ -319,7 +319,7 @@ class TestSlotAttrsNormalization:
 
         html = to_xml(element)
         assert 'data-slot="toggle-group-item"' in html
-        assert 'data-attr-disabled="$disabled_partial"' in html
+        assert 'data-attr:disabled="$disabled_partial"' in html
 
     def test_multiple_underscores_normalization(self):
         """Test normalization with multiple underscores."""
@@ -346,7 +346,7 @@ class TestSlotAttrsNormalization:
         )
 
         html = to_xml(element)
-        assert 'data-attr-disabled="$disabled"' in html
+        assert 'data-attr:disabled="$disabled"' in html
 
     def test_dict_with_underscores_normalized(self):
         """Test that dict keys with underscores are also normalized."""
@@ -356,7 +356,7 @@ class TestSlotAttrsNormalization:
         )
 
         html = to_xml(element)
-        assert 'data-attr-disabled="$disabled"' in html
+        assert 'data-attr:disabled="$disabled"' in html
 
     def test_mixed_dict_and_kwargs(self):
         """Test that both dict and kwargs can be used together."""
@@ -425,4 +425,4 @@ class TestSlotAttrsNormalization:
         assert html.count('data-slot="toggle-group-item"') == 3
         assert "$selected" in html
         assert "bg-blue-500" in html
-        assert 'data-attr-disabled="$disabled_items"' in html
+        assert 'data-attr:disabled="$disabled_items"' in html

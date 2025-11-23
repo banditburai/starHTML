@@ -54,7 +54,7 @@ class TestCoreComponents:
         """Test A link with get parameter."""
         link = A("Get data", get="/api/data")
         html = str(link)
-        assert "data-on-click=\"@get('/api/data')\"" in html
+        assert "data-on:click=\"@get('/api/data')\"" in html
         assert 'href="#"' in html
 
     def test_a_link_custom_href(self):
@@ -75,7 +75,7 @@ class TestCoreComponents:
         link = AX("Quick link", get="/api/quick")
         html = str(link)
         assert "Quick link" in html
-        assert "data-on-click=\"@get('/api/quick')\"" in html
+        assert "data-on:click=\"@get('/api/quick')\"" in html
         assert 'href="#"' in html
 
     def test_ax_without_get(self):
@@ -84,7 +84,7 @@ class TestCoreComponents:
         html = str(link)
         assert "Simple link" in html
         assert 'href="/page"' in html
-        assert "data-on-click" not in html
+        assert "data-on:click" not in html
 
     def test_form_default_enctype(self):
         """Test Form has default multipart enctype."""
@@ -105,7 +105,7 @@ class TestCoreComponents:
         form = Form("Form content", data_bind="formData", data_on_submit="handleSubmit()")
         html = str(form)
         assert 'data-bind="formData"' in html
-        assert 'data-on-submit="handleSubmit()"' in html
+        assert 'data-on:submit="handleSubmit()"' in html
 
     def test_group_empty_container(self):
         """Test Group creates empty container."""
@@ -491,8 +491,10 @@ class TestIconComponent:
 
     def test_icon_with_additional_attrs(self):
         """Test Icon passes through additional attributes."""
+        from fastcore.xml import to_xml
+
         icon = Icon("lucide:search", size=20, data_show="$visible", id="search-icon")
-        html = str(icon)
+        html = to_xml(icon)
         assert 'data-show="$visible"' in html
         assert 'id="search-icon"' in html
 
@@ -776,7 +778,7 @@ class TestEdgeCases:
         html = str(form)
         assert 'type="hidden"' in html
         assert 'type="checkbox"' in html
-        assert "data-on-click" in html
+        assert "data-on:click" in html
         assert "<form" in html
 
     def test_unicode_content(self):

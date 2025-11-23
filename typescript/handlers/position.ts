@@ -10,6 +10,23 @@ import {
   shift,
   size,
 } from "@floating-ui/dom";
+import type { AttributePlugin, AttributeContext, OnRemovalFn } from "./types.js";
+
+
+function mergePatch(patch: Record<string, any>): void {
+  const mp = (window as any).__datastar_mergePatch;
+  if (mp) { mp(patch); } else { console.error('Datastar mergePatch not available'); }
+}
+
+function getPath(path: string): any {
+  const gp = (window as any).__datastar_getPath;
+  if (gp) { return gp(path); }console.error('Datastar getPath not available'); return undefined; 
+}
+
+function effect(fn: () => void): () => void {
+  const eff = (window as any).__datastar_effect;
+  if (eff) { return eff(fn); }console.error('Datastar effect not available'); return () => {}; 
+}
 
 // Timeouts / delays
 const SHOW_DELAY_MS = 10;
@@ -74,29 +91,6 @@ function computeDefaultOffset(reference: HTMLElement, config: PositionConfig, de
   return offsetValue;
 }
 
-interface AttributePlugin {
-  type: "attribute";
-  name: string;
-  keyReq: "starts" | "exact";
-  valReq?: "allowed" | "denied" | "must";
-  shouldEvaluate?: boolean;
-  onLoad: (ctx: RuntimeContext) => OnRemovalFn | void;
-}
-
-interface RuntimeContext {
-  el: HTMLElement;
-  key: string;
-  value: string;
-  mods: Map<string, any>;
-  rx: (...args: any[]) => any;
-  effect: (fn: () => void) => () => void;
-  getPath: (path: string) => any;
-  mergePatch: (patch: Record<string, any>) => void;
-  startBatch: () => void;
-  endBatch: () => void;
-}
-
-type OnRemovalFn = () => void;
 type Position = { x: number; y: number; placement: string };
 
 const VALID_PLACEMENTS: Placement[] = [
@@ -297,13 +291,10 @@ function getGlobalConfig(): { signal: string; defaults?: PositionDefaults; autoU
 }
 
 const positionAttributePlugin: AttributePlugin = {
-  type: "attribute",
   name: "position",
-  keyReq: "starts",
-  valReq: "allowed",
-  shouldEvaluate: false,
+  requirement: { key: "must", value: "allowed" },
 
-  onLoad({ el, value, mods, startBatch, endBatch, mergePatch, getPath, effect }: RuntimeContext): OnRemovalFn | void {
+  apply({ el, value, mods }: AttributeContext): OnRemovalFn | void {
     injectPositioningCSS();
 
     const modSigRaw = extract(mods.get("signal_prefix"));
@@ -333,7 +324,7 @@ const positionAttributePlugin: AttributePlugin = {
       console.warn(`Invalid container parameter: ${containerParam}. Using 'auto'.`);
     }
 
-    const anchorFromValue = value.split(' ')[0].trim();
+    const anchorFromValue = value?.split(' ')[0].trim() ?? '';
     
   
     const config = {
@@ -437,7 +428,6 @@ const positionAttributePlugin: AttributePlugin = {
       
       if (!reference) return;
 
-      startBatch();
       try {
 
         // Default to fixed for popover/virtual and for data-show unless overridden
@@ -491,7 +481,6 @@ const positionAttributePlugin: AttributePlugin = {
         }
         if (Object.keys(patch).length) mergePatch(patch);
       } finally {
-        endBatch();
       }
     };
 

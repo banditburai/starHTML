@@ -397,9 +397,9 @@ def _search_input(search):
     return Input(placeholder="Search employees...", data_bind=search, cls="w-full p-3 border rounded-lg mb-4")
 
 
-def _employee_stats(employees, selected):
+def _employee_stats(employees, selected, visible_count_signal):
     return Div(
-        P(f"Showing {len(employees)} of {len(employees)} employees"),
+        P("Showing ", Span(data_text=visible_count_signal), f" of {len(employees)} employees"),
         P("Selected ", Span(data_text=selected.length, cls="font-bold"), " employees"),
         cls="flex justify-between text-sm text-gray-600 mb-4",
     )
@@ -478,11 +478,20 @@ def minimal_reactive_table():
             "all_selected",
             js(f"""
             {_get_visible_ids_js(employees)}
-            return visibleIds.length && visibleIds.every(id => $selected.includes(id));
+            return visibleIds.length > 0 && visibleIds.every(id => $selected.includes(id));
         """),
         ),
+        (
+            visible_count := Signal(
+                "visible_count",
+                js(f"""
+            {_get_visible_ids_js(employees)}
+            return visibleIds.length;
+        """),
+            )
+        ),
         _search_input(search),
-        _employee_stats(employees, selected),
+        _employee_stats(employees, selected, visible_count),
         _checkbox_sync_effect(),
         Div(
             Table(
@@ -673,7 +682,7 @@ app, rt = star_app(
 
 @rt("/")
 def home():
-    return python_first_section(embedded=False)
+    return python_first_section()
 
 
 if __name__ == "__main__":

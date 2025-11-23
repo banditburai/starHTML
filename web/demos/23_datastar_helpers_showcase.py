@@ -8,6 +8,7 @@ from starhtml import *
 
 app, rt = star_app(
     title="Datastar Helper Functions",
+    htmlkw={"lang": "en"},
     hdrs=[
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
         Style("""
@@ -150,16 +151,16 @@ def home():
             ),
             cls="mb-12 p-8 bg-gray-50",
         ),
-        # === 3. TEMPLATE FUNCTION f() ===
+        # === 3. TEMPLATE FUNCTION f_() ===
         Div(
-            H3("Template Function f()", cls="text-2xl font-bold text-black mb-6"),
+            H3("Template Function f_()", cls="text-2xl font-bold text-black mb-6"),
             P("Create dynamic template strings with signal interpolation", cls="text-gray-600 mb-6"),
             # Template examples with working signals
             Div(
                 Div(
                     Span("Basic template: ", cls="text-gray-600 text-lg"),
                     Span(
-                        data_text=f("Hello {name}, you are {age} years old", name=name | expr("Anonymous"), age=age),
+                        data_text=f_("Hello {name}, you are {age} years old", name=name | expr("Anonymous"), age=age),
                         cls="text-xl font-bold text-black",
                     ),
                     cls="p-6 bg-gray-50 border border-gray-200 mb-6",
@@ -167,7 +168,7 @@ def home():
                 Div(
                     Span("Email status: ", cls="text-gray-600 text-lg"),
                     Span(
-                        data_text=f(
+                        data_text=f_(
                             "Email {email} is {status}",
                             email=email | expr("not provided"),
                             status=email.if_("confirmed", "pending"),
@@ -179,7 +180,7 @@ def home():
                 Div(
                     Span("Current time: ", cls="text-gray-600 text-lg mr-4"),
                     Span(
-                        data_text=f(
+                        data_text=f_(
                             "Updated at {time}", time=js("new Date($timestamp || Date.now()).toLocaleTimeString()")
                         ),
                         cls="text-xl font-bold text-black mr-4",
@@ -213,7 +214,7 @@ def home():
                 Div(
                     Span("Conditional greeting: ", cls="text-gray-600 text-lg"),
                     Span(
-                        data_text=(name.length > 0).if_(f("Hello, {name}!", name=name), "Please enter your name"),
+                        data_text=(name.length > 0).if_(f_("Hello, {name}!", name=name), "Please enter your name"),
                         cls="text-2xl font-black text-black",
                     ),
                     cls="p-6 bg-gray-50 border border-gray-200",
@@ -287,7 +288,7 @@ def home():
                     Icon(
                         "material-symbols:code", width="20", height="20", cls="mr-3 text-purple-600 flex-shrink-0 mt-1"
                     ),
-                    "f() templates handle complex string interpolation",
+                    "f_() templates handle complex string interpolation",
                     cls="flex items-start p-4 mb-3 bg-purple-50 border border-purple-200 rounded-lg text-purple-900",
                 ),
                 Div(
@@ -334,7 +335,7 @@ if __name__ == "__main__":
     print("✨ Features:")
     print("   • Logical operators (all, any)")
     print("   • Math functions and calculations")
-    print("   • Template strings with f()")
+    print("   • Template strings with f_()")
     print("   • Value fallbacks with expr()")
     print("   • Array operations")
     print("   • Interactive examples")

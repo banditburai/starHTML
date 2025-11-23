@@ -14,12 +14,11 @@ class TestCanvasHandler:
         assert hasattr(result, "scripts"), "Result should have scripts attribute"
         assert hasattr(result, "signals"), "Result should have signals attribute"
 
-        # Test that scripts contain the expected canvas handler content
+        # Test that scripts contain the expected canvas handler content (RC6 pattern)
         script_content = str(result)
         assert "/static/js/handlers/canvas.js" in script_content
-        assert "import handlerPlugin" in script_content
-        assert "load(handlerPlugin)" in script_content
-        assert "apply()" in script_content
+        assert "handlerPlugin" in script_content
+        assert "__datastar_attribute" in script_content
 
     def test_canvas_handler_configuration_passed_through(self):
         """Test that canvas_handler configuration is properly embedded."""
@@ -119,9 +118,9 @@ class TestCanvasHandler:
         result = canvas_handler()
         output_str = str(result)
 
-        # Should integrate with Datastar
+        # Should integrate with Datastar (RC6 uses attribute() API)
         assert "datastar" in output_str.lower()
-        assert "load" in output_str and "apply" in output_str
+        assert "__datastar_attribute" in output_str
 
     def test_canvas_handler_documentation_and_api(self):
         """Test that canvas_handler has proper documentation and API."""

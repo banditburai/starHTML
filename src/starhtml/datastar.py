@@ -368,8 +368,8 @@ class Signal(Expr):
         self._is_computed = isinstance(initial, Expr)
         self.type_ = type_ or self._infer_type(initial)
         self._validate_name()
-        self.id = f"{namespace}_{name}" if namespace else name
-        self._js = f"${self.id}"
+        self._id = f"{namespace}_{name}" if namespace else name
+        self._js = f"${self._id}"
 
     def _infer_type(self, initial: Any) -> type:
         if initial is None:
@@ -391,7 +391,7 @@ class Signal(Expr):
     def to_dict(self) -> dict[str, Any]:
         if self._is_computed:
             return {}
-        return {self.id: self._initial}
+        return {self._id: self._initial}
 
     def get_computed_attr(self) -> tuple[str, Any] | None:
         if self._is_computed:
@@ -458,7 +458,12 @@ def to_js_value(value: Any) -> str:
 
 def js(code: str) -> _JSRaw:
     """Embed raw JavaScript (auto-minified)."""
-    return _JSRaw(jsmin(code))
+    code = jsmin(code)
+    # Datastar RC6 requires spaces around operators for signal parsing
+    for _ in range(2):
+        code = re.sub(r"(\$\w+)([-+*/%])(\w+)", r"\1 \2 \3", code)
+        code = re.sub(r"(\w+)([-+*/%])(\$\w+)", r"\1 \2 \3", code)
+    return _JSRaw(code)
 
 
 def expr(v: Any) -> _JSLiteral:
@@ -578,8 +583,8 @@ def clipboard(text: str = None, element: str = None, signal: Union[str, "Signal"
     if (text is None) == (element is None):
         raise ValueError("Must provide exactly one of: text or element")
 
-    if signal is not None and hasattr(signal, "id"):
-        signal = signal.id
+    if signal is not None and hasattr(signal, "_id"):
+        signal = signal._id
 
     signal_suffix = f", {to_js_value(signal)}" if signal else ""
 
@@ -597,7 +602,7 @@ def clipboard(text: str = None, element: str = None, signal: Union[str, "Signal"
 
 
 def _timer_ref(timer: "Signal", window: bool = False) -> str:
-    timer_id = timer.id if hasattr(timer, "id") else timer
+    timer_id = timer._id if hasattr(timer, "_id") else timer
     return f"window._{timer_id}" if window else f"${timer_id}"
 
 
@@ -670,11 +675,28 @@ document = js("document")
 
 
 def _normalize_data_key(key: str) -> str:
-    for prefix in ("data_computed_", "data_class_", "data_on_", "data_attr_", "data_"):
+    # RC.6 renamed data-on-load to data-init
+    if key == "data_on_load":
+        return "data-init"
+
+    # RC.6 changed delimiter from - to : for attribute keys
+    # List of prefixes that should use : delimiter when followed by a key
+    for prefix in (
+        "data_computed_",
+        "data_class_",
+        "data_on_",
+        "data_attr_",
+        "data_bind_",
+        "data_style_",
+        "data_signals_",
+        "data_ref_",
+        "data_persist_",
+        "data_indicator_",
+    ):
         if key.startswith(prefix):
             name = key.removeprefix(prefix)
             slug = name if prefix == "data_computed_" else name.replace("_", "-")
-            return f"{prefix.removesuffix('_').replace('_', '-')}-{slug}"
+            return f"{prefix.removesuffix('_').replace('_', '-')}:{slug}"
     return key.replace("_", "-")
 
 
@@ -775,7 +797,8 @@ def process_datastar_kwargs(kwargs: dict) -> tuple[dict, set[Signal]]:
             case list():
                 processed[normalized_key] = NotStr(_expr_list_to_js(value, collect))
             case (expr, modifiers) if isinstance(modifiers, dict):
-                js_str = ""
+                is_event = normalized_key.startswith("data-on:")
+                is_keyed = isinstance(expr, str) and not is_event
                 if isinstance(expr, Expr | Signal):
                     collect(expr)
                     js_str = expr.to_js()
@@ -783,7 +806,8 @@ def process_datastar_kwargs(kwargs: dict) -> tuple[dict, set[Signal]]:
                     js_str = _expr_list_to_js(expr, collect)
                 else:
                     js_str = str(expr)
-                final_key = f"{normalized_key}{_build_modifier_suffix(modifiers)}"
+                key_part = f":{expr}" if is_keyed else ""
+                final_key = f"{normalized_key}{key_part}{_build_modifier_suffix(modifiers)}"
                 processed[final_key] = NotStr(js_str)
             case dict() as d:
                 for v in d.values():
@@ -794,7 +818,7 @@ def process_datastar_kwargs(kwargs: dict) -> tuple[dict, set[Signal]]:
                 collect(expr)
                 js_str = expr.to_js()
                 if key in ("data_bind", "data_ref", "data_indicator") and isinstance(expr, Signal):
-                    processed[normalized_key] = expr.id
+                    processed[normalized_key] = expr._id
                 elif key == "data_class":
                     processed["data-class"] = NotStr(js_str)
                 else:
@@ -804,6 +828,8 @@ def process_datastar_kwargs(kwargs: dict) -> tuple[dict, set[Signal]]:
             case _:
                 if key.startswith(("data_style_", "data_class_", "data_attr_")):
                     processed[normalized_key] = value if isinstance(value, str) else NotStr(_to_js(value))
+                elif key.startswith("data_"):
+                    processed[normalized_key] = NotStr(value) if isinstance(value, str) else value
                 else:
                     processed[key] = value
 

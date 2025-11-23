@@ -283,6 +283,7 @@ TOOLBAR_STYLES = """
 
 app, rt = star_app(
     title="Composable Node Graph Demo",
+    htmlkw={"lang": "en"},
     hdrs=[
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4", iconify=True),
         # Canvas handler for pan/zoom/grid
@@ -323,7 +324,7 @@ def workflow_node(node_id, title, node_type, x, y, node_states, selected_node):
         Div(node_type.upper(), cls="node-type-badge"),
         # Interactive behaviors and positioning
         data_on_click=selected_node.toggle(node_id, None),
-        data_draggable=True,
+        data_draggable_item=True,
         # Static and dynamic classes
         cls=f"workflow-node node-{node_type}",
         data_class_selected=selected_node == node_id,
@@ -416,10 +417,8 @@ def home():
                 cls="canvas-container",
             ),
             data_canvas_viewport=True,
-            data_on_canvas=console.log(
-                f_("Canvas interaction: pan=({x},{y}) zoom={z}", x=canvas.pan_x, y=canvas.pan_y, z=canvas.zoom)
-            ),
-            data_on_load=f"setTimeout(() => {canvas.reset_view()}, 100)",
+            data_canvas=True,
+            data_init=f"setTimeout(() => {canvas.reset_view()}, 100)",
             cls="canvas-viewport fullpage",
         ),
         # Controls (based on demo 13 toolbar)
@@ -480,7 +479,7 @@ def home():
         Style(NODE_TYPE_STYLES),
         Style(TOOLBAR_STYLES),
         # Auto-focus
-        data_on_load="el.focus()",
+        data_init="el.focus()",
         data_on_keydown=f"""
             if (evt.target.tagName === 'INPUT') return;
             

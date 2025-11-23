@@ -113,7 +113,8 @@ class TestCoreAttributes:
     def test_data_computed(self):
         res = attrs_of_kwargs(data_computed_fullName=js("$firstName + ' ' + $lastName"))
         # Note: js() now minifies, so spaces around operators are removed
-        assert res == {"data-computed-fullName": "$firstName+' '+$lastName"}
+        # RC6 uses colon syntax: data-computed:fullName
+        assert res == {"data-computed:fullName": "$firstName+' '+$lastName"}
 
 
 class TestSignals:
@@ -129,35 +130,41 @@ class TestSignals:
 class TestEventHandlers:
     def test_on_click_basic(self):
         res = attrs_of_kwargs(data_on_click=("handleClick()", {}))
-        assert "data-on-click" in res
-        assert "handleClick()" in str(res["data-on-click"])
+        # RC6 uses colon syntax: data-on:click
+        assert "data-on:click" in res
+        assert "handleClick()" in str(res["data-on:click"])
 
     def test_on_click_with_modifiers(self):
         res = attrs_of_kwargs(data_on_click=("submit()", {"once": True, "prevent": True}))
-        assert "data-on-click__once__prevent" in res
+        # RC6 uses colon syntax: data-on:click
+        assert "data-on:click__once__prevent" in res
 
     def test_on_input_with_debounce(self):
         res = attrs_of_kwargs(data_on_input=("search()", {"debounce": "500ms"}))
-        assert "data-on-input__debounce.500ms" in res
+        # RC6 uses colon syntax: data-on:input
+        assert "data-on:input__debounce.500ms" in res
         res = attrs_of_kwargs(data_on_input=("search()", {"debounce": "300ms"}))
-        assert "data-on-input__debounce.300ms" in res
+        assert "data-on:input__debounce.300ms" in res
 
     def test_mixed_modifiers(self):
         res = attrs_of_kwargs(data_on_input=("search()", {"prevent": True, "debounce": "500ms"}))
-        assert "data-on-input__prevent__debounce.500ms" in res
+        # RC6 uses colon syntax: data-on:input
+        assert "data-on:input__prevent__debounce.500ms" in res
 
     def test_on_interval_and_intersect(self):
-        assert "data-on-interval__duration.1s" in attrs_of_kwargs(data_on_interval=("tick()", {"duration": "1s"}))
-        assert "data-on-interval__duration.500ms" in attrs_of_kwargs(
+        # RC6 uses colon syntax: data-on:interval, data-on:intersect
+        assert "data-on:interval__duration.1s" in attrs_of_kwargs(data_on_interval=("tick()", {"duration": "1s"}))
+        assert "data-on:interval__duration.500ms" in attrs_of_kwargs(
             data_on_interval=("update()", {"duration": "500ms"})
         )
-        assert "data-on-intersect__once__half" in attrs_of_kwargs(
+        assert "data-on:intersect__once__half" in attrs_of_kwargs(
             data_on_intersect=("loadMore()", {"once": True, "half": True})
         )
 
     def test_generic_on(self):
         res = attrs_of_kwargs(data_on_custom_event=("handleCustom()", {"once": True}))
-        assert "data-on-custom-event__once" in res
+        # RC6 uses colon syntax: data-on:custom-event
+        assert "data-on:custom-event__once" in res
 
 
 class TestOtherAttributes:
@@ -185,7 +192,9 @@ class TestIntegration:
             **attrs_of_simple(attr_disabled="$isSubmitting"),
         )
         html = str(btn)
-        assert "data-on-click__once__prevent" in html
+        # RC6 uses colon syntax: data-on:click
+        assert "data-on:click__once__prevent" in html
+        # attrs_of_simple uses hyphen syntax (test helper, not process_datastar_kwargs)
         assert "data-class-active" in html
         assert "data-class-loading" in html
         assert "data-attr-disabled" in html
@@ -200,7 +209,8 @@ class TestIntegration:
         )
         html = str(form)
         assert "data-signals" in html
-        assert "data-on-submit__prevent" in html
+        # RC6 uses colon syntax: data-on:submit
+        assert "data-on:submit__prevent" in html
         assert "data-bind" in html
 
     def test_conditional_styling(self):

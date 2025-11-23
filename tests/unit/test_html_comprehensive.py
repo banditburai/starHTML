@@ -158,7 +158,7 @@ class TestFtDatastar:
         assert element.attrs["id"] == "test-id"
         assert element.attrs["class"] == "test-class"
         assert "data-bind" in element.attrs
-        assert "data-on-click" in element.attrs
+        assert "data-on:click" in element.attrs  # RC6 uses colon syntax
 
     def test_multiple_datastar_attributes(self):
         """Test element with multiple Datastar attributes."""
@@ -171,7 +171,8 @@ class TestFtDatastar:
             data_bind="buttonValue",
         )
 
-        expected_attrs = ["data-show", "data-text", "data-on-click", "data-bind"]
+        # RC6 uses colon syntax for data-on:*
+        expected_attrs = ["data-show", "data-text", "data-on:click", "data-bind"]
         for attr in expected_attrs:
             assert attr in element.attrs
 

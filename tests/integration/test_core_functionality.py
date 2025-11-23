@@ -53,11 +53,11 @@ class TestDatastarIntegrationScenarios:
         # Verify Datastar attributes are correctly transformed
         # These test the actual attribute conversion, not specific string formatting
         assert "data-bind=" in html
-        assert "data-on-input" in html
+        assert "data-on:input" in html
         assert "data-show=" in html
         assert "data-text=" in html
-        assert "data-on-click=" in html
-        assert "data-on-submit=" in html
+        assert "data-on:click=" in html
+        assert "data-on:submit=" in html
 
         # Test that error handling elements are present
         assert "color: red" in html  # Error styling
@@ -225,7 +225,7 @@ class TestAttributeHandling:
         assert element.get("class") == "test-class"
         assert element.get("style") == "color: blue;"
         assert element.get("data-show") == "$isVisible"
-        assert element.get("data-on-click") == "handleClick()"
+        assert element.get("data-on:click") == "handleClick()"
         assert element.get("data-custom") == "value"
         assert element.children == ("Mixed attributes",)
 
@@ -268,7 +268,7 @@ class TestNestedStructures:
         assert "<h2>Article Title</h2>" in html
         assert "<p>First paragraph</p>" in html
         assert "<p>Second paragraph</p>" in html
-        assert 'data-on-click="doAction()"' in html
+        assert 'data-on:click="doAction()"' in html
         assert 'data-text="$status"' in html
 
     def test_component_like_structure(self):
@@ -300,8 +300,9 @@ class TestNestedStructures:
         assert 'class="user-email"' in html
         assert "John Doe" in html
         assert "john@example.com" in html
-        assert "data-on-click=\"followUser('john@example.com')\"" in html
-        assert "data-class-active=\"$isFollowing('john@example.com')\"" in html
+        assert "data-on:click=\"followUser('john@example.com')\"" in html
+        # RC6 uses colon syntax: data-class:active
+        assert "data-class:active=\"$isFollowing('john@example.com')\"" in html
         assert "data-signals=" in html
         assert "user:" in html
         assert '"name": "John Doe"' in html

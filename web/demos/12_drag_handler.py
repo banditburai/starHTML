@@ -16,10 +16,11 @@ todos = [
 
 app, rt = star_app(
     title="Drag Handler Demo",
+    htmlkw={"lang": "en"},
     hdrs=[
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
         Style(
-            """body{background:#fff;color:#000;margin:0;padding:0;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}::selection{background:#000;color:#fff}[data-draggable]{display:flex;align-items:center;padding:1rem;background-color:white;border:1px solid rgb(229 231 235);margin-bottom:0.5rem;border-radius:0.5rem;cursor:move;transition:border-color 0.2s;width:100%}[data-draggable]:hover{border-color:rgb(156 163 175)}[data-draggable].is-dragging{opacity:0.5;cursor:grabbing !important}[data-drop-zone].drop-zone-active{background-color:rgb(239 246 255) !important;border-color:rgb(59 130 246) !important}[data-drop-zone]{display:block !important}[data-drop-zone]:not(:has([data-draggable])) > div:first-child{margin:auto;padding:2rem}[data-drop-zone]:has([data-draggable]) > div:first-child{margin-bottom:1rem}"""
+            """body{background:#fff;color:#000;margin:0;padding:0;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}::selection{background:#000;color:#fff}[data-stardrag]{display:flex;align-items:center;padding:1rem;background-color:white;border:1px solid rgb(229 231 235);margin-bottom:0.5rem;border-radius:0.5rem;cursor:move;transition:border-color 0.2s;width:100%;user-select:none;-webkit-user-select:none}[data-stardrag]:hover{border-color:rgb(156 163 175)}[data-stardrag].is-dragging{opacity:0.5;cursor:grabbing !important}[data-drop-zone].drop-zone-active{background-color:rgb(239 246 255) !important;border-color:rgb(59 130 246) !important}[data-drop-zone]{display:block !important}[data-drop-zone]:not(:has([data-stardrag])) > div:first-child{margin:auto;padding:2rem}[data-drop-zone]:has([data-stardrag]) > div:first-child{margin-bottom:1rem}"""
         ),
         # Use walrus operator to assign and include handler in one line
         (todos_drag := drag_handler(signal="todos", mode="sortable")),
@@ -62,9 +63,8 @@ def sortable_todos():
                     Div(
                         Icon("material-symbols:drag-indicator", cls="mr-3 text-gray-400"),
                         todo["text"],
-                        data_draggable=True,
+                        data_stardrag=True,
                         id=f"todo-{todo['id']}",
-                        cls="flex items-center p-4 bg-white border border-gray-200 mb-2 rounded-lg hover:border-gray-400 transition-colors cursor-move",
                     )
                     for todo in todos
                 ],

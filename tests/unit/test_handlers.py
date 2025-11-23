@@ -33,12 +33,11 @@ class TestHandlerBehavior:
         assert hasattr(result, "scripts"), "Result should have scripts attribute"
         assert hasattr(result, "signals"), "Result should have signals attribute"
 
-        # Test that scripts contain the expected persist handler content
+        # Test that scripts contain the expected persist handler content (RC6 pattern)
         script_content = str(result)
         assert "/static/js/handlers/persist.js" in script_content
-        assert "import handlerPlugin" in script_content
-        assert "load(handlerPlugin)" in script_content
-        assert "apply()" in script_content
+        assert "handlerPlugin" in script_content
+        assert "__datastar_attribute" in script_content
 
     def test_scroll_handler_generates_functional_script(self):
         """Test scroll_handler creates a functional HandlerBundle."""
@@ -48,10 +47,10 @@ class TestHandlerBehavior:
         assert hasattr(result, "scripts"), "Result should have scripts attribute"
         assert hasattr(result, "signals"), "Result should have signals attribute"
 
-        # Test that scripts contain the expected scroll handler content
+        # Test that scripts contain the expected scroll handler content (RC6 pattern)
         script_content = str(result)
         assert "/static/js/handlers/scroll.js" in script_content
-        assert "load(handlerPlugin)" in script_content
+        assert "__datastar_attribute" in script_content
 
         # Check for signals (scroll handlers often include scroll position signals)
         if result.signals:
@@ -74,8 +73,8 @@ class TestHandlerBehavior:
         assert "customResize" in custom_content
         assert "200" in custom_content
 
-        # Should affect the setConfig call
-        assert "setConfig(" in custom_content
+        # Should affect the setConfig call (RC6 uses setConfig?.())
+        assert "setConfig?." in custom_content
 
     def test_load_handler_with_invalid_config_raises_error(self):
         """Test that _load_handler properly handles invalid configurations."""
@@ -90,8 +89,8 @@ class TestHandlerBehavior:
         script_content = str(result)
 
         # Should contain valid JSON
-        # Extract the config part
-        start_idx = script_content.find("setConfig(") + len("setConfig(")
+        # Extract the config part (RC6 uses setConfig?.)
+        start_idx = script_content.find("setConfig?.(") + len("setConfig?.(")
         end_idx = script_content.find(")", start_idx)
         config_json = script_content[start_idx:end_idx]
 
@@ -216,8 +215,8 @@ class TestErrorConditions:
         script_content = str(result)
 
         # Should handle large configs without breaking
-        # Handler now returns scripts list, not full HTML tags
-        assert "setConfig(" in script_content
+        # RC6 uses setConfig?.() pattern
+        assert "setConfig?." in script_content
 
     def test_bundle_stats_with_filesystem_errors(self):
         """Test bundle stats function with filesystem errors."""
@@ -259,7 +258,8 @@ class TestRealWorldUsage:
             assert hasattr(script, "scripts"), "Each handler should return a HandlerBundle with scripts"
             assert hasattr(script, "signals"), "Each handler should return a HandlerBundle with signals"
             content = str(script)
-            assert "import handlerPlugin" in content, "Each script should import a handler plugin"
+            # RC6 pattern uses dynamic import and attribute() API
+            assert "handlerPlugin" in content, "Each script should load a handler plugin"
 
         # Should not interfere with each other (different handler files)
         persist_content = str(persist_script)
