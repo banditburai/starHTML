@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "StarHTML Demo Hub"
 requires-python = ">=3.12"
 dependencies = [
-    "starhtml>=0.2.1",
+    "starhtml>=0.4.0",
     "starlighter",
     "httpx",
     "starlette",
