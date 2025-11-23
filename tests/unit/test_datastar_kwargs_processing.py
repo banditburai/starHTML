@@ -628,15 +628,18 @@ class TestAdditiveClassBehavior:
 
         assert active in signals
 
-    def test_merged_class_strips_parentheses(self):
-        """Parentheses around expressions should be stripped in the merge."""
+    def test_merged_class_preserves_ternary_expression(self):
+        """Ternary expressions should have balanced parentheses."""
         active = Signal("active", True)
         kwargs = {"cls": "base", "data_attr_cls": active.if_("yes", "no")}
         processed, _ = process_datastar_kwargs(kwargs)
 
         value = str(processed["data-attr:class"])
+        # Should be a valid template literal with base class
         assert value.startswith("`")
         assert "base" in value
+        # Parentheses must be balanced (the bug was stripping opening paren)
+        assert value.count("(") == value.count(")")
 
     def test_merge_produces_template_literal(self):
         """Merged result should be a JavaScript template literal."""
