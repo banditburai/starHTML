@@ -212,6 +212,68 @@ class StarHTML(Starlette):
         ]
         self.router.routes.append(route)
 
+    def handle_request(
+        self,
+        method: str,
+        path: str,
+        body: str = "",
+        headers: dict | None = None,
+    ) -> Response:
+        """Synchronous request handler for WASM runtimes and testing.
+
+        This method provides a synchronous interface to handle HTTP requests,
+        which is required for WASM environments (like Pyodide) where async I/O
+        works differently than native Python.
+
+        Args:
+            method: HTTP method (GET, POST, PUT, DELETE, etc.)
+            path: Request path (e.g., "/users/42" or "/search?q=hello")
+            body: Request body for POST/PUT/PATCH requests
+            headers: Optional request headers as a dictionary
+
+        Returns:
+            Starlette Response object with status_code, headers, and body
+        """
+        import json
+
+        from starlette.testclient import TestClient
+
+        # Use TestClient for synchronous request handling
+        # This leverages existing Starlette routing infrastructure
+        with TestClient(self, raise_server_exceptions=False) as client:
+            request_headers = headers or {}
+
+            if method.upper() in ("POST", "PUT", "PATCH") and body:
+                # Try to parse as JSON, otherwise send as form data
+                try:
+                    json_body = json.loads(body)
+                    response = client.request(
+                        method=method.upper(),
+                        url=path,
+                        json=json_body,
+                        headers=request_headers,
+                    )
+                except json.JSONDecodeError:
+                    response = client.request(
+                        method=method.upper(),
+                        url=path,
+                        content=body,
+                        headers=request_headers,
+                    )
+            else:
+                response = client.request(
+                    method=method.upper(),
+                    url=path,
+                    headers=request_headers,
+                )
+
+        # Convert httpx Response to Starlette Response
+        return Response(
+            content=response.content,
+            status_code=response.status_code,
+            headers=dict(response.headers),
+        )
+
 
 @patch
 def _endp(self: StarHTML, f, body_wrap):
