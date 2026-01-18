@@ -14,9 +14,9 @@ class TestDragHandler:
         assert hasattr(result, "scripts"), "Result should have scripts attribute"
         assert hasattr(result, "signals"), "Result should have signals attribute"
 
-        # Test that scripts contain the expected drag handler content (RC6 pattern)
+        # Test that scripts contain the expected handler content
         script_content = str(result)
-        assert "/static/js/handlers/drag.js" in script_content
+        assert "/static/_starhtml/js/handlers/drag.js" in script_content
         assert "handlerPlugin" in script_content
         assert "__datastar_attribute" in script_content
 

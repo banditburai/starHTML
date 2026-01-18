@@ -23,7 +23,7 @@ from starlette.routing import Route, WebSocketRoute
 
 from .realtime import _ws_endp, setup_ws
 from .server import _mk_locfunc, _wrap_call, _wrap_ex, _wrap_req, all_meths, cookie, render_response, serve
-from .starapp import DATASTAR_VERSION, Beforeware, def_hdrs
+from .starapp import Beforeware, def_hdrs
 from .utils import _list, _params, empty, get_key, noop_body, reg_re_param
 
 empty = Parameter.empty
@@ -40,6 +40,8 @@ __all__ = [
     "setup_ws",
     "cookie",
     "nested_name",
+    "register_package",
+    "register_package_static",
 ]
 
 # ============================================================================
@@ -75,7 +77,6 @@ class StarHTML(Starlette):
         body_wrap=noop_body,
         htmlkw=None,
         canonical=True,
-        datastar_version=None,
         iconify=False,
         iconify_version=None,
         clipboard=False,
@@ -94,7 +95,7 @@ class StarHTML(Starlette):
 
         htmlkw = htmlkw or {}
         if default_hdrs:
-            hdrs = def_hdrs(datastar_version, iconify, iconify_version, clipboard=clipboard, plugins=plugins) + hdrs
+            hdrs = def_hdrs(iconify, iconify_version, clipboard=clipboard, plugins=plugins) + hdrs
         on_startup, on_shutdown = listify(on_startup) or None, listify(on_shutdown) or None
         self.lifespan, self.hdrs, self.ftrs = lifespan, hdrs, ftrs
         self.body_wrap, self.before, self.after, self.htmlkw, self.bodykw = body_wrap, before, after, htmlkw, bodykw
@@ -146,33 +147,17 @@ class StarHTML(Starlette):
 
         from pathlib import Path
 
-        import httpx
-        from starlette.responses import FileResponse, Response
+        from starlette.responses import FileResponse
 
         datastar_path = Path(__file__).parent / "static" / "datastar.js"
-        datastar_cdn = f"https://cdn.jsdelivr.net/gh/starfederation/datastar@{DATASTAR_VERSION}/bundles/datastar.js"
 
-        async def serve_datastar_fallback():
-            # Serve cached version if exists
-            if datastar_path.exists():
-                return FileResponse(datastar_path, media_type="application/javascript")
-
-            # Download from CDN and cache
-            try:
-                async with httpx.AsyncClient() as client:
-                    response = await client.get(datastar_cdn)
-                    response.raise_for_status()
-                    datastar_path.parent.mkdir(parents=True, exist_ok=True)
-                    datastar_path.write_text(response.text)
-                    return Response(response.text, media_type="application/javascript")
-            except Exception as e:
-                raise FileNotFoundError(f"datastar.js unavailable: {e}")
-
-        self.route("/static/datastar.js")(serve_datastar_fallback)
+        @self.route("/static/datastar.js")
+        async def serve_datastar():
+            return FileResponse(datastar_path, media_type="application/javascript")
 
         static_js_dir = Path(__file__).parent / "static" / "js"
 
-        @self.route("/static/js/{filename:path}")
+        @self.route("/static/_starhtml/js/{filename:path}")
         async def serve_starhtml_js(filename: str):
             js_file = static_js_dir / filename
             if js_file.exists() and js_file.is_file():
@@ -212,62 +197,25 @@ class StarHTML(Starlette):
         ]
         self.router.routes.append(route)
 
-    def handle_request(
+    async def handle_request(
         self,
         method: str,
         path: str,
         body: str = "",
         headers: dict | None = None,
     ) -> Response:
-        """Synchronous request handler for WASM runtimes and testing.
+        """Async request handler for WASM runtimes (no threading required)."""
+        import httpx
 
-        This method provides a synchronous interface to handle HTTP requests,
-        which is required for WASM environments (like Pyodide) where async I/O
-        works differently than native Python.
-
-        Args:
-            method: HTTP method (GET, POST, PUT, DELETE, etc.)
-            path: Request path (e.g., "/users/42" or "/search?q=hello")
-            body: Request body for POST/PUT/PATCH requests
-            headers: Optional request headers as a dictionary
-
-        Returns:
-            Starlette Response object with status_code, headers, and body
-        """
-        import json
-
-        from starlette.testclient import TestClient
-
-        # Use TestClient for synchronous request handling
-        # This leverages existing Starlette routing infrastructure
-        with TestClient(self, raise_server_exceptions=False) as client:
-            request_headers = headers or {}
+        transport = httpx.ASGITransport(app=self)
+        async with httpx.AsyncClient(transport=transport, base_url="http://app") as client:
+            kwargs = {"method": method.upper(), "url": path, "headers": headers or {}}
 
             if method.upper() in ("POST", "PUT", "PATCH") and body:
-                # Try to parse as JSON, otherwise send as form data
-                try:
-                    json_body = json.loads(body)
-                    response = client.request(
-                        method=method.upper(),
-                        url=path,
-                        json=json_body,
-                        headers=request_headers,
-                    )
-                except json.JSONDecodeError:
-                    response = client.request(
-                        method=method.upper(),
-                        url=path,
-                        content=body,
-                        headers=request_headers,
-                    )
-            else:
-                response = client.request(
-                    method=method.upper(),
-                    url=path,
-                    headers=request_headers,
-                )
+                kwargs["content"] = body
 
-        # Convert httpx Response to Starlette Response
+            response = await client.request(**kwargs)
+
         return Response(
             content=response.content,
             status_code=response.status_code,
@@ -380,6 +328,70 @@ for o in all_meths:
 reg_re_param("path", ".*?")
 _static_exts = "ico gif jpg jpeg webm css js woff png svg mp4 webp ttf otf eot woff2 txt html map pdf zip tgz gz csv mp3 wav ogg flac aac doc docx xls xlsx ppt pptx epub mobi bmp tiff avi mov wmv mkv xml yaml yml rar 7z tar bz2 htm xhtml apk dmg exe msi swf iso".split()
 reg_re_param("static", "|".join(_static_exts))
+
+_MEDIA_TYPES = {
+    ".js": "application/javascript",
+    ".mjs": "application/javascript",
+    ".css": "text/css",
+    ".json": "application/json",
+    ".html": "text/html",
+    ".htm": "text/html",
+    ".xml": "application/xml",
+    ".svg": "image/svg+xml",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+    ".ico": "image/x-icon",
+    ".woff": "font/woff",
+    ".woff2": "font/woff2",
+    ".ttf": "font/ttf",
+    ".otf": "font/otf",
+    ".eot": "application/vnd.ms-fontobject",
+    ".map": "application/json",
+    ".txt": "text/plain",
+    ".md": "text/markdown",
+}
+
+
+@patch
+def register_package_static(self: StarHTML, name: str, static_path, prefix: str = None):
+    """Serve a package's static directory (routes inserted first for priority)."""
+    from pathlib import Path as PathLib
+
+    static_path = PathLib(static_path) if not isinstance(static_path, PathLib) else static_path
+    prefix = prefix or f"/_pkg/{name}"
+
+    async def serve_package_static(request):
+        filename = request.path_params.get("filename", "")
+        file_path = static_path / filename
+
+        # Prevent path traversal attacks
+        try:
+            file_path = file_path.resolve()
+            if not str(file_path).startswith(str(static_path.resolve())):
+                return Response("Forbidden", status_code=403)
+        except (ValueError, OSError):
+            return Response("Bad Request", status_code=400)
+
+        if file_path.exists() and file_path.is_file():
+            media_type = _MEDIA_TYPES.get(file_path.suffix.lower(), "application/octet-stream")
+            return FileResponse(file_path, media_type=media_type)
+
+        return Response("Not Found", status_code=404)
+
+    route = Route(f"{prefix}/{{filename:path}}", serve_package_static, name=f"pkg_{name}_static")
+    self.routes.insert(0, route)
+
+
+@patch
+def register_package(self: StarHTML, name: str, static_path=None, hdrs=None, prefix: str = None):
+    """Register a package: serve static files and/or add headers."""
+    if static_path:
+        self.register_package_static(name, static_path, prefix)
+    if hdrs:
+        self.hdrs = list(self.hdrs) + listify(hdrs)
 
 
 @patch

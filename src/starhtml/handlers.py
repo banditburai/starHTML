@@ -57,34 +57,44 @@ class HandlerBundle:
         raise AttributeError(f"'{self.__class__.__name__}' has no signal '{name}'")
 
 
-def _load_handler(name: str, config: dict | None = None, debug: bool = False) -> list[FT]:
-    from .starapp import DATASTAR_VERSION
-
+def _load_handler(
+    name: str,
+    config: dict | None = None,
+    debug: bool = False,
+    datastar_path: str = "/static/datastar.js",
+) -> list[FT]:
     config_json = json.dumps(config or {})
-    datastar_cdn = f"https://cdn.jsdelivr.net/gh/starfederation/datastar@{DATASTAR_VERSION}/bundles/datastar.js"
     cache_bust = f"?v={int(time.time())}" if debug else ""
+    handler_url = f"/static/_starhtml/js/handlers/{name}.js{cache_bust}"
 
-    return [
-        Script(
-            f"""
+    if debug:
+        config_line = (
+            f"handlerPlugin.setConfig?.({config_json}); console.log('[{name.upper()}] Configured:', {config_json});"
+        )
+        log_line = f"console.log('[{name.upper()}] Handler loaded');"
+    else:
+        config_line = f"handlerPlugin.setConfig?.({config_json});"
+        log_line = ""
+
+    js = f"""
         if (!window.__starhtml_handlers) {{
-            const {{ attribute, getPath, mergePatch, effect }} = await import('{datastar_cdn}');
-            window.__datastar_getPath = getPath;
-            window.__datastar_mergePatch = mergePatch;
-            window.__datastar_effect = effect;
-            window.__datastar_attribute = attribute;
-            window.__starhtml_handlers = {{}};
+            const {{ attribute, getPath, mergePatch, effect }} = await import('{datastar_path}');
+            Object.assign(window, {{
+                __datastar_getPath: getPath,
+                __datastar_mergePatch: mergePatch,
+                __datastar_effect: effect,
+                __datastar_attribute: attribute,
+                __starhtml_handlers: {{}}
+            }});
         }}
-
-        const handlerPlugin = await import('/static/js/handlers/{name}.js{cache_bust}').then(m => m.default);
+        const handlerPlugin = await import('{handler_url}').then(m => m.default);
         window.__starhtml_handlers['{name}'] = handlerPlugin;
-        {f'console.log("[{name.upper()}] Handler loaded");' if debug else ""}
-        {f'if (handlerPlugin.setConfig) {{ handlerPlugin.setConfig({config_json}); console.log("[{name.upper()}] Configured:", {config_json}); }}' if debug else f"handlerPlugin.setConfig?.({config_json});"}
+        {log_line}
+        {config_line}
         window.__datastar_attribute(handlerPlugin);
-    """,
-            type="module",
-        ),
-    ]
+    """
+
+    return [Script(js, type="module")]
 
 
 class PackageAssetManager:
@@ -117,7 +127,7 @@ class PackageAssetManager:
         return asset_file if asset_file.is_file() else None
 
     def get_asset_url(self, bundle_name: str) -> str | None:
-        return f"/static/js/{path.name}" if (path := self._get_asset_path(bundle_name)) else None
+        return f"/static/_starhtml/js/{path.name}" if (path := self._get_asset_path(bundle_name)) else None
 
     def get_asset_content(self, bundle_name: str) -> str:
         if not (path := self._get_asset_path(bundle_name)):

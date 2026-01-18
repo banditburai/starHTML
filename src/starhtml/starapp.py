@@ -4,7 +4,6 @@ from collections.abc import Callable
 from typing import Any
 
 from fastcore.utils import first
-from fastlite import database
 from starlette.requests import HTTPConnection
 
 from .realtime import StarHTMLWithLiveReload
@@ -95,6 +94,8 @@ def star_app(
     if not db_file:
         return app, app.route
 
+    from fastlite import database
+
     db = database(db_file)
 
     tables = tbls or {}
@@ -113,12 +114,11 @@ def star_app(
     return app, app.route, *db_tables
 
 
-DATASTAR_VERSION = "1.0.0-RC.6"
+DATASTAR_VERSION = "1.0.0-RC.7"
 ICONIFY_VERSION = "2.3.0"
 
 
 def def_hdrs(
-    datastar_version=None,
     iconify=False,
     iconify_version=None,
     fallback_path="/static/datastar.js",
@@ -127,10 +127,9 @@ def def_hdrs(
 ):
     """Generate default headers for StarHTML apps."""
     from .handlers import clipboard_action
-    from .tags import Meta
+    from .tags import Meta, Style
     from .xtend import Script
 
-    version = datastar_version or DATASTAR_VERSION
     iconify_ver = iconify_version or ICONIFY_VERSION
 
     plugin_list = [clipboard_action()] if clipboard else []
@@ -138,13 +137,11 @@ def def_hdrs(
         plugin_list.extend(plugins if isinstance(plugins, list) else [plugins])
 
     headers = [
+        # Critical CSS: hide undefined custom elements to prevent FOUC
+        Style(":not(:defined){visibility:hidden}"),
         Meta(charset="utf-8"),
         Meta(name="viewport", content="width=device-width, initial-scale=1, viewport-fit=cover"),
-        Script(
-            src=f"https://cdn.jsdelivr.net/gh/starfederation/datastar@{version}/bundles/datastar.js",
-            type="module",
-            onerror=f"this.onerror=null;this.src='{fallback_path}'",
-        ),
+        Script(src=fallback_path, type="module"),
     ]
 
     if plugin_list:
@@ -157,13 +154,9 @@ def def_hdrs(
             types_used.add(plugin_type)
             registration_calls.append(f"{plugin_type}({plugin_code});")
 
-        headers.append(
-            Script(
-                f"import {{{', '.join(sorted(types_used))}}} from 'https://cdn.jsdelivr.net/gh/starfederation/datastar@{version}/bundles/datastar.js';\n{'\n'.join(registration_calls)}",
-                type="module",
-                onerror=f"this.onerror=null;this.src='{fallback_path}'",
-            )
-        )
+        import_stmt = f"import {{{', '.join(sorted(types_used))}}} from '{fallback_path}';"
+        script_body = import_stmt + "\n" + "\n".join(registration_calls)
+        headers.append(Script(script_body, type="module"))
 
     if iconify:
         headers.append(

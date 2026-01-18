@@ -10,7 +10,14 @@ from fastcore.meta import delegates
 from fastcore.utils import Path
 from fastcore.xml import FT, NotStr, Safe
 from fastcore.xtras import partial_format
-from rjsmin import jsmin
+
+try:
+    from rjsmin import jsmin
+except ImportError:
+
+    def jsmin(x):  # No-op if rjsmin unavailable (e.g., Pyodide)
+        return x
+
 
 from .html import ft_datastar, ft_html
 from .tags import Div, Iframe, Input, Label, Link, Meta, Span

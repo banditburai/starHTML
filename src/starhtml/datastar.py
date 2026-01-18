@@ -16,7 +16,13 @@ from abc import ABC, abstractmethod
 from typing import Any, Union
 
 from fastcore.xml import NotStr
-from rjsmin import jsmin
+
+try:
+    from rjsmin import jsmin
+except ImportError:
+
+    def jsmin(x):  # No-op if rjsmin unavailable (e.g., Pyodide)
+        return x
 
 
 class Expr(ABC):

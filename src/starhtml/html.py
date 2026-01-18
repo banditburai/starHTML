@@ -126,6 +126,11 @@ def ft_datastar(tag: str, *c: Any, **kwargs: Any) -> FT:
                     if isinstance(signals, set | list | tuple):
                         collected_signals.update(s for s in signals if isinstance(s, ds.Signal))
 
+    # Include Signal's initial value as text to prevent layout shift before Datastar processes
+    if (text_signal := kwargs.get("data_text")) and isinstance(text_signal, ds.Signal):
+        if text_signal._initial and not any(isinstance(c, str) and c.strip() for c in new_children):
+            new_children.insert(0, str(text_signal._initial))
+
     processed_kwargs, signals_found = ds.process_datastar_kwargs(kwargs)
     collected_signals.update(signals_found)
 

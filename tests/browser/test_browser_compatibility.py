@@ -695,8 +695,8 @@ class TestBrowserCompatibilityMatrix:
         assert "datastar" in resize_content, "Should use datastar"
 
         # Check handler file references
-        assert "/static/js/handlers/scroll.js" in scroll_content, "Should load scroll handler"
-        assert "/static/js/handlers/resize.js" in resize_content, "Should load resize handler"
+        assert "/static/_starhtml/js/handlers/scroll.js" in scroll_content, "Should load scroll handler"
+        assert "/static/_starhtml/js/handlers/resize.js" in resize_content, "Should load resize handler"
 
         # Should not use deprecated event patterns
         deprecated_patterns = [

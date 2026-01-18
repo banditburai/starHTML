@@ -33,9 +33,9 @@ class TestHandlerBehavior:
         assert hasattr(result, "scripts"), "Result should have scripts attribute"
         assert hasattr(result, "signals"), "Result should have signals attribute"
 
-        # Test that scripts contain the expected persist handler content (RC6 pattern)
+        # Test that scripts contain the expected handler content
         script_content = str(result)
-        assert "/static/js/handlers/persist.js" in script_content
+        assert "/static/_starhtml/js/handlers/persist.js" in script_content
         assert "handlerPlugin" in script_content
         assert "__datastar_attribute" in script_content
 
@@ -47,9 +47,9 @@ class TestHandlerBehavior:
         assert hasattr(result, "scripts"), "Result should have scripts attribute"
         assert hasattr(result, "signals"), "Result should have signals attribute"
 
-        # Test that scripts contain the expected scroll handler content (RC6 pattern)
+        # Test that scripts contain the expected handler content
         script_content = str(result)
-        assert "/static/js/handlers/scroll.js" in script_content
+        assert "/static/_starhtml/js/handlers/scroll.js" in script_content
         assert "__datastar_attribute" in script_content
 
         # Check for signals (scroll handlers often include scroll position signals)
