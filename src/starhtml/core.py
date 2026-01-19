@@ -2,8 +2,10 @@
 
 import re
 from copy import deepcopy
+from dataclasses import dataclass
 from functools import partialmethod
-from inspect import Parameter
+from pathlib import Path as PathlibPath
+from typing import Protocol, runtime_checkable
 
 from fastcore.utils import (
     Path,
@@ -24,9 +26,18 @@ from starlette.routing import Route, WebSocketRoute
 from .realtime import _ws_endp, setup_ws
 from .server import _mk_locfunc, _wrap_call, _wrap_ex, _wrap_req, all_meths, cookie, render_response, serve
 from .starapp import Beforeware, def_hdrs
-from .utils import _list, _params, empty, get_key, noop_body, reg_re_param
+from .utils import _list, _params, get_key, noop_body, reg_re_param
 
-empty = Parameter.empty
+@runtime_checkable
+class Registrable(Protocol):
+    """Protocol for items registrable with app.register()."""
+
+    def get_package_name(self) -> str: ...
+    def get_static_path(self) -> Path | PathlibPath | None: ...
+    def get_headers(self, base_url: str) -> tuple: ...
+
+
+DEFAULT_PKG_PREFIX = "/_pkg"
 
 __all__ = [
     "StarHTML",
@@ -40,14 +51,11 @@ __all__ = [
     "setup_ws",
     "cookie",
     "nested_name",
+    "register",
     "register_package",
     "register_package_static",
+    "Registrable",
 ]
-
-# ============================================================================
-# Main StarHTML Application Class
-# ============================================================================
-
 
 class StarHTML(Starlette):
     def __init__(
@@ -77,41 +85,20 @@ class StarHTML(Starlette):
         body_wrap=noop_body,
         htmlkw=None,
         canonical=True,
-        iconify=False,
-        iconify_version=None,
-        clipboard=False,
-        plugins=None,
         static_path=None,
-        compression=None,
         **bodykw,
     ):
         middleware, before, after = map(_list, (middleware, before, after))
         self.title, self.canonical = title, canonical
         hdrs, ftrs = map(listify, (hdrs, ftrs))
 
-        from .handlers import HandlerBundle
-
-        hdrs = [s for h in hdrs for s in (h.scripts if isinstance(h, HandlerBundle) else [h])]
-
         htmlkw = htmlkw or {}
         if default_hdrs:
-            hdrs = def_hdrs(iconify, iconify_version, clipboard=clipboard, plugins=plugins) + hdrs
+            hdrs = def_hdrs() + hdrs
         on_startup, on_shutdown = listify(on_startup) or None, listify(on_shutdown) or None
         self.lifespan, self.hdrs, self.ftrs = lifespan, hdrs, ftrs
         self.body_wrap, self.before, self.after, self.htmlkw, self.bodykw = body_wrap, before, after, htmlkw, bodykw
         secret_key = get_key(secret_key, key_fname)
-
-        if compression_config := self._resolve_compression(compression, debug):
-            try:
-                from starlette_compress import CompressMiddleware
-
-                comp_config = self._build_compression_config(compression_config)
-                middleware.insert(0, Middleware(CompressMiddleware, **comp_config))
-            except ImportError:
-                if compression is not None and compression is not False:
-                    raise ImportError(
-                        "starlette-compress required for compression. Install with: pip install starlette-compress"
-                    )
 
         if sess_cls:
             sess = Middleware(
@@ -145,44 +132,21 @@ class StarHTML(Starlette):
             lifespan=lifespan,
         )
 
-        from pathlib import Path
-
-        from starlette.responses import FileResponse
-
-        datastar_path = Path(__file__).parent / "static" / "datastar.js"
+        # Serve bundled Datastar v1.0.0-RC.7 (external vendored dependency)
+        datastar_path = PathlibPath(__file__).parent / "static" / "datastar.js"
 
         @self.route("/static/datastar.js")
         async def serve_datastar():
             return FileResponse(datastar_path, media_type="application/javascript")
 
-        static_js_dir = Path(__file__).parent / "static" / "js"
-
-        @self.route("/static/_starhtml/js/{filename:path}")
-        async def serve_starhtml_js(filename: str):
-            js_file = static_js_dir / filename
-            if js_file.exists() and js_file.is_file():
-                return FileResponse(js_file, media_type="application/javascript")
-            return Response("Not Found", status_code=404)
+        # Register framework plugins (served at /_pkg/starhtml/plugins/)
+        self.register_package_static(
+            name="starhtml/plugins",
+            static_path=PathlibPath(__file__).parent / "static" / "js" / "plugins",
+        )
 
         if static_path:
             self.static_route_exts(static_path=static_path)
-
-    def _resolve_compression(self, compression, debug):
-        if compression is None:
-            return not debug
-        return compression if isinstance(compression, bool | str | dict) else False
-
-    def _build_compression_config(self, compression):
-        if isinstance(compression, dict):
-            return compression
-        if isinstance(compression, str):
-            return {
-                "minimum_size": 500,
-                "zstd": compression == "zstd",
-                "brotli": compression in ("br", "brotli"),
-                "gzip": compression == "gzip",
-            }
-        return {"minimum_size": 500, "zstd": True, "brotli": True, "gzip": True}
 
     def add_route(self, route) -> None:
         route.methods = [m.upper() if isinstance(m, str) else m for m in listify(route.methods)]
@@ -320,47 +284,15 @@ def route(self: StarHTML, path: str = None, methods=None, name=None, include_in_
 for o in all_meths:
     setattr(StarHTML, o, partialmethod(StarHTML.route, methods=o))
 
-# ============================================================================
-# URL Parameter Registration & Static File Serving
-# ============================================================================
-
 # Starlette doesn't have the '?', so it chomps the whole remaining URL
 reg_re_param("path", ".*?")
 _static_exts = "ico gif jpg jpeg webm css js woff png svg mp4 webp ttf otf eot woff2 txt html map pdf zip tgz gz csv mp3 wav ogg flac aac doc docx xls xlsx ppt pptx epub mobi bmp tiff avi mov wmv mkv xml yaml yml rar 7z tar bz2 htm xhtml apk dmg exe msi swf iso".split()
 reg_re_param("static", "|".join(_static_exts))
 
-_MEDIA_TYPES = {
-    ".js": "application/javascript",
-    ".mjs": "application/javascript",
-    ".css": "text/css",
-    ".json": "application/json",
-    ".html": "text/html",
-    ".htm": "text/html",
-    ".xml": "application/xml",
-    ".svg": "image/svg+xml",
-    ".png": "image/png",
-    ".jpg": "image/jpeg",
-    ".jpeg": "image/jpeg",
-    ".gif": "image/gif",
-    ".webp": "image/webp",
-    ".ico": "image/x-icon",
-    ".woff": "font/woff",
-    ".woff2": "font/woff2",
-    ".ttf": "font/ttf",
-    ".otf": "font/otf",
-    ".eot": "application/vnd.ms-fontobject",
-    ".map": "application/json",
-    ".txt": "text/plain",
-    ".md": "text/markdown",
-}
-
-
 @patch
 def register_package_static(self: StarHTML, name: str, static_path, prefix: str = None):
     """Serve a package's static directory (routes inserted first for priority)."""
-    from pathlib import Path as PathLib
-
-    static_path = PathLib(static_path) if not isinstance(static_path, PathLib) else static_path
+    static_path = PathlibPath(static_path)
     prefix = prefix or f"/_pkg/{name}"
 
     async def serve_package_static(request):
@@ -376,8 +308,7 @@ def register_package_static(self: StarHTML, name: str, static_path, prefix: str 
             return Response("Bad Request", status_code=400)
 
         if file_path.exists() and file_path.is_file():
-            media_type = _MEDIA_TYPES.get(file_path.suffix.lower(), "application/octet-stream")
-            return FileResponse(file_path, media_type=media_type)
+            return FileResponse(file_path)
 
         return Response("Not Found", status_code=404)
 
@@ -392,6 +323,94 @@ def register_package(self: StarHTML, name: str, static_path=None, hdrs=None, pre
         self.register_package_static(name, static_path, prefix)
     if hdrs:
         self.hdrs = list(self.hdrs) + listify(hdrs)
+
+
+def _require_starelements():
+    """Import starelements or raise helpful error."""
+    try:
+        import starelements
+        return starelements
+    except ImportError as e:
+        raise ImportError(
+            "starelements is required to register components. Install with: uv add starelements"
+        ) from e
+
+
+class _ComponentAdapter:
+    """Adapter to make starelements components work with Registrable protocol."""
+
+    def __init__(self, component):
+        self.component = component
+
+    def get_package_name(self) -> str:
+        return "starelements"
+
+    def get_static_path(self) -> Path:
+        se = _require_starelements()
+        return se.get_static_path()
+
+    def get_headers(self, base_url: str) -> tuple:
+        se = _require_starelements()
+        return se.starelements_hdrs(self.component, base_url=base_url)
+
+
+def _register_item(app: StarHTML, item, prefix: str | None = None):
+    """Register any Registrable item (plugin, component, CDN script, or custom type)."""
+    original_item = item
+
+    # Adapt starelements components to Registrable protocol
+    if hasattr(item, "_element_def"):
+        item = _ComponentAdapter(item)
+
+    if not isinstance(item, Registrable):
+        raise TypeError(
+            f"Cannot register {type(original_item).__name__}. "
+            f"Item must implement: get_package_name(), get_static_path(), get_headers()"
+        )
+
+    prefix = prefix or DEFAULT_PKG_PREFIX
+    package_name = item.get_package_name()
+    static_path = item.get_static_path()
+
+    app.register_package(
+        name=package_name,
+        static_path=static_path,
+        hdrs=item.get_headers(f"{prefix}/{package_name}" if static_path else ""),
+        prefix=prefix,
+    )
+    return original_item
+
+
+@patch
+def register(self: StarHTML, *items, prefix: str | None = None):
+    """Register plugins and/or components with the app.
+
+    Works with any object implementing the Registrable protocol:
+    - PluginDef (from canvas(), persist(), scroll(), etc.)
+    - Component class (decorated with @element from starelements)
+    - Custom types implementing get_package_name(), get_static_path(), get_headers()
+
+    Registered items are appended to headers in registration order.
+    Use hdrs parameter for scripts that must load before registered items.
+
+    Args:
+        *items: One or more Registrable items to register
+        prefix: URL prefix for serving static files (default: "/_pkg")
+
+    Returns:
+        The registered item, tuple of items, or None if empty
+
+    Example:
+        >>> from starhtml.plugins import canvas, persist
+        >>>
+        >>> app.register(canvas(), persist())
+        >>>
+        >>> # Load order: default headers → user hdrs → registered items
+    """
+    results = [_register_item(self, item, prefix) for item in items]
+    if len(results) == 1:
+        return results[0]
+    return tuple(results) if results else None
 
 
 @patch
@@ -411,10 +430,6 @@ def static_route(self: StarHTML, ext="", prefix="/", static_path="."):
     async def get(fname: str):
         return FileResponse(f"{static_path}/{fname}{ext}")
 
-
-# ============================================================================
-# Development Tools Support
-# ============================================================================
 
 devtools_loc = "/.well-known/appspecific/com.chrome.devtools.json"
 

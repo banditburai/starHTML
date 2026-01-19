@@ -38,6 +38,6 @@ jobs:
     - name: Verify build outputs
       run: |
         echo "✅ TypeScript validation and build test completed"
-        ls -la src/starhtml/static/js/handlers/
-        echo "Built handler files:"
-        find src/starhtml/static/js/handlers -name "*.js" -exec echo "  {}" \;
+        ls -la src/starhtml/static/js/plugins/
+        echo "Built plugin files:"
+        find src/starhtml/static/js/plugins -name "*.js" -exec echo "  {}" \;

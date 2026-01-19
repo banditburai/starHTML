@@ -4,21 +4,21 @@ export default defineConfig({
   build: {
     lib: {
       entry: {
-        'persist': './typescript/handlers/persist.ts',
-        'scroll': './typescript/handlers/scroll.ts', 
-        'resize': './typescript/handlers/resize.ts',
-        'drag': './typescript/handlers/drag.ts',
-        'canvas': './typescript/handlers/canvas.ts',
-        'position': './typescript/handlers/position.ts',
-        'throttle': './typescript/handlers/throttle.ts',
-        'smooth-scroll': './typescript/handlers/smooth-scroll.ts',
-        'split': './typescript/handlers/split.ts',
-        'index': './typescript/handlers/index.ts'
+        'persist': './typescript/plugins/persist.ts',
+        'scroll': './typescript/plugins/scroll.ts',
+        'resize': './typescript/plugins/resize.ts',
+        'drag': './typescript/plugins/drag.ts',
+        'canvas': './typescript/plugins/canvas.ts',
+        'position': './typescript/plugins/position.ts',
+        'throttle': './typescript/plugins/throttle.ts',
+        'smooth-scroll': './typescript/plugins/smooth-scroll.ts',
+        'split': './typescript/plugins/split.ts',
+        'index': './typescript/plugins/index.ts'
       },
       formats: ['es'],
       fileName: (format, entryName) => `${entryName}.js`
     },
-    outDir: './src/starhtml/static/js/handlers',
+    outDir: './src/starhtml/static/js/plugins',
     target: 'es2020',
     minify: 'terser',
     terserOptions: {
