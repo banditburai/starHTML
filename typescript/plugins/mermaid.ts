@@ -45,14 +45,6 @@ const mermaidPlugin: AttributePlugin = {
   name: "mermaid",
   apply({ el }: AttributeContext) {
     processContent(el);
-
-    // Re-process on DOM changes (morphing replaces content)
-    const observer = new MutationObserver(() => {
-      observer.disconnect();
-      processContent(el);
-      observer.observe(el, { childList: true, characterData: true, subtree: true });
-    });
-    observer.observe(el, { childList: true, characterData: true, subtree: true });
   },
 };
 
