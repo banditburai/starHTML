@@ -91,7 +91,7 @@ class CustomBuildHook(BuildHookInterface):
             raise JavaScriptBuildError("No JavaScript files found after build")
 
         # Check that at least the core files exist
-        core_files = {"index.js", "persist.js", "scroll.js", "resize.js"}
+        core_files = {"persist.js", "scroll.js", "resize.js", "drag.js", "canvas.js", "position.js", "split.js"}
         built_file_names = {f.name for f in built_files}
         missing_core = core_files - built_file_names
         if missing_core:
