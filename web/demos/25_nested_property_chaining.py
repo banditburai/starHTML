@@ -55,7 +55,7 @@ def home():
         playground_value,
         # Header with design system pattern
         Div(
-            H1("22", cls="text-8xl font-black text-gray-100 leading-none"),
+            H1("25", cls="text-8xl font-black text-gray-100 leading-none"),
             H1("Nested Property Access", cls="text-5xl md:text-6xl font-bold text-black mt-2"),
             P("From messy chaining to clean, Pythonic patterns", cls="text-lg text-gray-600 mt-4"),
             cls="mb-16",

@@ -324,7 +324,7 @@ def workflow_node(node_id, title, node_type, x, y, node_states, selected_node):
         Div(node_type.upper(), cls="node-type-badge"),
         # Interactive behaviors and positioning
         data_on_click=selected_node.toggle(node_id, None),
-        data_draggable_item=True,
+        data_drag=True,
         # Static and dynamic classes
         cls=f"workflow-node node-{node_type}",
         data_class_selected=selected_node == node_id,

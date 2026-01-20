@@ -8,18 +8,27 @@ app, rt = star_app(
     htmlkw={"lang": "en"},
     hdrs=[
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
-        # KaTeX CSS is required for proper math rendering
-        Link(rel="stylesheet", href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css"),
         Style("""
             body { background: white; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
             /* Math content styling */
             .math-content { line-height: 1.8; }
-            .math-content p { margin: 1em 0; }
+            .math-content p { margin: 1em 0; word-wrap: break-word; }
             .math-content h1 { font-size: 1.5em; font-weight: bold; margin: 1em 0 0.5em; }
             .math-content h2 { font-size: 1.25em; font-weight: bold; margin: 1em 0 0.5em; }
             .math-content ul { margin: 1em 0; padding-left: 2em; }
             .math-content li { margin: 0.5em 0; }
-            .katex-display { margin: 1.5em 0; overflow-x: auto; }
+            .math-content strong { font-weight: 600; }
+            /* Reset pre wrapper styling */
+            .math-content > pre[data-katex] {
+                background: none;
+                color: inherit;
+                padding: 0;
+                margin: 0;
+                font-family: inherit;
+                font-size: inherit;
+                white-space: normal;
+                overflow: visible;
+            }
         """),
     ],
 )
@@ -110,7 +119,7 @@ def home():
         (custom_math := Signal("custom_math", DEFAULT_CUSTOM)),
         # Header
         Div(
-            H1("26", cls="text-8xl font-black text-gray-100 leading-none"),
+            H1("14", cls="text-8xl font-black text-gray-100 leading-none"),
             H1("KaTeX Math", cls="text-5xl md:text-6xl font-bold text-black mt-2"),
             P("Dynamic math rendering with the katex plugin", cls="text-lg text-gray-600 mt-4"),
             cls="mb-16",
@@ -121,22 +130,22 @@ def home():
             Div(
                 Button(
                     "Basics",
-                    data_on_click=get("/math/basics"),
+                    data_on_click=get("math/basics"),
                     cls="px-4 py-2 bg-black text-white font-medium hover:bg-gray-800 transition-colors",
                 ),
                 Button(
                     "Calculus",
-                    data_on_click=get("/math/calculus"),
+                    data_on_click=get("math/calculus"),
                     cls="px-4 py-2 bg-black text-white font-medium hover:bg-gray-800 transition-colors",
                 ),
                 Button(
                     "Matrices",
-                    data_on_click=get("/math/matrices"),
+                    data_on_click=get("math/matrices"),
                     cls="px-4 py-2 bg-black text-white font-medium hover:bg-gray-800 transition-colors",
                 ),
                 Button(
                     "Physics",
-                    data_on_click=get("/math/physics"),
+                    data_on_click=get("math/physics"),
                     cls="px-4 py-2 bg-black text-white font-medium hover:bg-gray-800 transition-colors",
                 ),
                 cls="mb-8 flex flex-wrap gap-2",
@@ -146,28 +155,31 @@ def home():
         # Math display
         Div(
             katex_content(SAMPLES["basics"]),
-            cls="p-8 bg-gray-50 border border-gray-200 rounded-lg min-h-[300px]",
+            cls="p-4 sm:p-8 bg-gray-50 border border-gray-200 rounded-lg min-h-[300px] overflow-x-auto",
             id="math-display",
         ),
         # Custom math editor with debounced auto-render
         Div(
-            H3("Custom Math", cls="text-2xl font-bold text-black mb-6"),
-            P("Edit the equations below - preview updates automatically:", cls="text-gray-600 mb-4"),
+            H3("Custom Math", cls="text-xl sm:text-2xl font-bold text-black mb-6"),
+            P(
+                "Edit the equations below - preview updates automatically:",
+                cls="text-gray-600 mb-4 text-sm sm:text-base",
+            ),
             Textarea(
                 DEFAULT_CUSTOM,
                 data_bind=custom_math,
-                data_on_input=get("/math/custom").with_(debounce=500),
+                data_on_input=get("math/custom").with_(debounce=500),
                 rows="12",
-                cls="w-full p-4 font-mono text-sm border border-gray-300 rounded-lg focus:border-gray-500 focus:outline-none mb-4",
+                cls="w-full p-3 sm:p-4 font-mono text-xs sm:text-sm border border-gray-300 rounded-lg focus:border-gray-500 focus:outline-none mb-4",
             ),
             Div(
                 katex_content(DEFAULT_CUSTOM),
-                cls="p-8 bg-gray-50 border border-gray-200 rounded-lg min-h-[200px]",
+                cls="p-4 sm:p-8 bg-gray-50 border border-gray-200 rounded-lg min-h-[200px] overflow-x-auto",
                 id="custom-math-display",
             ),
-            cls="mt-12 p-8 bg-white border border-gray-200 rounded-lg",
+            cls="mt-8 sm:mt-12 p-4 sm:p-8 bg-white border border-gray-200 rounded-lg",
         ),
-        cls="max-w-4xl mx-auto px-8 sm:px-12 lg:px-16 py-16 sm:py-20 md:py-24 bg-white min-h-screen",
+        cls="max-w-4xl mx-auto px-4 sm:px-8 lg:px-16 py-12 sm:py-16 md:py-24 bg-white min-h-screen",
     )
 
 

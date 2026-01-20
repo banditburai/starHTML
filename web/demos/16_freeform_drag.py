@@ -34,7 +34,7 @@ def freeform_drag():
     return Div(
         Div(
             Div(
-                H1("13", cls="text-8xl font-black text-gray-100 leading-none"),
+                H1("16", cls="text-8xl font-black text-gray-100 leading-none"),
                 H1("Freeform Drag", cls="text-5xl md:text-6xl font-bold text-black mt-2"),
                 P("Drag items anywhere within the workspace with zone awareness", cls="text-lg text-gray-600 mt-4"),
                 cls="mb-8",

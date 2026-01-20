@@ -1,6 +1,6 @@
-import { mergePatch } from 'datastar';
+import { mergePatch } from "datastar";
 import { createRAFThrottle, createTimerThrottle } from "./throttle.js";
-import type { AttributePlugin, AttributeContext, OnRemovalFn } from "./types.js";
+import type { AttributeContext, AttributePlugin, OnRemovalFn } from "./types.js";
 
 interface DragConfig {
   signal: string;
@@ -49,7 +49,9 @@ const parseTransform = (transform: string): { pan: { x: number; y: number }; sca
   }
 
   // matrix(a, b, c, d, tx, ty): a=scaleX, tx/ty=translate
-  matches = transform.match(/matrix\(([^,]+),\s*([^,]+),\s*([^,]+),\s*([^,]+),\s*([^,]+),\s*([^)]+)\)/);
+  matches = transform.match(
+    /matrix\(([^,]+),\s*([^,]+),\s*([^,]+),\s*([^,]+),\s*([^,]+),\s*([^)]+)\)/
+  );
   if (matches) {
     return {
       pan: { x: Number.parseFloat(matches[5]), y: Number.parseFloat(matches[6]) },
@@ -107,9 +109,7 @@ const findInsertPosition = (
   mouseY: number,
   _draggedElement: HTMLElement
 ): Element | null => {
-  const draggableElements = Array.from(
-    dropZone.querySelectorAll("[data-drag]:not(.is-dragging)")
-  );
+  const draggableElements = Array.from(dropZone.querySelectorAll("[data-drag]:not(.is-dragging)"));
 
   for (const element of draggableElements) {
     const rect = element.getBoundingClientRect();
@@ -123,7 +123,10 @@ const findInsertPosition = (
   return null;
 };
 
-const updateDropZoneTracking = (_config: DragConfig, mergePatchFn: (patch: Record<string, any>) => void) => {
+const updateDropZoneTracking = (
+  _config: DragConfig,
+  mergePatchFn: (patch: Record<string, any>) => void
+) => {
   const allZones = document.querySelectorAll("[data-drop-zone]");
 
   for (const zone of allZones) {
@@ -165,7 +168,10 @@ const findRelativeParent = (element: HTMLElement): HTMLElement | null => {
   return null;
 };
 
-function ensureAndPlacePlaceholder(state: DragState & { placeholder?: HTMLElement | null }, dropZone: Element) {
+function ensureAndPlacePlaceholder(
+  state: DragState & { placeholder?: HTMLElement | null },
+  dropZone: Element
+) {
   if (!state.element) return;
   if (!state.placeholder) {
     state.placeholder = document.createElement("div");
@@ -220,7 +226,7 @@ function getGlobalConfig(): DragConfig {
 function findRegistrationFor(draggableEl: HTMLElement): Registration | null {
   let node: HTMLElement | null = draggableEl;
   while (node && node !== document.body) {
-    const reg = registrations.find(r => r.el === node) || null;
+    const reg = registrations.find((r) => r.el === node) || null;
     if (reg) {
       const isDirectHandler = reg.el.hasAttribute("data-drag");
       if (!isDirectHandler || reg.el === draggableEl) {
@@ -282,7 +288,12 @@ function updateDragPositionActive() {
       y: y - parentRect.top - state.offset.y,
     };
     if (config.constrainToParent) {
-      relativePos = applyConstraints(relativePos.x, relativePos.y, relativeParent, state.dimensions);
+      relativePos = applyConstraints(
+        relativePos.x,
+        relativePos.y,
+        relativeParent,
+        state.dimensions
+      );
     }
     finalX = Math.round(relativePos.x);
     finalY = Math.round(relativePos.y);
@@ -497,11 +508,11 @@ function handleGlobalPointerDown(evt: PointerEvent) {
   let offset: { x: number; y: number };
   if (canvasContainer && canvasViewport) {
     const viewportRect = canvasViewport.getBoundingClientRect();
-    const transform = parseTransform(window.getComputedStyle(canvasContainer).transform);        
+    const transform = parseTransform(window.getComputedStyle(canvasContainer).transform);
     const elementStyle = window.getComputedStyle(draggableElement);
     const elementCanvasX = Number.parseFloat(elementStyle.left) || 0;
     const elementCanvasY = Number.parseFloat(elementStyle.top) || 0;
-    
+
     const clickInCanvas = calculateCanvasPosition(
       evt.clientX,
       evt.clientY,
@@ -509,10 +520,10 @@ function handleGlobalPointerDown(evt: PointerEvent) {
       transform,
       { x: 0, y: 0 }
     );
-    
-    offset = { 
-      x: (clickInCanvas.x - elementCanvasX) * transform.scale, 
-      y: (clickInCanvas.y - elementCanvasY) * transform.scale 
+
+    offset = {
+      x: (clickInCanvas.x - elementCanvasX) * transform.scale,
+      y: (clickInCanvas.y - elementCanvasY) * transform.scale,
     };
   } else {
     offset = { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
@@ -530,7 +541,10 @@ function handleGlobalPointerDown(evt: PointerEvent) {
 
   const throttledUpdatePosition = createRAFThrottle(updateDragPositionActive);
   const zoneThrottle = Math.max(100, Number(config.throttleMs || 0) || 0);
-  const throttledZoneScan = createTimerThrottle(() => updateDropZoneTracking(config, mergePatch), zoneThrottle);
+  const throttledZoneScan = createTimerThrottle(
+    () => updateDropZoneTracking(config, mergePatch),
+    zoneThrottle
+  );
 
   active = {
     sig,
@@ -587,7 +601,10 @@ const dragAttributePlugin: AttributePlugin = {
       for (const zone of allZones) {
         const zoneName = zone.getAttribute("data-drop-zone");
         if (zoneName) {
-          const zonePatch = { [`${sig}_zone_${zoneName}_items`]: getDropZoneItems(zone) } as Record<string, any>;
+          const zonePatch = { [`${sig}_zone_${zoneName}_items`]: getDropZoneItems(zone) } as Record<
+            string,
+            any
+          >;
           mergePatch(zonePatch);
         }
       }
@@ -598,7 +615,7 @@ const dragAttributePlugin: AttributePlugin = {
     attachGlobalPointerDown();
 
     return () => {
-      const idx = registrations.findIndex(r => r.el === el);
+      const idx = registrations.findIndex((r) => r.el === el);
       if (idx >= 0) registrations.splice(idx, 1);
       if (registrations.length === 0) {
         detachGlobalPointerDown();

@@ -2,7 +2,7 @@
  * Type declarations for Datastar (resolved at runtime via import map).
  */
 
-declare module 'datastar' {
+declare module "datastar" {
   /** Merge a patch object into the reactive signal store. */
   export function mergePatch(patch: Record<string, unknown>): void;
 

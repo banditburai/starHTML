@@ -1,7 +1,7 @@
-import { mergePatch, getPath } from 'datastar';
+import { getPath, mergePatch } from "datastar";
 import { SmoothScroll } from "./smooth-scroll.js";
 import { createRAFThrottle, createTimerThrottle } from "./throttle.js";
-import type { AttributePlugin, AttributeContext, OnRemovalFn } from "./types.js";
+import type { AttributeContext, AttributePlugin, OnRemovalFn } from "./types.js";
 
 const DEFAULT_THROTTLE = 100;
 const VELOCITY_DECAY_MS = 50; // Faster decay for more responsive feel
@@ -21,7 +21,7 @@ const SCROLL_ARG_NAMES = [
   "scroll_visible_percent",
   "scroll_progress",
   "scroll_element_top",
-  "scroll_element_bottom"
+  "scroll_element_bottom",
 ] as const;
 
 let globalScrollInitialized = false;
@@ -53,7 +53,7 @@ const scrollAttributePlugin: AttributePlugin = {
 
   apply(ctx: AttributeContext): OnRemovalFn | void {
     const { el, value, mods, rx } = ctx;
-    
+
     const shouldManageGlobal = !globalScrollInitialized;
     if (shouldManageGlobal) {
       globalScrollInitialized = true;
@@ -68,24 +68,24 @@ const scrollAttributePlugin: AttributePlugin = {
         scroll_is_bottom: false,
       };
       mergePatch(initPatch);
-      
+
       let lastScrollY = window.scrollY;
       let lastScrollTime = Date.now();
       let velocity = 0;
       let direction = "none";
       let decayTimer: number | null = null;
-      
+
       const updateGlobalScroll = () => {
         const now = Date.now();
         const currentY = window.scrollY;
         const currentX = window.scrollX;
         const delta = currentY - lastScrollY;
         const timeDelta = now - lastScrollTime;
-        
+
         if (timeDelta > 0 && delta !== 0) {
-          velocity = Math.abs(delta / timeDelta * 1000);
+          velocity = Math.abs((delta / timeDelta) * 1000);
           direction = delta > 0 ? "down" : delta < 0 ? "up" : direction;
-          
+
           if (decayTimer) clearTimeout(decayTimer);
           decayTimer = setTimeout(() => {
             velocity = 0;
@@ -96,10 +96,10 @@ const scrollAttributePlugin: AttributePlugin = {
             });
           }, VELOCITY_DECAY_MS) as unknown as number;
         }
-        
+
         const docHeight = document.documentElement.scrollHeight - window.innerHeight;
         const pageProgress = docHeight > 0 ? Math.round((currentY / docHeight) * 100) : 0;
-        
+
         const patch = {
           scroll_x: currentX,
           scroll_y: currentY,
@@ -111,24 +111,24 @@ const scrollAttributePlugin: AttributePlugin = {
           scroll_is_bottom: currentY >= docHeight,
         };
         mergePatch(patch);
-        
+
         lastScrollY = currentY;
         lastScrollTime = now;
       };
-      
+
       const throttledGlobalUpdate = createRAFThrottle(updateGlobalScroll);
       updateGlobalScroll();
-      
+
       const handleGlobalScroll = () => throttledGlobalUpdate();
       window.addEventListener("scroll", handleGlobalScroll, { passive: true });
-      
+
       globalScrollManager = () => {
         window.removeEventListener("scroll", handleGlobalScroll);
       };
     }
-    
+
     const hasExpression = value?.trim();
-    
+
     const throttleMs = getThrottleMs(mods);
     let smoothScroll: SmoothScroll | null = null;
 
@@ -141,19 +141,19 @@ const scrollAttributePlugin: AttributePlugin = {
 
     const executeElementExpression = () => {
       const scrollPageProgress = getPath("scroll_page_progress") || 0;
-      
+
       const rect = el.getBoundingClientRect();
       const elementTop = rect.top + window.scrollY;
       const elementBottom = elementTop + rect.height;
       const viewportHeight = window.innerHeight;
       const visiblePercent = calculateVisiblePercent(rect, viewportHeight);
       const isInViewport = rect.top < viewportHeight && rect.bottom > 0;
-      
+
       let elProgress = scrollPageProgress;
       if (el.scrollHeight > el.clientHeight + 1) {
         elProgress = Math.round((el.scrollTop / (el.scrollHeight - el.clientHeight)) * 100);
       }
-      
+
       let patchedVisiblePercent = visiblePercent;
       let patchedProgress = elProgress;
 
@@ -178,7 +178,7 @@ const scrollAttributePlugin: AttributePlugin = {
           scroll_velocity_smoothed: smoothedVel,
         });
       }
-      
+
       const elementPatch = {
         scroll_visible: isInViewport,
         scroll_visible_percent: patchedVisiblePercent,
@@ -187,7 +187,7 @@ const scrollAttributePlugin: AttributePlugin = {
         scroll_element_bottom: elementBottom,
       };
       mergePatch(elementPatch);
-      
+
       if (hasExpression) {
         try {
           rx?.(value);
@@ -203,7 +203,7 @@ const scrollAttributePlugin: AttributePlugin = {
         : createTimerThrottle(executeElementExpression, throttleMs);
 
     executeElementExpression();
-    
+
     const handleElementScroll = () => throttledElementUpdate();
     window.addEventListener("scroll", handleElementScroll, { passive: true });
 
@@ -218,7 +218,7 @@ const scrollAttributePlugin: AttributePlugin = {
       window.removeEventListener("scroll", handleElementScroll);
       elementScrollCleanup?.();
       smoothScroll?.cleanup();
-      
+
       if (shouldManageGlobal && globalScrollManager) {
         globalScrollManager();
         globalScrollManager = null;

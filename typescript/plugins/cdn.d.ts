@@ -24,10 +24,18 @@ declare module "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs
     startOnLoad?: boolean;
     theme?: string;
     securityLevel?: string;
-    flowchart?: { useMaxWidth?: boolean; useMaxHeight?: boolean };
+    flowchart?: {
+      useMaxWidth?: boolean;
+      useMaxHeight?: boolean;
+      htmlLabels?: boolean;
+      curve?: string;
+    };
   }
   export function initialize(config: MermaidConfig): void;
-  export function render(id: string, definition: string): Promise<{ svg: string; bindFunctions?: (el: Element) => void }>;
+  export function render(
+    id: string,
+    definition: string
+  ): Promise<{ svg: string; bindFunctions?: (el: Element) => void }>;
   const mermaid: { initialize: typeof initialize; render: typeof render };
   export default mermaid;
 }

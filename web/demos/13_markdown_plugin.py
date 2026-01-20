@@ -218,7 +218,7 @@ def home():
         (custom_md := Signal("custom_md", DEFAULT_CUSTOM)),
         # Header
         Div(
-            H1("25", cls="text-8xl font-black text-gray-100 leading-none"),
+            H1("13", cls="text-8xl font-black text-gray-100 leading-none"),
             H1("Markdown Rendering", cls="text-5xl md:text-6xl font-bold text-black mt-2"),
             P("Dynamic markdown processing with the markdown plugin", cls="text-lg text-gray-600 mt-4"),
             cls="mb-16",
@@ -229,17 +229,17 @@ def home():
             Div(
                 Button(
                     "Introduction",
-                    data_on_click=get("/content/intro"),
+                    data_on_click=get("content/intro"),
                     cls="px-4 py-2 bg-black text-white font-medium hover:bg-gray-800 transition-colors",
                 ),
                 Button(
                     "Code Examples",
-                    data_on_click=get("/content/code"),
+                    data_on_click=get("content/code"),
                     cls="px-4 py-2 bg-black text-white font-medium hover:bg-gray-800 transition-colors",
                 ),
                 Button(
                     "Links & Formatting",
-                    data_on_click=get("/content/links"),
+                    data_on_click=get("content/links"),
                     cls="px-4 py-2 bg-black text-white font-medium hover:bg-gray-800 transition-colors",
                 ),
                 cls="mb-8 flex flex-wrap gap-2",
@@ -249,28 +249,31 @@ def home():
         # Markdown display
         Div(
             markdown_content(SAMPLES["intro"]),
-            cls="p-8 bg-gray-50 border border-gray-200 rounded-lg min-h-[300px]",
+            cls="p-4 sm:p-8 bg-gray-50 border border-gray-200 rounded-lg min-h-[300px]",
             id="markdown-display",
         ),
         # Custom markdown editor with debounced auto-render
         Div(
-            H3("Custom Markdown", cls="text-2xl font-bold text-black mb-6"),
-            P("Edit the markdown below - preview updates automatically:", cls="text-gray-600 mb-4"),
+            H3("Custom Markdown", cls="text-xl sm:text-2xl font-bold text-black mb-6"),
+            P(
+                "Edit the markdown below - preview updates automatically:",
+                cls="text-gray-600 mb-4 text-sm sm:text-base",
+            ),
             Textarea(
                 DEFAULT_CUSTOM,
                 data_bind=custom_md,
-                data_on_input=get("/content/custom").with_(debounce=500),
+                data_on_input=get("content/custom").with_(debounce=500),
                 rows="10",
-                cls="w-full p-4 font-mono text-sm border border-gray-300 rounded-lg focus:border-gray-500 focus:outline-none mb-4",
+                cls="w-full p-3 sm:p-4 font-mono text-xs sm:text-sm border border-gray-300 rounded-lg focus:border-gray-500 focus:outline-none mb-4",
             ),
             Div(
                 markdown_content(DEFAULT_CUSTOM),
-                cls="p-8 bg-gray-50 border border-gray-200 rounded-lg min-h-[200px]",
+                cls="p-4 sm:p-8 bg-gray-50 border border-gray-200 rounded-lg min-h-[200px]",
                 id="custom-markdown-display",
             ),
-            cls="mt-12 p-8 bg-white border border-gray-200 rounded-lg",
+            cls="mt-8 sm:mt-12 p-4 sm:p-8 bg-white border border-gray-200 rounded-lg",
         ),
-        cls="max-w-4xl mx-auto px-8 sm:px-12 lg:px-16 py-16 sm:py-20 md:py-24 bg-white min-h-screen",
+        cls="max-w-4xl mx-auto px-4 sm:px-8 lg:px-16 py-12 sm:py-16 md:py-24 bg-white min-h-screen",
     )
 
 

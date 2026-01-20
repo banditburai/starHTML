@@ -1,6 +1,6 @@
-import { mergePatch } from 'datastar';
+import { mergePatch } from "datastar";
 import { createDebounce, createRAFThrottle, createTimerThrottle } from "./throttle.js";
-import type { AttributePlugin, AttributeContext, OnRemovalFn } from "./types.js";
+import type { AttributeContext, AttributePlugin, OnRemovalFn } from "./types.js";
 
 interface ResizeConfig {
   debug?: boolean;
@@ -76,7 +76,7 @@ function createResizeContext(el: HTMLElement, windowWidth: number, windowHeight:
     is_mobile: windowWidth < BREAKPOINT_THRESHOLDS.sm,
     is_tablet: windowWidth >= BREAKPOINT_THRESHOLDS.sm && windowWidth < BREAKPOINT_THRESHOLDS.md,
     is_desktop: windowWidth >= BREAKPOINT_THRESHOLDS.md,
-    current_breakpoint: getBreakpoint(windowWidth),    
+    current_breakpoint: getBreakpoint(windowWidth),
   };
 }
 
@@ -90,7 +90,7 @@ const resizeAttributePlugin: AttributePlugin = {
 
   apply(ctx: AttributeContext): OnRemovalFn | void {
     const { el, value, mods, rx } = ctx;
-        
+
     const initialContext = createResizeContext(el, window.innerWidth, window.innerHeight);
     const initPatch = {
       resize_width: initialContext.width,
@@ -134,7 +134,7 @@ const resizeAttributePlugin: AttributePlugin = {
       ? createDebounce(handleResize, throttle)
       : throttle > 16
         ? createTimerThrottle(handleResize, throttle)
-      : createRAFThrottle(handleResize);
+        : createRAFThrottle(handleResize);
 
     let resizeObserver: ResizeObserver | null = null;
 
