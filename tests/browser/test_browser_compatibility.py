@@ -569,17 +569,22 @@ class TestBrowserCompatibility:
             await context.close()
 
 
+# Check if built JS files exist (they're gitignored, only available after local build)
+_JS_PLUGINS_DIR = Path(__file__).parent.parent.parent / "src/starhtml/static/js/plugins"
+_JS_FILES_AVAILABLE = (_JS_PLUGINS_DIR / "scroll.js").exists()
+
+
+@pytest.mark.skipif(not _JS_FILES_AVAILABLE, reason="Built JS files not available (run 'bun build' first)")
 class TestBrowserCompatibilityMatrix:
     """Test browser compatibility matrix without Playwright dependency."""
 
     def _get_handler_scripts(self) -> dict[str, str]:
         """Get JavaScript content for all plugins."""
-        js_dir = Path(__file__).parent.parent.parent / "src/starhtml/static/js/plugins"
         return {
-            "scroll": (js_dir / "scroll.js").read_text(),
-            "resize_dom": (js_dir / "resize.js").read_text(),
-            "resize_sp": (js_dir / "resize.js").read_text(),
-            "persist": (js_dir / "persist.js").read_text(),
+            "scroll": (_JS_PLUGINS_DIR / "scroll.js").read_text(),
+            "resize_dom": (_JS_PLUGINS_DIR / "resize.js").read_text(),
+            "resize_sp": (_JS_PLUGINS_DIR / "resize.js").read_text(),
+            "persist": (_JS_PLUGINS_DIR / "persist.js").read_text(),
         }
 
     def test_javascript_syntax_compatibility(self):
