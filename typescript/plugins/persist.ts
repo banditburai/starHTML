@@ -1,6 +1,6 @@
-import { mergePatch, getPath, effect } from 'datastar';
+import { effect, getPath, mergePatch } from "datastar";
 import { createDebounce } from "./throttle.js";
-import type { AttributePlugin, AttributeContext, OnRemovalFn } from "./types.js";
+import type { AttributeContext, AttributePlugin, OnRemovalFn } from "./types.js";
 
 const DEFAULT_STORAGE_KEY = "starhtml-persist";
 const DEFAULT_THROTTLE = 500;
@@ -25,8 +25,8 @@ function parseSignals(value: string): string[] {
   // Support both comma and semicolon separators (Python lists use semicolon)
   return value
     .split(/[,;]/)
-    .map(s => s.trim())
-    .map(s => (s.startsWith("$") ? s.slice(1) : s))
+    .map((s) => s.trim())
+    .map((s) => (s.startsWith("$") ? s.slice(1) : s))
     .filter(Boolean);
 }
 
@@ -41,9 +41,7 @@ function loadFromStorage(storage: Storage, key: string, signals: string[]): void
     if (signals.length === 0) return;
 
     const patch = Object.fromEntries(
-      signals
-        .filter(signal => signal in data)
-        .map(signal => [signal, data[signal]])
+      signals.filter((signal) => signal in data).map((signal) => [signal, data[signal]])
     );
     if (Object.keys(patch).length > 0) {
       mergePatch(patch);
@@ -53,7 +51,7 @@ function loadFromStorage(storage: Storage, key: string, signals: string[]): void
 
 function saveToStorage(storage: Storage, key: string, data: Record<string, any>): void {
   if (Object.keys(data).length === 0) return;
-  
+
   try {
     const stored = storage.getItem(key);
     const existing = stored ? JSON.parse(stored) : {};
@@ -91,8 +89,8 @@ const persistAttributePlugin: AttributePlugin = {
     // Mark element ready to prevent flash of default values
     el.setAttribute("data-persist-ready", "");
 
-    const throttleMs = mods.has("immediate") 
-      ? 0 
+    const throttleMs = mods.has("immediate")
+      ? 0
       : Number.parseInt(String(getModValue(mods, "throttle") ?? DEFAULT_THROTTLE));
 
     let cachedData: Record<string, any> = {};

@@ -4,19 +4,7 @@ import type { AttributeContext, AttributePlugin } from "./types.js";
 let initialized = false;
 let diagramCounter = 0;
 
-const processContent = (el: Element): void => {
-  if (el.querySelector("svg")) return;
-
-  if (!initialized) {
-    mermaid.initialize({
-      startOnLoad: false,
-      theme: "base",
-      securityLevel: "loose",
-      flowchart: { useMaxWidth: false, useMaxHeight: false },
-    });
-    initialized = true;
-  }
-
+const renderDiagram = (el: Element): void => {
   mermaid
     .render(`mermaid-diagram-${diagramCounter++}`, el.textContent || "")
     .then(({ svg, bindFunctions }) => {
@@ -25,8 +13,32 @@ const processContent = (el: Element): void => {
     })
     .catch((error: Error) => {
       console.error("Error rendering Mermaid diagram:", error);
-      el.innerHTML = `<p>Error rendering diagram: ${error.message}</p>`;
+      el.setAttribute("data-mermaid-error", "true");
+      el.innerHTML = `<p style="color:#666;font-style:italic;">Error rendering diagram</p>`;
     });
+};
+
+const processContent = (el: Element): void => {
+  // Skip if already processed (has svg or error marker)
+  if (el.querySelector("svg") || el.hasAttribute("data-mermaid-error")) return;
+
+  if (!initialized) {
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: "base",
+      securityLevel: "loose",
+      flowchart: { useMaxWidth: true, htmlLabels: true, curve: "basis" },
+    });
+    initialized = true;
+  }
+
+  // Defer render until element has dimensions (helps with iframes/hidden containers)
+  if (el.clientWidth === 0) {
+    requestAnimationFrame(() => processContent(el));
+    return;
+  }
+
+  renderDiagram(el);
 };
 
 const mermaidPlugin: AttributePlugin = {

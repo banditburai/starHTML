@@ -1,5 +1,5 @@
-import { mergePatch } from 'datastar';
-import type { AttributePlugin, AttributeContext, OnRemovalFn } from "./types.js";
+import { mergePatch } from "datastar";
+import type { AttributeContext, AttributePlugin, OnRemovalFn } from "./types.js";
 interface Point {
   x: number;
   y: number;
@@ -116,7 +116,9 @@ class CanvasController {
   private registerInGlobalRegistry() {
     controllerRegistry[this.config.signal] = this;
   }
-  public setContext(ctx: AttributeContext) { this.ctx = ctx; }
+  public setContext(ctx: AttributeContext) {
+    this.ctx = ctx;
+  }
   private setupEventListeners() {
     document.addEventListener("pointerdown", this.boundHandlePointerDown);
     document.addEventListener("wheel", this.boundHandleWheel, { passive: false });
@@ -184,7 +186,7 @@ class CanvasController {
   }
   private setupViewportStyles() {
     if (!this.viewport) return;
-    
+
     Object.assign(this.viewport.style, {
       userSelect: "none",
       webkitUserSelect: "none",
@@ -194,65 +196,65 @@ class CanvasController {
       backgroundColor: this.config.backgroundColor,
       ...(window.devicePixelRatio > 1 && { imageRendering: "pixelated" }),
     });
-    
+
     if (this.config.enableGrid) {
       this.applyGridStyles();
     }
   }
-  
+
   private applyGridStyles() {
     if (!this.viewport) return;
-    
+
     const gridSize = this.config.gridSize || 100;
     const gridColor = this.config.gridColor || "rgba(0,0,0,0.1)";
     const minorSize = this.config.minorGridSize || 20;
     const minorColor = this.config.minorGridColor || "rgba(0,0,0,0.05)";
-    
+
     const bgImage = [
       `linear-gradient(${gridColor} 1px, transparent 1px)`,
       `linear-gradient(90deg, ${gridColor} 1px, transparent 1px)`,
       `linear-gradient(${minorColor} 1px, transparent 1px)`,
       `linear-gradient(90deg, ${minorColor} 1px, transparent 1px)`,
-    ].join(',');
-    
+    ].join(",");
+
     this.viewport.style.backgroundImage = bgImage;
     this.viewport.style.backgroundSize = [
       `${gridSize}px ${gridSize}px`,
       `${gridSize}px ${gridSize}px`,
       `${minorSize}px ${minorSize}px`,
       `${minorSize}px ${minorSize}px`,
-    ].join(',');
-    
+    ].join(",");
+
     this.updateGridPosition();
   }
-  
+
   private updateGridPosition() {
     if (!this.viewport || !this.config.enableGrid) return;
-    
+
     const gridSize = this.config.gridSize || 100;
     const minorSize = this.config.minorGridSize || 20;
-    
+
     const scaledGridSize = gridSize * this.camera.z;
     const scaledMinorSize = minorSize * this.camera.z;
-    
+
     const majorOffsetX = (this.camera.x * this.camera.z) % scaledGridSize;
     const majorOffsetY = (this.camera.y * this.camera.z) % scaledGridSize;
     const minorOffsetX = (this.camera.x * this.camera.z) % scaledMinorSize;
     const minorOffsetY = (this.camera.y * this.camera.z) % scaledMinorSize;
-    
+
     this.viewport.style.backgroundPosition = [
       `${majorOffsetX}px ${majorOffsetY}px`,
       `${majorOffsetX}px ${majorOffsetY}px`,
       `${minorOffsetX}px ${minorOffsetY}px`,
       `${minorOffsetX}px ${minorOffsetY}px`,
-    ].join(',');
-    
+    ].join(",");
+
     this.viewport.style.backgroundSize = [
       `${scaledGridSize}px ${scaledGridSize}px`,
       `${scaledGridSize}px ${scaledGridSize}px`,
       `${scaledMinorSize}px ${scaledMinorSize}px`,
       `${scaledMinorSize}px ${scaledMinorSize}px`,
-    ].join(',');
+    ].join(",");
   }
   private handlePointerDown(evt: PointerEvent) {
     const target = evt.target as HTMLElement;
@@ -482,7 +484,7 @@ class CanvasController {
       y: (pointer1.clientY + pointer2.clientY) / 2,
     };
   }
-  
+
   private scheduleRender() {
     if (this.rafId !== null) return;
     this.rafId = requestAnimationFrame(() => {

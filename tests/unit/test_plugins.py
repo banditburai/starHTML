@@ -168,10 +168,10 @@ class TestBuiltinPlugins:
         assert str(canvas.pan_x) == "$canvas_pan_x"
         assert str(canvas.zoom) == "$canvas_zoom"
 
-        # Methods
-        assert str(canvas.resetView) == "window.__canvas.resetView"
-        assert str(canvas.zoomIn) == "window.__canvas.zoomIn"
-        assert str(canvas.zoomOut) == "window.__canvas.zoomOut"
+        # Methods (Python snake_case -> JS camelCase)
+        assert str(canvas.reset_view) == "window.__canvas.resetView"
+        assert str(canvas.zoom_in) == "window.__canvas.zoomIn"
+        assert str(canvas.zoom_out) == "window.__canvas.zoomOut"
 
     def test_drag_plugin(self):
         """Test drag plugin."""

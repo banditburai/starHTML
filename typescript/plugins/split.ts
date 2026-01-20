@@ -1,6 +1,6 @@
-import { mergePatch, getPath, effect } from 'datastar';
+import { effect, getPath, mergePatch } from "datastar";
 import { createDebounce, createRAFThrottle, createTimerThrottle } from "./throttle.js";
-import type { AttributePlugin, AttributeContext, OnRemovalFn } from "./types.js";
+import type { AttributeContext, AttributePlugin, OnRemovalFn } from "./types.js";
 
 interface SplitConfig {
   signal: string;
@@ -79,8 +79,8 @@ function stylePanels(
   minSize: number
 ): void {
   const isH = direction === "horizontal";
-  const handleSize = getCSSPropPx(panels[0] || document.documentElement, 'handle-size');
-  
+  const handleSize = getCSSPropPx(panels[0] || document.documentElement, "handle-size");
+
   panels.forEach((panel, i) => {
     const handleShare = `${handleSize * (sizes[i] / 100)}px`;
     const sizeVar = `var(--${signal}-panel-${i})`;
@@ -130,8 +130,8 @@ function initializeElements(
   signal: string
 ): void {
   const isH = direction === "horizontal";
-  const handleSize = getCSSPropPx(handle, 'handle-size');
-  
+  const handleSize = getCSSPropPx(handle, "handle-size");
+
   Object.assign(container.style, {
     display: "flex",
     flexDirection: isH ? "row" : "column",
@@ -147,11 +147,11 @@ function initializeElements(
     userSelect: "none",
     order: "1",
     cursor: isH ? "col-resize" : "row-resize",
-    background: getCSSProp(handle, 'handle-color'),
+    background: getCSSProp(handle, "handle-color"),
     width: isH ? `${handleSize}px` : "",
     height: isH ? "" : `${handleSize}px`,
   });
-  
+
   handle.dataset.splitHandle = direction;
   handle.dataset.splitSignal = signal;
 }
@@ -243,23 +243,24 @@ function setupDragHandling(state: SplitState, _ctx: AttributeContext): void {
       isDragging = true;
       Object.assign(handle.style, {
         opacity: "0.8",
-        background: getCSSProp(handle, 'handle-active-color', COLORS.drag),
+        background: getCSSProp(handle, "handle-active-color", COLORS.drag),
       });
     },
     () => {
       isDragging = false;
-      Object.assign(handle.style, { 
-        opacity: "", 
-        background: getCSSProp(handle, 'handle-color') 
+      Object.assign(handle.style, {
+        opacity: "",
+        background: getCSSProp(handle, "handle-color"),
       });
     }
   );
 
   const handleHover = (e: MouseEvent) => {
     if (!isDragging) {
-      handle.style.background = e.type === "mouseenter" 
-        ? getCSSProp(handle, 'handle-hover-color', COLORS.hover)
-        : getCSSProp(handle, 'handle-color');
+      handle.style.background =
+        e.type === "mouseenter"
+          ? getCSSProp(handle, "handle-hover-color", COLORS.hover)
+          : getCSSProp(handle, "handle-color");
     }
   };
   handle.addEventListener("mouseenter", handleHover);
@@ -445,7 +446,7 @@ const splitAttributePlugin: AttributePlugin = {
 
   apply(ctx: AttributeContext): (() => void) | void {
     const { el: handle, value } = ctx;
-    const config = parseSplitValue(value ?? '');
+    const config = parseSplitValue(value ?? "");
     if (!config || handle.dataset.splitInit === "true") return;
 
     const { signal, direction, sizes } = config;

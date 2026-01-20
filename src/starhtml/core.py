@@ -360,12 +360,12 @@ def register(self: StarHTML, *items, prefix: str | None = None):
     Example:
         >>> app.register(canvas, persist, scroll)
     """
-    from .plugins import Plugin, plugins_hdrs
+    from .plugins import Plugin, PluginInstance, plugins_hdrs
 
     prefix = prefix or DEFAULT_PKG_PREFIX
     plugins, others = [], []
     for item in items:
-        (plugins if isinstance(item, Plugin) else others).append(item)
+        (plugins if isinstance(item, Plugin | PluginInstance) else others).append(item)
 
     for item in others:
         _register_item(self, item, prefix)

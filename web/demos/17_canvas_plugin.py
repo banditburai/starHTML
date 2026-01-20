@@ -25,7 +25,7 @@ app.register(canvas)
 def infinite_canvas():
     return Div(
         Div(
-            H1("14", cls="text-8xl font-black text-gray-100 leading-none"),
+            H1("17", cls="text-8xl font-black text-gray-100 leading-none"),
             H1("Canvas Handler", cls="text-5xl md:text-6xl font-bold text-black mt-2"),
             P("Infinite canvas with pan and zoom capabilities", cls="text-lg text-gray-600 mt-4"),
             cls="mb-8",

@@ -1,4 +1,3 @@
-import { mergePatch, getPath, effect } from 'datastar';
 import {
   type Middleware,
   type Placement,
@@ -11,7 +10,8 @@ import {
   shift,
   size,
 } from "@floating-ui/dom";
-import type { AttributePlugin, AttributeContext, OnRemovalFn } from "./types.js";
+import { effect, getPath, mergePatch } from "datastar";
+import type { AttributeContext, AttributePlugin, OnRemovalFn } from "./types.js";
 
 // Timeouts / delays
 const SHOW_DELAY_MS = 10;
@@ -20,9 +20,9 @@ const SECONDARY_UPDATE_MS = 150;
 
 // Central defaults (tunable via setConfig)
 type PositionDefaults = {
-  padding?: number;            // Floating UI padding
-  verticalGapPx?: number;      // Gap for top/bottom stacks
-  horizontalOverlapPx?: number;// Overlap for left/right submenus
+  padding?: number; // Floating UI padding
+  verticalGapPx?: number; // Gap for top/bottom stacks
+  horizontalOverlapPx?: number; // Overlap for left/right submenus
 };
 
 const DEFAULTS: Required<PositionDefaults> = {
@@ -32,28 +32,39 @@ const DEFAULTS: Required<PositionDefaults> = {
 };
 
 // Container-based reference selection to honor nesting semantics
-function resolveReferenceEl(el: HTMLElement, anchor: HTMLElement | null, config: PositionConfig): HTMLElement | null {
+function resolveReferenceEl(
+  el: HTMLElement,
+  anchor: HTMLElement | null,
+  config: PositionConfig
+): HTMLElement | null {
   if (!anchor?.isConnected) return null;
   const parentPopover = el.parentElement?.closest("[popover]:popover-open") as HTMLElement | null;
   const side = (config.placement as string).split("-")[0];
   if (config.container === "parent" && parentPopover) return parentPopover;
-  if (config.container === "auto" && parentPopover && (side === "top" || side === "bottom")) return parentPopover;
+  if (config.container === "auto" && parentPopover && (side === "top" || side === "bottom"))
+    return parentPopover;
   return anchor;
 }
 
 // Default offset policy for nested popovers and submenus
-function computeDefaultOffset(reference: HTMLElement, config: PositionConfig, defaults: Required<PositionDefaults>): number {
+function computeDefaultOffset(
+  reference: HTMLElement,
+  config: PositionConfig,
+  defaults: Required<PositionDefaults>
+): number {
   let offsetValue = config.offset;
-  const side = (config.placement as string).split("-")[0] as "top"|"bottom"|"left"|"right";
+  const side = (config.placement as string).split("-")[0] as "top" | "bottom" | "left" | "right";
 
   try {
     const htmlRef = reference as HTMLElement;
-    const parentPopover = (htmlRef?.parentElement?.closest("[popover]:popover-open") as HTMLElement | null);
+    const parentPopover = htmlRef?.parentElement?.closest(
+      "[popover]:popover-open"
+    ) as HTMLElement | null;
     const nested = !!parentPopover;
-    const needsEdgeDistance = nested && (
-      config.container === "parent" ||
-      (config.container === "auto" && (side === "left" || side === "right"))
-    );
+    const needsEdgeDistance =
+      nested &&
+      (config.container === "parent" ||
+        (config.container === "auto" && (side === "left" || side === "right")));
 
     if (needsEdgeDistance && parentPopover) {
       const parentRect = parentPopover.getBoundingClientRect();
@@ -65,11 +76,13 @@ function computeDefaultOffset(reference: HTMLElement, config: PositionConfig, de
         top: refRect.top - parentRect.top,
       } as const;
       const distanceToEdge = edgeDistances[side];
-      const adjust = (side === "top" || side === "bottom") ? defaults.verticalGapPx : defaults.horizontalOverlapPx;
+      const adjust =
+        side === "top" || side === "bottom" ? defaults.verticalGapPx : defaults.horizontalOverlapPx;
       offsetValue = distanceToEdge + (config.hasCustomOffset ? config.offset : adjust);
     } else if (nested && config.container !== "none" && !config.hasCustomOffset) {
       // Parent-referenced with no explicit offset → apply defaults
-      offsetValue = (side === "top" || side === "bottom") ? defaults.verticalGapPx : defaults.horizontalOverlapPx;
+      offsetValue =
+        side === "top" || side === "bottom" ? defaults.verticalGapPx : defaults.horizontalOverlapPx;
     }
   } catch {}
 
@@ -109,7 +122,13 @@ type PositionConfig = {
 };
 
 // Helper: adjust Y for fixed strategy to eliminate drift while scrolling
-function adjustFixedY(side: string, align: string | undefined, refRect: DOMRect, floatRect: DOMRect, offset: number): number {
+function adjustFixedY(
+  side: string,
+  align: string | undefined,
+  refRect: DOMRect,
+  floatRect: DOMRect,
+  offset: number
+): number {
   if (side === "left" || side === "right") {
     if (align === "start") return refRect.top;
     if (align === "end") return refRect.bottom - floatRect.height;
@@ -124,16 +143,17 @@ function buildVirtualRef(pageX: number, pageY: number, el: HTMLElement) {
   const viewportX = pageX - window.scrollX;
   const viewportY = pageY - window.scrollY;
   return {
-    getBoundingClientRect: () => ({
-      x: viewportX,
-      y: viewportY,
-      left: viewportX,
-      top: viewportY,
-      right: viewportX,
-      bottom: viewportY,
-      width: 0,
-      height: 0,
-    } as DOMRect),
+    getBoundingClientRect: () =>
+      ({
+        x: viewportX,
+        y: viewportY,
+        left: viewportX,
+        top: viewportY,
+        right: viewportX,
+        bottom: viewportY,
+        width: 0,
+        height: 0,
+      }) as DOMRect,
     contextElement: el,
   } as any;
 }
@@ -151,11 +171,10 @@ async function computeFloatingPosition(
     horizontalOverlapPx: Number(cfgDefaults.horizontalOverlapPx ?? DEFAULTS.horizontalOverlapPx),
   });
 
-
-  const mainAxis = (config.offsetMain ?? null) ?? offsetValue;
-  const crossAxis = (config.offsetCross ?? null) ?? undefined;
+  const mainAxis = config.offsetMain ?? offsetValue;
+  const crossAxis = config.offsetCross ?? undefined;
   const middleware: Middleware[] = [
-    crossAxis === undefined ? offset(mainAxis) : offset({ mainAxis, crossAxis })
+    crossAxis === undefined ? offset(mainAxis) : offset({ mainAxis, crossAxis }),
   ];
   if (config.flip) middleware.push(flip({ padding }));
   if (config.shift) middleware.push(shift({ padding }));
@@ -250,9 +269,21 @@ function getPositionArgNames(signal = "position"): string[] {
   ];
 }
 
-function getGlobalConfig(): { signal: string; defaults?: PositionDefaults; autoUpdate?: { elementResize?: boolean; layoutShift?: boolean } } {
+function getGlobalConfig(): {
+  signal: string;
+  defaults?: PositionDefaults;
+  autoUpdate?: { elementResize?: boolean; layoutShift?: boolean };
+} {
   const cfg = (window as any).__starhtml_position_config || {};
-  return { signal: cfg.signal ?? "position", defaults: cfg.defaults, autoUpdate: cfg.autoUpdate } as { signal: string; defaults?: PositionDefaults; autoUpdate?: { elementResize?: boolean; layoutShift?: boolean } };
+  return {
+    signal: cfg.signal ?? "position",
+    defaults: cfg.defaults,
+    autoUpdate: cfg.autoUpdate,
+  } as {
+    signal: string;
+    defaults?: PositionDefaults;
+    autoUpdate?: { elementResize?: boolean; layoutShift?: boolean };
+  };
 }
 
 const positionAttributePlugin: AttributePlugin = {
@@ -260,11 +291,9 @@ const positionAttributePlugin: AttributePlugin = {
   requirement: { key: "must", value: "allowed" },
 
   apply({ el, value, mods }: AttributeContext): OnRemovalFn | void {
-
     const modSigRaw = extract(mods.get("signal_prefix"));
     const fallback = getGlobalConfig().signal;
     const sig = modSigRaw || fallback;
-    
 
     const initPatch = {
       [`${sig}_x`]: 0,
@@ -288,9 +317,8 @@ const positionAttributePlugin: AttributePlugin = {
       console.warn(`Invalid container parameter: ${containerParam}. Using 'auto'.`);
     }
 
-    const anchorFromValue = value?.split(' ')[0].trim() ?? '';
-    
-  
+    const anchorFromValue = value?.split(" ")[0].trim() ?? "";
+
     const config = {
       anchor: extract(mods.get("anchor")) || anchorFromValue,
       placement: extractPlacement(mods.get("placement")),
@@ -313,7 +341,7 @@ const positionAttributePlugin: AttributePlugin = {
     const cursorYPath = cursorYPathRaw?.replace(/^\$/, "");
     const isCursorMode = Boolean(cursorXPath && cursorYPath);
     const anchor = config.anchor ? document.getElementById(config.anchor) : null;
-    
+
     if (!isCursorMode && !anchor && !el.hasAttribute("popover")) return;
 
     let cleanup: (() => void) | null = null;
@@ -372,9 +400,9 @@ const positionAttributePlugin: AttributePlugin = {
 
     const updatePosition = async () => {
       const useVirtual = isCursorMode;
-      
+
       let reference: any = null;
-        if (useVirtual) {
+      if (useVirtual) {
         let pageX = 0;
         let pageY = 0;
         try {
@@ -385,23 +413,29 @@ const positionAttributePlugin: AttributePlugin = {
       } else {
         const target = getTargetElement();
         if (!target) return;
-        
+
         // Use element chosen by getTargetElement(), which already encodes container logic
         reference = target;
       }
-      
+
       if (!reference) return;
 
       try {
-
         // Default to fixed for popover/virtual and for data-show unless overridden
         const hasDataShow = el.hasAttribute("data-show");
-        const effStrategy = (hasDataShow && !mods.has("strategy"))
-          ? "fixed"
-          : ((el.hasAttribute("popover") || useVirtual)
-              ? (mods.has("strategy") ? config.strategy : "fixed")
-              : config.strategy);
-        const result = await computeFloatingPosition(reference, el, { ...config, strategy: effStrategy, isVirtual: useVirtual } as any);
+        const effStrategy =
+          hasDataShow && !mods.has("strategy")
+            ? "fixed"
+            : el.hasAttribute("popover") || useVirtual
+              ? mods.has("strategy")
+                ? config.strategy
+                : "fixed"
+              : config.strategy;
+        const result = await computeFloatingPosition(reference, el, {
+          ...config,
+          strategy: effStrategy,
+          isVirtual: useVirtual,
+        } as any);
         const patch: Record<string, any> = {};
 
         if (shouldUpdatePosition(result, lastPos)) {
@@ -431,12 +465,12 @@ const positionAttributePlugin: AttributePlugin = {
         if (!hasPositioned && isValidPosition) {
           hasPositioned = true;
 
-            if (config.hide || el.hasAttribute("popover")) {
+          if (config.hide || el.hasAttribute("popover")) {
             el.style.visibility = "visible";
             if (config.hide) {
-                showTimer = window.setTimeout(() => {
+              showTimer = window.setTimeout(() => {
                 el.style.opacity = "1";
-                }, SHOW_DELAY_MS);
+              }, SHOW_DELAY_MS);
             } else {
               el.style.opacity = "1";
             }
@@ -457,20 +491,22 @@ const positionAttributePlugin: AttributePlugin = {
 
     const start = () => {
       const useVirtual = isCursorMode;
-      
+
       // For virtual references, create a virtual anchor element
       if (useVirtual) {
         // Immediately position for cursor mode
         updatePosition();
         // Set up scroll listener for virtual references
-        const handleScroll = () => { updatePosition(); };
-        window.addEventListener('scroll', handleScroll, true);
+        const handleScroll = () => {
+          updatePosition();
+        };
+        window.addEventListener("scroll", handleScroll, true);
         cleanup = () => {
-          window.removeEventListener('scroll', handleScroll, true);
+          window.removeEventListener("scroll", handleScroll, true);
         };
         return;
       }
-      
+
       const target = getTargetElement();
       if (!target || cleanup) return;
 
@@ -541,7 +577,9 @@ const positionAttributePlugin: AttributePlugin = {
           if (isCursorMode) {
             // Immediate updates for cursor mode
             updatePosition();
-            setTimeout(() => { updatePosition(); }, 0);
+            setTimeout(() => {
+              updatePosition();
+            }, 0);
           } else {
             // Allow DOM to settle, then position and follow-up after animations
             setTimeout(() => {

@@ -11,6 +11,12 @@ _STATIC_PATH = Path(__file__).parent / "static" / "js" / "plugins"
 _PKG_NAME = "starhtml/plugins"
 
 
+def _snake2camel(s: str) -> str:
+    """Convert snake_case to camelCase."""
+    parts = s.split("_")
+    return parts[0] + "".join(p.capitalize() for p in parts[1:])
+
+
 class PluginInstance:
     """A named plugin instance with signal/method references."""
 
@@ -31,7 +37,7 @@ class PluginInstance:
         self._base_name, self._inline, self._is_action = base_name, inline, is_action
         self._static_path, self._package_name, self._critical_css = static_path, package_name, critical_css
         self._refs = {s: js(f"${name}_{s}") for s in signals}
-        self._refs.update({m: js(f"window.__{name}.{m}") for m in methods})
+        self._refs.update({m: js(f"window.__{name}.{_snake2camel(m)}") for m in methods})
 
     @property
     def inline(self):
@@ -129,16 +135,11 @@ class Plugin:
         return plugins_hdrs(self, base_url=base_url)
 
 
-def _snake2camel(s: str) -> str:
-    """Convert snake_case to camelCase."""
-    parts = s.split("_")
-    return parts[0] + "".join(p.capitalize() for p in parts[1:])
-
-
 def _get_plugin_config(p) -> dict | None:
-    """Get JS config dict from plugin, converting snake_case to camelCase."""
-    config = getattr(p, "config", None)
-    if not config:
+    """Config dict for setConfig - only needed for plugins with methods or user config."""
+    methods = getattr(p, "_methods", ())
+    config = getattr(p, "config", None) or {}
+    if not methods and not config:
         return None
     return {"signal": p.name, **{_snake2camel(k): v for k, v in config.items()}}
 
@@ -166,7 +167,6 @@ def plugins_hdrs(
         }
     }
 
-    # Build loader: import/define each plugin, then register it
     lines = []
     for i, p in enumerate(plugins):
         reg = "action" if p._is_action else "attribute"
@@ -175,7 +175,6 @@ def plugins_hdrs(
             if p._inline
             else f"import plugin_{i} from'@starhtml/plugins/{p._base_name}';"
         )
-        # Pass config to plugin via setConfig if available
         config = _get_plugin_config(p)
         if config:
             lines.append(f"plugin_{i}.setConfig({json.dumps(config)});")
@@ -285,7 +284,7 @@ canvas = Plugin(
         "context_menu_screen_x",
         "context_menu_screen_y",
     ),
-    methods=("resetView", "zoomIn", "zoomOut"),
+    methods=("reset_view", "zoom_in", "zoom_out"),
 )
 drag = Plugin(
     "drag",
@@ -308,15 +307,21 @@ split = Plugin(
     ),
 )
 
-# Content processor plugins (use data-markdown, data-katex, data-mermaid)
-# Critical CSS hides raw content until JS processes it (prevents flash)
+# Content processor plugins - critical CSS prevents flash of unprocessed content
 markdown = Plugin(
     "markdown",
     critical_css="[data-markdown]:not(:has(p,h1,h2,h3,ul,ol,blockquote)){visibility:hidden;position:absolute;pointer-events:none}",
 )
 katex = Plugin(
-    "katex",  # Note: requires KaTeX CSS for proper rendering
-    critical_css="[data-katex]:not(:has(.katex)){visibility:hidden;position:absolute;pointer-events:none}",
+    "katex",
+    critical_css=(
+        "@import url('https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css');"
+        "[data-katex]:not(:has(.katex)){visibility:hidden;position:absolute;pointer-events:none}"
+        ".katex-display{margin:1.5em 0;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch}"
+        ".katex-display::-webkit-scrollbar{height:4px}"
+        ".katex-display::-webkit-scrollbar-track{background:transparent}"
+        ".katex-display::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:2px}"
+    ),
 )
 mermaid = Plugin(
     "mermaid",
