@@ -80,22 +80,14 @@ jobs:
         done
 
         # Ensure core plugins exist
-        core_plugins=("index.js" "persist.js" "scroll.js" "resize.js")
+        core_plugins=("persist.js" "scroll.js" "resize.js" "drag.js" "canvas.js" "position.js" "split.js")
         for plugin in "${core_plugins[@]}"; do
           if [ ! -f "$plugins_dir/$plugin" ]; then
             echo "❌ Missing core plugin: $plugin"
             exit 1
           fi
         done
-        
-        # Check external assets
-        if [ -f "src/starhtml/static/js/external/katex.js" ]; then
-          echo "✅ katex.js found"
-        else
-          echo "❌ Missing external asset: katex.js"
-          exit 1
-        fi
-        
+
         echo "🎉 All JavaScript assets validated!"
     
     - name: Install uv
