@@ -1,3 +1,4 @@
+import { mergePatch, getPath, effect } from 'datastar';
 import {
   type Middleware,
   type Placement,
@@ -11,22 +12,6 @@ import {
   size,
 } from "@floating-ui/dom";
 import type { AttributePlugin, AttributeContext, OnRemovalFn } from "./types.js";
-
-
-function mergePatch(patch: Record<string, any>): void {
-  const mp = (window as any).__datastar_mergePatch;
-  if (mp) { mp(patch); } else { console.error('Datastar mergePatch not available'); }
-}
-
-function getPath(path: string): any {
-  const gp = (window as any).__datastar_getPath;
-  if (gp) { return gp(path); }console.error('Datastar getPath not available'); return undefined; 
-}
-
-function effect(fn: () => void): () => void {
-  const eff = (window as any).__datastar_effect;
-  if (eff) { return eff(fn); }console.error('Datastar effect not available'); return () => {}; 
-}
 
 // Timeouts / delays
 const SHOW_DELAY_MS = 10;
@@ -255,26 +240,6 @@ const extractPlacement = (value: unknown): Placement => {
   return VALID_PLACEMENTS.includes(normalized as Placement) ? (normalized as Placement) : "bottom";
 };
 
-const injectPositioningCSS = () => {
-  const styleId = "starhtml-positioning-css";
-  if (document.getElementById(styleId)) return;
-
-  const style = document.createElement("style");
-  style.id = styleId;
-  style.textContent = `
-    [data-positioning="true"]:not([popover]) {
-      visibility: hidden !important;
-      opacity: 0 !important;
-    }
-    [data-positioning="false"]:not([popover]) {
-      visibility: visible !important;
-      opacity: 1 !important;
-      transition: opacity 150ms ease-out;
-    }
-  `;
-  document.head.appendChild(style);
-};
-
 function getPositionArgNames(signal = "position"): string[] {
   return [
     `${signal}_x`,
@@ -295,7 +260,6 @@ const positionAttributePlugin: AttributePlugin = {
   requirement: { key: "must", value: "allowed" },
 
   apply({ el, value, mods }: AttributeContext): OnRemovalFn | void {
-    injectPositioningCSS();
 
     const modSigRaw = extract(mods.get("signal_prefix"));
     const fallback = getGlobalConfig().signal;

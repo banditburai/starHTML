@@ -5,6 +5,7 @@ from uuid import uuid4
 
 from starhtml import *
 from starhtml import FT, Div
+from starhtml.plugins import position
 
 
 def cn(*classes: str, **conditionals: Any) -> str:
@@ -123,11 +124,10 @@ def TooltipProvider(*children, **attrs: Any) -> FT:
 # Create the test app
 app, rt = star_app(
     live=True,
-    hdrs=(
-        Link(rel="stylesheet", href="https://cdn.jsdelivr.net/npm/tailwindcss@2/dist/tailwind.min.css"),
-        position_handler(),
-    ),
+    hdrs=(Link(rel="stylesheet", href="https://cdn.jsdelivr.net/npm/tailwindcss@2/dist/tailwind.min.css"),),
 )
+
+app.register(position)
 
 
 @rt("/")

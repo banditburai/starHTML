@@ -15,7 +15,6 @@ app, rt = star_app(
             """body{background:#fff;color:#000;margin:0;padding:0;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}::selection{background:#000;color:#fff}.state-indicator{transition:all 0.3s ease;border-radius:8px;padding:8px 16px;font-weight:600}.theme-light{background:#ffffff;color:#374151;border:1px solid #d1d5db}.theme-dark{background:#1f2937;color:#f9fafb;border:1px solid #374151}.theme-auto{background:linear-gradient(135deg,#ffffff 50%,#1f2937 50%);color:#6b7280;border:1px solid #6b7280}.status-draft{background:#fef3c7;color:#92400e}.status-review{background:#dbeafe;color:#1e40af}.status-approved{background:#d1fae5;color:#047857}.status-published{background:#e0e7ff;color:#3730a3}.priority-low{background:#f3f4f6;color:#4b5563}.priority-medium{background:#fef3c7;color:#92400e}.priority-high{background:#fecaca;color:#dc2626}.priority-urgent{background:#fde68a;color:#92400e;animation:pulse 2s infinite}@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.7}}.connection-disconnected{color:#6b7280}.connection-connecting{color:#3b82f6;animation:pulse 1.5s infinite}.connection-connected{color:#10b981}.connection-error{color:#ef4444}"""
         ),
     ],
-    iconify=True,
 )
 
 
@@ -363,11 +362,11 @@ def home():
 if __name__ == "__main__":
     print("🔄 Advanced Toggle Patterns Demo")
     print("=" * 40)
-    print("🚀 Running on http://localhost:5020")
+    print("🚀 Running on http://localhost:5023")
     print("✨ Features:")
     print("   • Multi-state cycling (3+ states)")
     print("   • Conditional toggles")
     print("   • Edge cases & special patterns")
     print("   • Side effects & validation")
     print("   • Real-world examples")
-    serve(port=5020)
+    serve(port=5023)

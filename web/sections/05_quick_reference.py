@@ -10,6 +10,7 @@ from starlighter import CodeBlock, StarlighterStyles
 
 from starhtml import *
 from starhtml.datastar import clipboard
+from starhtml.plugins import clipboard as clipboard_plugin
 
 
 def get_quick_reference_content() -> str:
@@ -74,6 +75,7 @@ app, rt = star_app(
     title="Quick Reference - StarHTML Documentation (Dev Mode)",
     hdrs=[
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
+        iconify_script(),
         Style("""
             body {
                 background: white;
@@ -89,9 +91,9 @@ app, rt = star_app(
             }
         """),
     ],
-    iconify=True,
-    clipboard=True,
 )
+
+app.register(clipboard_plugin())
 
 
 @rt("/")

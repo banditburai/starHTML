@@ -1,24 +1,7 @@
+import { mergePatch, getPath } from 'datastar';
 import { SmoothScroll } from "./smooth-scroll.js";
 import { createRAFThrottle, createTimerThrottle } from "./throttle.js";
 import type { AttributePlugin, AttributeContext, OnRemovalFn } from "./types.js";
-
-function mergePatch(patch: Record<string, any>): void {
-  const mp = (window as any).__datastar_mergePatch;
-  if (mp) {
-    mp(patch);
-  } else {
-    console.error('Datastar mergePatch not available');
-  }
-}
-
-function getPath(path: string): any {
-  const gp = (window as any).__datastar_getPath;
-  if (gp) {
-    return gp(path);
-  }
-    console.error('Datastar getPath not available');
-    return undefined;
-}
 
 const DEFAULT_THROTTLE = 100;
 const VELOCITY_DECAY_MS = 50; // Faster decay for more responsive feel

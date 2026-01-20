@@ -4,15 +4,15 @@ Test vertical stacking on mobile and scrolling behavior
 """
 
 from starhtml import *
-from starhtml.handlers import split_handler
+from starhtml.plugins import split
+
+splitter = split(name="responsive", responsive=True, responsive_breakpoint=768)
 
 app, rt = star_app(
     title="Split Demo - Responsive Test",
     htmlkw={"lang": "en"},
     hdrs=[
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
-        # Enable responsive mode for mobile testing
-        (splitter := split_handler(signal="responsive", responsive=True, responsive_breakpoint=768)),
         Style("""
             :root {
                 --split-handle-size: 8px;
@@ -111,8 +111,9 @@ app, rt = star_app(
             }
         """),
     ],
-    iconify=True,
 )
+
+app.register(splitter)
 
 
 def create_size_controls():
@@ -253,4 +254,4 @@ def home():
 
 
 if __name__ == "__main__":
-    serve(port=5025)
+    serve(port=5021)

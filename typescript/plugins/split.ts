@@ -1,21 +1,6 @@
+import { mergePatch, getPath, effect } from 'datastar';
 import { createDebounce, createRAFThrottle, createTimerThrottle } from "./throttle.js";
 import type { AttributePlugin, AttributeContext, OnRemovalFn } from "./types.js";
-
-
-function mergePatch(patch: Record<string, any>): void {
-  const mp = (window as any).__datastar_mergePatch;
-  if (mp) { mp(patch); } else { console.error('Datastar mergePatch not available'); }
-}
-
-function getPath(path: string): any {
-  const gp = (window as any).__datastar_getPath;
-  if (gp) { return gp(path); }console.error('Datastar getPath not available'); return undefined; 
-}
-
-function effect(fn: () => void): () => void {
-  const eff = (window as any).__datastar_effect;
-  if (eff) { return eff(fn); }console.error('Datastar effect not available'); return () => {}; 
-}
 
 interface SplitConfig {
   signal: string;
@@ -517,7 +502,7 @@ const splitAttributePlugin: AttributePlugin = {
     }
 
     const effectCleanup = effect(() => {
-      const currentSizes = getPath(`${signal}_sizes`);
+      const currentSizes = getPath(`${signal}_sizes`) as number[] | undefined;
       if (currentSizes?.length && !arraysEqual(currentSizes, state.sizes)) {
         state.sizes = currentSizes;
         setCSS(container, signal, currentSizes);

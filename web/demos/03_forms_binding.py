@@ -24,7 +24,6 @@ app, rt = star_app(
             .form-field-focus:focus-within label { color: #0ea5e9; }
         """),
     ],
-    iconify=True,
 )
 
 

@@ -219,42 +219,10 @@ class TestDefHdrs:
 
         result = def_hdrs()
 
-        # Should create FOUC style, charset, viewport, and datastar script (iconify=False by default)
+        # Should create FOUC style, charset, viewport, and datastar script
         assert mock_meta.call_count == 2  # charset and viewport
         assert mock_script.call_count == 1  # datastar only
         assert len(result) == 4  # style, charset, viewport, datastar
-
-    @patch("starhtml.tags.Meta")
-    @patch("starhtml.xtend.Script")
-    def test_def_hdrs_no_iconify(self, mock_script, mock_meta):
-        """Test def_hdrs without Iconify."""
-        mock_script_instance = Mock()
-        mock_meta_instance = Mock()
-        mock_script.return_value = mock_script_instance
-        mock_meta.return_value = mock_meta_instance
-
-        result = def_hdrs(iconify=False)
-
-        # Should only create style, charset, viewport, and datastar script (no iconify)
-        assert mock_meta.call_count == 2  # charset and viewport
-        assert mock_script.call_count == 1  # only datastar
-        assert len(result) == 4  # style, charset, viewport, datastar (no iconify)
-
-    @patch("starhtml.tags.Meta")
-    @patch("starhtml.xtend.Script")
-    def test_def_hdrs_custom_iconify_version(self, mock_script, mock_meta):
-        """Test def_hdrs with custom Iconify version."""
-        mock_script_instance = Mock()
-        mock_meta_instance = Mock()
-        mock_script.return_value = mock_script_instance
-        mock_meta.return_value = mock_meta_instance
-
-        custom_iconify_version = "3.0.0"
-        result = def_hdrs(iconify=True, iconify_version=custom_iconify_version)
-
-        # Should create headers including iconify
-        assert len(result) == 5  # style, charset, viewport, datastar, iconify
-        assert mock_script.call_count == 2  # datastar and iconify scripts
 
     @patch("starhtml.tags.Meta")
     @patch("starhtml.xtend.Script")
@@ -548,28 +516,17 @@ class TestRealWorldScenarios:
     @patch("starhtml.tags.Meta")
     @patch("starhtml.xtend.Script")
     def test_production_headers_setup(self, mock_script, mock_meta):
-        """Test production-ready headers setup."""
+        """Test production-ready headers setup with custom fallback path."""
         mock_script.return_value = Mock()
         mock_meta.return_value = Mock()
 
-        # Production setup with specific versions
-        headers = def_hdrs(
-            iconify=True,
-            iconify_version="2.5.0",
-            fallback_path="/static/datastar-v1.0.0.js",
-            clipboard=False,  # Use external scripts for production
-        )
+        # Production setup with custom fallback path
+        headers = def_hdrs(fallback_path="/static/datastar-v1.0.0.js")
 
-        assert len(headers) == 5  # style, charset, viewport, datastar, iconify
-        assert mock_script.call_count == 2  # datastar and iconify
+        assert len(headers) == 4  # style, charset, viewport, datastar
+        assert mock_script.call_count == 1  # datastar only
 
-        # Datastar script now uses local fallback_path directly (no CDN with onerror fallback)
+        # Datastar script uses local fallback_path directly
         datastar_call = mock_script.call_args_list[0]
         if "src" in datastar_call[1]:
-            # fallback_path is now used as the primary src
             assert "/static/datastar-v1.0.0.js" in datastar_call[1]["src"]
-
-        # Iconify still uses CDN
-        iconify_call = mock_script.call_args_list[1]
-        if "src" in iconify_call[1]:
-            assert "2.5.0" in iconify_call[1]["src"]

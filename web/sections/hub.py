@@ -7,7 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from starhtml import *
-from starhtml.handlers import split_handler
+from starhtml.plugins import clipboard, split
 
 try:
     from . import SECTIONS
@@ -61,7 +61,7 @@ app, rt = star_app(
     hdrs=[
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
         Script(src="https://cdn.jsdelivr.net/npm/motion@11.11.13/dist/motion.js"),
-        split_handler(signal="code_split", persist=False, responsive=True),
+        iconify_script(),
         Style("""
             body {
                 background: white;
@@ -90,8 +90,11 @@ app, rt = star_app(
         """),
     ],
     live=True,
-    iconify=True,
-    clipboard=True,
+)
+
+app.register(
+    split(name="code_split", persist=False, responsive=True),
+    clipboard(),
 )
 
 

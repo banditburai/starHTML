@@ -4,6 +4,7 @@ This demo shows the canvas_handler in action with a pannable/zoomable canvas.
 """
 
 from starhtml import *
+from starhtml.plugins import canvas
 
 app, rt = star_app(
     title="Canvas Handler Demo",
@@ -13,10 +14,11 @@ app, rt = star_app(
         Style(
             """body{background:#fff;color:#000;margin:0;padding:0;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}::selection{background:#000;color:#fff}.canvas-viewport{width:100%;height:500px;border:1px solid #e5e7eb;border-top:0;border-radius:0 0 0.5rem 0.5rem;overflow:hidden;position:relative;cursor:grab;background:#fafafa}.canvas-viewport:active{cursor:grabbing}.canvas-container{position:relative;width:100%;height:100%;transform-origin:0 0;z-index:1}.canvas-item{position:absolute;padding:0.5rem 1rem;background:#3b82f6;color:white;border-radius:6px;font-size:0.9rem;font-weight:500;box-shadow:0 2px 4px rgba(0,0,0,0.1);user-select:none;transform:translate(-50%, -50%)}"""
         ),
-        (canvas := canvas_handler()),
+        iconify_script(),
     ],
-    iconify=True,
 )
+
+app.register(canvas)
 
 
 @rt("/")
@@ -106,5 +108,5 @@ def infinite_canvas():
 
 
 if __name__ == "__main__":
-    print("Canvas Handler Demo running on http://localhost:5014")
-    serve(port=5014)
+    print("Canvas Plugin Demo running on http://localhost:5017")
+    serve(port=5017)

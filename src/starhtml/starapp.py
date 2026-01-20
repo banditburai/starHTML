@@ -8,7 +8,17 @@ from starlette.requests import HTTPConnection
 
 from .realtime import StarHTMLWithLiveReload
 
-__all__ = ["star_app", "DATASTAR_VERSION", "ICONIFY_VERSION", "def_hdrs", "theme_script", "iconify_script", "compression", "Beforeware", "MiddlewareBase"]
+__all__ = [
+    "star_app",
+    "DATASTAR_VERSION",
+    "ICONIFY_VERSION",
+    "def_hdrs",
+    "theme_script",
+    "iconify_script",
+    "compression",
+    "Beforeware",
+    "MiddlewareBase",
+]
 
 
 def star_app(

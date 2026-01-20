@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from starlette.routing import Mount
 
 from starhtml import *
-from starhtml.handlers import position_handler, split_handler
+from starhtml.plugins import position, split
 
 try:
     from starlighter import StarlighterStyles
@@ -30,8 +30,7 @@ app, rt = star_app(
             href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">⭐</text></svg>',
         ),
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
-        (splitter := split_handler(signal="demo_split", responsive=True, responsive_breakpoint=768)),
-        position_handler(),
+        iconify_script(),
         StarlighterStyles("github-light") if StarlighterStyles else None,
         Script("""
             document.addEventListener('DOMContentLoaded', () => {
@@ -167,7 +166,11 @@ app, rt = star_app(
                         
         """),
     ],
-    iconify=True,
+)
+
+app.register(
+    split(name="demo_split", responsive=True, responsive_breakpoint=768),
+    position,
 )
 
 
@@ -273,107 +276,128 @@ DEMOS = [
     ),
     Demo(
         "09-persist",
-        "Persist Handler",
+        "Persist Plugin",
         "Data persistence with localStorage and sessionStorage",
-        "09_persist_handler.py",
-        "Handlers",
+        "09_persist_plugin.py",
+        "Plugins",
     ),
     Demo(
         "10-scroll",
-        "Scroll Handler",
+        "Scroll Plugin",
         "Scroll detection and position tracking",
-        "10_scroll_handler.py",
-        "Handlers",
+        "10_scroll_plugin.py",
+        "Plugins",
     ),
     Demo(
         "11-resize",
-        "Resize Handler",
+        "Resize Plugin",
         "Window and element resize detection",
-        "11_resize_handler.py",
-        "Handlers",
+        "11_resize_plugin.py",
+        "Plugins",
     ),
     Demo(
         "12-drag",
-        "Drag Handler",
+        "Drag Plugin",
         "Drag-and-drop sortable lists with reactive state management",
-        "12_drag_handler.py",
-        "Handlers",
+        "12_drag_plugin.py",
+        "Plugins",
     ),
     Demo(
-        "13-freeform-drag",
+        "13-markdown",
+        "Markdown Plugin",
+        "Dynamic markdown rendering with live updates",
+        "13_markdown_plugin.py",
+        "Plugins",
+    ),
+    Demo(
+        "14-katex",
+        "KaTeX Plugin",
+        "Mathematical notation with LaTeX syntax",
+        "14_katex_plugin.py",
+        "Plugins",
+    ),
+    Demo(
+        "15-mermaid",
+        "Mermaid Plugin",
+        "Dynamic diagram rendering with live updates",
+        "15_mermaid_plugin.py",
+        "Plugins",
+    ),
+    Demo(
+        "16-freeform-drag",
         "Freeform Drag",
         "Drag items anywhere while zones track what's over them",
-        "13_freeform_drag.py",
+        "16_freeform_drag.py",
         "Advanced",
     ),
     Demo(
-        "14-canvas",
-        "Canvas Handler",
+        "17-canvas",
+        "Canvas Plugin",
         "Infinite pannable/zoomable canvas with touch support",
-        "14_canvas_handler.py",
+        "17_canvas_plugin.py",
         "Advanced",
     ),
     Demo(
-        "15-canvas-fullpage",
+        "18-canvas-fullpage",
         "Full-Page Canvas",
         "Full viewport infinite canvas with keyboard shortcuts",
-        "15_canvas_fullpage.py",
+        "18_canvas_fullpage.py",
         "Advanced",
     ),
     Demo(
-        "16-nodegraph",
+        "19-nodegraph",
         "Node Graph",
-        "Build a node graph by combining canvas + drag handlers",
-        "16_nodegraph_demo.py",
+        "Build a node graph by combining canvas + drag plugins",
+        "19_nodegraph_demo.py",
         "Advanced",
     ),
     Demo(
-        "17-position",
-        "Position Handler",
+        "20-position",
+        "Position Plugin",
         "Clean positioning with Floating UI integration",
-        "17_position_handler.py",
+        "20_position_plugin.py",
         "Advanced",
     ),
     Demo(
-        "18-split-responsive",
+        "21-split-responsive",
         "Split Responsive",
         "Responsive split with mobile stacking",
-        "18_split_responsive.py",
+        "21_split_responsive.py",
         "Advanced",
     ),
     Demo(
-        "19-split-universal",
+        "22-split-universal",
         "Split Universal",
         "Full universal split demo - FT Splitter with Datastar patterns",
-        "19_split_universal.py",
+        "22_split_universal.py",
         "Advanced",
     ),
     Demo(
-        "20-toggle-patterns",
+        "23-toggle-patterns",
         "Advanced Toggles",
         "Complex toggle interactions and state management",
-        "20_advanced_toggle_patterns.py",
+        "23_advanced_toggle_patterns.py",
         "Patterns",
     ),
     Demo(
-        "21-complex-modifiers",
+        "24-complex-modifiers",
         "Complex Modifiers",
         "Advanced modifier combinations and patterns",
-        "21_complex_modifiers.py",
+        "24_complex_modifiers.py",
         "Patterns",
     ),
     Demo(
-        "22-property-chaining",
+        "25-property-chaining",
         "Property Chaining",
         "Deep property access and manipulation",
-        "22_nested_property_chaining.py",
+        "25_nested_property_chaining.py",
         "Patterns",
     ),
     Demo(
-        "23-datastar-helpers",
+        "26-datastar-helpers",
         "Helper Functions",
         "Master logical operators, math functions, templates, and debugging",
-        "23_datastar_helpers_showcase.py",
+        "26_datastar_helpers_showcase.py",
         "Patterns",
     ),
 ]
@@ -502,7 +526,7 @@ def demo_card(demo: Demo) -> Div:
         "Foundation": "text-gray-500",
         "Practical": "text-gray-400",
         "Intermediate": "text-gray-400",
-        "Handlers": "text-gray-300",
+        "Plugins": "text-gray-300",
         "Advanced": "text-gray-300",
         "Patterns": "text-white",
         "Production": "text-yellow-400",
@@ -853,13 +877,13 @@ def home():
             Div(
                 Div(
                     H2(
-                        "Handlers",
+                        "Plugins",
                         cls="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-black text-gray-700 mb-4",
-                        id="handlers",
+                        id="plugins",
                     ),
-                    P("Specialized event handlers.", cls="text-lg md:text-xl text-gray-500 mb-8 sm:mb-12"),
+                    P("Extend with powerful plugins.", cls="text-lg md:text-xl text-gray-500 mb-8 sm:mb-12"),
                     Div(
-                        *[demo_list_card(demo) for demo in demos_by_level("Handlers")],
+                        *[demo_list_card(demo) for demo in demos_by_level("Plugins")],
                         cls="space-y-0 border-t border-gray-200",
                     ),
                     cls="w-full px-6 sm:px-8 lg:px-12",

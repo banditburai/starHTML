@@ -1,214 +1,201 @@
-"""Datastar plugin system: attributes (scroll, canvas) and actions (clipboard)."""
+"""Minimal Datastar plugin system - glue between Python templates and JS plugins."""
 
-import functools
-import inspect
 import json
 import time
-from dataclasses import dataclass
-from enum import Enum
 from pathlib import Path
-from typing import Any, Callable
 
-from fastcore.xml import FT
+from .datastar import js
+from .xtend import Script, Style
 
-from .datastar import Signal, js
-from .xtend import Script
-
-
-class PluginType(Enum):
-    """Type of Datastar plugin."""
-
-    ATTRIBUTE = "attribute"
-    ACTION = "action"
+_STATIC_PATH = Path(__file__).parent / "static" / "js" / "plugins"
+_PKG_NAME = "starhtml/plugins"
 
 
-def _to_camel_case(snake_str: str) -> str:
-    """Convert snake_case to camelCase for JavaScript config."""
-    components = snake_str.split("_")
-    return components[0] + "".join(x.title() for x in components[1:])
+class PluginInstance:
+    """A named plugin instance with signal/method references."""
 
-
-@dataclass(frozen=True)
-class PluginDef:
-    """Datastar plugin definition with config, signals, and static/inline JavaScript."""
-
-    name: str
-    config: dict[str, Any]
-    signals: dict[str, Any]
-    static_path: Path
-    inline: str | None = None
-    plugin_type: PluginType = PluginType.ATTRIBUTE
-
-    def __getattr__(self, name: str):
-        """Access signals as attributes (e.g., canvas.zoom)."""
-        if name in self.signals:
-            return self.signals[name]
-        raise AttributeError(f"'{self.__class__.__name__}' has no signal '{name}'")
+    def __init__(
+        self,
+        name,
+        base_name,
+        signals,
+        methods,
+        inline,
+        is_action,
+        config,
+        static_path=None,
+        package_name=None,
+        critical_css=None,
+    ):
+        self.name, self.config = name, config
+        self._base_name, self._inline, self._is_action = base_name, inline, is_action
+        self._static_path, self._package_name, self._critical_css = static_path, package_name, critical_css
+        self._refs = {s: js(f"${name}_{s}") for s in signals}
+        self._refs.update({m: js(f"window.__{name}.{m}") for m in methods})
 
     @property
-    def is_inline(self) -> bool:
-        """Check if this plugin uses inline JavaScript."""
-        return self.inline is not None
+    def inline(self):
+        return self._inline
+
+    @property
+    def is_action(self):
+        return self._is_action
+
+    def __getattr__(self, attr):
+        if attr.startswith("_"):
+            raise AttributeError(f"'{type(self).__name__}' has no attribute '{attr}'")
+        if attr in self._refs:
+            return self._refs[attr]
+        raise AttributeError(f"Plugin '{self.name}' has no signal or method '{attr}'")
+
+    def __str__(self):
+        return self.name
+
+    def __repr__(self):
+        return f"PluginInstance({self.name!r})"
 
     def get_package_name(self) -> str:
-        """Return package name for URL routing."""
-        return "starhtml/plugins"
+        return self._package_name or _PKG_NAME
 
-    def get_static_path(self) -> Path:
-        """Return filesystem path to static files."""
-        return self.static_path
+    def get_static_path(self) -> Path | None:
+        return self._static_path or _STATIC_PATH
 
     def get_headers(self, base_url: str) -> tuple:
-        """Generate header elements for this plugin."""
         return plugins_hdrs(self, base_url=base_url)
 
 
-_plugin_registry: dict[str, Callable] = {}
+class Plugin:
+    """Factory for creating plugin instances. Delegates to lazy singleton when accessed directly."""
+
+    def __init__(
+        self,
+        base_name,
+        signals=(),
+        methods=(),
+        inline=None,
+        is_action=False,
+        static_path=None,
+        package_name=None,
+        critical_css=None,
+    ):
+        self._base_name, self._signals, self._methods = base_name, signals, methods
+        self._inline, self._is_action, self._default = inline, is_action, None
+        self._static_path, self._package_name = static_path, package_name
+        self._critical_css = critical_css
+
+    def __call__(self, *, name=None, **config):
+        return PluginInstance(
+            name or self._base_name,
+            self._base_name,
+            self._signals,
+            self._methods,
+            self._inline,
+            self._is_action,
+            config,
+            self._static_path,
+            self._package_name,
+            self._critical_css,
+        )
+
+    def __getattr__(self, attr):
+        if attr.startswith("_"):
+            raise AttributeError(f"'{type(self).__name__}' has no attribute '{attr}'")
+        if self._default is None:
+            self._default = self()
+        return getattr(self._default, attr)
+
+    def __repr__(self):
+        return f"Plugin({self._base_name!r})"
+
+    @property
+    def name(self):
+        return self._base_name
+
+    @property
+    def inline(self):
+        return self._inline
+
+    @property
+    def is_action(self):
+        return self._is_action
+
+    def get_package_name(self) -> str:
+        return self._package_name or _PKG_NAME
+
+    def get_static_path(self) -> Path | None:
+        return self._static_path or _STATIC_PATH
+
+    def get_headers(self, base_url: str) -> tuple:
+        return plugins_hdrs(self, base_url=base_url)
 
 
-def plugin(name: str, inline: str | None = None, plugin_type: PluginType = PluginType.ATTRIBUTE):
-    """Decorator to create Datastar plugin. Captures snake_case params, converts to camelCase config, returns PluginDef."""
-
-    def decorator(func: Callable) -> Callable:
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs) -> PluginDef:
-            sig = inspect.signature(func)
-            bound = sig.bind(*args, **kwargs)
-            bound.apply_defaults()
-            config = {_to_camel_case(k): v for k, v in bound.arguments.items()}
-            signals = func(*args, **kwargs)
-
-            return PluginDef(
-                name=name,
-                config=config,
-                signals=signals,
-                static_path=Path(__file__).parent / "static" / "js" / "plugins",
-                inline=inline,
-                plugin_type=plugin_type,
-            )
-
-        _plugin_registry[name] = wrapper
-        return wrapper
-
-    return decorator
+def _snake2camel(s: str) -> str:
+    """Convert snake_case to camelCase."""
+    parts = s.split("_")
+    return parts[0] + "".join(p.capitalize() for p in parts[1:])
 
 
-def get_registered_plugins() -> list[Callable]:
-    """Get all registered plugin functions."""
-    return list(_plugin_registry.values())
-
-
-def _deduplicate_plugins(plugins: tuple[PluginDef, ...]) -> list[dict]:
-    """Validate and deduplicate plugins, return configs."""
-    plugin_configs = []
-    plugin_names = set()
-
-    for plugin in plugins:
-        if not isinstance(plugin, PluginDef):
-            raise TypeError(f"Expected PluginDef, got {type(plugin).__name__}")
-
-        if not plugin.name:
-            raise ValueError("PluginDef missing required 'name' field")
-
-        if plugin.name in plugin_names:
-            continue
-
-        plugin_names.add(plugin.name)
-        plugin_configs.append({
-            "name": plugin.name,
-            "config": plugin.config,
-            "inline": plugin.inline,
-            "plugin_type": plugin.plugin_type,
-        })
-
-    return plugin_configs
-
-
-def _build_import_statements(plugin_configs: list[dict], base_url: str, cache_bust: str) -> list[str]:
-    """Generate JavaScript import statements for plugins."""
-    imports = []
-    for i, plugin in enumerate(plugin_configs):
-        if plugin.get("inline"):
-            imports.append(f"const plugin_{i} = {plugin['inline']};")
-        else:
-            plugin_url = f"{base_url}/{plugin['name']}.js{cache_bust}"
-            imports.append(f"const plugin_{i} = await import('{plugin_url}').then(m => m.default);")
-    return imports
-
-
-def _build_init_statements(plugin_configs: list[dict], debug: bool) -> list[str]:
-    """Generate JavaScript initialization statements for plugins."""
-    inits = []
-    for i, plugin in enumerate(plugin_configs):
-        name = plugin["name"]
-        config_json = json.dumps(plugin["config"])
-        inline = plugin.get("inline")
-        plugin_type = plugin.get("plugin_type", PluginType.ATTRIBUTE)
-
-        if not inline:
-            if debug:
-                inits.append(f"plugin_{i}.setConfig?.({config_json}); console.log('[{name.upper()}] Configured:', {config_json});")
-                inits.append(f"console.log('[{name.upper()}] Handler loaded');")
-            else:
-                inits.append(f"plugin_{i}.setConfig?.({config_json});")
-
-        if plugin_type == PluginType.ACTION:
-            inits.append(f"action(plugin_{i});")
-        else:
-            inits.append(f"attribute(plugin_{i});")
-
-    return inits
-
-
-def _get_datastar_imports(plugin_configs: list[dict]) -> str:
-    """Determine which Datastar functions to import based on plugin types."""
-    has_action = any(p.get("plugin_type") == PluginType.ACTION for p in plugin_configs)
-    has_attribute = any(p.get("plugin_type") != PluginType.ACTION for p in plugin_configs)
-
-    imports = []
-    if has_attribute:
-        imports.append("attribute")
-    if has_action:
-        imports.append("action")
-    imports.extend(["getPath", "mergePatch", "effect"])
-
-    return ", ".join(imports)
+def _get_plugin_config(p) -> dict | None:
+    """Get JS config dict from plugin, converting snake_case to camelCase."""
+    config = getattr(p, "config", None)
+    if not config:
+        return None
+    return {"signal": p.name, **{_snake2camel(k): v for k, v in config.items()}}
 
 
 def plugins_hdrs(
-    *plugins: PluginDef,
+    *plugins,
     datastar_path: str = "/static/datastar.js",
     base_url: str = "/_pkg/starhtml/plugins",
     debug: bool = False,
-) -> tuple[FT, ...]:
-    """Generate batched header script for plugins. Loads all plugins in parallel and registers with Datastar."""
+) -> tuple:
+    """Generate import map and loader script for plugins."""
     if not plugins:
-        return tuple()
+        return ()
 
-    plugin_configs = _deduplicate_plugins(plugins)
-    cache_bust = f"?v={int(time.time())}" if debug else ""
+    v = f"?v={int(time.time())}" if debug else ""
 
-    plugin_imports = _build_import_statements(plugin_configs, base_url, cache_bust)
-    plugin_inits = _build_init_statements(plugin_configs, debug)
-    import_str = _get_datastar_imports(plugin_configs)
+    import_map = {
+        "imports": {
+            "datastar": f"{datastar_path}{v}",
+            **{
+                f"@starhtml/plugins/{p._base_name}": f"{base_url}/{p._base_name}.js{v}"
+                for p in plugins
+                if not p._inline
+            },
+        }
+    }
 
-    js_code = f"""
-        const {{ {import_str} }} = await import('{datastar_path}');
+    # Build loader: import/define each plugin, then register it
+    lines = []
+    for i, p in enumerate(plugins):
+        reg = "action" if p._is_action else "attribute"
+        lines.append(
+            f"const plugin_{i}={p._inline};"
+            if p._inline
+            else f"import plugin_{i} from'@starhtml/plugins/{p._base_name}';"
+        )
+        # Pass config to plugin via setConfig if available
+        config = _get_plugin_config(p)
+        if config:
+            lines.append(f"plugin_{i}.setConfig({json.dumps(config)});")
+        lines.append(f"{reg}(plugin_{i});")
 
-        if (!window.__datastar_getPath) {{
-            Object.assign(window, {{
-                __datastar_getPath: getPath,
-                __datastar_mergePatch: mergePatch,
-                __datastar_effect: effect
-            }});
-        }}
+    needed = []
+    if any(not p._is_action for p in plugins):
+        needed.append("attribute")
+    if any(p._is_action for p in plugins):
+        needed.append("action")
+    js_code = f"import{{{','.join(needed)}}}from'datastar';\n" + "\n".join(lines)
 
-        {chr(10).join(plugin_imports)}
+    # Critical CSS prevents flash of unprocessed content
+    css = "".join(p._critical_css for p in plugins if p._critical_css)
 
-        {chr(10).join(plugin_inits)}
-    """
-
-    return (Script(js_code, type="module"),)
+    return (
+        *((Style(css),) if css else ()),
+        Script(json.dumps(import_map), type="importmap"),
+        Script(js_code, type="module"),
+    )
 
 
 CLIPBOARD_CODE = """{
@@ -216,13 +203,11 @@ CLIPBOARD_CODE = """{
     apply: async ({ el, evt, error }, text, signal, timeout = 2000) => {
         const setSignal = (value) => {
             if (signal) {
-                const event = new CustomEvent('datastar-signal-patch', {
+                document.dispatchEvent(new CustomEvent('datastar-signal-patch', {
                     detail: { [signal]: value }
-                });
-                document.dispatchEvent(event);
+                }));
             }
         };
-
         const fallback = () => {
             const ta = document.createElement('textarea');
             ta.value = text;
@@ -236,7 +221,6 @@ CLIPBOARD_CODE = """{
                 document.body.removeChild(ta);
             }
         };
-
         if (navigator.clipboard?.writeText) {
             navigator.clipboard.writeText(text).then(() => {
                 setSignal(true);
@@ -248,23 +232,14 @@ CLIPBOARD_CODE = """{
     }
 }"""
 
-
-@plugin("clipboard", inline=CLIPBOARD_CODE, plugin_type=PluginType.ACTION)
-def clipboard(debug: bool = False):
-    """Copy text to clipboard with optional success signal. Action-only plugin with inline JavaScript."""
-    return {}  # No Python-accessible signals for action-only plugins
-
-
-@plugin("persist")
-def persist(debug: bool = False):
-    """Auto-persist signals to localStorage/sessionStorage."""
-    return {}  # No signals for persist plugin
-
-
-@plugin("scroll")
-def scroll(debug: bool = False):
-    """Track scroll position, velocity, direction, visibility, and progress."""
-    signal_names = [
+clipboard = Plugin("clipboard", inline=CLIPBOARD_CODE, is_action=True)
+persist = Plugin(
+    "persist",
+    critical_css="[data-persist]:not([data-persist-ready]){visibility:hidden}",
+)
+scroll = Plugin(
+    "scroll",
+    signals=(
         "x",
         "y",
         "direction",
@@ -278,21 +253,11 @@ def scroll(debug: bool = False):
         "element_bottom",
         "is_top",
         "is_bottom",
-    ]
-
-    return {name: js(f"$scroll_{name}") for name in signal_names}
-
-
-@plugin("resize")
-def resize(
-    signal: str = "resize",
-    throttle_ms: int = 16,
-    track_element: bool = False,
-    track_both: bool = False,
-    debug: bool = False,
-):
-    """Track window/element resize with responsive breakpoints."""
-    signal_names = [
+    ),
+)
+resize = Plugin(
+    "resize",
+    signals=(
         "width",
         "height",
         "window_width",
@@ -307,29 +272,11 @@ def resize(
         "md",
         "lg",
         "xl",
-    ]
-
-    return {name: js(f"$resize_{name}") for name in signal_names}
-
-
-@plugin("canvas")
-def canvas(
-    signal: str = "canvas",
-    enable_pan: bool = True,
-    enable_zoom: bool = True,
-    min_zoom: float = 0.1,
-    max_zoom: float = 10.0,
-    touch_enabled: bool = True,
-    background_color: str = "#f8f9fa",
-    enable_grid: bool = True,
-    grid_size: int = 100,
-    grid_color: str = "#e0e0e0",
-    minor_grid_size: int = 20,
-    minor_grid_color: str = "#f0f0f0",
-    debug: bool = False,
-):
-    """Canvas with infinite pan/zoom, grid, and touch support."""
-    value_signals = [
+    ),
+)
+canvas = Plugin(
+    "canvas",
+    signals=(
         "pan_x",
         "pan_y",
         "zoom",
@@ -337,95 +284,55 @@ def canvas(
         "context_menu_y",
         "context_menu_screen_x",
         "context_menu_screen_y",
-    ]
+    ),
+    methods=("resetView", "zoomIn", "zoomOut"),
+)
+drag = Plugin(
+    "drag",
+    signals=("is_dragging", "element_id", "x", "y", "drop_zone", "has_drop_zone"),
+    critical_css="[data-drag]{touch-action:none}",
+)
+position = Plugin(
+    "position",
+    signals=("x", "y", "placement", "visible", "is_positioning"),
+    critical_css="[data-positioning=true]:not([popover]){visibility:hidden!important;opacity:0!important}[data-positioning=false]:not([popover]){visibility:visible!important;opacity:1!important;transition:opacity 150ms ease-out}",
+)
+split = Plugin(
+    "split",
+    signals=(
+        "position",
+        "sizes",
+        "is_dragging",
+        "direction",
+        "collapsed",
+    ),
+)
 
-    signals = {name: js(f"${signal}_{name}") for name in value_signals}
-    signals["reset_view"] = js(f"window.__{signal}.resetView")
-    signals["zoom_in"] = js(f"window.__{signal}.zoomIn")
-    signals["zoom_out"] = js(f"window.__{signal}.zoomOut")
-
-    return signals
-
-
-@plugin("drag")
-def drag(
-    signal: str = "drag",
-    mode: str = "freeform",
-    throttle_ms: int = 16,
-    constrain_to_parent: bool = False,
-    touch_enabled: bool = True,
-    debug: bool = False,
-):
-    """Drag-and-drop with freeform, sortable, or constrained modes."""
-    signals = {
-        "is_dragging": js(f"${signal}_is_dragging"),
-        "element_id": js(f"${signal}_element_id"),
-        "x": js(f"${signal}_x"),
-        "y": js(f"${signal}_y"),
-        "drop_zone": js(f"${signal}_drop_zone"),
-        "has_drop_zone": js(f"${signal}_has_drop_zone"),
-    }
-
-    if mode in ("sortable", "freeform"):
-        signals["zone_items"] = lambda zone: js(f"${signal}_zone_{zone}_items")
-
-    return signals
-
-
-@plugin("position")
-def position(
-    signal: str = "position",
-    defaults: dict | None = None,
-    auto_update: dict | None = None,
-    debug: bool = False,
-):
-    """Position floating elements using Floating UI."""
-    signal_names = ["x", "y", "placement", "visible", "is_positioning"]
-
-    return {name: js(f"${signal}_{name}") for name in signal_names}
-
-
-@plugin("split")
-def split(
-    signal: str = "split",
-    direction: str = "horizontal",
-    min_size: int | list[int] = 10,
-    max_size: int | list[int] = 90,
-    default_sizes: list[int] | None = None,
-    default_position: int = 50,
-    persist: bool = True,
-    persist_key: str = "split-position",
-    snap_points: list[int] | None = None,
-    snap_offset: int = 5,
-    collapsible: bool | list[bool] = False,
-    collapse_size: int = 40,
-    keyboard: bool = True,
-    nested: bool = False,
-    corners: bool = False,
-    responsive: bool = False,
-    responsive_breakpoint: int = 768,
-    debug: bool = False,
-):
-    """Split panel with drag, snap, collapse, and persistence."""
-    return {
-        "position": Signal(f"{signal}_position", default_position if not default_sizes else 50),
-        "sizes": Signal(f"{signal}_sizes", default_sizes or [50, 50]),
-        "is_dragging": Signal(f"{signal}_is_dragging", False),
-        "direction": Signal(f"{signal}_direction", direction),
-        "collapsed": Signal(f"{signal}_collapsed", []),
-    }
-
+# Content processor plugins (use data-markdown, data-katex, data-mermaid)
+# Critical CSS hides raw content until JS processes it (prevents flash)
+markdown = Plugin(
+    "markdown",
+    critical_css="[data-markdown]:not(:has(p,h1,h2,h3,ul,ol,blockquote)){visibility:hidden;position:absolute;pointer-events:none}",
+)
+katex = Plugin(
+    "katex",  # Note: requires KaTeX CSS for proper rendering
+    critical_css="[data-katex]:not(:has(.katex)){visibility:hidden;position:absolute;pointer-events:none}",
+)
+mermaid = Plugin(
+    "mermaid",
+    critical_css="[data-mermaid]:not(:has(svg)){visibility:hidden;position:absolute;pointer-events:none}",
+)
 
 __all__ = [
-    "PluginDef",
-    "PluginType",
-    "plugin",
-    "get_registered_plugins",
+    "Plugin",
+    "PluginInstance",
     "plugins_hdrs",
-    # Built-in plugins
     "canvas",
     "clipboard",
     "drag",
+    "katex",
+    "markdown",
+    "mermaid",
     "persist",
     "position",
     "resize",

@@ -11,8 +11,8 @@ app, rt = star_app(
             body { background: white; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; -webkit-font-smoothing: antialiased; }
             .route-active { background: #f3f4f6; border-left: 4px solid #3b82f6; }
         """),
+        iconify_script(),
     ],
-    iconify=True,
 )
 
 

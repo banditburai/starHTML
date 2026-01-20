@@ -1,269 +1,395 @@
-"""Tests for the new plugin system with PluginDef and plugins_hdrs()."""
+"""Tests for the minimal plugin system."""
 
 import pytest
 
 from starhtml.plugins import (
-    PluginDef,
+    Plugin,
     canvas,
-    get_registered_plugins,
+    clipboard,
+    drag,
     persist,
-    plugin,
     plugins_hdrs,
+    position,
     resize,
     scroll,
+    split,
 )
 
 
-class TestPluginDefCreation:
-    """Test PluginDef instantiation and behavior."""
+class TestPluginClass:
+    """Test Plugin class instantiation and behavior."""
 
-    def test_plugin_decorator_creates_plugindef(self):
-        """Test that @plugin decorator returns PluginDef instances."""
-        result = persist()
+    def test_plugin_basic_creation(self):
+        """Test that Plugin factory is created correctly."""
+        p = Plugin("test", signals=("x", "y"))
 
-        assert isinstance(result, PluginDef)
-        assert result.name == "persist"
-        assert isinstance(result.config, dict)
-        assert isinstance(result.signals, dict)
+        assert p.name == "test"
+        assert p.inline is None
+        assert p.is_action is False
 
-    def test_plugin_captures_config_automatically(self):
-        """Test that @plugin decorator captures function parameters as config."""
-        result = scroll(debug=True)
-
-        assert result.config["debug"] is True
-
-    def test_plugin_converts_snake_case_to_camel_case(self):
-        """Test that parameter names are converted to camelCase for JavaScript."""
-        result = resize(throttle_ms=100, track_element=True)
-
-        # Should convert throttle_ms -> throttleMs, track_element -> trackElement
-        assert "throttleMs" in result.config
-        assert result.config["throttleMs"] == 100
-        assert "trackElement" in result.config
-        assert result.config["trackElement"] is True
-
-    def test_plugin_includes_signal_definitions(self):
-        """Test that plugins include their signal definitions."""
-        result = scroll()
-
-        # scroll plugin should have signal definitions
-        assert "x" in result.signals
-        assert "y" in result.signals
-        assert "direction" in result.signals
-
-    def test_plugin_signal_access_via_attribute(self):
+    def test_plugin_signal_access(self):
         """Test that signals can be accessed as attributes."""
-        result = scroll()
+        p = Plugin("test", signals=("x", "y", "is_active"))
 
-        # Should be able to access signals as attributes
-        x_signal = result.x
-        y_signal = result.y
+        assert str(p.x) == "$test_x"
+        assert str(p.y) == "$test_y"
+        assert str(p.is_active) == "$test_is_active"
 
-        # These should be JS expressions
-        assert str(x_signal) == "$scroll_x"
-        assert str(y_signal) == "$scroll_y"
+    def test_plugin_method_access(self):
+        """Test that methods can be accessed as attributes."""
+        p = Plugin("test", methods=("reset", "doSomething"))
 
-    def test_plugin_signal_access_invalid_raises_attributeerror(self):
-        """Test that accessing non-existent signals raises AttributeError."""
-        result = persist()
+        assert str(p.reset) == "window.__test.reset"
+        assert str(p.doSomething) == "window.__test.doSomething"
 
-        with pytest.raises(AttributeError, match="has no signal 'nonexistent'"):
-            _ = result.nonexistent
+    def test_plugin_mixed_signals_and_methods(self):
+        """Test plugin with both signals and methods."""
+        p = Plugin("test", signals=("x", "y"), methods=("reset",))
+
+        assert str(p.x) == "$test_x"
+        assert str(p.reset) == "window.__test.reset"
+
+    def test_plugin_invalid_attribute_raises(self):
+        """Test that accessing non-existent attributes raises AttributeError."""
+        p = Plugin("test", signals=("x",))
+
+        with pytest.raises(AttributeError, match="has no signal or method 'nonexistent'"):
+            _ = p.nonexistent
+
+    def test_plugin_inline_js(self):
+        """Test plugin with inline JavaScript."""
+        p = Plugin("test", inline="{ name: 'test' }", is_action=True)
+
+        assert p.inline == "{ name: 'test' }"
+        assert p.is_action is True
+
+
+class TestPluginFactory:
+    """Test Plugin factory pattern."""
+
+    def test_plugin_is_callable(self):
+        """Test that Plugin is callable."""
+        p = Plugin("test", signals=("x",))
+        assert callable(p)
+
+    def test_call_creates_named_instance(self):
+        """Test that calling plugin creates a named instance."""
+        from starhtml.plugins import PluginInstance
+
+        p = Plugin("test", signals=("x", "y"))
+        instance = p(name="custom")
+
+        assert isinstance(instance, PluginInstance)
+        assert instance.name == "custom"
+        assert str(instance.x) == "$custom_x"
+        assert str(instance.y) == "$custom_y"
+
+    def test_call_without_name_uses_base_name(self):
+        """Test that calling without name uses base name."""
+        p = Plugin("test", signals=("x",))
+        instance = p()
+
+        assert instance.name == "test"
+        assert str(instance.x) == "$test_x"
+
+    def test_call_with_config_kwargs(self):
+        """Test that config kwargs are stored on instance."""
+        p = Plugin("test", signals=("x",))
+        instance = p(name="custom", responsive=True, min_size=100)
+
+        assert instance.config == {"responsive": True, "min_size": 100}
+
+    def test_factory_delegates_to_default_singleton(self):
+        """Test that attribute access on factory delegates to default instance."""
+        p = Plugin("test", signals=("x", "y"))
+
+        # First access creates and caches default singleton
+        x_ref = p.x
+        assert str(x_ref) == "$test_x"
+
+        # Verify same singleton is used
+        assert p._default is not None
+        assert str(p.y) == "$test_y"
+
+    def test_instance_str_returns_name(self):
+        """Test that PluginInstance __str__ returns name."""
+        p = Plugin("test", signals=("x",))
+        instance = p(name="main")
+
+        assert str(instance) == "main"
+
+    def test_named_instances_are_independent(self):
+        """Test that multiple named instances have separate signal namespaces."""
+        main = split(name="main")
+        sidebar = split(name="sidebar")
+
+        assert str(main.position) == "$main_position"
+        assert str(sidebar.position) == "$sidebar_position"
+
+    def test_builtin_plugin_is_callable(self):
+        """Test that built-in plugins are callable factories."""
+        main = split(name="main")
+        assert main.name == "main"
+        assert str(main.sizes) == "$main_sizes"
 
 
 class TestBuiltinPlugins:
-    """Test built-in plugin functions."""
+    """Test built-in plugin instances."""
 
     def test_persist_plugin(self):
-        """Test persist plugin creation."""
-        p = persist(debug=True)
-
-        assert p.name == "persist"
-        assert p.config["debug"] is True
-        assert p.signals == {}  # persist has no signals
+        """Test persist plugin."""
+        assert persist.name == "persist"
+        assert persist.inline is None
+        assert persist.is_action is False
 
     def test_scroll_plugin(self):
-        """Test scroll plugin creation."""
-        s = scroll(debug=False)
+        """Test scroll plugin has expected signals."""
+        assert scroll.name == "scroll"
 
-        assert s.name == "scroll"
-        assert s.config["debug"] is False
-        assert len(s.signals) == 13  # scroll has many signals
+        # Test signal access (delegates to default singleton)
+        assert str(scroll.x) == "$scroll_x"
+        assert str(scroll.y) == "$scroll_y"
+        assert str(scroll.direction) == "$scroll_direction"
+        assert str(scroll.is_bottom) == "$scroll_is_bottom"
 
     def test_resize_plugin(self):
-        """Test resize plugin with custom config."""
-        r = resize(signal="myResize", throttle_ms=50, track_element=True)
+        """Test resize plugin has expected signals."""
+        assert resize.name == "resize"
 
-        assert r.name == "resize"
-        assert r.config["signal"] == "myResize"
-        assert r.config["throttleMs"] == 50
-        assert r.config["trackElement"] is True
+        assert str(resize.width) == "$resize_width"
+        assert str(resize.is_mobile) == "$resize_is_mobile"
+        assert str(resize.current_breakpoint) == "$resize_current_breakpoint"
 
     def test_canvas_plugin(self):
-        """Test canvas plugin with custom config."""
-        c = canvas(signal="canvas", enable_pan=True, min_zoom=0.5, max_zoom=5.0)
+        """Test canvas plugin has signals and methods."""
+        assert canvas.name == "canvas"
 
-        assert c.name == "canvas"
-        assert c.config["signal"] == "canvas"
-        assert c.config["enablePan"] is True
-        assert c.config["minZoom"] == 0.5
-        assert c.config["maxZoom"] == 5.0
+        # Signals
+        assert str(canvas.pan_x) == "$canvas_pan_x"
+        assert str(canvas.zoom) == "$canvas_zoom"
 
-        # Check action signals
-        assert "reset_view" in c.signals
-        assert "zoom_in" in c.signals
-        assert "zoom_out" in c.signals
+        # Methods
+        assert str(canvas.resetView) == "window.__canvas.resetView"
+        assert str(canvas.zoomIn) == "window.__canvas.zoomIn"
+        assert str(canvas.zoomOut) == "window.__canvas.zoomOut"
+
+    def test_drag_plugin(self):
+        """Test drag plugin."""
+        assert drag.name == "drag"
+        assert str(drag.is_dragging) == "$drag_is_dragging"
+        assert str(drag.x) == "$drag_x"
+
+    def test_position_plugin(self):
+        """Test position plugin."""
+        assert position.name == "position"
+        assert str(position.x) == "$position_x"
+        assert str(position.visible) == "$position_visible"
+
+    def test_split_plugin(self):
+        """Test split plugin."""
+        assert split.name == "split"
+        assert str(split.position) == "$split_position"
+        assert str(split.sizes) == "$split_sizes"
+        assert str(split.is_dragging) == "$split_is_dragging"
+
+    def test_clipboard_plugin(self):
+        """Test clipboard plugin is inline action."""
+        assert clipboard.name == "clipboard"
+        assert clipboard.is_action is True
+        assert clipboard.inline is not None
+        assert "clipboard" in clipboard.inline
 
 
-class TestPluginRegistry:
-    """Test plugin registry functionality."""
-
-    def test_get_registered_plugins_includes_builtins(self):
-        """Test that get_registered_plugins returns all registered plugin functions."""
-        plugins = get_registered_plugins()
-
-        # Should return list of callable functions
-        assert len(plugins) >= 7
-        assert all(callable(p) for p in plugins)
-
-        # Should include built-in plugins (check function names)
-        plugin_names = [p.__name__ for p in plugins]
-        assert "persist" in plugin_names
-        assert "scroll" in plugin_names
-        assert "resize" in plugin_names
-        assert "canvas" in plugin_names
-        assert "drag" in plugin_names
-        assert "position" in plugin_names
-        assert "split" in plugin_names
-
-    def test_custom_plugin_registration(self):
-        """Test that custom plugins can be registered."""
-
-        @plugin("testplugin")
-        def testplugin(custom_param: str = "test"):
-            return {"test_signal": f"${custom_param}_test"}
-
-        result = testplugin(custom_param="foo")
-
-        assert result.name == "testplugin"
-        assert result.config["customParam"] == "foo"
-        assert "test_signal" in result.signals
+def _find_by_type(hdrs, type_attr):
+    """Find header element by type attribute."""
+    return next((h for h in hdrs if f'type="{type_attr}"' in str(h)), None)
 
 
 class TestPluginsHdrs:
-    """Test plugins_hdrs() batch generation."""
+    """Test plugins_hdrs() import map generation."""
 
-    def test_plugins_hdrs_generates_single_script(self):
-        """Test that plugins_hdrs batches multiple plugins into single script."""
-        p = persist()
-        s = scroll()
+    def test_plugins_hdrs_generates_import_map_and_loader(self):
+        """Test that plugins_hdrs returns import map and loader script."""
+        hdrs = plugins_hdrs(persist, scroll)
 
-        hdrs = plugins_hdrs(p, s)
-
-        # Should return tuple of scripts
         assert isinstance(hdrs, tuple)
-        assert len(hdrs) == 1  # Single batched script
+        # persist has critical_css, so we get Style + 2 Scripts
+        assert len(hdrs) == 3
 
-        # Check script content
-        script = hdrs[0]
-        script_content = str(script)
+        import_map = _find_by_type(hdrs, "importmap")
+        assert import_map is not None
 
-        # Should contain Datastar import
-        assert "import('" in script_content
-        assert "datastar.js" in script_content
+        import_map_content = str(import_map)
+        assert "datastar" in import_map_content
+        assert "@starhtml/plugins/persist" in import_map_content
+        assert "@starhtml/plugins/scroll" in import_map_content
 
-        # Should load both plugins
-        assert "persist.js" in script_content
-        assert "scroll.js" in script_content
+        loader = _find_by_type(hdrs, "module")
+        assert loader is not None
+
+        loader_content = str(loader)
+        assert "@starhtml/plugins/persist" in loader_content
+        assert "@starhtml/plugins/scroll" in loader_content
+        assert "from'datastar'" in loader_content
 
     def test_plugins_hdrs_with_no_plugins_returns_empty(self):
         """Test that plugins_hdrs with no plugins returns empty tuple."""
         hdrs = plugins_hdrs()
-
-        assert hdrs == tuple()
-
-    def test_plugins_hdrs_deduplicates_plugins(self):
-        """Test that plugins_hdrs removes duplicate plugins."""
-        p1 = persist()
-        p2 = persist()
-
-        hdrs = plugins_hdrs(p1, p2)
-
-        # Should only load persist once
-        script_content = str(hdrs[0])
-        # Count occurrences of "persist.js"
-        count = script_content.count("persist.js")
-        assert count == 1
+        assert hdrs == ()
 
     def test_plugins_hdrs_with_debug_mode(self):
         """Test that plugins_hdrs respects debug mode."""
-        p = persist(debug=True)
+        hdrs = plugins_hdrs(persist, debug=True)
 
-        hdrs = plugins_hdrs(p, debug=True)
+        import_map = _find_by_type(hdrs, "importmap")
+        assert "?v=" in str(import_map)
 
-        script_content = str(hdrs[0])
+    def test_custom_base_url(self):
+        """Test that plugins_hdrs accepts custom base_url."""
+        hdrs = plugins_hdrs(persist, base_url="/custom/path")
 
-        # Should include debug logging and cache busting
-        assert "console.log" in script_content
-        assert "?v=" in script_content
+        import_map = _find_by_type(hdrs, "importmap")
+        assert "/custom/path/persist.js" in str(import_map)
 
-    def test_plugins_hdrs_validates_input_types(self):
-        """Test that plugins_hdrs validates input types."""
-        with pytest.raises(TypeError, match="Expected PluginDef"):
-            plugins_hdrs("not a plugin")
+    def test_custom_datastar_path(self):
+        """Test that plugins_hdrs accepts custom datastar_path."""
+        hdrs = plugins_hdrs(persist, datastar_path="/custom/datastar.js")
 
-    def test_plugins_hdrs_requires_plugin_name(self):
-        """Test that plugins_hdrs requires plugins to have names."""
-        from pathlib import Path
-
-        # Create invalid PluginDef without name
-        invalid_plugin = PluginDef(name="", config={}, signals={}, static_path=Path())
-
-        with pytest.raises(ValueError, match="missing required 'name' field"):
-            plugins_hdrs(invalid_plugin)
+        import_map = _find_by_type(hdrs, "importmap")
+        assert "/custom/datastar.js" in str(import_map)
 
 
 class TestPluginIntegration:
     """Test plugin integration patterns."""
 
-    def test_multiple_plugins_batch_correctly(self):
-        """Test that multiple different plugins batch into single script."""
-        p = persist()
-        s = scroll()
-        r = resize(throttle_ms=50)
-        c = canvas(enable_pan=True)
+    def test_multiple_plugins(self):
+        """Test that multiple plugins generate correct output."""
+        hdrs = plugins_hdrs(persist, scroll, resize, canvas)
 
-        hdrs = plugins_hdrs(p, s, r, c)
+        import_map = _find_by_type(hdrs, "importmap")
+        import_map_content = str(import_map)
+        assert "@starhtml/plugins/persist" in import_map_content
+        assert "@starhtml/plugins/scroll" in import_map_content
+        assert "@starhtml/plugins/resize" in import_map_content
+        assert "@starhtml/plugins/canvas" in import_map_content
 
-        # Single script
-        assert len(hdrs) == 1
+    def test_mixed_inline_and_file_plugins(self):
+        """Test combining inline (clipboard) and file-based (persist) plugins."""
+        hdrs = plugins_hdrs(clipboard, persist)
 
-        script_content = str(hdrs[0])
+        # Import map should NOT include inline plugins
+        import_map = _find_by_type(hdrs, "importmap")
+        import_map_content = str(import_map)
+        assert "@starhtml/plugins/clipboard" not in import_map_content
+        assert "@starhtml/plugins/persist" in import_map_content
 
-        # All plugins loaded
-        assert "persist.js" in script_content
-        assert "scroll.js" in script_content
-        assert "resize.js" in script_content
-        assert "canvas.js" in script_content
+        # Loader should inline clipboard
+        loader = _find_by_type(hdrs, "module")
+        loader_content = str(loader)
+        assert "const plugin_0" in loader_content
+        assert "clipboard" in loader_content
 
-        # Configs applied (JSON may not have spaces)
-        assert '"throttleMs":50' in script_content
-        assert '"enablePan":true' in script_content
+    def test_action_and_attribute_plugins(self):
+        """Test that action and attribute plugins import correct Datastar functions."""
+        hdrs = plugins_hdrs(clipboard, persist)
 
-    def test_custom_base_url(self):
-        """Test that plugins_hdrs accepts custom base_url."""
-        p = persist()
+        loader = _find_by_type(hdrs, "module")
+        loader_content = str(loader)
+        # Should have both attribute (for persist) and action (for clipboard)
+        assert "attribute" in loader_content
+        assert "action" in loader_content
 
-        hdrs = plugins_hdrs(p, base_url="/custom/path")
 
-        script_content = str(hdrs[0])
-        assert "/custom/path/persist.js" in script_content
+class TestPluginProtocol:
+    """Test that Plugin implements the Registrable protocol."""
 
-    def test_custom_datastar_path(self):
-        """Test that plugins_hdrs accepts custom datastar_path."""
-        p = persist()
+    def test_get_package_name(self):
+        """Test get_package_name returns expected value."""
+        assert persist.get_package_name() == "starhtml/plugins"
 
-        hdrs = plugins_hdrs(p, datastar_path="/custom/datastar.js")
+    def test_get_static_path(self):
+        """Test get_static_path returns a Path."""
+        path = persist.get_static_path()
+        assert path is not None
+        assert "plugins" in str(path)
 
-        script_content = str(hdrs[0])
-        assert "/custom/datastar.js" in script_content
+    def test_get_headers(self):
+        """Test get_headers returns tuple of headers."""
+        hdrs = persist.get_headers(base_url="/_pkg/starhtml/plugins")
+        assert isinstance(hdrs, tuple)
+        # persist has critical_css, so: Style + Script[importmap] + Script[module]
+        assert len(hdrs) == 3
+
+
+class TestCustomPlugins:
+    """Test custom plugin creation with custom paths."""
+
+    def test_custom_plugin_with_static_path(self):
+        """Test creating a plugin with custom static_path."""
+        from pathlib import Path
+
+        custom_path = Path("./my_app/static/plugins")
+
+        myplugin = Plugin("myplugin", signals=("x", "y"), static_path=custom_path)
+
+        assert myplugin.get_static_path() == custom_path
+        assert str(myplugin.x) == "$myplugin_x"
+
+    def test_custom_plugin_with_package_name(self):
+        """Test creating a plugin with custom package_name."""
+        myplugin = Plugin("myplugin", signals=("x",), package_name="myapp/plugins")
+
+        assert myplugin.get_package_name() == "myapp/plugins"
+
+    def test_custom_plugin_instance_inherits_paths(self):
+        """Test that named instances inherit custom paths."""
+        from pathlib import Path
+
+        custom_path = Path("./custom/plugins")
+
+        myplugin = Plugin("myplugin", signals=("x",), static_path=custom_path, package_name="myapp/plugins")
+        instance = myplugin(name="main")
+
+        assert instance.get_static_path() == custom_path
+        assert instance.get_package_name() == "myapp/plugins"
+        assert str(instance.x) == "$main_x"
+
+    def test_plugin_instance_inherits_critical_css(self):
+        """Test that named instances inherit critical_css from parent Plugin."""
+        myplugin = Plugin("myplugin", signals=("x",), critical_css=".test{display:none}")
+        instance = myplugin(name="main")
+
+        assert instance._critical_css == ".test{display:none}"
+
+        # Verify it works in plugins_hdrs
+        hdrs = plugins_hdrs(instance)
+        css_found = any("display:none" in str(h) for h in hdrs)
+        assert css_found, "Critical CSS should be included in headers"
+
+    def test_builtin_plugins_use_defaults(self):
+        """Test that built-in plugins still use framework defaults."""
+        assert "starhtml/plugins" in persist.get_package_name()
+        assert "plugins" in str(persist.get_static_path())
+
+    def test_plugin_config_passed_to_js(self):
+        """Test that plugin config kwargs are passed to JS via setConfig."""
+        splitter = split(name="main", responsive=True, responsive_breakpoint=768)
+        hdrs = plugins_hdrs(splitter)
+
+        loader = _find_by_type(hdrs, "module")
+        loader_content = str(loader)
+        # Should call setConfig with the config
+        assert "setConfig" in loader_content
+        # Config should include signal name and converted camelCase keys (compact JSON)
+        assert '"signal":"main"' in loader_content or '"signal": "main"' in loader_content
+        assert '"responsive":true' in loader_content or '"responsive": true' in loader_content
+        assert '"responsiveBreakpoint":768' in loader_content or '"responsiveBreakpoint": 768' in loader_content
+
+    def test_plugin_without_config_no_setconfig(self):
+        """Test that plugins without config don't call setConfig."""
+        hdrs = plugins_hdrs(persist)
+
+        loader = _find_by_type(hdrs, "module")
+        loader_content = str(loader)
+        # Should NOT call setConfig for plugins without config
+        assert "setConfig" not in loader_content

@@ -1,14 +1,6 @@
+import { mergePatch } from 'datastar';
 import { createDebounce, createRAFThrottle, createTimerThrottle } from "./throttle.js";
 import type { AttributePlugin, AttributeContext, OnRemovalFn } from "./types.js";
-
-function mergePatch(patch: Record<string, any>): void {
-  const mp = (window as any).__datastar_mergePatch;
-  if (mp) {
-    mp(patch);
-  } else {
-    console.error('Datastar mergePatch not available');
-  }
-}
 
 interface ResizeConfig {
   debug?: boolean;

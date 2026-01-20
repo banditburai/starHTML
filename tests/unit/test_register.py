@@ -3,7 +3,7 @@
 import pytest
 
 from starhtml import StarHTML
-from starhtml.plugins import PluginDef, canvas, persist, scroll
+from starhtml.plugins import Plugin, canvas, persist, scroll, split
 
 
 class TestAppRegister:
@@ -12,13 +12,12 @@ class TestAppRegister:
     def test_register_single_plugin(self):
         """Test registering a single plugin."""
         app = StarHTML()
-        p = persist()
 
-        result = app.register(p)
+        result = app.register(persist)
 
         # Should return the plugin
-        assert result is p
-        assert isinstance(result, PluginDef)
+        assert result is persist
+        assert isinstance(result, Plugin)
 
         # Should add headers to app
         assert len(app.hdrs) > 0
@@ -26,16 +25,14 @@ class TestAppRegister:
     def test_register_multiple_plugins(self):
         """Test registering multiple plugins."""
         app = StarHTML()
-        p = persist()
-        s = scroll()
 
-        result = app.register(p, s)
+        result = app.register(persist, scroll)
 
         # Should return tuple of plugins
         assert isinstance(result, tuple)
         assert len(result) == 2
-        assert result[0] is p
-        assert result[1] is s
+        assert result[0] is persist
+        assert result[1] is scroll
 
         # Should add headers to app
         assert len(app.hdrs) > 0
@@ -69,7 +66,7 @@ class TestAppRegister:
         initial_hdr_count = len(app.hdrs)
 
         # Register plugin
-        app.register(persist())
+        app.register(persist)
 
         # Should have more headers now
         assert len(app.hdrs) > initial_hdr_count
@@ -77,10 +74,9 @@ class TestAppRegister:
     def test_register_with_custom_prefix(self):
         """Test that register accepts custom prefix."""
         app = StarHTML()
-        p = persist()
 
         # Should not raise an error
-        app.register(p, prefix="/custom")
+        app.register(persist, prefix="/custom")
 
         # Headers should be added
         assert len(app.hdrs) > 0
@@ -88,11 +84,10 @@ class TestAppRegister:
     def test_register_plugin_creates_route(self):
         """Test that registering plugin creates static file route."""
         app = StarHTML()
-        p = persist()
 
         initial_route_count = len(app.routes)
 
-        app.register(p)
+        app.register(persist)
 
         # Should have added a route for serving static files
         assert len(app.routes) > initial_route_count
@@ -106,10 +101,10 @@ class TestRegisterBatchBehavior:
         app = StarHTML()
 
         # Register plugins separately
-        app.register(persist())
+        app.register(persist)
         first_count = len(app.hdrs)
 
-        app.register(scroll())
+        app.register(scroll)
         second_count = len(app.hdrs)
 
         # Should have more headers after second registration
@@ -120,13 +115,10 @@ class TestRegisterBatchBehavior:
         app = StarHTML()
 
         # Register multiple plugins at once
-        app.register(persist(), scroll(), canvas())
+        app.register(persist, scroll, canvas)
 
         # Check that headers were added
         assert len(app.hdrs) > 0
-
-        # The plugins_hdrs() function should batch into single script
-        # (we can't easily test the exact script count here without examining internals)
 
 
 class TestRegisterHelperFunctions:
@@ -162,12 +154,7 @@ class TestRegisterIntegration:
         """Test typical app setup with multiple plugins."""
         app = StarHTML()
 
-        # Register multiple plugins
-        persist_plugin = persist()
-        scroll_plugin = scroll()
-        canvas_plugin = canvas(enable_pan=True)
-
-        result = app.register(persist_plugin, scroll_plugin, canvas_plugin)
+        result = app.register(persist, scroll, canvas)
 
         # Should return tuple of all plugins
         assert isinstance(result, tuple)
@@ -182,11 +169,47 @@ class TestRegisterIntegration:
     def test_register_returns_plugin_for_method_chaining(self):
         """Test that register returns plugin for potential method chaining."""
         app = StarHTML()
-        p = persist()
 
         # Single registration returns the plugin
-        result = app.register(p)
-        assert result is p
+        result = app.register(persist)
+        assert result is persist
 
-        # Could potentially use for further configuration
-        assert isinstance(result, PluginDef)
+        # Should be a Plugin instance
+        assert isinstance(result, Plugin)
+
+    def test_register_named_instance(self):
+        """Test registering a named plugin instance."""
+        from starhtml.plugins import PluginInstance
+
+        app = StarHTML()
+        main = split(name="main")
+
+        result = app.register(main)
+
+        assert isinstance(result, PluginInstance)
+        assert result.name == "main"
+        assert len(app.hdrs) > 0
+
+    def test_register_multiple_named_instances(self):
+        """Test registering multiple named instances of same plugin type."""
+        app = StarHTML()
+        main = split(name="main")
+        sidebar = split(name="sidebar")
+
+        result = app.register(main, sidebar)
+
+        assert isinstance(result, tuple)
+        assert len(result) == 2
+        assert result[0].name == "main"
+        assert result[1].name == "sidebar"
+
+    def test_named_instances_have_correct_signal_refs(self):
+        """Test that named instances have correct signal references."""
+        main = split(name="main")
+        sidebar = split(name="sidebar")
+
+        # Each instance should have its own signal namespace
+        assert str(main.position) == "$main_position"
+        assert str(main.sizes) == "$main_sizes"
+        assert str(sidebar.position) == "$sidebar_position"
+        assert str(sidebar.sizes) == "$sidebar_sizes"

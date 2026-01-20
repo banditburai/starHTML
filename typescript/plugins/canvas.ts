@@ -1,9 +1,5 @@
+import { mergePatch } from 'datastar';
 import type { AttributePlugin, AttributeContext, OnRemovalFn } from "./types.js";
-
-function mergePatch(patch: Record<string, any>): void {
-  const mp = (window as any).__datastar_mergePatch;
-  if (mp) { mp(patch); } else { console.error('Datastar mergePatch not available'); }
-}
 interface Point {
   x: number;
   y: number;
@@ -260,7 +256,7 @@ class CanvasController {
   }
   private handlePointerDown(evt: PointerEvent) {
     const target = evt.target as HTMLElement;
-    const draggableElement = target.closest("[data-stardrag]");
+    const draggableElement = target.closest("[data-drag]");
     if (draggableElement) {
       return;
     }

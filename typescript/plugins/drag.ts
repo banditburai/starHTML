@@ -1,14 +1,6 @@
+import { mergePatch } from 'datastar';
 import { createRAFThrottle, createTimerThrottle } from "./throttle.js";
 import type { AttributePlugin, AttributeContext, OnRemovalFn } from "./types.js";
-
-function mergePatch(patch: Record<string, any>): void {
-  const mp = (window as any).__datastar_mergePatch;
-  if (mp) {
-    mp(patch);
-    return;
-  }
-  console.error('Datastar mergePatch not available');
-}
 
 interface DragConfig {
   signal: string;
@@ -39,16 +31,6 @@ function getDragArgNames(signal = "drag"): string[] {
 }
 
 const DEFAULT_THROTTLE = 16;
-
-const injectDragCSS = () => {
-  const styleId = "starhtml-drag-css";
-  if (document.getElementById(styleId)) return;
-
-  const style = document.createElement("style");
-  style.id = styleId;
-  style.textContent = "[data-stardrag] { touch-action: none; }";
-  document.head.appendChild(style);
-};
 
 const parseTransform = (transform: string): { pan: { x: number; y: number }; scale: number } => {
   if (!transform || transform === "none") {
@@ -115,7 +97,7 @@ const findDropZone = (x: number, y: number): Element | null => {
 };
 
 const getDropZoneItems = (zone: Element): string[] => {
-  return Array.from(zone.querySelectorAll("[data-stardrag]"))
+  return Array.from(zone.querySelectorAll("[data-drag]"))
     .map((el) => el.id || el.getAttribute("data-id"))
     .filter((id): id is string => Boolean(id));
 };
@@ -126,7 +108,7 @@ const findInsertPosition = (
   _draggedElement: HTMLElement
 ): Element | null => {
   const draggableElements = Array.from(
-    dropZone.querySelectorAll("[data-stardrag]:not(.is-dragging)")
+    dropZone.querySelectorAll("[data-drag]:not(.is-dragging)")
   );
 
   for (const element of draggableElements) {
@@ -151,7 +133,7 @@ const updateDropZoneTracking = (_config: DragConfig, mergePatchFn: (patch: Recor
     const zoneRect = zone.getBoundingClientRect();
     const items: string[] = [];
 
-    for (const draggable of document.querySelectorAll("[data-stardrag]")) {
+    for (const draggable of document.querySelectorAll("[data-drag]")) {
       const rect = draggable.getBoundingClientRect();
       const centerX = rect.left + rect.width / 2;
       const centerY = rect.top + rect.height / 2;
@@ -240,7 +222,7 @@ function findRegistrationFor(draggableEl: HTMLElement): Registration | null {
   while (node && node !== document.body) {
     const reg = registrations.find(r => r.el === node) || null;
     if (reg) {
-      const isDirectHandler = reg.el.hasAttribute("data-stardrag");
+      const isDirectHandler = reg.el.hasAttribute("data-drag");
       if (!isDirectHandler || reg.el === draggableEl) {
         return reg;
       }
@@ -497,7 +479,7 @@ function handleGlobalPointerUp() {
 
 function handleGlobalPointerDown(evt: PointerEvent) {
   const target = evt.target as HTMLElement;
-  const draggableElement = target.closest?.("[data-stardrag]") as HTMLElement | null;
+  const draggableElement = target.closest?.("[data-drag]") as HTMLElement | null;
   if (!draggableElement) return;
 
   const reg = findRegistrationFor(draggableElement);
@@ -576,14 +558,13 @@ function detachGlobalPointerDown() {
 }
 
 const dragAttributePlugin: AttributePlugin = {
-  name: "stardrag",
+  name: "drag",
   requirement: {
     key: "allowed",
     value: "allowed",
   },
 
   apply(ctx: AttributeContext): OnRemovalFn | void {
-    injectDragCSS();
     const { el, mods } = ctx;
 
     const config = getGlobalConfig();

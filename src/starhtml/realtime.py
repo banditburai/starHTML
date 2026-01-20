@@ -35,10 +35,6 @@ __all__ = [
     "StarHTMLWithLiveReload",
 ]
 
-# ============================================================================
-# WebSocket Functionality
-# ============================================================================
-
 
 def _find_wsp(ws, data, hdrs, arg: str, p):
     """Find WebSocket parameter in the provided context using guard clauses for clarity."""
@@ -161,10 +157,6 @@ def setup_ws(app, f=noop):
     return send
 
 
-# ============================================================================
-# SSE Functionality
-# ============================================================================
-
 SSE_HEADERS = {
     "Content-Type": "text/event-stream",
     "Cache-Control": "no-cache",
@@ -253,14 +245,15 @@ def format_signal_event(signals_dict: dict[str, Any], only_if_missing: bool = Fa
 
 
 def format_element_event(
-    element: Any, selector: str | None = None, mode: SSEMode = DEFAULT_MODE, use_view_transition: bool = False
+    element: Any,
+    selector: str | None = None,
+    mode: SSEMode = DEFAULT_MODE,
+    use_view_transition: bool = False,
+    preserve_whitespace: bool | None = None,
 ) -> str:
     """Format an element/fragment event for Datastar.
 
-    Per Datastar spec, data format (only include non-defaults):
-    - mode PATCH_MODE (if not 'outer')
-    - selector SELECTOR (if provided)
-    - elements HTML_LINE (for each line of HTML)
+    preserve_whitespace: None=auto-detect (<pre>/<textarea>), True=keep empty lines, False=strip.
     """
     if mode not in VALID_MODES:
         raise ValueError(f"Invalid mode '{mode}'. Must be one of: {', '.join(sorted(VALID_MODES))}")
@@ -280,9 +273,13 @@ def format_element_event(
         data_lines.append("useViewTransition true")
 
     if "\n" in element_html:
-        html_lines = element_html.split("\n")
-        for line in html_lines:
-            if line.strip():  # Skip empty lines
+        preserve = preserve_whitespace
+        if preserve is None:
+            html_lower = element_html.lower()
+            preserve = "<pre" in html_lower or "<textarea" in html_lower
+
+        for line in element_html.split("\n"):
+            if preserve or line.strip():
                 data_lines.append(f"elements {line}")
     else:
         data_lines.append(f"elements {element_html}")
@@ -296,10 +293,17 @@ def signals(only_if_missing: bool = False, **kwargs) -> tuple[str, dict[str, Any
 
 
 def elements(
-    element, selector: str | None = None, mode: SSEMode = DEFAULT_MODE, use_view_transition: bool = False
+    element,
+    selector: str | None = None,
+    mode: SSEMode = DEFAULT_MODE,
+    use_view_transition: bool = False,
+    preserve_whitespace: bool | None = None,
 ) -> tuple[str, tuple]:
-    """Create an elements SSE item for the @sse decorator."""
-    return ("elements", (element, selector, mode, use_view_transition))
+    """Create an elements SSE item for the @sse decorator.
+
+    preserve_whitespace: None=auto-detect (<pre>/<textarea>), True=keep empty lines, False=strip.
+    """
+    return ("elements", (element, selector, mode, use_view_transition, preserve_whitespace))
 
 
 def execute_script(
@@ -355,15 +359,22 @@ def process_sse_item(item_type: str, payload: Any) -> str | None:
                 selector = payload[1] if len(payload) > 1 else None
                 mode = payload[2] if len(payload) > 2 else DEFAULT_MODE
                 use_view_transition = payload[3] if len(payload) > 3 else False
+                preserve_whitespace = payload[4] if len(payload) > 4 else None
             else:
-                element, selector, mode, use_view_transition = payload, None, DEFAULT_MODE, False
+                element, selector, mode, use_view_transition, preserve_whitespace = (
+                    payload,
+                    None,
+                    DEFAULT_MODE,
+                    False,
+                    None,
+                )
 
             # Auto-detect selector if not provided and element has id
             if selector is None and hasattr(element, "attrs"):
                 if element_id := element.attrs.get("id"):
                     selector = f"#{element_id}"
 
-            return format_element_event(element, selector, mode, use_view_transition)
+            return format_element_event(element, selector, mode, use_view_transition, preserve_whitespace)
         case _:
             raise ValueError(f"Unknown SSE item type: {item_type}")
 

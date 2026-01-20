@@ -5,6 +5,7 @@ Demonstrates the 3-line Python implementation from the refined PRD.
 """
 
 from starhtml import *
+from starhtml.plugins import drag
 
 # Sample todo data
 todos = [
@@ -14,19 +15,21 @@ todos = [
     {"id": 4, "text": "Deploy to production", "completed": False},
 ]
 
+todos_drag = drag(name="todos", mode="sortable")
+
 app, rt = star_app(
     title="Drag Handler Demo",
     htmlkw={"lang": "en"},
     hdrs=[
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
         Style(
-            """body{background:#fff;color:#000;margin:0;padding:0;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}::selection{background:#000;color:#fff}[data-stardrag]{display:flex;align-items:center;padding:1rem;background-color:white;border:1px solid rgb(229 231 235);margin-bottom:0.5rem;border-radius:0.5rem;cursor:move;transition:border-color 0.2s;width:100%;user-select:none;-webkit-user-select:none}[data-stardrag]:hover{border-color:rgb(156 163 175)}[data-stardrag].is-dragging{opacity:0.5;cursor:grabbing !important}[data-drop-zone].drop-zone-active{background-color:rgb(239 246 255) !important;border-color:rgb(59 130 246) !important}[data-drop-zone]{display:block !important}[data-drop-zone]:not(:has([data-stardrag])) > div:first-child{margin:auto;padding:2rem}[data-drop-zone]:has([data-stardrag]) > div:first-child{margin-bottom:1rem}"""
+            """body{background:#fff;color:#000;margin:0;padding:0;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}::selection{background:#000;color:#fff}[data-drag]{display:flex;align-items:center;padding:1rem;background-color:white;border:1px solid rgb(229 231 235);margin-bottom:0.5rem;border-radius:0.5rem;cursor:move;transition:border-color 0.2s;width:100%;user-select:none;-webkit-user-select:none}[data-drag]:hover{border-color:rgb(156 163 175)}[data-drag].is-dragging{opacity:0.5;cursor:grabbing !important}[data-drop-zone].drop-zone-active{background-color:rgb(239 246 255) !important;border-color:rgb(59 130 246) !important}[data-drop-zone]{display:block !important}[data-drop-zone]:not(:has([data-drag])) > div:first-child{margin:auto;padding:2rem}[data-drop-zone]:has([data-drag]) > div:first-child{margin-bottom:1rem}"""
         ),
-        # Use walrus operator to assign and include handler in one line
-        (todos_drag := drag_handler(signal="todos", mode="sortable")),
+        iconify_script(),
     ],
-    iconify=True,
 )
+
+app.register(todos_drag)
 
 
 @rt("/")
@@ -63,7 +66,7 @@ def sortable_todos():
                     Div(
                         Icon("material-symbols:drag-indicator", cls="mr-3 text-gray-400"),
                         todo["text"],
-                        data_stardrag=True,
+                        data_drag=True,
                         id=f"todo-{todo['id']}",
                     )
                     for todo in todos

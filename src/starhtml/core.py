@@ -2,7 +2,6 @@
 
 import re
 from copy import deepcopy
-from dataclasses import dataclass
 from functools import partialmethod
 from pathlib import Path as PathlibPath
 from typing import Protocol, runtime_checkable
@@ -27,6 +26,7 @@ from .realtime import _ws_endp, setup_ws
 from .server import _mk_locfunc, _wrap_call, _wrap_ex, _wrap_req, all_meths, cookie, render_response, serve
 from .starapp import Beforeware, def_hdrs
 from .utils import _list, _params, get_key, noop_body, reg_re_param
+
 
 @runtime_checkable
 class Registrable(Protocol):
@@ -56,6 +56,7 @@ __all__ = [
     "register_package_static",
     "Registrable",
 ]
+
 
 class StarHTML(Starlette):
     def __init__(
@@ -289,6 +290,7 @@ reg_re_param("path", ".*?")
 _static_exts = "ico gif jpg jpeg webm css js woff png svg mp4 webp ttf otf eot woff2 txt html map pdf zip tgz gz csv mp3 wav ogg flac aac doc docx xls xlsx ppt pptx epub mobi bmp tiff avi mov wmv mkv xml yaml yml rar 7z tar bz2 htm xhtml apk dmg exe msi swf iso".split()
 reg_re_param("static", "|".join(_static_exts))
 
+
 @patch
 def register_package_static(self: StarHTML, name: str, static_path, prefix: str = None):
     """Serve a package's static directory (routes inserted first for priority)."""
@@ -325,60 +327,25 @@ def register_package(self: StarHTML, name: str, static_path=None, hdrs=None, pre
         self.hdrs = list(self.hdrs) + listify(hdrs)
 
 
-def _require_starelements():
-    """Import starelements or raise helpful error."""
-    try:
-        import starelements
-        return starelements
-    except ImportError as e:
-        raise ImportError(
-            "starelements is required to register components. Install with: uv add starelements"
-        ) from e
-
-
-class _ComponentAdapter:
-    """Adapter to make starelements components work with Registrable protocol."""
-
-    def __init__(self, component):
-        self.component = component
-
-    def get_package_name(self) -> str:
-        return "starelements"
-
-    def get_static_path(self) -> Path:
-        se = _require_starelements()
-        return se.get_static_path()
-
-    def get_headers(self, base_url: str) -> tuple:
-        se = _require_starelements()
-        return se.starelements_hdrs(self.component, base_url=base_url)
-
-
 def _register_item(app: StarHTML, item, prefix: str | None = None):
-    """Register any Registrable item (plugin, component, CDN script, or custom type)."""
-    original_item = item
-
-    # Adapt starelements components to Registrable protocol
-    if hasattr(item, "_element_def"):
-        item = _ComponentAdapter(item)
-
+    """Register a Registrable item (plugin, component, or custom type)."""
     if not isinstance(item, Registrable):
         raise TypeError(
-            f"Cannot register {type(original_item).__name__}. "
+            f"Cannot register {type(item).__name__}. "
             f"Item must implement: get_package_name(), get_static_path(), get_headers()"
         )
 
     prefix = prefix or DEFAULT_PKG_PREFIX
-    package_name = item.get_package_name()
-    static_path = item.get_static_path()
+    name, static_path = item.get_package_name(), item.get_static_path()
+    full_prefix = f"{prefix}/{name}" if static_path else ""
 
     app.register_package(
-        name=package_name,
+        name=name,
         static_path=static_path,
-        hdrs=item.get_headers(f"{prefix}/{package_name}" if static_path else ""),
-        prefix=prefix,
+        hdrs=item.get_headers(full_prefix),
+        prefix=full_prefix or None,
     )
-    return original_item
+    return item
 
 
 @patch
@@ -386,31 +353,36 @@ def register(self: StarHTML, *items, prefix: str | None = None):
     """Register plugins and/or components with the app.
 
     Works with any object implementing the Registrable protocol:
-    - PluginDef (from canvas(), persist(), scroll(), etc.)
+    - Plugin (from plugins: canvas, persist, scroll, etc.)
     - Component class (decorated with @element from starelements)
     - Custom types implementing get_package_name(), get_static_path(), get_headers()
 
-    Registered items are appended to headers in registration order.
-    Use hdrs parameter for scripts that must load before registered items.
-
-    Args:
-        *items: One or more Registrable items to register
-        prefix: URL prefix for serving static files (default: "/_pkg")
-
-    Returns:
-        The registered item, tuple of items, or None if empty
-
     Example:
-        >>> from starhtml.plugins import canvas, persist
-        >>>
-        >>> app.register(canvas(), persist())
-        >>>
-        >>> # Load order: default headers → user hdrs → registered items
+        >>> app.register(canvas, persist, scroll)
     """
-    results = [_register_item(self, item, prefix) for item in items]
-    if len(results) == 1:
-        return results[0]
-    return tuple(results) if results else None
+    from .plugins import Plugin, plugins_hdrs
+
+    prefix = prefix or DEFAULT_PKG_PREFIX
+    plugins, others = [], []
+    for item in items:
+        (plugins if isinstance(item, Plugin) else others).append(item)
+
+    for item in others:
+        _register_item(self, item, prefix)
+
+    if plugins:
+        # Import map supersedes default Datastar script
+        self.hdrs = [h for h in self.hdrs if not (getattr(h, "src", None) or "").endswith("datastar.js")]
+
+        for p in plugins:
+            if p.get_static_path():
+                self.register_package_static(
+                    p.get_package_name(), p.get_static_path(), f"{prefix}/{p.get_package_name()}"
+                )
+
+        self.hdrs += list(plugins_hdrs(*plugins, base_url=f"{prefix}/{plugins[0].get_package_name()}"))
+
+    return items[0] if len(items) == 1 else (tuple(items) or None)
 
 
 @patch

@@ -14,8 +14,8 @@ app, rt = star_app(
         Style("""
             body { background: white; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; -webkit-font-smoothing: antialiased; }
         """),
+        iconify_script(),
     ],
-    iconify=True,
 )
 
 
@@ -339,4 +339,4 @@ if __name__ == "__main__":
     print("   • Value fallbacks with expr()")
     print("   • Array operations")
     print("   • Interactive examples")
-    serve(port=5023)
+    serve(port=5026)

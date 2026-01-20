@@ -25,8 +25,8 @@ app, rt = star_app(
                 padding-left: 1rem;
             }
         """),
+        iconify_script(),
     ],
-    iconify=True,
 )
 
 

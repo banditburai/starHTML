@@ -7,6 +7,7 @@ Available variables in data_resize expressions (flattened like scroll):
 """
 
 from starhtml import *
+from starhtml.plugins import resize
 
 app, rt = star_app(
     title="Resize Handler Demo",
@@ -16,10 +17,11 @@ app, rt = star_app(
         Style(
             """body{background:#fff;color:#000;margin:0;padding:0;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}::selection{background:#000;color:#fff}"""
         ),
-        resize_handler(),
+        iconify_script(),
     ],
-    iconify=True,
 )
+
+app.register(resize)
 
 # Global counter for dynamic boxes
 box_counter = 0

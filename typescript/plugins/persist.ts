@@ -1,33 +1,6 @@
+import { mergePatch, getPath, effect } from 'datastar';
 import { createDebounce } from "./throttle.js";
 import type { AttributePlugin, AttributeContext, OnRemovalFn } from "./types.js";
-
-
-function mergePatch(patch: Record<string, any>): void {
-  const mp = (window as any).__datastar_mergePatch;
-  if (mp) {
-    mp(patch);
-  } else {
-    console.error('Datastar mergePatch not available');
-  }
-}
-
-function getPath(path: string): any {
-  const gp = (window as any).__datastar_getPath;
-  if (gp) {
-    return gp(path);
-  }
-    console.error('Datastar getPath not available');
-    return undefined;
-}
-
-function effect(fn: () => void): () => void {
-  const eff = (window as any).__datastar_effect;
-  if (eff) {
-    return eff(fn);
-  }
-    console.error('Datastar effect not available');
-    return () => {};
-}
 
 const DEFAULT_STORAGE_KEY = "starhtml-persist";
 const DEFAULT_THROTTLE = 500;
@@ -96,21 +69,27 @@ const persistAttributePlugin: AttributePlugin = {
   },
 
   apply(ctx: AttributeContext): OnRemovalFn | void {
-    const { key, value, mods } = ctx;
+    const { el, key, value, mods } = ctx;
     const storage = getStorage(mods.has("session"));
-    if (!storage) return;
+    if (!storage) {
+      el.setAttribute("data-persist-ready", "");
+      return;
+    }
 
     const customKey = key || getModValue(mods, "key");
     const storageKey = customKey
       ? `${DEFAULT_STORAGE_KEY}-${String(customKey)}`
       : DEFAULT_STORAGE_KEY;
-    
+
     const trimmed = value?.trim();
     const signals = trimmed ? parseSignals(trimmed) : [];
 
     if (signals.length > 0) {
       loadFromStorage(storage, storageKey, signals);
     }
+
+    // Mark element ready to prevent flash of default values
+    el.setAttribute("data-persist-ready", "");
 
     const throttleMs = mods.has("immediate") 
       ? 0 

@@ -13,7 +13,9 @@ export default defineConfig({
         'throttle': './typescript/plugins/throttle.ts',
         'smooth-scroll': './typescript/plugins/smooth-scroll.ts',
         'split': './typescript/plugins/split.ts',
-        'index': './typescript/plugins/index.ts'
+        'markdown': './typescript/plugins/markdown.ts',
+        'katex': './typescript/plugins/katex.ts',
+        'mermaid': './typescript/plugins/mermaid.ts',        
       },
       formats: ['es'],
       fileName: (format, entryName) => `${entryName}.js`
@@ -51,7 +53,12 @@ export default defineConfig({
       }
     },
     rollupOptions: {
-      external: [],
+      external: [
+        'datastar',
+        'https://cdn.jsdelivr.net/npm/marked/lib/marked.esm.js',
+        'https://cdn.jsdelivr.net/npm/katex/dist/katex.mjs',
+        'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs',
+      ],
       output: {
         preserveModules: false,
         compact: true,

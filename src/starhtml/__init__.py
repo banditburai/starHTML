@@ -71,7 +71,6 @@ from starlette.websockets import WebSocket, WebSocketDisconnect, WebSocketState
 
 from .core import *
 from .datastar import *
-from .external import *
 from .html import *
 from .plugins import *
 from .realtime import *

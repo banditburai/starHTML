@@ -4,16 +4,16 @@ Using the FT Splitter approach with Datastar patterns
 """
 
 from starhtml import *
-from starhtml.handlers import split_handler
+from starhtml.plugins import split
+
+main = split(name="main", responsive=False)
+nested = split(name="nested", responsive=False)
 
 app, rt = star_app(
     title="Universal Split Demo",
     htmlkw={"lang": "en"},
     hdrs=[
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
-        # Separate handlers for independent splits
-        (main := split_handler(signal="main", responsive=False)),
-        (nested := split_handler(signal="nested", responsive=False)),
         Style("""
             @layer base {
                 :root {
@@ -143,11 +143,12 @@ app, rt = star_app(
                     border-bottom: 1px solid rgba(255,255,255,0.1);
                 }
             }
-            
+
         """),
     ],
-    iconify=True,
 )
+
+app.register(main, nested)
 
 
 def create_panel_content(title, *content, size_signal=None, default_size="30%"):
@@ -231,4 +232,4 @@ def home():
 
 
 if __name__ == "__main__":
-    serve(port=5024)
+    serve(port=5022)

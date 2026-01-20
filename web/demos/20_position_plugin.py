@@ -1,6 +1,7 @@
 """Position Handler Demo - Floating UI-powered automatic positioning and collision detection."""
 
 from starhtml import *
+from starhtml.plugins import position
 
 app, rt = star_app(
     title="Position Handler Demo",
@@ -10,10 +11,11 @@ app, rt = star_app(
         Style("""
             body { background: white; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; -webkit-font-smoothing: antialiased; }
         """),
-        position_handler(),
+        iconify_script(),
     ],
-    iconify=True,
 )
+
+app.register(position)
 
 
 @rt("/")
@@ -344,5 +346,5 @@ data_position=("triggerId", dict(
 
 
 if __name__ == "__main__":
-    print("Position Handler Demo running on http://localhost:5017")
-    serve(port=5017)
+    print("Position Plugin Demo running on http://localhost:5020")
+    serve(port=5020)

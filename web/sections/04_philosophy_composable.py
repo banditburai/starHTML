@@ -407,8 +407,8 @@ app, rt = star_app(
                 -webkit-font-smoothing: antialiased;
             }
         """),
+        iconify_script(),
     ],
-    iconify=True,
 )
 
 

@@ -5,6 +5,8 @@ A practical demo showing canvas + drag to build visual workflows with real-time 
 import json
 
 from starhtml import *
+from starhtml.plugins import canvas as canvas_plugin
+from starhtml.plugins import drag as drag_plugin
 
 # ===== REUSABLE STYLES =====
 
@@ -281,30 +283,28 @@ TOOLBAR_STYLES = """
     }
 """
 
+canvas = canvas_plugin(
+    background_color="#2a2a2a",
+    grid_color="rgba(255,255,255,0.1)",
+    minor_grid_color="rgba(255,255,255,0.05)",
+)
+
+drag = drag_plugin(
+    name="node_drag",
+    mode="freeform",
+    constrain_to_parent=False,
+)
+
 app, rt = star_app(
     title="Composable Node Graph Demo",
     htmlkw={"lang": "en"},
     hdrs=[
-        Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4", iconify=True),
-        # Canvas handler for pan/zoom/grid
-        (
-            canvas := canvas_handler(
-                background_color="#2a2a2a",
-                grid_color="rgba(255,255,255,0.1)",
-                minor_grid_color="rgba(255,255,255,0.05)",
-            )
-        ),
-        # Single drag handler for all nodes (best practice)
-        (
-            drag := drag_handler(
-                signal="node_drag",
-                mode="freeform",
-                constrain_to_parent=False,
-            )
-        ),
+        Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
+        iconify_script(),
     ],
-    iconify=True,
 )
+
+app.register(canvas, drag)
 
 
 def workflow_node(node_id, title, node_type, x, y, node_states, selected_node):
@@ -519,7 +519,7 @@ if __name__ == "__main__":
     print("=" * 60)
     print("⚡ INTERACTIVE WORKFLOW BUILDER")
     print("=" * 60)
-    print("📍 Running on: http://localhost:5001")
+    print("📍 Running on: http://localhost:5019")
     print("🛠️  Features:")
     print("   • Visual workflow creation with drag & drop")
     print("   • Real-time execution simulation")
@@ -533,4 +533,4 @@ if __name__ == "__main__":
     print("   • Use 'Run Workflow' to simulate execution")
     print("   • Press Enter to run, R to reset view")
     print("=" * 60)
-    serve(port=5001)
+    serve(port=5019)

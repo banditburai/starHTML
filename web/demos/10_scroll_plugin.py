@@ -1,6 +1,7 @@
 """Comprehensive demo showcasing the scroll handler capabilities."""
 
-from starhtml import *  # This imports scroll namespace automatically
+from starhtml import *
+from starhtml.plugins import scroll
 
 app, rt = star_app(
     title="Scroll Handler Demo",
@@ -10,10 +11,10 @@ app, rt = star_app(
         Style("""
             body { background: white; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; -webkit-font-smoothing: antialiased; }
         """),
-        (scroll := scroll_handler()),  # Assign to variable for signal access
     ],
-    iconify=True,
 )
+
+app.register(scroll)
 
 
 @rt("/")

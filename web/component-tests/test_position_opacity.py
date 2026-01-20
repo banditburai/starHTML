@@ -14,6 +14,7 @@ sys.path.insert(0, "src")
 from uuid import uuid4
 
 from starhtml import *
+from starhtml.plugins import position
 
 
 # Popover component code exactly as provided
@@ -115,7 +116,6 @@ app, rt = star_app(
     title="Position Handler Test Suite",
     hdrs=[
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
-        position_handler(),
         Style("""
             /* Visual indicator for flash detection */
             .flash-test-bg {
@@ -150,6 +150,8 @@ app, rt = star_app(
         """),
     ],
 )
+
+app.register(position)
 
 
 @rt("/")

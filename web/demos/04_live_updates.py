@@ -19,8 +19,8 @@ app, rt = star_app(
             @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
             .status-checking { animation: pulse 1.5s ease-in-out infinite; }
         """),
+        iconify_script(),
     ],
-    iconify=True,
 )
 
 

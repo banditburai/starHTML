@@ -5,6 +5,14 @@ while drop zones track what's over them without constraining movement.
 """
 
 from starhtml import *
+from starhtml.plugins import drag as drag_plugin
+
+drag = drag_plugin(
+    name="drag",
+    mode="freeform",
+    throttle_ms=16,
+    constrain_to_parent=True,
+)
 
 app, rt = star_app(
     title="Freeform Drag Demo",
@@ -14,17 +22,11 @@ app, rt = star_app(
         Style("""
             body { background: white; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; -webkit-font-smoothing: antialiased; }
         """),
-        (
-            drag := drag_handler(
-                signal="drag",
-                mode="freeform",
-                throttle_ms=16,
-                constrain_to_parent=True,
-            )
-        ),
+        iconify_script(),
     ],
-    iconify=True,
 )
+
+app.register(drag)
 
 
 @rt("/")
@@ -57,7 +59,7 @@ def freeform_drag():
                             cls="inline mr-1 lg:w-6 lg:h-6 lg:mr-2",
                         ),
                         Span("Package A", cls="text-sm lg:text-base"),
-                        data_stardrag=True,
+                        data_drag=True,
                         id="package-a",
                         cls="draggable-item bg-black text-white",
                         style="left: 20px; top: 30px;",
@@ -65,7 +67,7 @@ def freeform_drag():
                     Div(
                         Icon("material-symbols:mail", width="20", height="20", cls="inline mr-1 lg:w-6 lg:h-6 lg:mr-2"),
                         Span("Package B", cls="text-sm lg:text-base"),
-                        data_stardrag=True,
+                        data_drag=True,
                         id="package-b",
                         cls="draggable-item bg-black text-white",
                         style="left: 20px; top: 100px;",
@@ -75,7 +77,7 @@ def freeform_drag():
                             "material-symbols:redeem", width="20", height="20", cls="inline mr-1 lg:w-6 lg:h-6 lg:mr-2"
                         ),
                         Span("Package C", cls="text-sm lg:text-base"),
-                        data_stardrag=True,
+                        data_drag=True,
                         id="package-c",
                         cls="draggable-item bg-black text-white",
                         style="left: 20px; top: 170px;",
@@ -283,5 +285,5 @@ def freeform_drag():
 
 
 if __name__ == "__main__":
-    print("Freeform Drag Demo running on http://localhost:5013")
-    serve(port=5013)
+    print("Freeform Drag Demo running on http://localhost:5016")
+    serve(port=5016)

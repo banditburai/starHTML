@@ -8,23 +8,25 @@ Demonstrates:
 """
 
 from starhtml import *
+from starhtml.plugins import canvas as canvas_plugin
+
+canvas = canvas_plugin(
+    background_color="#2a2a2a", grid_color="rgba(255,255,255,0.2)", minor_grid_color="rgba(255,255,255,0.1)"
+)
 
 app, rt = star_app(
     title="Full-Page Canvas Demo",
     htmlkw={"lang": "en"},
     hdrs=[
-        Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4", iconify=True),
+        Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
         Style(
             """body{margin:0;padding:0;overflow:hidden;font-family:system-ui}.canvas-viewport.fullpage{position:fixed;top:0;left:0;width:100vw;height:100vh;overflow:hidden;background:#f8f9fa;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;overscroll-behavior:none}.canvas-viewport.fullpage:active{cursor:grabbing}.canvas-container{position:relative;width:100%;height:100%;transform-origin:0 0}.canvas-item{position:absolute;padding:0.75rem 1.25rem;background:#3b82f6;color:white;border-radius:8px;font-size:0.9rem;font-weight:500;box-shadow:0 4px 6px rgba(0,0,0,0.1);user-select:none;transform:translate(-50%, -50%);cursor:pointer;transition:transform 0.1s ease}.canvas-item:hover{transform:translate(-50%, -50%) scale(1.05);box-shadow:0 6px 12px rgba(0,0,0,0.15)}.canvas-item.origin{background:#ef4444;font-weight:600}.modern-toolbar{position:fixed;bottom:1rem;right:1rem;display:flex;align-items:center;gap:4px;padding:8px;background:rgba(30,30,30,0.95);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.1);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.3);z-index:1000}.toolbar-btn{width:32px;height:32px;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;transition:all 0.2s ease;display:flex;align-items:center;justify-content:center;color:#e5e7eb;background:rgba(255,255,255,0.08)}.toolbar-btn:hover{background:rgba(255,255,255,0.15);color:#ffffff;transform:translateY(-1px)}.toolbar-btn:active{transform:translateY(0);background:rgba(255,255,255,0.2)}.reset-btn{background:rgba(59,130,246,0.2);color:#60a5fa}.reset-btn:hover{background:rgba(59,130,246,0.3);color:#93c5fd}.status-display{margin-left:8px;padding:0 12px;border-left:1px solid rgba(255,255,255,0.15)}.zoom-indicator{font-family:'SF Mono','Monaco','Inconsolata','Roboto Mono',monospace;font-size:12px;font-weight:500;color:#9ca3af;white-space:nowrap}@media (max-width: 768px){.canvas-viewport.fullpage{position:fixed;top:0;left:0;right:0;bottom:0;width:100%;height:100%}}"""
         ),
-        (
-            canvas := canvas_handler(
-                background_color="#2a2a2a", grid_color="rgba(255,255,255,0.2)", minor_grid_color="rgba(255,255,255,0.1)"
-            )
-        ),
+        iconify_script(),
     ],
-    iconify=True,
 )
+
+app.register(canvas)
 
 
 @rt("/")
@@ -95,7 +97,7 @@ if __name__ == "__main__":
     print("=" * 60)
     print("🌌 FULL-PAGE CANVAS DEMO")
     print("=" * 60)
-    print("📍 Running on: http://localhost:5001")
+    print("📍 Running on: http://localhost:5018")
     print("🎨 Features:")
     print("   • Full-screen infinite canvas")
     print("   • Dark theme with subtle grid")
@@ -103,4 +105,4 @@ if __name__ == "__main__":
     print("   • Keyboard shortcuts (R, +, -)")
     print("   • Context menu interactions")
     print("=" * 60)
-    serve(port=5001)
+    serve(port=5018)

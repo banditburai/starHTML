@@ -16,7 +16,6 @@ app, rt = star_app(
             """body{background:#fff;color:#000;margin:0;padding:0;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}::selection{background:#000;color:#fff}.form-field{margin-bottom:16px}.error-message{color:#dc2626;font-size:14px;margin-top:4px}.success-message{color:#059669;font-size:14px;margin-top:4px}.loading-indicator{display:inline-block;width:16px;height:16px;border:2px solid #e5e7eb;border-radius:50%;border-top-color:#3b82f6;animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}"""
         ),
     ],
-    iconify=True,
 )
 
 
@@ -461,11 +460,11 @@ def home():
 if __name__ == "__main__":
     print("⚙️ Complex Modifier (.with_()) Usage Demo")
     print("=" * 45)
-    print("🚀 Running on http://localhost:5021")
+    print("🚀 Running on http://localhost:5024")
     print("✨ Features:")
     print("   • Event modifiers (prevent, stop, debounce, throttle)")
     print("   • Keyboard modifiers (key combinations)")
     print("   • Custom plugin modifiers")
     print("   • Complex chaining patterns")
     print("   • Real-world usage examples")
-    serve(port=5021)
+    serve(port=5024)

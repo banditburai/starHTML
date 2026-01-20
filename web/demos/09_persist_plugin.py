@@ -5,6 +5,7 @@ signal values across page reloads using localStorage and sessionStorage.
 """
 
 from starhtml import *
+from starhtml.plugins import persist
 
 app, rt = star_app(
     title="Persist Handler Demo",
@@ -14,10 +15,10 @@ app, rt = star_app(
         Style("""
             body { background: white; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; -webkit-font-smoothing: antialiased; }
         """),
-        persist_handler(),  # Enable persistence (configure via data attributes)
     ],
-    iconify=True,
 )
+
+app.register(persist)
 
 
 @rt("/")
