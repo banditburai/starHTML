@@ -1,10 +1,10 @@
 {
   "name": "starhtml",
   "version": "0.1.0",
-  "description": "StarHTML JavaScript handlers",
+  "description": "StarHTML JavaScript plugins",
   "type": "module",
   "scripts": {
-    "build": "echo 'Building JavaScript handlers...' && vite build && echo '✅ Build complete!'",
+    "build": "echo 'Building JavaScript plugins...' && vite build && echo '✅ Build complete!'",
     "dev": "vite build --watch",
     "lint": "biome lint typescript/",
     "format": "biome format typescript/ --write",

@@ -15,7 +15,6 @@ import pytest
 # Add the project root to the path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.starhtml.handlers import persist_handler, resize_handler, scroll_handler
 
 # Browser test configuration
 BROWSER_MATRIX = {
@@ -222,12 +221,15 @@ class BrowserCompatibilityTestSuite:
 """
 
     def get_handler_scripts(self) -> dict[str, str]:
-        """Get JavaScript content for all handlers."""
+        """Get JavaScript content for all plugins."""
+        from pathlib import Path
+
+        js_dir = Path(__file__).parent.parent.parent / "src/starhtml/static/js/plugins"
         return {
-            "scroll": str(scroll_handler().scripts[0]),
-            "resize_dom": str(resize_handler().scripts[0]),
-            "resize_sp": str(resize_handler().scripts[0]),
-            "persist": str(persist_handler().scripts[0]),
+            "scroll": (js_dir / "scroll.js").read_text(),
+            "resize_dom": (js_dir / "resize.js").read_text(),
+            "resize_sp": (js_dir / "resize.js").read_text(),
+            "persist": (js_dir / "persist.js").read_text(),
         }
 
 
@@ -305,7 +307,7 @@ class TestBrowserCompatibility:
             await context.close()
 
     @pytest.mark.asyncio
-    async def test_scroll_handler_all_browsers(self, browser_setup):
+    async def test_scroll_all_browsers(self, browser_setup):
         """Test scroll handler functionality across browsers."""
         browsers = browser_setup
         test_suite = BrowserCompatibilityTestSuite()
@@ -336,13 +338,13 @@ class TestBrowserCompatibility:
             assert scroll_result.get("position", 0) > 0, f"Scroll position not updated in {browser_name}"
 
             test_suite.results.append(
-                BrowserTestResult(browser=browser_name, device=None, test_name="scroll_handler", success=True)
+                BrowserTestResult(browser=browser_name, device=None, test_name="scroll", success=True)
             )
 
             await context.close()
 
     @pytest.mark.asyncio
-    async def test_resize_handler_all_browsers(self, browser_setup):
+    async def test_resize_all_browsers(self, browser_setup):
         """Test resize handler functionality across browsers."""
         browsers = browser_setup
         test_suite = BrowserCompatibilityTestSuite()
@@ -383,14 +385,14 @@ class TestBrowserCompatibility:
 
                 test_suite.results.append(
                     BrowserTestResult(
-                        browser=browser_name, device=None, test_name=f"resize_handler_{handler_type}", success=True
+                        browser=browser_name, device=None, test_name=f"resize_{handler_type}", success=True
                     )
                 )
 
             await context.close()
 
     @pytest.mark.asyncio
-    async def test_persist_handler_all_browsers(self, browser_setup):
+    async def test_persist_all_browsers(self, browser_setup):
         """Test persist handler functionality across browsers."""
         browsers = browser_setup
         test_suite = BrowserCompatibilityTestSuite()
@@ -440,7 +442,7 @@ class TestBrowserCompatibility:
             assert len(js_errors) == 0, f"JavaScript errors in persist handler for {browser_name}: {js_errors}"
 
             test_suite.results.append(
-                BrowserTestResult(browser=browser_name, device=None, test_name="persist_handler", success=True)
+                BrowserTestResult(browser=browser_name, device=None, test_name="persist", success=True)
             )
 
             await context.close()
@@ -567,17 +569,27 @@ class TestBrowserCompatibility:
             await context.close()
 
 
+# Check if built JS files exist (they're gitignored, only available after local build)
+_JS_PLUGINS_DIR = Path(__file__).parent.parent.parent / "src/starhtml/static/js/plugins"
+_JS_FILES_AVAILABLE = (_JS_PLUGINS_DIR / "scroll.js").exists()
+
+
+@pytest.mark.skipif(not _JS_FILES_AVAILABLE, reason="Built JS files not available (run 'bun build' first)")
 class TestBrowserCompatibilityMatrix:
     """Test browser compatibility matrix without Playwright dependency."""
 
+    def _get_handler_scripts(self) -> dict[str, str]:
+        """Get JavaScript content for all plugins."""
+        return {
+            "scroll": (_JS_PLUGINS_DIR / "scroll.js").read_text(),
+            "resize_dom": (_JS_PLUGINS_DIR / "resize.js").read_text(),
+            "resize_sp": (_JS_PLUGINS_DIR / "resize.js").read_text(),
+            "persist": (_JS_PLUGINS_DIR / "persist.js").read_text(),
+        }
+
     def test_javascript_syntax_compatibility(self):
         """Test JavaScript syntax compatibility across browser targets."""
-        handlers = {
-            "scroll": str(scroll_handler().scripts[0]),
-            "resize_dom": str(resize_handler().scripts[0]),
-            "resize_sp": str(resize_handler().scripts[0]),
-            "persist": str(persist_handler().scripts[0]),
-        }
+        handlers = self._get_handler_scripts()
 
         # Check for modern JavaScript features that might not be supported
         problematic_features = [
@@ -613,12 +625,7 @@ class TestBrowserCompatibilityMatrix:
 
     def test_required_browser_apis(self):
         """Test that only supported browser APIs are used."""
-        handlers = {
-            "scroll": str(scroll_handler().scripts[0]),
-            "resize_dom": str(resize_handler().scripts[0]),
-            "resize_sp": str(resize_handler().scripts[0]),
-            "persist": str(persist_handler().scripts[0]),
-        }
+        handlers = self._get_handler_scripts()
 
         # APIs that should be available in target browsers
 
@@ -644,9 +651,10 @@ class TestBrowserCompatibilityMatrix:
 
     def test_polyfill_requirements(self):
         """Test polyfill requirements for browser compatibility."""
+        all_handlers = self._get_handler_scripts()
         handlers = {
-            "resize_dom": str(resize_handler().scripts[0]),
-            "resize_sp": str(resize_handler().scripts[0]),
+            "resize_dom": all_handlers["resize_dom"],
+            "resize_sp": all_handlers["resize_sp"],
         }
 
         # APIs that might need polyfills
@@ -668,10 +676,11 @@ class TestBrowserCompatibilityMatrix:
 
     def test_browser_specific_code_paths(self):
         """Test for browser-specific code paths."""
+        all_handlers = self._get_handler_scripts()
         handlers = {
-            "scroll": str(scroll_handler().scripts[0]),
-            "resize_dom": str(resize_handler().scripts[0]),
-            "persist": str(persist_handler().scripts[0]),
+            "scroll": all_handlers["scroll"],
+            "resize_dom": all_handlers["resize_dom"],
+            "persist": all_handlers["persist"],
         }
 
         # Browser detection patterns (should be avoided)
@@ -685,18 +694,14 @@ class TestBrowserCompatibilityMatrix:
 
     def test_event_compatibility(self):
         """Test event handling compatibility."""
-        scroll_content = str(scroll_handler().scripts[0])
-        resize_content = str(resize_handler().scripts[0])
+        handlers = self._get_handler_scripts()
+        scroll_content = handlers["scroll"]
+        resize_content = handlers["resize_dom"]
 
-        # RC6 uses dynamic import pattern: await import(...)
-        assert "import(" in scroll_content, "Should use dynamic imports"
-        assert "import(" in resize_content, "Should use dynamic imports"
-        assert "datastar" in scroll_content, "Should use datastar"
-        assert "datastar" in resize_content, "Should use datastar"
-
-        # Check handler file references
-        assert "/static/js/handlers/scroll.js" in scroll_content, "Should load scroll handler"
-        assert "/static/js/handlers/resize.js" in resize_content, "Should load resize handler"
+        # Plugin JS files should be valid JavaScript with event handling
+        # Check for Datastar signal pattern
+        assert "datastar" in scroll_content.lower() or "ctx" in scroll_content, "Should use datastar signals"
+        assert "datastar" in resize_content.lower() or "ctx" in resize_content, "Should use datastar signals"
 
         # Should not use deprecated event patterns
         deprecated_patterns = [

@@ -2,7 +2,7 @@
 """
 Hatchling build hook to build JavaScript from TypeScript during wheel creation.
 
-This hook ensures that JavaScript handlers are built from TypeScript sources
+This hook ensures that JavaScript plugins are built from TypeScript sources
 before the wheel is packaged, allowing us to keep generated JS files out of git
 while still including them in the distributed package.
 """
@@ -47,12 +47,12 @@ class CustomBuildHook(BuildHookInterface):
         This method:
         1. Checks if bun is available (required for building)
         2. Installs JavaScript dependencies if needed
-        3. Builds JavaScript handlers from TypeScript sources
+        3. Builds JavaScript plugins from TypeScript sources
         4. Ensures the built files are available for packaging
         """
         root_path = Path(self.root)
 
-        print("🔨 Building JavaScript handlers from TypeScript...")
+        print("🔨 Building JavaScript plugins from TypeScript...")
 
         # Check if we're in the right directory
         if not (root_path / "typescript").exists():
@@ -77,16 +77,16 @@ class CustomBuildHook(BuildHookInterface):
             run_command(["bun", "install", "--frozen-lockfile"], cwd=root_path)
 
         # Build JavaScript from TypeScript
-        print("🏗️  Building JavaScript handlers...")
+        print("🏗️  Building JavaScript plugins...")
         run_command(["bun", "run", "build"], cwd=root_path)
 
         # Verify the build outputs exist
-        handlers_dir = root_path / "src" / "starhtml" / "static" / "js" / "handlers"
-        if not handlers_dir.exists():
-            raise JavaScriptBuildError(f"Handlers directory not created: {handlers_dir}")
+        plugins_dir = root_path / "src" / "starhtml" / "static" / "js" / "plugins"
+        if not plugins_dir.exists():
+            raise JavaScriptBuildError(f"Plugins directory not created: {plugins_dir}")
 
         # Dynamically discover all built .js files instead of hardcoding
-        built_files = list(handlers_dir.glob("*.js"))
+        built_files = list(plugins_dir.glob("*.js"))
         if not built_files:
             raise JavaScriptBuildError("No JavaScript files found after build")
 
@@ -97,15 +97,15 @@ class CustomBuildHook(BuildHookInterface):
         if missing_core:
             raise JavaScriptBuildError(f"Missing core JavaScript files after build: {missing_core}")
 
-        print(f"✅ JavaScript build complete! Generated {len(built_files)} handler files:")
+        print(f"✅ JavaScript build complete! Generated {len(built_files)} plugin files:")
         for file in sorted(built_files):
             print(f"   - {file.name}")
 
         # Add all generated files to build artifacts so hatchling includes them
         artifacts = build_data.setdefault("artifacts", [])
         for file_path in built_files:
-            rel_path = f"src/starhtml/static/js/handlers/{file_path.name}"
+            rel_path = f"src/starhtml/static/js/plugins/{file_path.name}"
             if rel_path not in artifacts:
                 artifacts.append(rel_path)
 
-        print(f"📦 Added {len(built_files)} JavaScript handlers to build artifacts")
+        print(f"📦 Added {len(built_files)} JavaScript plugins to build artifacts")

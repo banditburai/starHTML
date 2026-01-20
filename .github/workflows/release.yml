@@ -49,25 +49,25 @@ jobs:
     - name: Validate JavaScript build outputs
       run: |
         echo "🔍 Validating JavaScript assets..."
-        
-        # Check handlers directory exists and has files
-        handlers_dir="src/starhtml/static/js/handlers"
-        if [ ! -d "$handlers_dir" ]; then
-          echo "❌ Handlers directory missing: $handlers_dir"
+
+        # Check plugins directory exists and has files
+        plugins_dir="src/starhtml/static/js/plugins"
+        if [ ! -d "$plugins_dir" ]; then
+          echo "❌ Plugins directory missing: $plugins_dir"
           exit 1
         fi
-        
-        # Count and validate handler files
-        handler_count=$(find "$handlers_dir" -name "*.js" -type f | wc -l)
-        if [ "$handler_count" -eq 0 ]; then
-          echo "❌ No JavaScript handler files found in $handlers_dir"
+
+        # Count and validate plugin files
+        plugin_count=$(find "$plugins_dir" -name "*.js" -type f | wc -l)
+        if [ "$plugin_count" -eq 0 ]; then
+          echo "❌ No JavaScript plugin files found in $plugins_dir"
           exit 1
         fi
-        
-        echo "📁 Found $handler_count handler files:"
-        
-        # Validate each handler file
-        for file in "$handlers_dir"/*.js; do
+
+        echo "📁 Found $plugin_count plugin files:"
+
+        # Validate each plugin file
+        for file in "$plugins_dir"/*.js; do
           if [ -f "$file" ]; then
             size=$(stat -c%s "$file")
             basename=$(basename "$file")
@@ -78,12 +78,12 @@ jobs:
             fi
           fi
         done
-        
-        # Ensure core handlers exist
-        core_handlers=("index.js" "persist.js" "scroll.js" "resize.js")
-        for handler in "${core_handlers[@]}"; do
-          if [ ! -f "$handlers_dir/$handler" ]; then
-            echo "❌ Missing core handler: $handler"
+
+        # Ensure core plugins exist
+        core_plugins=("index.js" "persist.js" "scroll.js" "resize.js")
+        for plugin in "${core_plugins[@]}"; do
+          if [ ! -f "$plugins_dir/$plugin" ]; then
+            echo "❌ Missing core plugin: $plugin"
             exit 1
           fi
         done
@@ -125,10 +125,10 @@ jobs:
         echo "..."
         
         # Verify JavaScript assets are included
-        if python -m zipfile -l dist/*.whl | grep -q "static/js/handlers/persist.js"; then
-          echo "✅ JavaScript handlers included in package"
+        if python -m zipfile -l dist/*.whl | grep -q "static/js/plugins/persist.js"; then
+          echo "✅ JavaScript plugins included in package"
         else
-          echo "❌ JavaScript handlers missing from package"
+          echo "❌ JavaScript plugins missing from package"
           exit 1
         fi
         
@@ -236,8 +236,8 @@ jobs:
         ## StarHTML Release ${{ github.ref_name }}
         
         ### 📦 What's Included
-        - ✅ Pre-built JavaScript handlers (TypeScript compiled & minified)
-        - ✅ All Python modules and utilities  
+        - ✅ Pre-built JavaScript plugins (TypeScript compiled & minified)
+        - ✅ All Python modules and utilities
         - ✅ Static assets and external scripts
         - ✅ Cryptographic attestations (PEP 740)
         

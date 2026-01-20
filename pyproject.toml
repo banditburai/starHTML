@@ -5,18 +5,20 @@ description = "Modern HTML generation in Python, inspired by FastHTML"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    # Core (Pyodide/WASM compatible)
     "starlette",
-    "uvicorn[standard]",
     "httpx",
     "beautifulsoup4",
     "python-dateutil",
     "fastcore",
-    "fastlite",
     "oauthlib",
     "itsdangerous",
-    "starlette-compress>=1.0.0",
     "python-multipart>=0.0.20",
+    # Server (not needed for WASM, but included for normal usage)
+    "uvicorn[standard]",
+    "starlette-compress>=1.0.0",
     "rjsmin>=1.2.4",
+    "fastlite",
 ]
 
 [project.optional-dependencies]
@@ -141,6 +143,7 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "web/*.py" = ["F403", "F405", "PLR2004", "N802", "PLW0603", "N803", "B007", "N999", "E402", "F841", "PLW0602", "PLC0415"]  # Allow star imports, magic values, capitalized function names, global statements, argument naming, unused loop vars, numbered filenames, imports after code, unused variables, global reads, and lazy imports in web demos
 "tests/*.py" = ["F403", "F405", "PLR2004", "N806", "F841", "PLC0415"]  # Allow star imports, magic values, constant naming, unused variables, and lazy imports in tests (test patterns)
+"scripts/*.py" = ["PLR2004"]  # Allow magic values in utility scripts
 "src/starhtml/svg.py" = ["N802", "N803", "N806"]  # Allow capitalized function names for SVG elements
 "src/starhtml/js.py" = ["N802"]  # Allow capitalized function names for JS components
 "src/starhtml/datastar.py" = ["B904", "PLR2004", "PLR0911", "PLC0415", "PLW1641"]  # Allow datastar patterns, multiple returns, lazy imports, and ABC without __hash__

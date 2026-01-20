@@ -98,7 +98,7 @@ lerna-debug.log*
 *.tsbuildinfo
 
 # Build outputs
-src/starhtml/static/js/handlers/
+src/starhtml/static/js/plugins/
 src/starhtml/static/js/*.js
 src/starhtml/static/js/*.min.js
 src/starhtml/static/js/*.min.*.js

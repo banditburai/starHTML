@@ -5,7 +5,7 @@ from starlighter import CodeBlock, StarlighterStyles
 
 from starhtml import *
 from starhtml.datastar import collect, js, match
-from starhtml.handlers import split_handler
+from starhtml.plugins import split
 
 # ============================================================================
 # VANILLA JAVASCRIPT COMPARISON (For code display only)
@@ -667,17 +667,20 @@ def python_first_section():
     )
 
 
+split_plugin = split(name="code_split", responsive=False)
+
 # Standalone app
 app, rt = star_app(
     title="Python First Philosophy",
     hdrs=[
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
         StarlighterStyles("github-light"),
-        split_handler(signal="code_split", responsive=False),
         Style("body { background: white; font-family: system-ui, sans-serif; }"),
+        iconify_script(),
     ],
-    iconify=True,
 )
+
+app.register(split_plugin)
 
 
 @rt("/")

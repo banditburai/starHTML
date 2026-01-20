@@ -20,26 +20,26 @@
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     
-    "outDir": "./src/starhtml/static/js/handlers",
-    "rootDir": "./typescript/handlers",
+    "outDir": "./src/starhtml/static/js/plugins",
+    "rootDir": "./typescript/plugins",
     "declaration": false,
     "declarationMap": false,
     "sourceMap": false,
-    
+
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
     }
   },
   "include": [
-    "typescript/handlers/**/*.ts"
+    "typescript/plugins/**/*.ts"
   ],
   "exclude": [
     "node_modules",
     "dist",
     "**/*.test.ts",
     "**/*.spec.ts",
-    "typescript/handlers/types.ts",
-    "typescript/handlers/position_backup.ts"
+    "typescript/plugins/types.ts",
+    "typescript/plugins/position_backup.ts"
   ]
 }

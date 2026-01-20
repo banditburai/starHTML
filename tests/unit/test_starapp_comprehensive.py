@@ -89,7 +89,7 @@ class TestStarApp:
         assert call_kwargs["body_wrap"] == custom_body_wrap
 
     @patch("starhtml.starapp._app_factory")
-    @patch("starhtml.starapp.database")
+    @patch("fastlite.database")
     @patch("starhtml.starapp._get_tbl")
     def test_star_app_with_database(self, mock_get_tbl, mock_database, mock_app_factory):
         """Test star_app with database file."""
@@ -119,7 +119,7 @@ class TestStarApp:
         mock_get_tbl.assert_called_once()
 
     @patch("starhtml.starapp._app_factory")
-    @patch("starhtml.starapp.database")
+    @patch("fastlite.database")
     @patch("starhtml.starapp._get_tbl")
     def test_star_app_with_multiple_tables(self, mock_get_tbl, mock_database, mock_app_factory):
         """Test star_app with multiple database tables."""
@@ -147,7 +147,7 @@ class TestStarApp:
         assert mock_get_tbl.call_count == 2
 
     @patch("starhtml.starapp._app_factory")
-    @patch("starhtml.starapp.database")
+    @patch("fastlite.database")
     @patch("starhtml.starapp._get_tbl")
     @patch("starhtml.starapp.first")
     def test_star_app_with_kwargs_dict_values(self, mock_first, mock_get_tbl, mock_database, mock_app_factory):
@@ -174,7 +174,7 @@ class TestStarApp:
         assert len(result) >= 3  # app, route, at least one table
 
     @patch("starhtml.starapp._app_factory")
-    @patch("starhtml.starapp.database")
+    @patch("fastlite.database")
     @patch("starhtml.starapp._get_tbl")
     @patch("starhtml.starapp.first")
     def test_star_app_with_kwargs_non_dict_values(self, mock_first, mock_get_tbl, mock_database, mock_app_factory):
@@ -219,59 +219,10 @@ class TestDefHdrs:
 
         result = def_hdrs()
 
-        # Should create charset, viewport, and datastar script (iconify=False by default)
+        # Should create FOUC style, charset, viewport, and datastar script
         assert mock_meta.call_count == 2  # charset and viewport
         assert mock_script.call_count == 1  # datastar only
-        assert len(result) == 3  # all headers
-
-    @patch("starhtml.tags.Meta")
-    @patch("starhtml.xtend.Script")
-    def test_def_hdrs_custom_datastar_version(self, mock_script, mock_meta):
-        """Test def_hdrs with custom Datastar version."""
-        mock_script_instance = Mock()
-        mock_meta_instance = Mock()
-        mock_script.return_value = mock_script_instance
-        mock_meta.return_value = mock_meta_instance
-
-        custom_version = "v1.2.3"
-        result = def_hdrs(datastar_version=custom_version)
-
-        # Should create headers with scripts (no iconify by default)
-        assert len(result) == 3  # charset, viewport, datastar
-        assert mock_script.called  # Script was used
-        # With plugins, version is embedded in inline script, not src attribute
-
-    @patch("starhtml.tags.Meta")
-    @patch("starhtml.xtend.Script")
-    def test_def_hdrs_no_iconify(self, mock_script, mock_meta):
-        """Test def_hdrs without Iconify."""
-        mock_script_instance = Mock()
-        mock_meta_instance = Mock()
-        mock_script.return_value = mock_script_instance
-        mock_meta.return_value = mock_meta_instance
-
-        result = def_hdrs(iconify=False)
-
-        # Should only create charset, viewport, and datastar script (no iconify)
-        assert mock_meta.call_count == 2  # charset and viewport
-        assert mock_script.call_count == 1  # only datastar
-        assert len(result) == 3  # no iconify
-
-    @patch("starhtml.tags.Meta")
-    @patch("starhtml.xtend.Script")
-    def test_def_hdrs_custom_iconify_version(self, mock_script, mock_meta):
-        """Test def_hdrs with custom Iconify version."""
-        mock_script_instance = Mock()
-        mock_meta_instance = Mock()
-        mock_script.return_value = mock_script_instance
-        mock_meta.return_value = mock_meta_instance
-
-        custom_iconify_version = "3.0.0"
-        result = def_hdrs(iconify=True, iconify_version=custom_iconify_version)
-
-        # Should create headers including iconify
-        assert len(result) == 4  # charset, viewport, datastar, iconify
-        assert mock_script.call_count == 2  # datastar and iconify scripts
+        assert len(result) == 4  # style, charset, viewport, datastar
 
     @patch("starhtml.tags.Meta")
     @patch("starhtml.xtend.Script")
@@ -285,8 +236,8 @@ class TestDefHdrs:
         custom_fallback = "/assets/datastar.js"
         result = def_hdrs(fallback_path=custom_fallback)
 
-        # When not using plugins, fallback should be in onerror attribute
-        assert len(result) == 3  # charset, viewport, datastar (no iconify by default)
+        # Headers now include FOUC style
+        assert len(result) == 4  # style, charset, viewport, datastar (no iconify by default)
         # With plugins=False, it uses external script with fallback
         datastar_script_call = mock_script.call_args_list[0]
         if "onerror" in datastar_script_call[1]:  # Only when using external script
@@ -565,28 +516,17 @@ class TestRealWorldScenarios:
     @patch("starhtml.tags.Meta")
     @patch("starhtml.xtend.Script")
     def test_production_headers_setup(self, mock_script, mock_meta):
-        """Test production-ready headers setup."""
+        """Test production-ready headers setup with custom fallback path."""
         mock_script.return_value = Mock()
         mock_meta.return_value = Mock()
 
-        # Production setup with specific versions
-        headers = def_hdrs(
-            datastar_version="v1.0.0",
-            iconify=True,
-            iconify_version="2.5.0",
-            fallback_path="/static/datastar-v1.0.0.js",
-            clipboard=False,  # Use external scripts for production
-        )
+        # Production setup with custom fallback path
+        headers = def_hdrs(fallback_path="/static/datastar-v1.0.0.js")
 
-        assert len(headers) == 4  # charset, viewport, datastar, iconify
-        assert mock_script.call_count == 2  # datastar and iconify
+        assert len(headers) == 4  # style, charset, viewport, datastar
+        assert mock_script.call_count == 1  # datastar only
 
-        # When using external scripts (plugins=False), check src attributes
+        # Datastar script uses local fallback_path directly
         datastar_call = mock_script.call_args_list[0]
         if "src" in datastar_call[1]:
-            assert "v1.0.0" in datastar_call[1]["src"]
-            assert "/static/datastar-v1.0.0.js" in datastar_call[1]["onerror"]
-
-        iconify_call = mock_script.call_args_list[1]
-        if "src" in iconify_call[1]:
-            assert "2.5.0" in iconify_call[1]["src"]
+            assert "/static/datastar-v1.0.0.js" in datastar_call[1]["src"]

@@ -13,7 +13,7 @@ from sections import SECTIONS
 from sections import sections as s
 from shared import get_source_code, support_dropdown
 from starhtml import *
-from starhtml.handlers import position_handler, split_handler
+from starhtml.plugins import clipboard, position, scroll, split
 
 VERSION = version("starhtml")
 
@@ -26,9 +26,7 @@ app, rt = star_app(
         ),
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
         Script(src="https://cdn.jsdelivr.net/npm/motion@11.11.13/dist/motion.js"),
-        (scroll := scroll_handler()),
-        position_handler(),
-        split_handler(signal="code_split", responsive=True, responsive_breakpoint=768),
+        iconify_script(),
         Style("""
             * {
                 box-sizing: border-box;
@@ -136,9 +134,14 @@ app, rt = star_app(
             
         """),
     ],
-    iconify=True,
-    clipboard=True,
     htmlkw={"lang": "en"},
+)
+
+app.register(
+    scroll,
+    position,
+    split(name="code_split", responsive=True, responsive_breakpoint=768),
+    clipboard,
 )
 
 

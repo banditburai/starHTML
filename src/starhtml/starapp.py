@@ -4,12 +4,21 @@ from collections.abc import Callable
 from typing import Any
 
 from fastcore.utils import first
-from fastlite import database
 from starlette.requests import HTTPConnection
 
 from .realtime import StarHTMLWithLiveReload
 
-__all__ = ["star_app", "DATASTAR_VERSION", "ICONIFY_VERSION", "def_hdrs", "fouc_script", "Beforeware", "MiddlewareBase"]
+__all__ = [
+    "star_app",
+    "DATASTAR_VERSION",
+    "ICONIFY_VERSION",
+    "def_hdrs",
+    "theme_script",
+    "iconify_script",
+    "compression",
+    "Beforeware",
+    "MiddlewareBase",
+]
 
 
 def star_app(
@@ -44,11 +53,6 @@ def star_app(
     reload_interval: int = 1000,
     static_path: str = ".",
     body_wrap: Callable = None,
-    fouc: str | dict = None,
-    compression=None,
-    clipboard: bool = False,
-    iconify: bool = False,
-    plugins: list = None,
     **kwargs: Any,
 ):
     from .core import noop_body
@@ -85,15 +89,13 @@ def star_app(
         reload_attempts=reload_attempts,
         reload_interval=reload_interval,
         body_wrap=body_wrap,
-        compression=compression,
-        clipboard=clipboard,
-        iconify=iconify,
-        plugins=plugins,
     )
     app.static_route_exts(static_path=static_path)
 
     if not db_file:
         return app, app.route
+
+    from fastlite import database
 
     db = database(db_file)
 
@@ -113,76 +115,33 @@ def star_app(
     return app, app.route, *db_tables
 
 
-DATASTAR_VERSION = "1.0.0-RC.6"
+DATASTAR_VERSION = "1.0.0-RC.7"
 ICONIFY_VERSION = "2.3.0"
 
 
-def def_hdrs(
-    datastar_version=None,
-    iconify=False,
-    iconify_version=None,
-    fallback_path="/static/datastar.js",
-    clipboard=False,
-    plugins=None,
-):
+def def_hdrs(fallback_path="/static/datastar.js"):
     """Generate default headers for StarHTML apps."""
-    from .handlers import clipboard_action
-    from .tags import Meta
+    from .tags import Meta, Style
     from .xtend import Script
 
-    version = datastar_version or DATASTAR_VERSION
-    iconify_ver = iconify_version or ICONIFY_VERSION
-
-    plugin_list = [clipboard_action()] if clipboard else []
-    if plugins:
-        plugin_list.extend(plugins if isinstance(plugins, list) else [plugins])
-
     headers = [
+        Style(":not(:defined){visibility:hidden}"),  # Prevent FOUC for custom elements
         Meta(charset="utf-8"),
         Meta(name="viewport", content="width=device-width, initial-scale=1, viewport-fit=cover"),
-        Script(
-            src=f"https://cdn.jsdelivr.net/gh/starfederation/datastar@{version}/bundles/datastar.js",
-            type="module",
-            onerror=f"this.onerror=null;this.src='{fallback_path}'",
-        ),
+        Script(src=fallback_path, type="module"),
     ]
-
-    if plugin_list:
-        types_used = set()
-        registration_calls = []
-
-        for p in plugin_list:
-            plugin_type = p.get("type", "action")
-            plugin_code = p.get("code", str(p))
-            types_used.add(plugin_type)
-            registration_calls.append(f"{plugin_type}({plugin_code});")
-
-        headers.append(
-            Script(
-                f"import {{{', '.join(sorted(types_used))}}} from 'https://cdn.jsdelivr.net/gh/starfederation/datastar@{version}/bundles/datastar.js';\n{'\n'.join(registration_calls)}",
-                type="module",
-                onerror=f"this.onerror=null;this.src='{fallback_path}'",
-            )
-        )
-
-    if iconify:
-        headers.append(
-            Script(
-                src=f"https://cdn.jsdelivr.net/npm/iconify-icon@{iconify_ver}/dist/iconify-icon.min.js", type="module"
-            )
-        )
 
     return headers
 
 
-def fouc_script(
+def theme_script(
     storage_key="theme",
     cls="dark",
     system_match="(prefers-color-scheme: dark)",
     use_data_theme=False,
     default_theme="light",
 ):
-    """Generate theme FOUC prevention script."""
+    """Inline script to prevent theme flash. MUST be first in headers to execute before rendering."""
     from .xtend import Script
 
     if use_data_theme:
@@ -197,6 +156,32 @@ def fouc_script(
             f"localStorage.{storage_key}==='{cls}'||"
             f"(!('{storage_key}' in localStorage)&&window.matchMedia('{system_match}').matches));"
         )
+
+
+def iconify_script(version=None):
+    """Iconify web component script. Required if using Icon() component."""
+    from .xtend import Script
+
+    ver = version or ICONIFY_VERSION
+    return Script(
+        src=f"https://cdn.jsdelivr.net/npm/iconify-icon@{ver}/dist/iconify-icon.min.js",
+        type="module",
+    )
+
+
+def compression(minimum_size=500, gzip=True, brotli=True, zstd=True, **kwargs):
+    """Compression middleware helper. Wraps starlette-compress for response compression."""
+    from starlette.middleware import Middleware
+    from starlette_compress import CompressMiddleware
+
+    return Middleware(
+        CompressMiddleware,
+        minimum_size=minimum_size,
+        gzip=gzip,
+        brotli=brotli,
+        zstd=zstd,
+        **kwargs,
+    )
 
 
 class Beforeware:
@@ -230,29 +215,16 @@ def _app_factory(*args, **kwargs):
     from .core import StarHTML
 
     live = kwargs.pop("live", False)
-    debug = kwargs.get("debug", False)
-
-    if live and not debug:
-        if _is_production():
-            live = False
-        else:
-            kwargs["debug"] = True
 
     if live:
+        kwargs.setdefault("debug", True)  # Live reload needs debug for proper error display
         return StarHTMLWithLiveReload(*args, **kwargs)
 
     kwargs.pop("reload_attempts", None)
     kwargs.pop("reload_interval", None)
 
-    bodykw = kwargs.pop("bodykw", {})
-    if bodykw:
+    # Unpack bodykw for StarHTML's **bodykw signature
+    if bodykw := kwargs.pop("bodykw", None):
         kwargs.update(bodykw)
 
     return StarHTML(*args, **kwargs)
-
-
-def _is_production():
-    import os
-
-    env = os.getenv("ENV", os.getenv("ENVIRONMENT", "")).lower()
-    return env in ("production", "prod") or os.getenv("DEBUG", "").lower() in ("false", "0", "no")

@@ -258,8 +258,8 @@ app, rt = star_app(
     hdrs=[
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
         Script(src="https://cdn.jsdelivr.net/npm/motion@11.11.13/dist/motion.js"),
+        iconify_script(),
     ],
-    iconify=True,
 )
 
 

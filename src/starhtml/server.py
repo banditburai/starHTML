@@ -4,6 +4,7 @@ import asyncio
 import inspect
 import json
 import os
+import sys
 import types
 from collections.abc import Mapping
 from copy import deepcopy
@@ -72,6 +73,7 @@ __all__ = [
 
 all_meths = "get post put delete patch head trace options".split()
 _iter_typs = (tuple, list, map, filter, range, types.GeneratorType)
+_IS_WASM = sys.platform == "emscripten"  # Pyodide/WASM environment
 _verbs = dict(
     get="data-on-click",
     post="data-on-submit",
@@ -482,7 +484,7 @@ class ResponseRenderer:
         if self._is_full_page(resp):
             return to_xml(resp, indent=fh_cfg.indent)
 
-        hdr_tags = "title", "meta", "link", "style", "base"
+        hdr_tags = "title", "meta", "link", "style", "base", "template"
         heads, bdy = partition(resp, lambda o: getattr(o, "tag", "") in hdr_tags)
 
         from .tags import Body, Head, Html, Link, Title
@@ -499,9 +501,10 @@ class ResponseRenderer:
         bw_args = (bdy, self.request) if len(params) > 1 else (bdy,)
         body = Body(body_wrap(*bw_args), *flat_xt(self.request.ftrs), **self.request.bodykw)
 
-        html_page = Html(Head(*heads, *title, *canonical, *flat_xt(self.request.hdrs)), body, **self.request.htmlkw)
+        htmlkw = {"lang": "en", **self.request.htmlkw}
+        html_page = Html(Head(*heads, *title, *canonical, *flat_xt(self.request.hdrs)), body, **htmlkw)
 
-        return to_xml(html_page, indent=fh_cfg.indent)
+        return f"<!DOCTYPE html>\n{to_xml(html_page, indent=fh_cfg.indent)}"
 
     def _is_ft_response(self, resp):
         """Check if response needs FT processing."""
@@ -647,7 +650,12 @@ async def _wrap_req(req, params):
 
 async def _handle(f, args, **kwargs):
     "Handle function call (async or sync)"
-    return (await f(*args, **kwargs)) if iscoroutinefunction(f) else await run_in_threadpool(f, *args, **kwargs)
+    if iscoroutinefunction(f):
+        return await f(*args, **kwargs)
+    # WASM/Pyodide can't use threads - call sync functions directly
+    if _IS_WASM:
+        return f(*args, **kwargs)
+    return await run_in_threadpool(f, *args, **kwargs)
 
 
 async def _wrap_call(f, req, params):

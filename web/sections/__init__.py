@@ -34,9 +34,9 @@ class Section:
     def get_standalone_headers(self):
         if not self.needs_embedded_headers:
             return []
-        from starhtml.handlers import split_handler
+        from starhtml.plugins import split
 
-        return [split_handler(signal="code_split", responsive=True)]
+        return [split(name="code_split", responsive=True)]
 
 
 SECTIONS: list[Section] = [
