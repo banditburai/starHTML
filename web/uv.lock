@@ -516,7 +516,7 @@ wheels = [
 
 [[package]]
 name = "starhtml"
-version = "0.5.0"
+version = "0.5.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "beautifulsoup4" },
@@ -532,9 +532,9 @@ dependencies = [
     { name = "starlette-compress" },
     { name = "uvicorn", extra = ["standard"] },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/4d/c8/2de1b77e9dddbab644329eed642798ad135cc96e1d91b27fa34953327d65/starhtml-0.5.0.tar.gz", hash = "sha256:9a9699f6656371a774e9fdbbde0b17b2995a2f9f86845dee5289d65342744d97", size = 545772, upload-time = "2026-01-20T20:08:21.566Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/72/ea/171ebde6a32226bac8974482dd13f8eb3f9b7bed0e3639020989a528fcb8/starhtml-0.5.1.tar.gz", hash = "sha256:50290764830195e79c9fb6fe3aa4e6e504747b67ac20f5a0f16e07a26c02cbdc", size = 546265, upload-time = "2026-01-20T21:36:52.153Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/cc/e0/1adc9d422580218ac91f95f7b67a40c83fd5ab8b81b7e431ac4a56bdde27/starhtml-0.5.0-py3-none-any.whl", hash = "sha256:64c6c132f4c5208931bd9b761e5eb2d9de257bff33a26daf1870ddfc4a46ce26", size = 108494, upload-time = "2026-01-20T20:08:19.206Z" },
+    { url = "https://files.pythonhosted.org/packages/e7/26/4ac6282442b72bbe0113ba6c3161e2b125ae9cf184c9cd5df8250ba21118/starhtml-0.5.1-py3-none-any.whl", hash = "sha256:8031e6fda420e21e36ff51fe074ac989ff033bad289419e3d0c85dfeac07d5d0", size = 108726, upload-time = "2026-01-20T21:36:49.681Z" },
 ]
 
 [[package]]
@@ -551,7 +551,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "httpx" },
-    { name = "starhtml", specifier = ">=0.5.0" },
+    { name = "starhtml", specifier = ">=0.5.1" },
     { name = "starlette" },
     { name = "starlighter" },
 ]
