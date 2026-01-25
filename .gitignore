@@ -141,3 +141,11 @@ cdp-output/
 DATASTAR_DOCS.md
 stash/
 backup_before_merge/
+
+# Beads task tracking
+.beads/
+.gitattributes
+AGENTS.md
+
+# Design documents (local reference)
+DESIGN-*.md

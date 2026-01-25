@@ -37,7 +37,11 @@ class PluginInstance:
         self._base_name, self._inline, self._is_action = base_name, inline, is_action
         self._static_path, self._package_name, self._critical_css = static_path, package_name, critical_css
         self._refs = {s: js(f"${name}_{s}") for s in signals}
-        self._refs.update({m: js(f"window.__{name}.{_snake2camel(m)}") for m in methods})
+        # Action plugins use apply dispatch, attribute plugins use window methods
+        if is_action:
+            self._refs.update({m: js(f"@{name}('{_snake2camel(m)}')") for m in methods})
+        else:
+            self._refs.update({m: js(f"window.__{name}.{_snake2camel(m)}") for m in methods})
 
     @property
     def inline(self):

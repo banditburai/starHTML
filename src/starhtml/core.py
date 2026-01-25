@@ -357,6 +357,8 @@ def register(self: StarHTML, *items, prefix: str | None = None):
     - Component class (decorated with @element from starelements)
     - Custom types implementing get_package_name(), get_static_path(), get_headers()
 
+    Plugins with on_startup/on_shutdown methods are automatically wired up.
+
     Example:
         >>> app.register(canvas, persist, scroll)
     """
@@ -381,6 +383,13 @@ def register(self: StarHTML, *items, prefix: str | None = None):
                 )
 
         self.hdrs += list(plugins_hdrs(*plugins, base_url=f"{prefix}/{plugins[0].get_package_name()}"))
+
+    # Auto-wire lifecycle hooks for any item that has them
+    for item in items:
+        if hasattr(item, "on_startup"):
+            self.add_event_handler("startup", lambda app=self, i=item: i.on_startup(app))
+        if hasattr(item, "on_shutdown"):
+            self.add_event_handler("shutdown", lambda app=self, i=item: i.on_shutdown(app))
 
     return items[0] if len(items) == 1 else (tuple(items) or None)
 
