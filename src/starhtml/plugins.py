@@ -460,6 +460,15 @@ split = Plugin(
         "collapsed",
     ),
 )
+motion = Plugin(
+    "motion",
+    signals=(
+        "is_animating",
+        "phase",
+        "progress",
+    ),
+    critical_css="[data-motion]:not([data-motion-ready]){opacity:0}",
+)
 
 # Content processor plugins - critical CSS prevents flash of unprocessed content
 markdown = Plugin(
@@ -507,6 +516,7 @@ __all__ = [
     "katex",
     "markdown",
     "mermaid",
+    "motion",
     "persist",
     "position",
     "resize",
