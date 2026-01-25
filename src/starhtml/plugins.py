@@ -2,7 +2,9 @@
 
 import json
 import time
+from dataclasses import dataclass, fields
 from pathlib import Path
+from typing import Literal
 
 from .datastar import js
 from .xtend import Script, Style
@@ -201,6 +203,154 @@ def plugins_hdrs(
     )
 
 
+# ============================================================
+# Motion Animation Helpers
+# ============================================================
+
+
+@dataclass(frozen=True, slots=True)
+class _MotionBase:
+    """Base class for motion animation configurations."""
+
+    duration: int | None = None
+    delay: int | None = None
+    ease: str | None = None
+    spring: Literal["gentle", "bouncy", "tight", "slow"] | None = None
+
+    def _build_parts(self, type_name: str) -> list[str]:
+        parts = [f"type:{type_name}"]
+        for f in fields(self):
+            val = getattr(self, f.name)
+            if val is not None:
+                if isinstance(val, tuple):
+                    parts.append(f"{f.name}:{val[0]},{val[1]}")
+                elif isinstance(val, bool):
+                    parts.append(f"{f.name}:{str(val).lower()}")
+                else:
+                    parts.append(f"{f.name}:{val}")
+        return parts
+
+    def __str__(self) -> str:
+        raise NotImplementedError
+
+
+@dataclass(frozen=True, slots=True)
+class EnterAnimation(_MotionBase):
+    """Enter/mount animation configuration."""
+
+    x: float | None = None
+    y: float | None = None
+    scale: float | None = None
+    rotate: float | None = None
+    opacity: float | None = None
+    preset: Literal["fade", "slide-up", "slide-down", "scale", "bounce"] | None = None
+
+    def __str__(self) -> str:
+        return " ".join(self._build_parts("enter"))
+
+
+@dataclass(frozen=True, slots=True)
+class ExitAnimation(_MotionBase):
+    """Exit/unmount animation configuration."""
+
+    x: float | None = None
+    y: float | None = None
+    scale: float | None = None
+    rotate: float | None = None
+    opacity: float | None = None
+
+    def __str__(self) -> str:
+        return " ".join(self._build_parts("exit"))
+
+
+@dataclass(frozen=True, slots=True)
+class HoverAnimation(_MotionBase):
+    """Hover gesture animation."""
+
+    scale: float | None = None
+    y: float | None = None
+    rotate: float | None = None
+
+    def __str__(self) -> str:
+        return " ".join(self._build_parts("hover"))
+
+
+@dataclass(frozen=True, slots=True)
+class TapAnimation(_MotionBase):
+    """Tap/press gesture animation."""
+
+    scale: float | None = None
+    y: float | None = None
+
+    def __str__(self) -> str:
+        return " ".join(self._build_parts("tap"))
+
+
+@dataclass(frozen=True, slots=True)
+class InViewAnimation(_MotionBase):
+    """Scroll-triggered in-view animation."""
+
+    x: float | None = None
+    y: float | None = None
+    scale: float | None = None
+    opacity: float | None = None
+    preset: Literal["fade", "slide-up", "slide-down", "scale"] | None = None
+    threshold: float | None = None
+    once: bool | None = None
+
+    def __str__(self) -> str:
+        return " ".join(self._build_parts("in-view"))
+
+
+@dataclass(frozen=True, slots=True)
+class ScrollAnimation(_MotionBase):
+    """Scroll-linked animation (scrubbing)."""
+
+    x: tuple[float, float] | None = None
+    y: tuple[float, float] | None = None
+    scale: tuple[float, float] | None = None
+    opacity: tuple[float, float] | None = None
+    rotate: tuple[float, float] | None = None
+
+    def __str__(self) -> str:
+        return " ".join(self._build_parts("scroll"))
+
+
+def enter(**kwargs) -> EnterAnimation:
+    """Create enter animation with IDE autocomplete."""
+    return EnterAnimation(**kwargs)
+
+
+def exit_(**kwargs) -> ExitAnimation:
+    """Create exit animation. (exit_ to avoid Python keyword)"""
+    return ExitAnimation(**kwargs)
+
+
+def hover(**kwargs) -> HoverAnimation:
+    """Create hover gesture animation."""
+    return HoverAnimation(**kwargs)
+
+
+def tap(**kwargs) -> TapAnimation:
+    """Create tap/press gesture animation."""
+    return TapAnimation(**kwargs)
+
+
+def in_view(**kwargs) -> InViewAnimation:
+    """Create scroll-triggered in-view animation."""
+    return InViewAnimation(**kwargs)
+
+
+def scroll_link(**kwargs) -> ScrollAnimation:
+    """Create scroll-linked animation with scrubbing."""
+    return ScrollAnimation(**kwargs)
+
+
+# ============================================================
+# Built-in Plugins
+# ============================================================
+
+
 CLIPBOARD_CODE = """{
     name: 'clipboard',
     apply: async ({ el, evt, error }, text, signal, timeout = 2000) => {
@@ -333,9 +483,24 @@ mermaid = Plugin(
 )
 
 __all__ = [
+    # Core
     "Plugin",
     "PluginInstance",
     "plugins_hdrs",
+    # Motion helpers
+    "enter",
+    "exit_",
+    "hover",
+    "tap",
+    "in_view",
+    "scroll_link",
+    "EnterAnimation",
+    "ExitAnimation",
+    "HoverAnimation",
+    "TapAnimation",
+    "InViewAnimation",
+    "ScrollAnimation",
+    # Plugins
     "canvas",
     "clipboard",
     "drag",
