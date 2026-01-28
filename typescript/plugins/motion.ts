@@ -813,7 +813,9 @@ const motionActionPlugin: ActionPlugin = {
             unregisterAnimation(name, anim);
           })
           .catch(() => {
-            // Animation was cancelled - expected, cancel handler already cleaned up registry
+            // Animation was cancelled - either explicitly or because element was removed from DOM
+            // Clean up registry to prevent memory leak from holding reference to detached element
+            unregisterAnimation(name, anim);
           });
       }
 
