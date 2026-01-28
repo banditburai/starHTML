@@ -244,6 +244,20 @@ function unregisterAnimation(name: string | undefined, anim?: AnimationControls)
   }
 }
 
+/** Creates handler for SSE-triggered motion actions (remove/replace) */
+function createMotionTriggerHandler(el: HTMLElement): (e: Event) => void {
+  return (e: Event) => {
+    const detail = (e as CustomEvent).detail;
+    if (detail.op === "remove") {
+      playExitAndThen(el, () => el.remove());
+    } else if (detail.op === "replace" && detail.html) {
+      playExitAndThen(el, () => {
+        el.outerHTML = detail.html;
+      });
+    }
+  };
+}
+
 /**
  * Plays exit animation on element, then executes callback.
  * If no exit config exists, executes callback immediately.
@@ -326,7 +340,6 @@ const motionAttributePlugin: AttributePlugin = {
           if (isAnimating) return;
           isAnimating = true;
 
-          // Restore visibility to play animation
           el.style.display = originalDisplay === "none" ? "block" : originalDisplay;
           el.hidden = false;
 
@@ -350,7 +363,6 @@ const motionAttributePlugin: AttributePlugin = {
         const observer = new MutationObserver((mutations) => {
           for (const mutation of mutations) {
             if (mutation.type === "attributes") {
-              // Check for display:none or hidden attribute
               const isHiding =
                 (mutation.attributeName === "style" && el.style.display === "none") ||
                 (mutation.attributeName === "hidden" && el.hidden);
@@ -640,21 +652,9 @@ const motionAttributePlugin: AttributePlugin = {
           });
         };
 
-        // Listen for SSE-triggered motion actions (from motion_remove/motion_replace)
-        const handleTrigger = (e: Event) => {
-          const detail = (e as CustomEvent).detail;
-          if (detail.op === "remove") {
-            playExitAndThen(el, () => el.remove());
-          } else if (detail.op === "replace" && detail.html) {
-            playExitAndThen(el, () => {
-              el.outerHTML = detail.html;
-            });
-          }
-        };
+        const handleTrigger = createMotionTriggerHandler(el);
         el.addEventListener("motion-trigger", handleTrigger);
 
-        // Use Datastar's effect() for reactive signal watching
-        // Extract signal name once (remove $ prefix if present)
         const signalName = visConfig.signal.startsWith("$")
           ? visConfig.signal.slice(1)
           : visConfig.signal;
@@ -798,8 +798,6 @@ const motionActionPlugin: ActionPlugin = {
 
         const animOptions: Record<string, unknown> = { ...options };
         if (isInfinite) {
-          // Use Infinity for true infinite, but log a large number for debugging visibility
-          // (Console filters out Infinity values when displaying objects)
           animOptions.repeat = Infinity;
         }
 
@@ -947,22 +945,11 @@ const motionExitAttributePlugin: AttributePlugin = {
     const { el, value } = ctx;
     if (!value) return;
 
-    // Store parsed exit config on the element for SSE-driven actions
     const config = parseMotionAttribute(value);
     config.type = "exit";
     exitConfigMap.set(el, config);
 
-    // Listen for SSE-triggered motion actions (from motion_remove/motion_replace)
-    const handleTrigger = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (detail.op === "remove") {
-        playExitAndThen(el, () => el.remove());
-      } else if (detail.op === "replace" && detail.html) {
-        playExitAndThen(el, () => {
-          el.outerHTML = detail.html;
-        });
-      }
-    };
+    const handleTrigger = createMotionTriggerHandler(el);
     el.addEventListener("motion-trigger", handleTrigger);
 
     return () => {
