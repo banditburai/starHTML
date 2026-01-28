@@ -154,12 +154,7 @@ class Plugin:
         self._base_name = base_name
         self._code = code
         self._signals, self._methods = signals, methods
-        # Normalize actions to dict format
-        if isinstance(actions, dict):
-            self._actions = actions
-        else:
-            # Tuple of names → use generic _ActionMethod for each
-            self._actions = {name: None for name in actions}
+        self._actions = actions if isinstance(actions, dict) else {name: None for name in actions}
         self._file_actions = file_actions
         self._extra_attributes = extra_attributes
         self._default = None
@@ -336,9 +331,7 @@ def plugins_hdrs(
         elif file_actions:
             # Only file_actions, no attribute - just import action plugin
             needs_action = True
-            lines.append(
-                f"import{{{p._base_name}ActionPlugin}}from'@starhtml/plugins/{p._base_name}';"
-            )
+            lines.append(f"import{{{p._base_name}ActionPlugin}}from'@starhtml/plugins/{p._base_name}';")
             file_action_plugins.append(f"{p._base_name}ActionPlugin")
 
         # Register action plugin from inline code (not file_actions)
@@ -388,9 +381,9 @@ class _MotionBase:
     delay: int | None = None
     ease: str | None = None
     spring: Literal["gentle", "bouncy", "tight", "slow"] | None = None
-    repeat: int | Literal["infinite"] | None = None  # Repeat count or infinite loop
-    stagger: int | None = None  # Stagger delay (ms) for children animations
-    name: str | None = None  # Animation name for playback control (pause/play/stop/cancel)
+    repeat: int | Literal["infinite"] | None = None
+    stagger: int | None = None
+    name: str | None = None
 
     def _build_parts(self, type_name: str) -> list[str]:
         parts = [f"type:{type_name}"]
@@ -503,41 +496,33 @@ class PressAnimation(_MotionBase):
 
 
 def enter(**kwargs) -> EnterAnimation:
-    """Create enter animation with IDE autocomplete."""
     return EnterAnimation(**kwargs)
 
 
 def exit_(**kwargs) -> ExitAnimation:
-    """Create exit animation. (exit_ to avoid Python keyword)"""
     return ExitAnimation(**kwargs)
 
 
 def hover(**kwargs) -> HoverAnimation:
-    """Create hover gesture animation."""
     return HoverAnimation(**kwargs)
 
 
 def in_view(**kwargs) -> InViewAnimation:
-    """Create scroll-triggered in-view animation."""
     return InViewAnimation(**kwargs)
 
 
 def scroll_link(**kwargs) -> ScrollAnimation:
-    """Create scroll-linked animation with scrubbing."""
     return ScrollAnimation(**kwargs)
 
 
 def resize_anim(**kwargs) -> ResizeAnimation:
-    """Create resize-triggered animation."""
     return ResizeAnimation(**kwargs)
 
 
 def press(**kwargs) -> PressAnimation:
-    """Create press/tap gesture animation."""
     return PressAnimation(**kwargs)
 
 
-# Aliases for backwards compatibility
 tap = press
 TapAnimation = PressAnimation
 
@@ -563,7 +548,6 @@ def visibility(*, signal, enter=None, exit_=None) -> str:
     """
     parts = ["type:visibility"]
 
-    # Extract signal ID
     if hasattr(signal, "_id"):
         sig_id = signal._id
     elif isinstance(signal, _JSRaw):
@@ -572,86 +556,46 @@ def visibility(*, signal, enter=None, exit_=None) -> str:
     else:
         sig_id = str(signal)
 
-    # Ensure signal has $ prefix
     if not sig_id.startswith("$"):
         sig_id = f"${sig_id}"
     parts.append(f"signal:{sig_id}")
 
-    # Encode enter config with enter_ prefix
     if enter:
-        enter_str = str(enter)
-        for part in enter_str.split():
-            if part.startswith("type:"):
-                continue  # Skip the type:enter part
-            parts.append(f"enter_{part}")
+        for part in str(enter).split():
+            if not part.startswith("type:"):
+                parts.append(f"enter_{part}")
 
-    # Encode exit config with exit_ prefix
     if exit_:
-        exit_str = str(exit_)
-        for part in exit_str.split():
-            if part.startswith("type:"):
-                continue  # Skip the type:exit part
-            parts.append(f"exit_{part}")
+        for part in str(exit_).split():
+            if not part.startswith("type:"):
+                parts.append(f"exit_{part}")
 
     return " ".join(parts)
 
 
 def motion_remove(selector: str):
-    """SSE helper: Remove an element with exit animation.
-
-    Creates a transient trigger that invokes @motion("remove", selector).
-    The target element's exit animation plays, then it's removed from DOM.
-
-    Requires the target element to have data-motion-exit for exit animation.
-
-    Usage in SSE endpoint:
-        @rt("/delete-item")
-        @sse
-        def delete_item(req):
-            yield motion_remove("#item-123")
-
-    Args:
-        selector: CSS selector of element to remove
-    """
+    """SSE helper: Remove element with exit animation. Requires data-motion-exit on target."""
     from .realtime import execute_script
 
     escaped = selector.replace("\\", "\\\\").replace("`", "\\`")
-    # Use execute_script to trigger the action - cleaner than hidden div
     return execute_script(
-        f'document.querySelector(`{escaped}`)?.dispatchEvent('
+        f"document.querySelector(`{escaped}`)?.dispatchEvent("
         f'new CustomEvent("motion-trigger", {{detail: {{op: "remove"}}}}));'
     )
 
 
 def motion_replace(selector: str, new_element):
-    """SSE helper: Replace an element with exit animation, then insert new content.
-
-    Creates a transient trigger that invokes @motion("replace", selector, html).
-    The target element's exit animation plays, then it's replaced with new content.
-
-    Requires the target element to have data-motion-exit for exit animation.
-
-    Usage in SSE endpoint:
-        @rt("/update-card")
-        @sse
-        def update_card(req):
-            yield motion_replace("#card", Div("New content", id="card"))
-
-    Args:
-        selector: CSS selector of element to replace
-        new_element: StarHTML element to insert (will be serialized to HTML)
-    """
+    """SSE helper: Replace element with exit animation. Requires data-motion-exit on target."""
     from fastcore.xml import to_xml
 
     from .realtime import execute_script
 
     new_html = to_xml(new_element)
     escaped_sel = selector.replace("\\", "\\\\").replace("`", "\\`")
-    # Escape for template literal (backticks and ${})
     escaped_html = new_html.replace("\\", "\\\\").replace("`", "\\`").replace("${", "\\${")
 
     return execute_script(
-        f'document.querySelector(`{escaped_sel}`)?.dispatchEvent('
+        f"document.querySelector(`{escaped_sel}`)?.dispatchEvent("
         f'new CustomEvent("motion-trigger", {{detail: {{op: "replace", html: `{escaped_html}`}}}}));'
     )
 

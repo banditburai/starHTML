@@ -31,7 +31,7 @@ class TestPluginClass:
         assert p.name == "test"
         assert p.code is None
         assert p.has_attribute is True  # has signals → attribute
-        assert p.has_action is False    # no code → no action
+        assert p.has_action is False  # no code → no action
 
     def test_plugin_signal_access(self):
         """Test that signals can be accessed as attributes."""
@@ -67,7 +67,7 @@ class TestPluginClass:
         p = Plugin("test", code="{ name: 'test' }")
 
         assert p.code == "{ name: 'test' }"
-        assert p.has_action is True   # has code → action
+        assert p.has_action is True  # has code → action
         assert p.has_attribute is False  # code + no signals/methods → action only
 
 
@@ -204,7 +204,7 @@ class TestBuiltinPlugins:
         """Test clipboard plugin is an action plugin (derived from structure)."""
         assert clipboard.name == "clipboard"
         assert clipboard.code is not None
-        assert clipboard.has_action is True   # has code → action
+        assert clipboard.has_action is True  # has code → action
         assert clipboard.has_attribute is False  # code + no signals → action only
         assert "clipboard" in clipboard.code
 
@@ -424,10 +424,12 @@ class TestMotionPluginActions:
 
     def test_motion_sequence_action(self):
         """motion.sequence generates correct action syntax."""
-        result = motion.sequence([
-            ("#title", {"opacity": 1}),
-            ("#subtitle", {"y": 0}),
-        ])
+        result = motion.sequence(
+            [
+                ("#title", {"opacity": 1}),
+                ("#subtitle", {"y": 0}),
+            ]
+        )
         result_str = str(result)
         assert '@motion("sequence"' in result_str
 
@@ -579,21 +581,21 @@ class TestVisibilityHelper:
 
     def test_visibility_with_enter_animation(self):
         """visibility() includes enter animation config with enter_ prefix."""
-        from starhtml.plugins import visibility, enter
+        from starhtml.plugins import enter, visibility
 
         result = visibility(signal="show", enter=enter(preset="fade"))
         assert "enter_preset:fade" in result
 
     def test_visibility_with_exit_animation(self):
         """visibility() includes exit animation config with exit_ prefix."""
-        from starhtml.plugins import visibility, exit_
+        from starhtml.plugins import exit_, visibility
 
         result = visibility(signal="show", exit_=exit_(opacity=0))
         assert "exit_opacity:0" in result
 
     def test_visibility_with_both_animations(self):
         """visibility() includes both enter and exit animations."""
-        from starhtml.plugins import visibility, enter, exit_
+        from starhtml.plugins import enter, exit_, visibility
 
         result = visibility(
             signal="show",
@@ -609,17 +611,17 @@ class TestVisibilityHelper:
 
     def test_visibility_requires_keyword_signal(self):
         """visibility() requires signal as keyword argument."""
-        from starhtml.plugins import visibility
-
         # Should raise TypeError if called with positional argument
         import pytest
+
+        from starhtml.plugins import visibility
 
         with pytest.raises(TypeError):
             visibility("show_modal")
 
     def test_visibility_can_be_used_directly_with_data_motion(self):
         """visibility() output works directly as data_motion value."""
-        from starhtml.plugins import visibility, enter, exit_
+        from starhtml.plugins import enter, exit_, visibility
 
         # This is the intended usage pattern
         result = visibility(

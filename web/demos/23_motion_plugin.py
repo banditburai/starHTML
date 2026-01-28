@@ -743,11 +743,13 @@ def home():
                     ),
                     Button(
                         "Run Sequence",
-                        data_on_click=motion.sequence([
-                            ("#seq-title", dict(opacity=1, duration=300)),
-                            ("#seq-subtitle", dict(y=0, opacity=1, duration=300), dict(at="+0.15")),
-                            ("#seq-button", dict(scale=1, opacity=1, duration=300), dict(at="+0.15")),
-                        ]),
+                        data_on_click=motion.sequence(
+                            [
+                                ("#seq-title", dict(opacity=1, duration=300)),
+                                ("#seq-subtitle", dict(y=0, opacity=1, duration=300), dict(at="+0.15")),
+                                ("#seq-button", dict(scale=1, opacity=1, duration=300), dict(at="+0.15")),
+                            ]
+                        ),
                         cls="px-4 py-2 bg-cyan-500 text-white font-bold rounded hover:bg-cyan-600 ml-3",
                     ),
                     cls="mb-6",
@@ -899,7 +901,7 @@ def home():
                 ),
                 Pre(
                     Code(
-                        '# Named animations can be controlled from anywhere\n'
+                        "# Named animations can be controlled from anywhere\n"
                         'motion.animate("#hero", scale=1.05, repeat="infinite", name="hero")\n'
                         'motion.pause("hero")  # Pause by name\n'
                         'motion.play("hero")   # Resume by name\n'
@@ -1079,7 +1081,11 @@ def replay_spring(req, spring_stagger: int = 150):
     """Replace spring cards to replay their enter animations."""
     key = str(time.time_ns())
     yield elements(
-        Div(*spring_cards(key, spring_stagger), id="spring-grid", cls="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"),
+        Div(
+            *spring_cards(key, spring_stagger),
+            id="spring-grid",
+            cls="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4",
+        ),
         "#spring-grid",
         "outer",
     )
@@ -1104,7 +1110,12 @@ def replay_sequence(req):
     key = str(time.time_ns())
     seq_complete = Signal("seq_complete", False)
     yield elements(
-        Div(seq_complete, *sequenced_cards(seq_complete, key), id="sequence-grid", cls="grid grid-cols-1 md:grid-cols-4 gap-4"),
+        Div(
+            seq_complete,
+            *sequenced_cards(seq_complete, key),
+            id="sequence-grid",
+            cls="grid grid-cols-1 md:grid-cols-4 gap-4",
+        ),
         "#sequence-grid",
         "outer",
     )

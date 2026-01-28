@@ -1,14 +1,10 @@
-"""Hero Section - Interactive Demo
-
-Uses the motion plugin for entrance animations and button interactions.
-"""
+"""Hero Section - Interactive Demo"""
 
 from starhtml import *
 from starhtml.plugins import enter, motion, press
 
 
 def hero_animations():
-    """Rainbow and star animation styles."""
     return Style("""
         @keyframes rainbow-gradient {
             0%, 100% { color: #fbbf24; }
@@ -39,7 +35,6 @@ def hero_animations():
 
 
 def star_field(stars):
-    """Dynamic star field that responds to stars signal."""
     return Div(
         data_effect="""
             const diff = $stars.length - el.children.length;
@@ -99,7 +94,6 @@ def hero_title(show_rainbow):
 
 
 def typewriter_tagline(show_rainbow):
-    """Typewriter effect cycling through taglines using Datastar intervals."""
     texts = ["Write Python", "Build anything", "Stay brilliant"]
     n = len(texts)
     texts_js = f"{texts!r}"
@@ -110,8 +104,10 @@ def typewriter_tagline(show_rainbow):
     visible = Signal("tw_visible", True)
 
     return P(
-        phase, idx, char, visible,
-        # Asterisk
+        phase,
+        idx,
+        char,
+        visible,
         Icon(
             "vaadin:asterisk",
             cls="sm:pb-2 text-4xl md:text-5xl lg:text-6xl transition-opacity duration-200",
@@ -120,13 +116,11 @@ def typewriter_tagline(show_rainbow):
             data_class_opacity_0=~visible,
         ),
         Span(" ", cls="text-gray-300 transition-opacity duration-200", data_class_opacity_0=~visible),
-        # Typed text
         Span(
             cls="ml-1 pb-0.5 sm:pb-2 transition-opacity duration-200",
             data_class_opacity_0=~visible,
             data_text=f"{texts_js}[{idx} % {n}].slice(0, {char})",
         ),
-        # Intervals for typing state machine
         Span(
             style="display:none",
             data_on_interval=(
@@ -244,7 +238,6 @@ def scroll_indicator():
 
 
 def hero_section():
-    """Clean, composable hero section for docs integration."""
     return Section(
         (stars := Signal("stars", [])),
         (star_count := Signal("star_count", 0)),
