@@ -152,12 +152,13 @@ class TestEventHandlers:
         assert "data-on:input__prevent__debounce.500ms" in res
 
     def test_on_interval_and_intersect(self):
-        # RC6 uses colon syntax: data-on:interval, data-on:intersect
-        assert "data-on:interval__duration.1s" in attrs_of_kwargs(data_on_interval=("tick()", {"duration": "1s"}))
-        assert "data-on:interval__duration.500ms" in attrs_of_kwargs(
+        # These are separate Datastar plugins, use hyphen syntax (not colon)
+        # data-on-interval uses setInterval, data-on-intersect uses IntersectionObserver
+        assert "data-on-interval__duration.1s" in attrs_of_kwargs(data_on_interval=("tick()", {"duration": "1s"}))
+        assert "data-on-interval__duration.500ms" in attrs_of_kwargs(
             data_on_interval=("update()", {"duration": "500ms"})
         )
-        assert "data-on:intersect__once__half" in attrs_of_kwargs(
+        assert "data-on-intersect__once__half" in attrs_of_kwargs(
             data_on_intersect=("loadMore()", {"once": True, "half": True})
         )
 

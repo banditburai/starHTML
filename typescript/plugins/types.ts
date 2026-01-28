@@ -32,3 +32,14 @@ export interface AttributePlugin {
 }
 
 export type OnRemovalFn = () => void;
+
+export interface ActionContext {
+  el: HTMLElement;
+  evt?: Event;
+  error: (name: string, ctx?: Record<string, any>) => Error;
+}
+
+export interface ActionPlugin {
+  name: string;
+  apply: (ctx: ActionContext, ...args: any[]) => void | Promise<void>;
+}

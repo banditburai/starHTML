@@ -580,33 +580,6 @@ def delete(url: str, data: dict[str, Any] | None = None, **kwargs) -> _JSRaw:
     return _action("delete", url, data, **kwargs)
 
 
-def clipboard(text: str = None, element: str = None, signal: Union[str, "Signal", None] = None) -> _JSRaw:
-    """Copy text to clipboard with optional success signal.
-
-    clipboard("Copied!", signal=success)
-    clipboard(element="code-block", signal=copied)
-    """
-    if (text is None) == (element is None):
-        raise ValueError("Must provide exactly one of: text or element")
-
-    if signal is not None and hasattr(signal, "_id"):
-        signal = signal._id
-
-    signal_suffix = f", {to_js_value(signal)}" if signal else ""
-
-    if text is not None:
-        return _JSRaw(f"@clipboard({to_js_value(text)}{signal_suffix})")
-
-    if element == "el":
-        js_expr = "el"
-    elif element.startswith(("#", ".")):
-        js_expr = f"document.querySelector({to_js_value(element)})"
-    else:
-        js_expr = f"document.getElementById({to_js_value(element)})"
-
-    return _JSRaw(f"@clipboard({js_expr}.textContent{signal_suffix})")
-
-
 def _timer_ref(timer: "Signal", window: bool = False) -> str:
     timer_id = timer._id if hasattr(timer, "_id") else timer
     return f"window._{timer_id}" if window else f"${timer_id}"
@@ -680,10 +653,38 @@ evt = js("evt")
 document = js("document")
 
 
+def emit(event_name: str, **detail) -> _JSRaw:
+    """Dispatch a bubbling custom event.
+
+    Use hyphens in event names (data_on_* listeners auto-match):
+        emit("task-complete", count=n)  →  data_on_task_complete=...
+
+    Examples:
+        Button(data_on_click=emit("done", result=value))
+        Div(data_on_done=status.set(evt.detail.result))
+    """
+    detail_js = f", detail: {_to_js(detail, allow_expressions=True, wrap_objects=False)}" if detail else ""
+    return _JSRaw(f"el.dispatchEvent(new CustomEvent('{event_name}', {{bubbles: true{detail_js}}}))")
+
+
+# Datastar plugins using "on-*" naming (hyphen syntax, not colon like DOM events)
+_ON_PLUGINS: set[str] = {"interval", "intersect", "signal_patch"}
+
+
+def register_on_plugin(name: str) -> None:
+    """Register a custom 'on-*' plugin for hyphen syntax (e.g., data-on-scroll)."""
+    _ON_PLUGINS.add(name)
+
+
 def _normalize_data_key(key: str) -> str:
-    # RC.6 renamed data-on-load to data-init
     if key == "data_on_load":
         return "data-init"
+
+    # Registered on-* plugins use hyphen syntax, DOM events use colon syntax
+    if key.startswith("data_on_"):
+        base_name = key.removeprefix("data_on_").split("__")[0]
+        if base_name in _ON_PLUGINS:
+            return key.replace("_", "-")
 
     # RC.6 changed delimiter from - to : for attribute keys
     # List of prefixes that should use : delimiter when followed by a key
@@ -802,7 +803,7 @@ def process_datastar_kwargs(kwargs: dict) -> tuple[dict, set[Signal]]:
             case list():
                 processed[normalized_key] = NotStr(_expr_list_to_js(value, collect))
             case (expr, modifiers) if isinstance(modifiers, dict):
-                is_event = normalized_key.startswith("data-on:")
+                is_event = normalized_key.startswith(("data-on:", "data-on-"))
                 is_keyed = isinstance(expr, str) and not is_event
                 if isinstance(expr, Expr | Signal):
                     collect(expr)
@@ -830,6 +831,13 @@ def process_datastar_kwargs(kwargs: dict) -> tuple[dict, set[Signal]]:
                     processed[normalized_key] = NotStr(js_str)
             case _JSLiteral() | _JSRaw() as val:
                 processed[normalized_key] = NotStr(_to_js(val))
+            case _ if hasattr(value, "__data_attrs__"):
+                for attr_key, attr_val in value.__data_attrs__().items():
+                    if isinstance(attr_val, Expr):
+                        collect(attr_val)
+                        processed[attr_key] = NotStr(attr_val.to_js())
+                    else:
+                        processed[attr_key] = attr_val
             case _:
                 if key.startswith(("data_style_", "data_class_", "data_attr_")):
                     processed[normalized_key] = value if isinstance(value, str) else NotStr(_to_js(value))
@@ -860,10 +868,12 @@ __all__ = [
     "put",
     "patch",
     "delete",
-    "clipboard",
     "set_timeout",
     "clear_timeout",
     "reset_timeout",
+    # Custom events
+    "emit",
+    # JS globals
     "console",
     "Math",
     "JSON",
@@ -877,4 +887,6 @@ __all__ = [
     "document",
     "process_datastar_kwargs",
     "to_js_value",
+    # Plugin registration
+    "register_on_plugin",
 ]

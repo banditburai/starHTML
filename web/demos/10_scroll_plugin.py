@@ -34,7 +34,7 @@ def home():
             (slide_visible := Signal("slide_visible", False)),
             (current_scroll_direction := Signal("current_scroll_direction", "down")),
             # The scroll handler provides variables via scroll namespace:
-            # scroll_x, scroll_y, scroll_direction, scroll_velocity, etc. or underscore instead of dot for the js variables
+            # scroll_x, scroll_y, scroll_direction, scroll_page_progress, etc. (underscore prefix for JS: $scroll_x)
             # Header with bold typography
             Div(
                 H1("10", cls="text-8xl font-black text-gray-100 leading-none"),
@@ -56,17 +56,15 @@ def home():
                             " px",
                             cls="text-lg",
                         ),
-                        # Visual scroll activity indicator (more intuitive than numbers)
+                        # Visual scroll direction indicator
                         Div(
                             Div(
-                                # Activity bar that scales with velocity
-                                data_style_width=js("Math.min(100, $scroll_velocity / 10) + '%'"),
                                 data_class=switch(
                                     [
-                                        (scroll.direction == "up", "bg-green-500"),
-                                        (scroll.direction == "down", "bg-red-500"),
+                                        (scroll.direction == "up", "bg-green-500 w-full"),
+                                        (scroll.direction == "down", "bg-red-500 w-full"),
                                     ],
-                                    default="bg-gray-300",
+                                    default="bg-gray-300 w-0",
                                 ),
                                 cls="h-2 transition-all duration-100 rounded",
                             ),
@@ -75,7 +73,7 @@ def home():
                                 Span(
                                     data_text=switch(
                                         [
-                                            (scroll.velocity == 0, "Idle"),
+                                            (scroll.direction == "none", "Idle"),
                                             (scroll.direction == "up", "Scrolling Up"),
                                             (scroll.direction == "down", "Scrolling Down"),
                                         ],
@@ -215,11 +213,11 @@ def home():
                             cls="text-sm text-white/70",
                         ),
                         # Slow parallax: moves slower than scroll (factor of 0.2)
-                        # Variables from scroll handler need $ prefix in expressions
+                        # Uses visible_percent > 0 to check visibility
                         data_scroll=(
                             parallax1.set(
                                 js(
-                                    "$scroll_visible ? Math.max(-100, Math.min(100, ($scroll_y - $scroll_element_top + 300) * -0.2)) : $parallax1"
+                                    "$scroll_visible_percent > 0 ? Math.max(-100, Math.min(100, ($scroll_page_progress - 50) * -2)) : $parallax1"
                                 )
                             ),
                             dict(smooth=True),
@@ -260,7 +258,7 @@ def home():
                         data_scroll=(
                             parallax3.set(
                                 js(
-                                    "$scroll_visible ? Math.max(-100, Math.min(100, ($scroll_y - $scroll_element_top + 300) * 0.2)) : $parallax3"
+                                    "$scroll_visible_percent > 0 ? Math.max(-100, Math.min(100, ($scroll_page_progress - 50) * 2)) : $parallax3"
                                 )
                             ),
                             dict(smooth=True),
@@ -282,7 +280,7 @@ def home():
                     Div(
                         H3("Fade In Animation", cls="font-medium mb-2"),
                         P("This box fades in when you scroll to it."),
-                        data_scroll=fade_visible.set(scroll.visible),
+                        data_scroll=fade_visible.set(scroll.visible_percent > 0),
                         data_style_opacity=fade_visible.if_("1", "0"),
                         data_style_transform=fade_visible.if_("translateY(0)", "translateY(20px)"),
                         cls="p-6 bg-orange-100 border border-orange-300 rounded transition-all duration-500",
@@ -292,7 +290,7 @@ def home():
                     Div(
                         H3("Scale In Animation", cls="font-medium mb-2"),
                         P("This box scales in when visible."),
-                        data_scroll=scale_visible.set(scroll.visible),
+                        data_scroll=scale_visible.set(scroll.visible_percent > 0),
                         data_style_opacity=scale_visible.if_("1", "0"),
                         data_style_transform=scale_visible.if_("scale(1)", "scale(0.8)"),
                         cls="p-6 bg-teal-100 border border-teal-300 rounded transition-all duration-500",
@@ -302,7 +300,7 @@ def home():
                     Div(
                         H3("Slide In Animation", cls="font-medium mb-2"),
                         P("This box slides in from the side."),
-                        data_scroll=slide_visible.set(scroll.visible),
+                        data_scroll=slide_visible.set(scroll.visible_percent > 0),
                         data_style_opacity=slide_visible.if_("1", "0"),
                         data_style_transform=slide_visible.if_("translateX(0)", "translateX(-100px)"),
                         cls="p-6 bg-pink-100 border border-pink-300 rounded transition-all duration-500",
@@ -343,16 +341,16 @@ def home():
                                 " - 'up', 'down', or 'none'",
                             ),
                             Li(
-                                Code("scroll.velocity", cls="text-xs bg-gray-100 px-1 py-0.5 rounded"),
-                                " - Scroll speed in px/s",
-                            ),
-                            Li(
                                 Code("scroll.page_progress", cls="text-xs bg-gray-100 px-1 py-0.5 rounded"),
                                 " - Page scroll % (0-100)",
                             ),
                             Li(
-                                Code("scroll.visible", cls="text-xs bg-gray-100 px-1 py-0.5 rounded"),
-                                " - Element in viewport",
+                                Code("scroll.is_top / is_bottom", cls="text-xs bg-gray-100 px-1 py-0.5 rounded"),
+                                " - At page boundaries",
+                            ),
+                            Li(
+                                Code("scroll.visible_percent", cls="text-xs bg-gray-100 px-1 py-0.5 rounded"),
+                                " - Element visibility % (0-100)",
                             ),
                             cls="text-sm space-y-2 list-disc list-inside text-gray-700",
                         ),
@@ -365,20 +363,22 @@ def home():
         ),
         # Fixed scroll direction indicators - Single signal approach for mutual exclusivity
         Div(
-            # UP indicator
+            # UP indicator - starts hidden (initial signal is "down")
             Div(
                 H4("Scrolling UP", cls="font-bold text-sm text-green-700"),
                 P("Scroll up detected", cls="text-xs text-green-600"),
                 data_style_opacity=(current_scroll_direction == "up").if_("1", "0"),
                 data_style_transform=(current_scroll_direction == "up").if_("translateY(0)", "translateY(-20px)"),
+                style="opacity: 0; transform: translateY(-20px)",
                 cls="p-3 bg-green-100 border-2 border-green-300 rounded shadow-lg mb-3 transition-all duration-300",
             ),
-            # DOWN indicator
+            # DOWN indicator - starts visible (initial signal is "down")
             Div(
                 H4("Scrolling DOWN", cls="font-bold text-sm text-red-700"),
                 P("Scroll down detected", cls="text-xs text-red-600"),
                 data_style_opacity=(current_scroll_direction == "down").if_("1", "0"),
                 data_style_transform=(current_scroll_direction == "down").if_("translateY(0)", "translateY(20px)"),
+                style="opacity: 1; transform: translateY(0)",
                 cls="p-3 bg-red-100 border-2 border-red-300 rounded shadow-lg transition-all duration-300",
             ),
             # Only update direction when actively scrolling (keep last direction when stopped)

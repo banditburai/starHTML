@@ -26,7 +26,6 @@ function getDragArgNames(signal = "drag"): string[] {
     `${signal}_x`,
     `${signal}_y`,
     `${signal}_drop_zone`,
-    `${signal}_has_drop_zone`,
   ];
 }
 
@@ -343,7 +342,6 @@ function updateDragPositionActive() {
       [`${sig}_x`]: finalX,
       [`${sig}_y`]: finalY,
       [`${sig}_drop_zone`]: dropZoneName,
-      [`${sig}_has_drop_zone`]: dropZoneName !== null,
     });
 
     for (const zone of document.querySelectorAll("[data-drop-zone]")) {
@@ -455,7 +453,6 @@ function handleGlobalPointerUp() {
       [`${sig}_is_dragging`]: false,
       [`${sig}_element_id`]: "",
       [`${sig}_drop_zone`]: "",
-      [`${sig}_has_drop_zone`]: false,
     });
 
     if (config.mode === "sortable") {
@@ -584,16 +581,13 @@ const dragAttributePlugin: AttributePlugin = {
     const config = getGlobalConfig();
     const sig = config.signal ?? "drag";
 
-    // Use empty string instead of null - Datastar RC6 deletes signals set to null
-    const initPatch = {
+    mergePatch({
       [`${sig}_is_dragging`]: false,
       [`${sig}_element_id`]: "",
       [`${sig}_x`]: 0,
       [`${sig}_y`]: 0,
       [`${sig}_drop_zone`]: "",
-      [`${sig}_has_drop_zone`]: false,
-    } as Record<string, any>;
-    mergePatch(initPatch);
+    });
 
     // Initialize ALL drop zones on the page (run once on first registration)
     if (registrations.length === 0) {
