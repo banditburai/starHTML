@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import json
 import time
-from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Any, Literal
 
-from .datastar import _JSRaw, _to_js, js
+from .datastar import Expr, _JSRaw, _to_js, js
 from .xtend import Script, Style
 
 _STATIC_PATH = Path(__file__).parent / "static" / "js" / "plugins"
@@ -367,164 +366,248 @@ def plugins_hdrs(
 # Motion Animation Helpers
 # ============================================================
 
-
-@dataclass(frozen=True, slots=True)
-class _MotionBase:
-    """Base class for motion animation configurations.
-
-    Animation config is purely declarative - describes WHAT the animation looks like.
-    Triggers are handled by animation type (enter=mount, hover=hover, etc.) or
-    via Datastar events (data-on:motion-complete for sequencing).
-    """
-
-    duration: int | None = None
-    delay: int | None = None
-    ease: str | None = None
-    spring: Literal["gentle", "bouncy", "tight", "slow"] | None = None
-    repeat: int | Literal["infinite"] | None = None
-    stagger: int | None = None
-    name: str | None = None
-
-    def _build_parts(self, type_name: str) -> list[str]:
-        parts = [f"type:{type_name}"]
-        for f in fields(self):
-            val = getattr(self, f.name)
-            if val is not None:
-                if isinstance(val, tuple):
-                    parts.append(f"{f.name}:{val[0]},{val[1]}")
-                elif isinstance(val, bool):
-                    parts.append(f"{f.name}:{str(val).lower()}")
-                else:
-                    parts.append(f"{f.name}:{val}")
-        return parts
-
-    def __str__(self) -> str:
-        raise NotImplementedError
+Spring = Literal["gentle", "bouncy", "tight", "slow"]
+EnterPreset = Literal["fade", "slide-up", "slide-down", "scale", "bounce"]
+InViewPreset = Literal["fade", "slide-up", "slide-down", "scale"]
 
 
-@dataclass(frozen=True, slots=True)
-class EnterAnimation(_MotionBase):
-    """Enter/mount animation configuration."""
-
-    x: float | None = None
-    y: float | None = None
-    scale: float | None = None
-    rotate: float | None = None
-    opacity: float | None = None
-    preset: Literal["fade", "slide-up", "slide-down", "scale", "bounce"] | None = None
-
-    def __str__(self) -> str:
-        return " ".join(self._build_parts("enter"))
-
-
-@dataclass(frozen=True, slots=True)
-class ExitAnimation(_MotionBase):
-    """Exit/unmount animation configuration."""
-
-    x: float | None = None
-    y: float | None = None
-    scale: float | None = None
-    rotate: float | None = None
-    opacity: float | None = None
-
-    def __str__(self) -> str:
-        return " ".join(self._build_parts("exit"))
+def _motion_str(type_name: str, **kwargs) -> str:
+    """Build motion config string from keyword args."""
+    parts = [f"type:{type_name}"]
+    for key, val in kwargs.items():
+        if val is None:
+            continue
+        if isinstance(val, tuple):
+            parts.append(f"{key}:{val[0]},{val[1]}")
+        elif isinstance(val, bool):
+            parts.append(f"{key}:{str(val).lower()}")
+        else:
+            parts.append(f"{key}:{val}")
+    return " ".join(parts)
 
 
-@dataclass(frozen=True, slots=True)
-class HoverAnimation(_MotionBase):
+def enter(
+    *,
+    x: float | None = None,
+    y: float | None = None,
+    scale: float | None = None,
+    rotate: float | None = None,
+    opacity: float | None = None,
+    preset: EnterPreset | None = None,
+    duration: int | None = None,
+    delay: int | None = None,
+    ease: str | None = None,
+    spring: Spring | None = None,
+    repeat: int | Literal["infinite"] | None = None,
+    stagger: int | None = None,
+    name: str | None = None,
+) -> str:
+    """Enter/mount animation."""
+    return _motion_str(
+        "enter",
+        x=x,
+        y=y,
+        scale=scale,
+        rotate=rotate,
+        opacity=opacity,
+        preset=preset,
+        duration=duration,
+        delay=delay,
+        ease=ease,
+        spring=spring,
+        repeat=repeat,
+        stagger=stagger,
+        name=name,
+    )
+
+
+def exit_(
+    *,
+    x: float | None = None,
+    y: float | None = None,
+    scale: float | None = None,
+    rotate: float | None = None,
+    opacity: float | None = None,
+    duration: int | None = None,
+    delay: int | None = None,
+    ease: str | None = None,
+    spring: Spring | None = None,
+    repeat: int | Literal["infinite"] | None = None,
+    stagger: int | None = None,
+    name: str | None = None,
+) -> str:
+    """Exit/unmount animation."""
+    return _motion_str(
+        "exit",
+        x=x,
+        y=y,
+        scale=scale,
+        rotate=rotate,
+        opacity=opacity,
+        duration=duration,
+        delay=delay,
+        ease=ease,
+        spring=spring,
+        repeat=repeat,
+        stagger=stagger,
+        name=name,
+    )
+
+
+def hover(
+    *,
+    scale: float | None = None,
+    y: float | None = None,
+    rotate: float | None = None,
+    duration: int | None = None,
+    delay: int | None = None,
+    ease: str | None = None,
+    spring: Spring | None = None,
+    repeat: int | Literal["infinite"] | None = None,
+    stagger: int | None = None,
+    name: str | None = None,
+) -> str:
     """Hover gesture animation."""
+    return _motion_str(
+        "hover",
+        scale=scale,
+        y=y,
+        rotate=rotate,
+        duration=duration,
+        delay=delay,
+        ease=ease,
+        spring=spring,
+        repeat=repeat,
+        stagger=stagger,
+        name=name,
+    )
 
-    scale: float | None = None
-    y: float | None = None
-    rotate: float | None = None
 
-    def __str__(self) -> str:
-        return " ".join(self._build_parts("hover"))
-
-
-@dataclass(frozen=True, slots=True)
-class InViewAnimation(_MotionBase):
+def in_view(
+    *,
+    x: float | None = None,
+    y: float | None = None,
+    scale: float | None = None,
+    opacity: float | None = None,
+    preset: InViewPreset | None = None,
+    threshold: float | None = None,
+    once: bool | None = None,
+    duration: int | None = None,
+    delay: int | None = None,
+    ease: str | None = None,
+    spring: Spring | None = None,
+    repeat: int | Literal["infinite"] | None = None,
+    stagger: int | None = None,
+    name: str | None = None,
+) -> str:
     """Scroll-triggered in-view animation."""
+    return _motion_str(
+        "in-view",
+        x=x,
+        y=y,
+        scale=scale,
+        opacity=opacity,
+        preset=preset,
+        threshold=threshold,
+        once=once,
+        duration=duration,
+        delay=delay,
+        ease=ease,
+        spring=spring,
+        repeat=repeat,
+        stagger=stagger,
+        name=name,
+    )
 
-    x: float | None = None
-    y: float | None = None
-    scale: float | None = None
-    opacity: float | None = None
-    preset: Literal["fade", "slide-up", "slide-down", "scale"] | None = None
-    threshold: float | None = None
-    once: bool | None = None
 
-    def __str__(self) -> str:
-        return " ".join(self._build_parts("in-view"))
-
-
-@dataclass(frozen=True, slots=True)
-class ScrollAnimation(_MotionBase):
+def scroll_link(
+    *,
+    x: tuple[float, float] | None = None,
+    y: tuple[float, float] | None = None,
+    scale: tuple[float, float] | None = None,
+    opacity: tuple[float, float] | None = None,
+    rotate: tuple[float, float] | None = None,
+    duration: int | None = None,
+    delay: int | None = None,
+    ease: str | None = None,
+    spring: Spring | None = None,
+    repeat: int | Literal["infinite"] | None = None,
+    stagger: int | None = None,
+    name: str | None = None,
+) -> str:
     """Scroll-linked animation (scrubbing)."""
-
-    x: tuple[float, float] | None = None
-    y: tuple[float, float] | None = None
-    scale: tuple[float, float] | None = None
-    opacity: tuple[float, float] | None = None
-    rotate: tuple[float, float] | None = None
-
-    def __str__(self) -> str:
-        return " ".join(self._build_parts("scroll"))
-
-
-@dataclass(frozen=True, slots=True)
-class ResizeAnimation(_MotionBase):
-    """Resize-triggered animation configuration."""
-
-    scale: float | None = None
-    opacity: float | None = None
-
-    def __str__(self) -> str:
-        return " ".join(self._build_parts("resize"))
+    return _motion_str(
+        "scroll",
+        x=x,
+        y=y,
+        scale=scale,
+        opacity=opacity,
+        rotate=rotate,
+        duration=duration,
+        delay=delay,
+        ease=ease,
+        spring=spring,
+        repeat=repeat,
+        stagger=stagger,
+        name=name,
+    )
 
 
-@dataclass(frozen=True, slots=True)
-class PressAnimation(_MotionBase):
+def resize_anim(
+    *,
+    scale: float | None = None,
+    opacity: float | None = None,
+    duration: int | None = None,
+    delay: int | None = None,
+    ease: str | None = None,
+    spring: Spring | None = None,
+    repeat: int | Literal["infinite"] | None = None,
+    stagger: int | None = None,
+    name: str | None = None,
+) -> str:
+    """Resize-triggered animation."""
+    return _motion_str(
+        "resize",
+        scale=scale,
+        opacity=opacity,
+        duration=duration,
+        delay=delay,
+        ease=ease,
+        spring=spring,
+        repeat=repeat,
+        stagger=stagger,
+        name=name,
+    )
+
+
+def press(
+    *,
+    scale: float | None = None,
+    y: float | None = None,
+    duration: int | None = None,
+    delay: int | None = None,
+    ease: str | None = None,
+    spring: Spring | None = None,
+    repeat: int | Literal["infinite"] | None = None,
+    stagger: int | None = None,
+    name: str | None = None,
+) -> str:
     """Press gesture animation."""
-
-    scale: float | None = None
-    y: float | None = None
-
-    def __str__(self) -> str:
-        return " ".join(self._build_parts("press"))
-
-
-def enter(**kwargs) -> EnterAnimation:
-    return EnterAnimation(**kwargs)
-
-
-def exit_(**kwargs) -> ExitAnimation:
-    return ExitAnimation(**kwargs)
-
-
-def hover(**kwargs) -> HoverAnimation:
-    return HoverAnimation(**kwargs)
-
-
-def in_view(**kwargs) -> InViewAnimation:
-    return InViewAnimation(**kwargs)
-
-
-def scroll_link(**kwargs) -> ScrollAnimation:
-    return ScrollAnimation(**kwargs)
-
-
-def resize_anim(**kwargs) -> ResizeAnimation:
-    return ResizeAnimation(**kwargs)
-
-
-def press(**kwargs) -> PressAnimation:
-    return PressAnimation(**kwargs)
+    return _motion_str(
+        "press",
+        scale=scale,
+        y=y,
+        duration=duration,
+        delay=delay,
+        ease=ease,
+        spring=spring,
+        repeat=repeat,
+        stagger=stagger,
+        name=name,
+    )
 
 
 tap = press
-TapAnimation = PressAnimation
 
 
 def visibility(*, signal, enter=None, exit_=None) -> str:
@@ -758,6 +841,45 @@ motion = Plugin(
     extra_attributes=("exit",),
     critical_css="[data-motion]:not([data-motion-ready]){opacity:0}",
 )
+motion_svg = Plugin(
+    "motion-svg",
+    critical_css="[data-motion-svg]{will-change:transform}",
+)
+
+
+# ============================================================
+# SVG Motion Animation Helpers
+# ============================================================
+
+SvgSpring = Literal["gentle", "bouncy", "tight", "slow", "snappy"]
+
+
+def track(**kwargs) -> str:
+    """Track signal values and animate SVG attributes.
+
+    Animates actual SVG attributes (not CSS transforms) - perfect for
+    data visualization. Accepts Signal objects or "$name" strings.
+
+    Supported attributes: height, width, x, y, x1, y1, x2, y2, cx, cy, r, rx, ry,
+    rotate, scale, translate_x, translate_y, skew_x, skew_y, stroke_width,
+    stroke_dashoffset, stroke_dasharray, opacity, fill_opacity, stroke_opacity,
+    font_size, font_weight, letter_spacing, word_spacing, stop_offset, std_deviation, d
+
+    Timing: duration, delay, ease, spring (gentle|bouncy|tight|slow|snappy), name
+
+    Example:
+        (bar_height := Signal("bar_height", value * 100)),
+        Rect(data_motion_svg=track(height=bar_height, spring="gentle"))
+    """
+    parts = []
+    for key, val in kwargs.items():
+        if val is None:
+            continue
+        if isinstance(val, Expr):
+            val = val.to_js()
+        parts.append(f"{key.replace('_', '-')}:{val}")
+    return " ".join(parts)
+
 
 # Content processor plugins - critical CSS prevents flash of unprocessed content
 markdown = Plugin(
@@ -785,7 +907,7 @@ __all__ = [
     "Plugin",
     "PluginInstance",
     "plugins_hdrs",
-    # Motion animation types
+    # Motion animation helpers
     "enter",
     "exit_",
     "hover",
@@ -795,17 +917,10 @@ __all__ = [
     "scroll_link",
     "resize_anim",
     "visibility",
-    "EnterAnimation",
-    "ExitAnimation",
-    "HoverAnimation",
-    "TapAnimation",
-    "PressAnimation",
-    "InViewAnimation",
-    "ScrollAnimation",
-    "ResizeAnimation",
-    # SSE helpers for motion actions
     "motion_remove",
     "motion_replace",
+    # SVG motion animation helper
+    "track",
     # Plugins
     "canvas",
     "clipboard",
@@ -814,6 +929,7 @@ __all__ = [
     "markdown",
     "mermaid",
     "motion",
+    "motion_svg",
     "persist",
     "position",
     "resize",

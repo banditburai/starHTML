@@ -17,6 +17,7 @@ export default defineConfig({
         'katex': './typescript/plugins/katex.ts',
         'mermaid': './typescript/plugins/mermaid.ts',
         'motion': './typescript/plugins/motion.ts',
+        'motion-svg': './typescript/plugins/motion-svg.ts',
       },
       formats: ['es'],
       fileName: (format, entryName) => `${entryName}.js`
@@ -60,6 +61,7 @@ export default defineConfig({
         'https://cdn.jsdelivr.net/npm/katex/dist/katex.mjs',
         'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs',
         'https://cdn.jsdelivr.net/npm/motion@11/+esm',
+        'https://cdn.jsdelivr.net/npm/flubber@0.4.2/+esm',
       ],
       output: {
         preserveModules: false,

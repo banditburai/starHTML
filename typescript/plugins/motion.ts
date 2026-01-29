@@ -1,6 +1,6 @@
 import { animate, inView, scroll, stagger } from "https://cdn.jsdelivr.net/npm/motion@11/+esm";
 import type { AnimationControls, Keyframes } from "https://cdn.jsdelivr.net/npm/motion@11/+esm";
-import { mergePatch, effect, getPath } from "datastar";
+import { effect, getPath, mergePatch } from "datastar";
 import type {
   ActionContext,
   ActionPlugin,
@@ -9,8 +9,6 @@ import type {
   OnRemovalFn,
 } from "./types.js";
 
-// Motion plugin for declarative animations
-
 interface AnimationEntry {
   anim: AnimationControls;
   el: HTMLElement;
@@ -18,7 +16,6 @@ interface AnimationEntry {
 
 const animationRegistry = new Map<string, AnimationEntry>();
 
-// WeakMap for storing exit animation config on elements (avoids memory leaks, proper typing)
 const exitConfigMap = new WeakMap<HTMLElement, MotionConfig>();
 
 const SPRING_PRESETS: Record<string, { stiffness: number; damping: number }> = {
@@ -26,6 +23,7 @@ const SPRING_PRESETS: Record<string, { stiffness: number; damping: number }> = {
   bouncy: { stiffness: 300, damping: 10 },
   tight: { stiffness: 400, damping: 30 },
   slow: { stiffness: 50, damping: 20 },
+  snappy: { stiffness: 500, damping: 25 },
 };
 
 const ANIMATION_PRESETS: Record<string, Keyframes> = {
@@ -36,7 +34,16 @@ const ANIMATION_PRESETS: Record<string, Keyframes> = {
   bounce: { y: [-10, 0], opacity: [0, 1] },
 };
 
-type AnimationType = "enter" | "exit" | "hover" | "press" | "tap" | "in-view" | "scroll" | "resize" | "visibility";
+type AnimationType =
+  | "enter"
+  | "exit"
+  | "hover"
+  | "press"
+  | "tap"
+  | "in-view"
+  | "scroll"
+  | "resize"
+  | "visibility";
 
 interface MotionConfig {
   type: AnimationType;
@@ -55,18 +62,28 @@ interface MotionConfig {
   once?: boolean;
   stagger?: number;
   repeat?: number | "infinite";
-  [key: string]: string | number | boolean | undefined;
+  [key: string]: string | number | number[] | boolean | undefined;
 }
+
+type StaggerFunction = (index: number, total: number) => number;
 
 interface AnimationOpts {
   duration?: number;
-  delay?: number;
+  delay?: number | StaggerFunction;
   ease?: string;
   repeat?: number;
   repeatType?: "loop" | "reverse" | "mirror";
-  type?: "spring";
+  type?: "spring" | "inertia";
   stiffness?: number;
   damping?: number;
+  mass?: number;
+  velocity?: number;
+  restSpeed?: number;
+  restDelta?: number;
+  power?: number;
+  timeConstant?: number;
+  min?: number;
+  max?: number;
 }
 
 interface VisibilityConfig {
@@ -89,17 +106,8 @@ function parseMotionAttribute(value: string): MotionConfig {
       config.type = val as AnimationType;
     } else if (key === "name") {
       config.name = val;
-    } else if (key === "preset" || key === "ease" || key === "spring") {
-      config[key] = val;
-    } else if (key === "once") {
-      config.once = val === "true";
-    } else if (key === "repeat") {
-      config.repeat = val === "infinite" ? Number.POSITIVE_INFINITY : Number(val);
-    } else if (val.includes(",")) {
-      config[key] = val.split(",").map(Number) as unknown as number;
     } else {
-      const numVal = Number(val);
-      config[key] = Number.isNaN(numVal) ? val : numVal;
+      parseConfigValue(config, key, val);
     }
   }
 
@@ -140,7 +148,7 @@ function parseConfigValue(config: MotionConfig, key: string, val: string): void 
   } else if (key === "repeat") {
     config.repeat = val === "infinite" ? Number.POSITIVE_INFINITY : Number(val);
   } else if (val.includes(",")) {
-    config[key] = val.split(",").map(Number) as unknown as number;
+    config[key] = val.split(",").map(Number);
   } else {
     const numVal = Number(val);
     config[key] = Number.isNaN(numVal) ? val : numVal;
@@ -181,23 +189,52 @@ function getExitKeyframes(config: MotionConfig): Keyframes {
   return keyframes;
 }
 
-function getAnimationOptions(config: MotionConfig): AnimationOpts {
+function getAnimationOptions(config: Record<string, unknown>): AnimationOpts {
   const options: AnimationOpts = {
-    duration: (config.duration ?? 300) / 1000,
+    duration: (Number(config.duration) || 300) / 1000,
   };
 
-  if (config.delay) options.delay = config.delay / 1000;
-  if (config.ease) options.ease = config.ease;
+  if (config.delay) options.delay = Number(config.delay) / 1000;
+  if (config.ease) options.ease = config.ease as string;
+
   if (config.repeat !== undefined) {
     options.repeat =
-      config.repeat === "infinite" ? Number.POSITIVE_INFINITY : (config.repeat as number);
+      config.repeat === "infinite" ? Number.POSITIVE_INFINITY : Number(config.repeat);
+  }
+  if (config.repeatType) {
+    options.repeatType = config.repeatType as "loop" | "reverse" | "mirror";
   }
 
-  const springPreset = config.spring && SPRING_PRESETS[config.spring];
-  if (springPreset) {
+  if (config.inertia) {
+    options.type = "inertia";
+    if (config.power !== undefined) options.power = Number(config.power);
+    if (config.timeConstant !== undefined) options.timeConstant = Number(config.timeConstant);
+    if (config.min !== undefined) options.min = Number(config.min);
+    if (config.max !== undefined) options.max = Number(config.max);
+    if (config.velocity !== undefined) options.velocity = Number(config.velocity);
+    return options;
+  }
+
+  const springPreset = config.spring ? SPRING_PRESETS[config.spring as string] : null;
+  if (
+    springPreset ||
+    config.stiffness !== undefined ||
+    config.damping !== undefined ||
+    config.mass !== undefined ||
+    config.velocity !== undefined
+  ) {
     options.type = "spring";
-    options.stiffness = springPreset.stiffness;
-    options.damping = springPreset.damping;
+    if (springPreset) Object.assign(options, springPreset);
+    if (config.stiffness !== undefined) options.stiffness = Number(config.stiffness);
+    if (config.damping !== undefined) options.damping = Number(config.damping);
+    if (config.mass !== undefined) options.mass = Number(config.mass);
+    if (config.velocity !== undefined) options.velocity = Number(config.velocity);
+    if (config.restSpeed !== undefined) options.restSpeed = Number(config.restSpeed);
+    if (config.restDelta !== undefined) options.restDelta = Number(config.restDelta);
+  }
+
+  if (config.stagger !== undefined) {
+    options.delay = stagger(Number(config.stagger) / 1000);
   }
 
   return options;
@@ -225,7 +262,6 @@ function registerAnimation(
   el: HTMLElement
 ): void {
   if (name) {
-    // Cancel any existing animation with this name before registering
     const existing = animationRegistry.get(name);
     if (existing && existing.anim !== anim) {
       existing.anim.cancel();
@@ -263,10 +299,7 @@ function createMotionTriggerHandler(el: HTMLElement): (e: Event) => void {
  * If no exit config exists, executes callback immediately.
  * Includes isConnected check before callback execution.
  */
-function playExitAndThen(
-  el: HTMLElement,
-  callback: () => void
-): void | Promise<void> {
+function playExitAndThen(el: HTMLElement, callback: () => void): void | Promise<void> {
   const exitConfig = exitConfigMap.get(el);
   if (!exitConfig) {
     callback();
@@ -283,7 +316,6 @@ function playExitAndThen(
   return exitAnim.finished.then(() => {
     dispatchMotionEvent(el, "motion-complete", { name: exitConfig.name, type: "exit" });
     unregisterAnimation(exitConfig.name, exitAnim);
-    // Check element is still in DOM before modifying
     if (el.isConnected) {
       callback();
     }
@@ -293,6 +325,7 @@ function playExitAndThen(
 const motionAttributePlugin: AttributePlugin = {
   name: "motion",
   requirement: { key: "allowed", value: "allowed" },
+  argNames: [],
 
   apply(ctx: AttributeContext): OnRemovalFn | void {
     const { el, value } = ctx;
@@ -585,7 +618,6 @@ const motionAttributePlugin: AttributePlugin = {
           return;
         }
 
-        // Store exit config in WeakMap for SSE-driven remove/replace
         if (visConfig.exit) {
           visConfig.exit.type = "exit";
           exitConfigMap.set(el, visConfig.exit);
@@ -618,7 +650,10 @@ const motionAttributePlugin: AttributePlugin = {
           registerAnimation(visConfig.enter.name, enterAnim, el);
 
           enterAnim.finished.then(() => {
-            dispatchMotionEvent(el, "motion-complete", { name: visConfig.enter.name, type: "enter" });
+            dispatchMotionEvent(el, "motion-complete", {
+              name: visConfig.enter.name,
+              type: "enter",
+            });
             unregisterAnimation(visConfig.enter.name, enterAnim);
             isAnimating = false;
           });
@@ -664,7 +699,6 @@ const motionAttributePlugin: AttributePlugin = {
             // Use getPath to read signal value directly (not rx which evaluates expressions)
             const shouldBeVisible = Boolean(getPath(signalName));
 
-            // Initial render - just set display without animation
             if (currentlyVisible === null) {
               currentlyVisible = shouldBeVisible;
               el.style.display = shouldBeVisible ? originalDisplay : "none";
@@ -709,39 +743,18 @@ const OPTION_KEYS = new Set([
   "repeatType",
   "name",
   "at",
+  "stiffness",
+  "damping",
+  "mass",
+  "velocity",
+  "restSpeed",
+  "restDelta",
+  "inertia",
+  "power",
+  "timeConstant",
+  "min",
+  "max",
 ]);
-
-function extractOptions(props: Record<string, unknown>): AnimationOpts {
-  const options: AnimationOpts = {
-    duration: ((props.duration as number) ?? 300) / 1000,
-  };
-
-  if (props.delay !== undefined) options.delay = (props.delay as number) / 1000;
-  if (props.ease) options.ease = props.ease as string;
-
-  if (props.spring) {
-    const springPreset = SPRING_PRESETS[props.spring as string];
-    if (springPreset) {
-      options.type = "spring";
-      options.stiffness = springPreset.stiffness;
-      options.damping = springPreset.damping;
-    }
-  }
-
-  if (props.stagger !== undefined) {
-    options.delay = stagger((props.stagger as number) / 1000) as unknown as number;
-  }
-
-  if (props.repeat !== undefined) {
-    options.repeat = props.repeat === "infinite" ? Infinity : Number(props.repeat);
-  }
-
-  if (props.repeatType) {
-    options.repeatType = props.repeatType as "loop" | "reverse" | "mirror";
-  }
-
-  return options;
-}
 
 function extractKeyframes(props: Record<string, unknown>): Keyframes {
   const keyframes: Keyframes = {};
@@ -781,14 +794,12 @@ const motionActionPlugin: ActionPlugin = {
         }
 
         const keyframes = extractKeyframes(props);
-        const options = extractOptions(props);
+        const options = getAnimationOptions(props);
         const name = props.name as string | undefined;
 
-        // Handle infinite repeat
         const isInfinite = props.repeat === "infinite";
 
-        // If animation with this name already exists, don't create a new one
-        // User should click Cancel first, then Start again
+        // Prevent duplicate animations - user must cancel first
         if (name) {
           const existing = animationRegistry.get(name);
           if (existing) {
@@ -798,25 +809,19 @@ const motionActionPlugin: ActionPlugin = {
 
         const animOptions: Record<string, unknown> = { ...options };
         if (isInfinite) {
-          animOptions.repeat = Infinity;
+          animOptions.repeat = Number.POSITIVE_INFINITY;
         }
 
         dispatchMotionEvent(el, "motion-start", { name, type: "animate" });
         const anim = animate(el, keyframes, animOptions);
         registerAnimation(name, anim, el);
 
-        // Note: finished promise NEVER resolves for infinite animations, which is correct
-        // The animation stays in the registry until manually stopped/cancelled
         return anim.finished
           .then(() => {
             dispatchMotionEvent(el, "motion-complete", { name, type: "animate" });
             unregisterAnimation(name, anim);
           })
-          .catch(() => {
-            // Animation was cancelled - either explicitly or because element was removed from DOM
-            // Clean up registry to prevent memory leak from holding reference to detached element
-            unregisterAnimation(name, anim);
-          });
+          .catch(() => unregisterAnimation(name, anim));
       }
 
       case "sequence": {
@@ -840,7 +845,7 @@ const motionActionPlugin: ActionPlugin = {
             continue;
           }
 
-          const options = extractOptions({ ...keyframeProps, ...stepOptions });
+          const options = getAnimationOptions({ ...keyframeProps, ...stepOptions });
           const kf = extractKeyframes(keyframeProps);
 
           const atValue = stepOptions.at as string | number | undefined;
@@ -853,7 +858,7 @@ const motionActionPlugin: ActionPlugin = {
             lastAt = atValue;
           }
 
-          if (delayOffset > 0) {
+          if (delayOffset > 0 && typeof options.delay !== "function") {
             options.delay = (options.delay ?? 0) + delayOffset;
           }
 
@@ -936,12 +941,10 @@ const motionActionPlugin: ActionPlugin = {
   },
 };
 
-// Separate plugin for exit animations - handles data-motion-exit attribute
-// This parses exit animation config for use by @motion("remove/replace") actions
-// Also listens for "motion-trigger" events for SSE-driven remove/replace
 const motionExitAttributePlugin: AttributePlugin = {
   name: "motion-exit",
   requirement: { key: "allowed", value: "allowed" },
+  argNames: [],
 
   apply(ctx: AttributeContext): OnRemovalFn | void {
     const { el, value } = ctx;

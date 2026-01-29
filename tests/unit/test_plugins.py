@@ -4,8 +4,6 @@ import pytest
 
 from starhtml.plugins import (
     Plugin,
-    PressAnimation,
-    ResizeAnimation,
     canvas,
     clipboard,
     drag,
@@ -487,10 +485,10 @@ class TestMotionDeclarativeFunctions:
         assert "type:press" in result_str
         assert "duration:100" in result_str
 
-    def test_press_returns_press_animation(self):
-        """press() returns PressAnimation type."""
+    def test_press_returns_string(self):
+        """press() returns string directly."""
         anim = press(scale=0.95)
-        assert isinstance(anim, PressAnimation)
+        assert isinstance(anim, str)
 
     def test_resize_anim_basic(self):
         """resize_anim() creates ResizeAnimation with correct string output."""
@@ -514,10 +512,10 @@ class TestMotionDeclarativeFunctions:
         assert "type:resize" in result_str
         assert "duration:200" in result_str
 
-    def test_resize_anim_returns_resize_animation(self):
-        """resize_anim() returns ResizeAnimation type."""
+    def test_resize_anim_returns_string(self):
+        """resize_anim() returns string directly."""
         anim = resize_anim(scale=1.05)
-        assert isinstance(anim, ResizeAnimation)
+        assert isinstance(anim, str)
 
 
 class TestMotionPlugin:

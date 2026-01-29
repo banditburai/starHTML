@@ -24,7 +24,7 @@ def home():
     return Div(
         # Header section with large number
         Div(
-            H1("25", cls="text-8xl font-black text-gray-100 leading-none"),
+            H1("26", cls="text-8xl font-black text-gray-100 leading-none"),
             H1("Complex Modifiers", cls="text-5xl md:text-6xl font-bold text-black mt-2"),
             P("Advanced .with_() modifier patterns for event handling", cls="text-lg text-gray-600 mt-4"),
             cls="mb-16",
