@@ -234,6 +234,18 @@ def html2ft(html, attr1st=False):
 # ============================================================================
 
 
+class _HtmlOutput:
+    """Wrapper for notebook display protocols (marimo, Jupyter)."""
+
+    __slots__ = ("_html",)
+
+    def __init__(self, html: str):
+        self._html = html
+
+    def _mime_(self) -> tuple[str, str]:
+        return ("text/html", self._html)
+
+
 @patch
 def __str__(self: "FT") -> str:
     return self.id if self.id else to_xml(self, indent=False)
@@ -247,3 +259,9 @@ def __radd__(self: "FT", b: Any) -> str:
 @patch
 def __add__(self: "FT", b: Any) -> str:
     return f"{self}{b}"
+
+
+@patch
+def _display_(self: "FT") -> _HtmlOutput:
+    """Bypass marimo's dict formatter which fails for FT (list subclass)."""
+    return _HtmlOutput(to_xml(self, indent=False))
