@@ -12,6 +12,7 @@ from .xtend import Script, Style
 
 _STATIC_PATH = Path(__file__).parent / "static" / "js" / "plugins"
 _PKG_NAME = "starhtml/plugins"
+_DEFAULT_PREFIX = "/_pkg"
 
 
 def _snake2camel(s: str) -> str:
@@ -41,12 +42,7 @@ class PluginInstance:
         self._signals, self._methods = signals, methods
         self._static_path, self._package_name, self._critical_css = static_path, package_name, critical_css
         self._refs = {s: js(f"${name}_{s}") for s in signals}
-        # Action-only plugins (code but no signals/methods) use apply dispatch
-        # Attribute plugins use window methods
-        if self._code and not signals and not methods:
-            self._refs.update({m: js(f"@{name}('{_snake2camel(m)}')") for m in methods})
-        else:
-            self._refs.update({m: js(f"window.__{name}.{_snake2camel(m)}") for m in methods})
+        self._refs.update({m: js(f"window.__{name}.{_snake2camel(m)}") for m in methods})
 
     @property
     def code(self):
@@ -81,8 +77,8 @@ class PluginInstance:
     def get_static_path(self) -> Path | None:
         return self._static_path or _STATIC_PATH
 
-    def get_headers(self, base_url: str) -> tuple:
-        return plugins_hdrs(self, base_url=base_url)
+    def get_headers(self, pkg_prefix: str) -> tuple:
+        return plugins_hdrs(self, pkg_prefix=pkg_prefix)
 
 
 class _ActionMethod:
@@ -90,8 +86,7 @@ class _ActionMethod:
 
     def __init__(self, plugin_name: str, method_name: str):
         self._plugin_name = plugin_name
-        self._method_name = method_name
-        # Map Python names to JS names (e.g., from_ → from to avoid Python keyword)
+        # Strip trailing _ so Python-safe names (e.g., from_) map to JS names (from)
         self._js_name = method_name.rstrip("_")
 
     def __call__(self, *args, **kwargs) -> _JSRaw:
@@ -113,28 +108,7 @@ class Plugin:
         motion.animate("#el", x=100)  # → @motion('animate', '#el', {x: 100})
         clipboard.copy("text")        # → @clipboard('text')
 
-    Actions can be defined as:
-        - Tuple of method names: actions=("animate", "set", "pause") - uses generic _ActionMethod
-        - Dict with custom implementations: actions={"copy": my_custom_func} - uses provided callable
-
-    Plugin type is derived from structure:
-        - code + no signals/methods → action only (registers with action())
-        - code + signals/methods → both (attribute from file, action from code)
-        - no code → attribute only (registers with attribute(), file-based)
-        - file_actions=True → action plugin is also in the TS file (named export)
-
-    Args:
-        base_name: Plugin name (e.g., "motion", "clipboard")
-        code: Inline JS code for action registration
-        signals: Tuple of signal names exposed by the plugin
-        methods: Tuple of method names for window.__plugin.method() calls
-        actions: Tuple of method names OR dict mapping names to custom callables
-        file_actions: If True, action plugin is in the TS file as named export {name}ActionPlugin
-        extra_attributes: Tuple of additional attribute plugin suffixes to import/register
-                         e.g., ("exit",) imports {motionExitAttributePlugin}
-        static_path: Path to static JS files
-        package_name: Package name for import map
-        critical_css: CSS to prevent flash of unstyled content
+    Actions: tuple of method names (generic) or dict mapping names to custom callables.
     """
 
     def __init__(
@@ -166,16 +140,10 @@ class Plugin:
         If called with args/kwargs (other than name=) and a default action ("") is defined,
         invokes the default action. Otherwise creates a PluginInstance.
         """
-        # Check if this looks like an action invocation vs instance creation
-        # Action invocation: positional args, or kwargs other than 'name'
         has_action_args = args or (kwargs and name is None)
-
-        # If has action args and has default action, invoke it
         if has_action_args and "" in self._actions:
-            default_impl = self._actions[""]
-            return default_impl(*args, **kwargs)
+            return self._actions[""](*args, **kwargs)
 
-        # Otherwise create a PluginInstance (for named instances or config)
         if args:
             raise TypeError(
                 f"Plugin '{self._base_name}' has no default action. "
@@ -196,13 +164,9 @@ class Plugin:
     def __getattr__(self, attr: str) -> Any:
         if attr.startswith("_"):
             raise AttributeError(f"'{type(self).__name__}' has no attribute '{attr}'")
-        # Check if it's a defined action method
         if attr in self._actions:
-            custom_impl = self._actions[attr]
-            if custom_impl is not None:
-                return custom_impl  # Return custom callable directly
-            return _ActionMethod(self._base_name, attr)  # Generic passthrough
-        # Fall back to PluginInstance attributes (signals, etc.)
+            custom = self._actions[attr]
+            return custom if custom is not None else _ActionMethod(self._base_name, attr)
         if self._default is None:
             self._default = self(name=self._base_name)
         return getattr(self._default, attr)
@@ -220,18 +184,12 @@ class Plugin:
 
     @property
     def has_attribute(self):
-        """True if this plugin registers with attribute().
-
-        Derived: has signals/methods OR no code (file-based default).
-        """
+        """True if this plugin registers with attribute()."""
         return bool(self._signals or self._methods or not self._code)
 
     @property
     def has_action(self):
-        """True if this plugin registers with action().
-
-        Derived: has inline code OR file_actions=True.
-        """
+        """True if this plugin registers with action()."""
         return bool(self._code or self._file_actions)
 
     @property
@@ -245,8 +203,8 @@ class Plugin:
     def get_static_path(self) -> Path | None:
         return self._static_path or _STATIC_PATH
 
-    def get_headers(self, base_url: str) -> tuple:
-        return plugins_hdrs(self, base_url=base_url)
+    def get_headers(self, pkg_prefix: str) -> tuple:
+        return plugins_hdrs(self, pkg_prefix=pkg_prefix)
 
 
 def _get_plugin_config(p) -> dict | None:
@@ -258,31 +216,27 @@ def _get_plugin_config(p) -> dict | None:
     return {"signal": p.name, **{_snake2camel(k): v for k, v in config.items()}}
 
 
+def _plugin_specifier(p) -> str:
+    return f"@{p.get_package_name()}/{p._base_name}"
+
+
 def plugins_hdrs(
     *plugins,
     datastar_path: str = "/static/datastar.js",
-    base_url: str = "/_pkg/starhtml/plugins",
+    pkg_prefix: str = _DEFAULT_PREFIX,
     debug: bool = False,
 ) -> tuple:
-    """Generate import map and loader script for plugins.
-
-    Plugin type is derived from structure:
-    - code + no signals/methods → action only (inline)
-    - code + signals/methods → both (attribute from file, action from code)
-    - no code → attribute only (file-based)
-    - file_actions=True → action plugin also in file (named export)
-    """
+    """Generate import map and loader script for plugins."""
     if not plugins:
         return ()
 
     v = f"?v={int(time.time())}" if debug else ""
 
-    # File-based imports for attribute plugins or file_actions plugins
     import_map = {
         "imports": {
             "datastar": f"{datastar_path}{v}",
             **{
-                f"@starhtml/plugins/{p._base_name}": f"{base_url}/{p._base_name}.js{v}"
+                _plugin_specifier(p): f"{pkg_prefix}/{p.get_package_name()}/{p._base_name}.js{v}"
                 for p in plugins
                 if p.has_attribute or getattr(p, "file_actions", False)
             },
@@ -298,29 +252,22 @@ def plugins_hdrs(
     for p in plugins:
         file_actions = getattr(p, "file_actions", False)
 
-        # Register attribute plugin (always file-based)
         if p.has_attribute:
             needs_attribute = True
             extra_attrs = getattr(p, "_extra_attributes", ())
 
-            # Build import statement
             if file_actions or extra_attrs:
-                # Import default + named exports
                 named_exports = []
                 if file_actions:
                     named_exports.append(f"{p._base_name}ActionPlugin")
                     file_action_plugins.append(f"{p._base_name}ActionPlugin")
-                # Add extra attribute plugins (e.g., "exit" → "motionExitAttributePlugin")
                 for suffix in extra_attrs:
                     named_exports.append(f"{p._base_name}{suffix.capitalize()}AttributePlugin")
-                lines.append(
-                    f"import plugin_{counter},{{{','.join(named_exports)}}}from'@starhtml/plugins/{p._base_name}';"
-                )
-                # Register extra attribute plugins
+                lines.append(f"import plugin_{counter},{{{','.join(named_exports)}}}from'{_plugin_specifier(p)}';")
                 for suffix in extra_attrs:
                     lines.append(f"attribute({p._base_name}{suffix.capitalize()}AttributePlugin);")
             else:
-                lines.append(f"import plugin_{counter} from'@starhtml/plugins/{p._base_name}';")
+                lines.append(f"import plugin_{counter} from'{_plugin_specifier(p)}';")
 
             config = _get_plugin_config(p)
             if config:
@@ -328,19 +275,16 @@ def plugins_hdrs(
             lines.append(f"attribute(plugin_{counter});")
             counter += 1
         elif file_actions:
-            # Only file_actions, no attribute - just import action plugin
             needs_action = True
-            lines.append(f"import{{{p._base_name}ActionPlugin}}from'@starhtml/plugins/{p._base_name}';")
+            lines.append(f"import{{{p._base_name}ActionPlugin}}from'{_plugin_specifier(p)}';")
             file_action_plugins.append(f"{p._base_name}ActionPlugin")
 
-        # Register action plugin from inline code (not file_actions)
         if p.has_action and p._code and not file_actions:
             needs_action = True
             lines.append(f"const plugin_{counter}={p._code};")
             lines.append(f"action(plugin_{counter});")
             counter += 1
 
-    # Register file-based action plugins
     for action_plugin in file_action_plugins:
         needs_action = True
         lines.append(f"action({action_plugin});")
@@ -631,17 +575,10 @@ def visibility(*, signal, enter=None, exit_=None) -> str:
     """
     parts = ["type:visibility"]
 
-    if hasattr(signal, "_id"):
-        sig_id = signal._id
-    elif isinstance(signal, _JSRaw):
-        sig_str = str(signal)
-        sig_id = sig_str[1:] if sig_str.startswith("$") else sig_str
-    else:
-        sig_id = str(signal)
-
-    if not sig_id.startswith("$"):
-        sig_id = f"${sig_id}"
-    parts.append(f"signal:{sig_id}")
+    sig = str(signal)
+    if not sig.startswith(("$", "(")):
+        sig = f"${sig}"
+    parts.append(f"signal:{sig}")
 
     if enter:
         for part in str(enter).split():
@@ -690,7 +627,7 @@ def motion_replace(selector: str, new_element):
 
 _CLIPBOARD_CODE = """{
     name: 'clipboard',
-    apply: async ({ el, evt, error }, text, signal, timeout = 2000) => {
+    apply: async ({ el, evt, error }, content, signal, timeout = 2000) => {
         const setSignal = (value) => {
             if (signal) {
                 document.dispatchEvent(new CustomEvent('datastar-signal-patch', {
@@ -698,6 +635,22 @@ _CLIPBOARD_CODE = """{
                 }));
             }
         };
+        const success = () => { setSignal(true); setTimeout(() => setSignal(false), timeout); };
+        if (content instanceof Element) {
+            const img = content.querySelector('img[src]');
+            if (img && navigator.clipboard?.write) {
+                try {
+                    const r = await fetch(img.src);
+                    const blob = await r.blob();
+                    const png = blob.type === 'image/png' ? blob
+                        : new Blob([await blob.arrayBuffer()], { type: 'image/png' });
+                    await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })]);
+                    return success();
+                } catch (_) { /* fall through to text copy */ }
+            }
+            content = content.textContent || '';
+        }
+        const text = String(content);
         const fallback = () => {
             const ta = document.createElement('textarea');
             ta.value = text;
@@ -712,10 +665,7 @@ _CLIPBOARD_CODE = """{
             }
         };
         if (navigator.clipboard?.writeText) {
-            navigator.clipboard.writeText(text).then(() => {
-                setSignal(true);
-                setTimeout(() => setSignal(false), timeout);
-            }).catch(fallback);
+            navigator.clipboard.writeText(text).then(success).catch(fallback);
         } else {
             fallback();
         }
@@ -730,39 +680,27 @@ def _clipboard_copy(
     signal: Any = None,
     timeout: int | None = None,
 ) -> _JSRaw:
-    """Copy text to clipboard with optional success signal.
+    """Generate @clipboard() action expression.
 
-    Args:
-        text: Literal text to copy
-        element: Element selector to copy text from ('el', '#id', '.class')
-        signal: Signal to set True on success (auto-resets after timeout)
-        timeout: Reset timeout in ms (default 2000)
-
-    Examples:
-        clipboard("Hello!")
-        clipboard("Text", signal=copied)
-        clipboard(element="#code-block", signal=copied)
-        clipboard(element="el")  # Copy from current element
+    When element is used, the JS action copies images as PNG blobs if present,
+    otherwise falls back to text content.
     """
     if (text is None) == (element is None):
         raise ValueError("clipboard() requires exactly one of: text or element")
 
-    # Extract signal ID if it's a Signal object
     if signal is not None and hasattr(signal, "_id"):
         signal = signal._id
 
-    # Build the text expression
     if text is not None:
-        text_expr = _to_js(text, allow_expressions=True)
+        content_expr = _to_js(text, allow_expressions=True)
     elif element == "el":
-        text_expr = "el.textContent"
+        content_expr = "el"
     elif element.startswith(("#", ".")):
-        text_expr = f"document.querySelector({_to_js(element, allow_expressions=True)}).textContent"
+        content_expr = f"document.querySelector({_to_js(element, allow_expressions=True)})"
     else:
-        text_expr = f"document.getElementById({_to_js(element, allow_expressions=True)}).textContent"
+        content_expr = f"document.getElementById({_to_js(element, allow_expressions=True)})"
 
-    # Build args list
-    args = [text_expr]
+    args = [content_expr]
     if signal is not None:
         args.append(_to_js(signal, allow_expressions=True))
     if timeout is not None:

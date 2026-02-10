@@ -9,11 +9,12 @@ Core types:
 - Helpers: match(), switch(), js(), f() and others for common patterns
 """
 
-import builtins
+import base64
 import json
+import operator
 import re
 from abc import ABC, abstractmethod
-from typing import Any, Union
+from typing import Any
 
 from fastcore.xml import NotStr
 
@@ -40,6 +41,9 @@ class Expr(ABC):
         return item in self.to_js()
 
     def __getattr__(self, key: str) -> "PropertyAccess":
+        # Dunder methods must raise AttributeError to avoid infinite recursion
+        if key.startswith("_") and key.endswith("_"):
+            raise AttributeError(f"{type(self).__name__} has no attribute {key!r}")
         return PropertyAccess(self, key)
 
     def __getitem__(self, index: Any) -> "IndexAccess":
@@ -88,7 +92,7 @@ class Expr(ABC):
     def or_(self, other: Any) -> "BinaryOp":
         return BinaryOp(self, "||", other)
 
-    def __add__(self, other: Any) -> Union["BinaryOp", "TemplateLiteral"]:
+    def __add__(self, other: Any) -> "BinaryOp | TemplateLiteral":
         return TemplateLiteral([self, other]) if isinstance(other, str) else BinaryOp(self, "+", other)
 
     def __sub__(self, other: Any) -> "BinaryOp":
@@ -103,7 +107,7 @@ class Expr(ABC):
     def __mod__(self, other: Any) -> "BinaryOp":
         return BinaryOp(self, "%", other)
 
-    def __radd__(self, other: Any) -> Union["BinaryOp", "TemplateLiteral"]:
+    def __radd__(self, other: Any) -> "BinaryOp | TemplateLiteral":
         return TemplateLiteral([other, self]) if isinstance(other, str) else BinaryOp(other, "+", self)
 
     def __rsub__(self, other: Any) -> "BinaryOp":
@@ -121,10 +125,10 @@ class Expr(ABC):
     def set(self, value: Any) -> "Assignment":
         return Assignment(self, value)
 
-    def add(self, amount: Any) -> Union["_JSRaw", "Assignment"]:
+    def add(self, amount: Any) -> "_JSRaw | Assignment":
         return _JSRaw(f"{self.to_js()}++") if type(amount) is int and amount == 1 else Assignment(self, self + amount)
 
-    def sub(self, amount: Any) -> Union["_JSRaw", "Assignment"]:
+    def sub(self, amount: Any) -> "_JSRaw | Assignment":
         return _JSRaw(f"{self.to_js()}--") if type(amount) is int and amount == 1 else Assignment(self, self - amount)
 
     def mul(self, factor: Any) -> "Assignment":
@@ -217,13 +221,21 @@ class Expr(ABC):
         return (self, modifiers)
 
 
+def _safe_js_string(s: str) -> str:
+    """Use atob() for strings with @ or $ to avoid Datastar's expression preprocessor."""
+    if re.search(r"[@$]", s):
+        b64 = base64.b64encode(s.encode()).decode()
+        return f'atob("{b64}")'
+    return json.dumps(s)
+
+
 class _JSLiteral(Expr):
     __slots__ = ("_value", "_js")
 
     def __init__(self, value: Any):
         self._value = value
         try:
-            self._js = json.dumps(value, separators=(",", ":"))
+            self._js = _safe_js_string(value) if isinstance(value, str) else json.dumps(value, separators=(",", ":"))
         except (TypeError, ValueError):
             self._js = None
 
@@ -356,6 +368,42 @@ def _ensure_expr(value: Any) -> Expr:
     return value if isinstance(value, Expr) else _JSLiteral(value)
 
 
+_BINARY_OPS = {
+    ">=": operator.ge,
+    "<=": operator.le,
+    ">": operator.gt,
+    "<": operator.lt,
+    "==": operator.eq,
+    "===": operator.eq,
+    "!=": operator.ne,
+    "!==": operator.ne,
+    "&&": lambda a, b: a and b,  # operator.and_ is bitwise, not logical
+    "||": lambda a, b: a or b,
+}
+
+
+def _try_evaluate_initial(expr: Expr) -> Any:
+    """Evaluate expression using Signal initial values for FOUC prevention.
+
+    Raises ValueError if evaluation isn't possible (raw JS, unsupported types).
+    Used to auto-inject style="display: none" for data_show when initially false.
+    """
+    match expr:
+        case Signal() if expr._initial is not None:
+            return _try_evaluate_initial(expr._initial) if expr._is_computed else expr._initial
+        case _JSLiteral():
+            return expr._value
+        case BinaryOp() if op := _BINARY_OPS.get(expr._op):
+            return op(_try_evaluate_initial(expr._left), _try_evaluate_initial(expr._right))
+        case UnaryOp() if expr._op == "!":
+            return not _try_evaluate_initial(expr._expr)
+        case Conditional():
+            cond = _try_evaluate_initial(expr._condition)
+            return _try_evaluate_initial(expr._true_val if cond else expr._false_val)
+        case _:
+            raise ValueError(f"Cannot evaluate {type(expr).__name__}")
+
+
 class Signal(Expr):
     """Typed reactive state reference that auto-generates JavaScript and data attributes."""
 
@@ -363,12 +411,14 @@ class Signal(Expr):
         self,
         name: str,
         initial: Any = None,
+        ifmissing: bool = True,
         type_: type | None = None,
         namespace: str | None = None,
         _ref_only: bool = False,
     ):
         self._name = name
         self._initial = initial
+        self._ifmissing = ifmissing
         self._namespace = namespace
         self._ref_only = _ref_only
         self._is_computed = isinstance(initial, Expr)
@@ -395,9 +445,16 @@ class Signal(Expr):
             raise ValueError(f"Signal name must be snake_case: '{self._name}'")
 
     def to_dict(self) -> dict[str, Any]:
-        if self._is_computed:
+        if self._is_computed or self._ifmissing:
             return {}
         return {self._id: self._initial}
+
+    def get_signal_attr(self) -> tuple[str, Any] | None:
+        if self._is_computed or self._ref_only or self._initial is None:
+            return None
+        if self._ifmissing:
+            return (f"data-signals:{self._id}__ifmissing", self._initial)
+        return None
 
     def get_computed_attr(self) -> tuple[str, Any] | None:
         if self._is_computed:
@@ -417,6 +474,9 @@ class Signal(Expr):
         return isinstance(other, Signal) and self._name == other._name and self._namespace == other._namespace
 
     def __getattr__(self, key: str) -> PropertyAccess:
+        # Dunder methods must raise AttributeError to avoid infinite recursion
+        if key.startswith("_") and key.endswith("_"):
+            raise AttributeError(f"Signal has no attribute {key!r}")
         return PropertyAccess(self, key)
 
 
@@ -437,7 +497,7 @@ def _to_js(value: Any, allow_expressions: bool = True, wrap_objects: bool = True
         case str() as s:
             if allow_expressions and (s.startswith(_JS_EXPR_PREFIXES) or s in _JS_EXPR_KEYWORDS):
                 return s
-            return json.dumps(s)
+            return _safe_js_string(s)
         case dict() as d:
             try:
                 return json.dumps(d)
@@ -539,7 +599,7 @@ def seq(*exprs: Any) -> _JSRaw:
 def _iterable_args(*args):
     return (
         args[0]
-        if builtins.len(args) == 1 and hasattr(args[0], "__iter__") and not isinstance(args[0], str | Signal | Expr)
+        if len(args) == 1 and hasattr(args[0], "__iter__") and not isinstance(args[0], str | Signal | Expr)
         else args
     )
 
@@ -585,7 +645,7 @@ def _timer_ref(timer: "Signal", window: bool = False) -> str:
     return f"window._{timer_id}" if window else f"${timer_id}"
 
 
-def set_timeout(action: Any, ms: Any, *, store: Union["Signal", None] = None, window: bool = False) -> _JSRaw:
+def set_timeout(action: Any, ms: Any, *, store: "Signal | None" = None, window: bool = False) -> _JSRaw:
     """Schedule action(s) after delay.
 
     set_timeout(copied.set(False), 2000)
@@ -760,19 +820,36 @@ def build_data_signals(signals: dict[str, Any]) -> NotStr:
     return NotStr("{" + ", ".join(parts) + "}")
 
 
-def _handle_data_signals(value: Any) -> Any:
-    signal_dict = {}
+def _handle_data_signals(value: Any) -> dict[str, Any]:
+    signals: list[Signal] = []
+    raw_dict: dict | None = None
+
     match value:
         case list() | tuple():
-            for s in value:
-                if isinstance(s, Signal) and not s._ref_only:
-                    signal_dict.update(s.to_dict())
-        case dict() as d:
-            signal_dict = d
-        case Signal() as s:
-            if not s._ref_only:
-                signal_dict = s.to_dict()
-    return build_data_signals(signal_dict) if signal_dict else None
+            signals = [s for s in value if isinstance(s, Signal) and not s._ref_only]
+        case dict():
+            raw_dict = value
+        case Signal() as s if not s._ref_only:
+            signals = [s]
+
+    if raw_dict is not None:
+        return {"data-signals": build_data_signals(raw_dict)} if raw_dict else {}
+
+    if not signals:
+        return {}
+
+    result: dict[str, Any] = {}
+    combined: dict[str, Any] = {}
+
+    for sig in signals:
+        if attr := sig.get_signal_attr():
+            result[attr[0]] = NotStr(_to_js(attr[1], allow_expressions=False))
+        combined.update(sig.to_dict())
+
+    if combined:
+        result["data-signals"] = build_data_signals(combined)
+
+    return result
 
 
 def _apply_additive_class_behavior(processed: dict) -> None:
@@ -793,9 +870,8 @@ def process_datastar_kwargs(kwargs: dict) -> tuple[dict, set[Signal]]:
 
     for key, value in kwargs.items():
         if key == "data_signals":
-            result = _handle_data_signals(value)
-            if result is not None:
-                processed["data-signals"] = result
+            signal_attrs = _handle_data_signals(value)
+            processed.update(signal_attrs)
             continue
 
         normalized_key = _normalize_data_key(key)
@@ -829,6 +905,13 @@ def process_datastar_kwargs(kwargs: dict) -> tuple[dict, set[Signal]]:
                     processed["data-class"] = NotStr(js_str)
                 else:
                     processed[normalized_key] = NotStr(js_str)
+                    # Auto-inject style for FOUC prevention when data_show is initially false
+                    if key == "data_show" and "style" not in kwargs:
+                        try:
+                            if not _try_evaluate_initial(expr):
+                                processed["style"] = "display: none"
+                        except ValueError:
+                            pass  # Can't evaluate (raw JS, etc.) - user handles manually
             case _JSLiteral() | _JSRaw() as val:
                 processed[normalized_key] = NotStr(_to_js(val))
             case _ if hasattr(value, "__data_attrs__"):

@@ -251,12 +251,13 @@ class TestPluginsHdrs:
         import_map = _find_by_type(hdrs, "importmap")
         assert "?v=" in str(import_map)
 
-    def test_custom_base_url(self):
-        """Test that plugins_hdrs accepts custom base_url."""
-        hdrs = plugins_hdrs(persist, base_url="/custom/path")
+    def test_plugin_uses_own_package_path(self):
+        """Test that each plugin's URL is derived from its package name."""
+        hdrs = plugins_hdrs(persist)
 
         import_map = _find_by_type(hdrs, "importmap")
-        assert "/custom/path/persist.js" in str(import_map)
+        # persist uses default starhtml/plugins package
+        assert "/_pkg/starhtml/plugins/persist.js" in str(import_map)
 
     def test_custom_datastar_path(self):
         """Test that plugins_hdrs accepts custom datastar_path."""
@@ -322,7 +323,7 @@ class TestPluginProtocol:
 
     def test_get_headers(self):
         """Test get_headers returns tuple of headers."""
-        hdrs = persist.get_headers(base_url="/_pkg/starhtml/plugins")
+        hdrs = persist.get_headers(pkg_prefix="/_pkg")
         assert isinstance(hdrs, tuple)
         # persist has critical_css, so: Style + Script[importmap] + Script[module]
         assert len(hdrs) == 3
@@ -616,6 +617,26 @@ class TestVisibilityHelper:
 
         with pytest.raises(TypeError):
             visibility("show_modal")
+
+    def test_visibility_with_signal_object(self):
+        """visibility() handles Signal objects correctly."""
+        from starhtml.datastar import Signal
+        from starhtml.plugins import visibility
+
+        show = Signal("show_modal", False)
+        result = visibility(signal=show)
+        assert "signal:$show_modal" in result
+
+    def test_visibility_with_expression(self):
+        """visibility() handles expressions like step >= 2 correctly."""
+        from starhtml.datastar import Signal
+        from starhtml.plugins import enter, visibility
+
+        step = Signal("step", 1)
+        result = visibility(signal=step >= 2, enter=enter(preset="fade"))
+        # Should NOT have ._id suffix (regression test)
+        assert "._id" not in result
+        assert "signal:($step >= 2)" in result
 
     def test_visibility_can_be_used_directly_with_data_motion(self):
         """visibility() output works directly as data_motion value."""

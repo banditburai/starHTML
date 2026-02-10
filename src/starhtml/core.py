@@ -1,5 +1,6 @@
 """The `StarHTML` subclass of `Starlette`"""
 
+import asyncio
 import re
 from copy import deepcopy
 from functools import partialmethod
@@ -34,7 +35,7 @@ class Registrable(Protocol):
 
     def get_package_name(self) -> str: ...
     def get_static_path(self) -> Path | PathlibPath | None: ...
-    def get_headers(self, base_url: str) -> tuple: ...
+    def get_headers(self, pkg_prefix: str) -> tuple: ...
 
 
 DEFAULT_PKG_PREFIX = "/_pkg"
@@ -99,6 +100,9 @@ class StarHTML(Starlette):
         on_startup, on_shutdown = listify(on_startup) or None, listify(on_shutdown) or None
         self.lifespan, self.hdrs, self.ftrs = lifespan, hdrs, ftrs
         self.body_wrap, self.before, self.after, self.htmlkw, self.bodykw = body_wrap, before, after, htmlkw, bodykw
+        self._registered_plugins: list = []
+        self._plugin_hdrs: tuple = ()
+        self._lifecycle_wired: set[int] = set()
         secret_key = get_key(secret_key, key_fname)
 
         if sess_cls:
@@ -327,6 +331,10 @@ def register_package(self: StarHTML, name: str, static_path=None, hdrs=None, pre
         self.hdrs = list(self.hdrs) + listify(hdrs)
 
 
+def _is_import_map(h):
+    return getattr(h, "attrs", {}).get("type") == "importmap"
+
+
 def _register_item(app: StarHTML, item, prefix: str | None = None):
     """Register a Registrable item (plugin, component, or custom type)."""
     if not isinstance(item, Registrable):
@@ -342,7 +350,7 @@ def _register_item(app: StarHTML, item, prefix: str | None = None):
     app.register_package(
         name=name,
         static_path=static_path,
-        hdrs=item.get_headers(full_prefix),
+        hdrs=item.get_headers(prefix),
         prefix=full_prefix or None,
     )
     return item
@@ -357,10 +365,8 @@ def register(self: StarHTML, *items, prefix: str | None = None):
     - Component class (decorated with @element from starelements)
     - Custom types implementing get_package_name(), get_static_path(), get_headers()
 
-    Plugins with on_startup/on_shutdown methods are automatically wired up.
-
-    Example:
-        >>> app.register(canvas, persist, scroll)
+    Items with on_startup/on_shutdown methods are automatically wired up.
+    Multiple register() calls accumulate plugins and regenerate a single combined import map.
     """
     from .plugins import Plugin, PluginInstance, plugins_hdrs
 
@@ -373,23 +379,50 @@ def register(self: StarHTML, *items, prefix: str | None = None):
         _register_item(self, item, prefix)
 
     if plugins:
-        # Import map supersedes default Datastar script
-        self.hdrs = [h for h in self.hdrs if not (getattr(h, "src", None) or "").endswith("datastar.js")]
+        # Import map replaces the default Datastar script tag
+        if not self._registered_plugins:
+            self.hdrs = [h for h in self.hdrs if not (getattr(h, "src", None) or "").endswith("datastar.js")]
 
+        registered = {p._base_name for p in self._registered_plugins}
         for p in plugins:
+            if p._base_name in registered:
+                continue
             if p.get_static_path():
                 self.register_package_static(
                     p.get_package_name(), p.get_static_path(), f"{prefix}/{p.get_package_name()}"
                 )
+            self._registered_plugins.append(p)
 
-        self.hdrs += list(plugins_hdrs(*plugins, base_url=f"{prefix}/{plugins[0].get_package_name()}"))
+        old_ids = {id(h) for h in self._plugin_hdrs}
+        self.hdrs = [h for h in self.hdrs if id(h) not in old_ids]
+        self._plugin_hdrs = tuple(plugins_hdrs(*self._registered_plugins, pkg_prefix=prefix))
 
-    # Auto-wire lifecycle hooks for any item that has them
+        # Browser requires import map before any module script that uses it
+        other_hdrs = [h for h in self.hdrs if not _is_import_map(h)]
+        import_maps = [h for h in self._plugin_hdrs if _is_import_map(h)]
+        modules = [h for h in self._plugin_hdrs if not _is_import_map(h)]
+        self.hdrs = import_maps + other_hdrs + modules
+
     for item in items:
-        if hasattr(item, "on_startup"):
-            self.add_event_handler("startup", lambda app=self, i=item: i.on_startup(app))
-        if hasattr(item, "on_shutdown"):
-            self.add_event_handler("shutdown", lambda app=self, i=item: i.on_shutdown(app))
+        if id(item) in self._lifecycle_wired:
+            continue
+        self._lifecycle_wired.add(id(item))
+        for event in ("startup", "shutdown"):
+            method = getattr(item, f"on_{event}", None)
+            if method is None:
+                continue
+            if asyncio.iscoroutinefunction(method):
+
+                async def _async(app=self, m=method):
+                    await m(app)
+
+                self.add_event_handler(event, _async)
+            else:
+
+                def _sync(app=self, m=method):
+                    m(app)
+
+                self.add_event_handler(event, _sync)
 
     return items[0] if len(items) == 1 else (tuple(items) or None)
 

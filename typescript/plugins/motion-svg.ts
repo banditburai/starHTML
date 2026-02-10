@@ -73,6 +73,21 @@ const NUMERIC_SVG_ATTRS = new Set([
   "refY",
 ]);
 
+const NON_NEGATIVE_ATTRS = new Set([
+  "height",
+  "width",
+  "r",
+  "rx",
+  "ry",
+  "stroke-width",
+  "stroke-miterlimit",
+  "font-size",
+  "viewbox-width",
+  "viewbox-height",
+  "markerWidth",
+  "markerHeight",
+]);
+
 interface SvgMotionConfig {
   duration: number;
   delay: number;
@@ -243,19 +258,20 @@ function getCurrentAttributeValue(el: SVGElement, attr: string): number {
 }
 
 function setAttributeValue(el: SVGElement, attr: string, value: number): void {
+  const v = (NON_NEGATIVE_ATTRS.has(attr) && value < 0) ? 0 : value;
   if (attr === "stroke-dasharray") {
     const current = el.getAttribute(attr) || "0";
     const parts = current.split(/[\s,]+/);
-    parts[0] = String(value);
+    parts[0] = String(v);
     el.setAttribute(attr, parts.join(" "));
     return;
   }
   if (attr === "stop-offset" || attr === "offset") {
-    el.setAttribute(attr, `${value * 100}%`);
+    el.setAttribute(attr, `${v * 100}%`);
     return;
   }
   if (attr === "font-weight") {
-    el.setAttribute(attr, String(Math.round(value / 100) * 100));
+    el.setAttribute(attr, String(Math.round(v / 100) * 100));
     return;
   }
   if (
@@ -266,11 +282,11 @@ function setAttributeValue(el: SVGElement, attr: string, value: number): void {
     attr === "skew-x" ||
     attr === "skew-y"
   ) {
-    updateTransform(el, attr, value);
+    updateTransform(el, attr, v);
     return;
   }
 
-  el.setAttribute(attr, String(value));
+  el.setAttribute(attr, String(v));
 }
 
 function updateTransform(el: SVGElement, component: string, value: number): void {
@@ -578,4 +594,4 @@ function setupWithoutAnimation(el: SVGElement, value: string): OnRemovalFn {
 }
 
 export default motionSvgAttributePlugin;
-export { SPRING_PRESETS, NUMERIC_SVG_ATTRS };
+export { SPRING_PRESETS, NUMERIC_SVG_ATTRS, NON_NEGATIVE_ATTRS };

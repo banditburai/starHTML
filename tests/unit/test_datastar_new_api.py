@@ -120,11 +120,10 @@ class TestCoreAttributes:
 class TestSignals:
     def test_data_signals_list(self):
         res = attrs_of_kwargs(data_signals=[Signal("count", 0), Signal("name", "John"), Signal("active", True)])
-        assert "data-signals" in res
-        data = res["data-signals"]
-        assert "count: 0" in data
-        assert 'name: "John"' in data
-        assert "active: true" in data
+        # Default ifmissing=True uses individual attributes
+        assert "data-signals:count__ifmissing" in res
+        assert "data-signals:name__ifmissing" in res
+        assert "data-signals:active__ifmissing" in res
 
 
 class TestEventHandlers:

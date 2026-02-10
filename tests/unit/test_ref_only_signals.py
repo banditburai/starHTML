@@ -16,8 +16,8 @@ class TestRefOnlySignals(unittest.TestCase):
             P("Signal value: ", Span(data_text="$test1")),
         )
         html = str(div)
-        self.assertIn("data-signals", html)
-        self.assertIn('test1: "initial value"', html)
+        self.assertIn("data-signals:test1__ifmissing=", html)
+        self.assertIn("initial value", html)
 
     def test_ref_only_signal_with_initial_value(self):
         """Test _ref_only signal with initial value should not appear in data-signals."""
@@ -45,9 +45,8 @@ class TestRefOnlySignals(unittest.TestCase):
             P("Content"),
         )
         html = str(div)
-        self.assertIn("data-signals", html)
-        self.assertIn('included: "value"', html)
-        self.assertNotIn("excluded:", html)
+        self.assertIn("data-signals:included__ifmissing=", html)
+        self.assertNotIn("excluded", html)
 
     def test_ref_only_in_data_signals_kwarg(self):
         """Test _ref_only signals passed via data_signals kwarg are excluded."""
@@ -59,8 +58,7 @@ class TestRefOnlySignals(unittest.TestCase):
             ],
         )
         html = str(div)
-        self.assertIn("data-signals", html)
-        self.assertIn('normal: "value"', html)
+        self.assertIn("data-signals:normal__ifmissing=", html)
         self.assertNotIn("ref_only", html)
 
     def test_all_ref_only_signals(self):
