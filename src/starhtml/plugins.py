@@ -1,8 +1,7 @@
 """Minimal Datastar plugin system - glue between Python templates and JS plugins."""
 
-from __future__ import annotations
-
 import json
+import re
 import time
 from pathlib import Path
 from typing import Any, Literal
@@ -13,6 +12,7 @@ from .xtend import Script, Style
 _STATIC_PATH = Path(__file__).parent / "static" / "js" / "plugins"
 _PKG_NAME = "starhtml/plugins"
 _DEFAULT_PREFIX = "/_pkg"
+_CSS_IMPORT_RE = re.compile(r"@import\s+url\([^)]*\)\s*;?")
 
 
 def _snake2camel(s: str) -> str:
@@ -216,6 +216,20 @@ def _get_plugin_config(p) -> dict | None:
     return {"signal": p.name, **{_snake2camel(k): v for k, v in config.items()}}
 
 
+def _collect_critical_css(plugins) -> str:
+    """Collect and merge critical CSS, hoisting @import rules to the top."""
+    imports, rules = [], []
+    for p in plugins:
+        if not p._critical_css:
+            continue
+        for m in _CSS_IMPORT_RE.finditer(p._critical_css):
+            imports.append(m.group().rstrip(";") + ";")
+        remaining = _CSS_IMPORT_RE.sub("", p._critical_css).strip()
+        if remaining:
+            rules.append(remaining)
+    return "".join(imports) + "".join(rules)
+
+
 def _plugin_specifier(p) -> str:
     return f"@{p.get_package_name()}/{p._base_name}"
 
@@ -296,8 +310,7 @@ def plugins_hdrs(
         needed.append("action")
     js_code = f"import{{{','.join(needed)}}}from'datastar';\n" + "\n".join(lines)
 
-    # Critical CSS prevents flash of unprocessed content
-    css = "".join(p._critical_css for p in plugins if p._critical_css)
+    css = _collect_critical_css(plugins)
 
     return (
         *((Style(css),) if css else ()),

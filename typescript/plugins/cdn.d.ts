@@ -4,7 +4,8 @@
 
 declare module "https://cdn.jsdelivr.net/npm/marked/lib/marked.esm.js" {
   export function parse(src: string): string;
-  export const marked: { parse: typeof parse };
+  export function parseInline(src: string): string;
+  export const marked: { parse: typeof parse; parseInline: typeof parseInline };
 }
 
 declare module "https://cdn.jsdelivr.net/npm/katex/dist/katex.mjs" {
@@ -102,7 +103,10 @@ declare module "https://cdn.jsdelivr.net/npm/motion@11/+esm" {
    */
   export function inView(
     target: AnimationTarget,
-    callback: (element: Element, entry: IntersectionObserverEntry) => void | ((leaveEntry: IntersectionObserverEntry) => void),
+    callback: (
+      element: Element,
+      entry: IntersectionObserverEntry
+    ) => void | ((leaveEntry: IntersectionObserverEntry) => void),
     options?: { margin?: string; amount?: "some" | "all" | number }
   ): () => void;
 
@@ -117,7 +121,10 @@ declare module "https://cdn.jsdelivr.net/npm/motion@11/+esm" {
    */
   export function hover(
     target: AnimationTarget,
-    callback: (element: Element, startEvent: PointerEvent) => void | ((endEvent: PointerEvent) => void),
+    callback: (
+      element: Element,
+      startEvent: PointerEvent
+    ) => void | ((endEvent: PointerEvent) => void),
     options?: GestureOptions
   ): () => void;
 
@@ -128,7 +135,10 @@ declare module "https://cdn.jsdelivr.net/npm/motion@11/+esm" {
    */
   export function press(
     target: AnimationTarget,
-    callback: (element: Element, startEvent: PointerEvent) => void | ((endEvent: PointerEvent) => void),
+    callback: (
+      element: Element,
+      startEvent: PointerEvent
+    ) => void | ((endEvent: PointerEvent) => void),
     options?: GestureOptions
   ): () => void;
 
