@@ -3,7 +3,7 @@ Comprehensive demo showcasing the resize handler capabilities.
 
 This demo uses the custom resize handler with proper Datastar signal integration.
 Available variables in data_resize expressions (flattened like scroll):
-  resize_width, resize_height, resize_window_width, resize_window_height, resize_aspect_ratio, resize_current_breakpoint, etc.
+  resize_width, resize_height, resize_window_width, resize_window_height, resize_current_breakpoint
 """
 
 from starhtml import *
@@ -243,23 +243,12 @@ def home():
                             Li(
                                 "Available variables: ",
                                 Code(
-                                    "resize_width, resize_height, resize_window_width, resize_window_height",
+                                    "resize_width, resize_height, resize_window_width, resize_window_height, resize_current_breakpoint",
                                     cls="text-xs bg-gray-100 px-1 py-0.5 rounded",
                                 ),
                             ),
                             Li(
-                                "Also: ",
-                                Code(
-                                    "resize_aspect_ratio, resize_current_breakpoint, resize_is_mobile/tablet/desktop",
-                                    cls="text-xs bg-gray-100 px-1 py-0.5 rounded",
-                                ),
-                            ),
-                            Li(
-                                "Breakpoints: ",
-                                Code(
-                                    "resize_xs, resize_sm, resize_md, resize_lg, resize_xl",
-                                    cls="text-xs bg-gray-100 px-1 py-0.5 rounded",
-                                ),
+                                "Breakpoints: xs (<640), sm (<768), md (<1024), lg (<1280), xl (<1536), 2xl",
                             ),
                             cls="text-sm space-y-2 list-disc list-inside text-gray-700",
                         ),

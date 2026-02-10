@@ -247,3 +247,9 @@ def __radd__(self: "FT", b: Any) -> str:
 @patch
 def __add__(self: "FT", b: Any) -> str:
     return f"{self}{b}"
+
+
+@patch
+def _mime_(self: "FT") -> tuple[str, str]:
+    # str() wraps Safe → plain str for msgspec serialization compatibility
+    return ("text/html", str(to_xml(self, indent=False)))

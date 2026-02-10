@@ -278,7 +278,6 @@ def freeform_drag():
             "drag_x": 0,
             "drag_y": 0,
             "drag_drop_zone": "",
-            "drag_has_drop_zone": False,
         },
         cls="max-w-5xl mx-auto px-8 sm:px-12 lg:px-16 py-16 sm:py-20 md:py-24 bg-white min-h-screen",
     )

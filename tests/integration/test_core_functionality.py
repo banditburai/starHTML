@@ -303,8 +303,8 @@ class TestNestedStructures:
         assert "data-on:click=\"followUser('john@example.com')\"" in html
         # RC6 uses colon syntax: data-class:active
         assert "data-class:active=\"$isFollowing('john@example.com')\"" in html
-        assert "data-signals=" in html
-        assert "user:" in html
+        # Signals with ifmissing=True (default) use individual attribute syntax
+        assert "data-signals:user__ifmissing=" in html
         assert '"name": "John Doe"' in html
         assert '"email": "john@example.com"' in html
 

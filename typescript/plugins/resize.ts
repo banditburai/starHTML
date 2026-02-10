@@ -21,11 +21,7 @@ const RESIZE_ARG_NAMES = [
   "resize_height",
   "resize_window_width",
   "resize_window_height",
-  "resize_aspect_ratio",
   "resize_current_breakpoint",
-  "resize_is_mobile",
-  "resize_is_tablet",
-  "resize_is_desktop",
 ] as const;
 
 const hasResizeObserver = typeof ResizeObserver !== "undefined";
@@ -64,18 +60,11 @@ function getBreakpoint(width: number): string {
 
 function createResizeContext(el: HTMLElement, windowWidth: number, windowHeight: number) {
   const rect = el.getBoundingClientRect();
-  const width = Math.round(rect.width);
-  const height = Math.round(rect.height);
-
   return {
-    width: width,
-    height: height,
+    width: Math.round(rect.width),
+    height: Math.round(rect.height),
     window_width: windowWidth,
     window_height: windowHeight,
-    aspect_ratio: width > 0 && height > 0 ? Math.round((width / height) * 100) / 100 : 0,
-    is_mobile: windowWidth < BREAKPOINT_THRESHOLDS.sm,
-    is_tablet: windowWidth >= BREAKPOINT_THRESHOLDS.sm && windowWidth < BREAKPOINT_THRESHOLDS.md,
-    is_desktop: windowWidth >= BREAKPOINT_THRESHOLDS.md,
     current_breakpoint: getBreakpoint(windowWidth),
   };
 }
@@ -91,38 +80,28 @@ const resizeAttributePlugin: AttributePlugin = {
   apply(ctx: AttributeContext): OnRemovalFn | void {
     const { el, value, mods, rx } = ctx;
 
-    const initialContext = createResizeContext(el, window.innerWidth, window.innerHeight);
-    const initPatch = {
-      resize_width: initialContext.width,
-      resize_height: initialContext.height,
-      resize_window_width: initialContext.window_width,
-      resize_window_height: initialContext.window_height,
-      resize_aspect_ratio: initialContext.aspect_ratio,
-      resize_current_breakpoint: initialContext.current_breakpoint,
-      resize_is_mobile: initialContext.is_mobile,
-      resize_is_tablet: initialContext.is_tablet,
-      resize_is_desktop: initialContext.is_desktop,
-    };
-    mergePatch(initPatch);
+    const ctx0 = createResizeContext(el, window.innerWidth, window.innerHeight);
+    mergePatch({
+      resize_width: ctx0.width,
+      resize_height: ctx0.height,
+      resize_window_width: ctx0.window_width,
+      resize_window_height: ctx0.window_height,
+      resize_current_breakpoint: ctx0.current_breakpoint,
+    });
 
     const { throttle, isDebounce } = parseModifiers(mods);
 
     const handleResize = () => {
-      const context = createResizeContext(el, window.innerWidth, window.innerHeight);
+      const resizeCtx = createResizeContext(el, window.innerWidth, window.innerHeight);
 
       try {
-        const patch = {
-          resize_width: context.width,
-          resize_height: context.height,
-          resize_window_width: context.window_width,
-          resize_window_height: context.window_height,
-          resize_aspect_ratio: context.aspect_ratio,
-          resize_current_breakpoint: context.current_breakpoint,
-          resize_is_mobile: context.is_mobile,
-          resize_is_tablet: context.is_tablet,
-          resize_is_desktop: context.is_desktop,
-        };
-        mergePatch(patch);
+        mergePatch({
+          resize_width: resizeCtx.width,
+          resize_height: resizeCtx.height,
+          resize_window_width: resizeCtx.window_width,
+          resize_window_height: resizeCtx.window_height,
+          resize_current_breakpoint: resizeCtx.current_breakpoint,
+        });
 
         if (value) rx?.(value);
       } catch (error) {

@@ -4,24 +4,18 @@ import { createRAFThrottle, createTimerThrottle } from "./throttle.js";
 import type { AttributeContext, AttributePlugin, OnRemovalFn } from "./types.js";
 
 const DEFAULT_THROTTLE = 100;
-const VELOCITY_DECAY_MS = 50; // Faster decay for more responsive feel
+const VELOCITY_DECAY_MS = 50;
+const DIRECTION_THRESHOLD = 3; // Minimum delta to change direction (filters momentum bounce)
 
 const SCROLL_ARG_NAMES = [
   "scroll_x",
   "scroll_y",
-  "scroll_y_smoothed",
   "scroll_direction",
-  "scroll_velocity",
-  "scroll_velocity_smoothed",
-  "scroll_delta",
   "scroll_page_progress",
   "scroll_is_top",
   "scroll_is_bottom",
-  "scroll_visible",
   "scroll_visible_percent",
   "scroll_progress",
-  "scroll_element_top",
-  "scroll_element_bottom",
 ] as const;
 
 let globalScrollInitialized = false;
@@ -57,63 +51,51 @@ const scrollAttributePlugin: AttributePlugin = {
     const shouldManageGlobal = !globalScrollInitialized;
     if (shouldManageGlobal) {
       globalScrollInitialized = true;
-      const initPatch = {
+      mergePatch({
         scroll_x: window.scrollX || 0,
         scroll_y: window.scrollY || 0,
         scroll_direction: "none",
-        scroll_velocity: 0,
-        scroll_delta: 0,
         scroll_page_progress: 0,
         scroll_is_top: true,
         scroll_is_bottom: false,
-      };
-      mergePatch(initPatch);
+      });
 
       let lastScrollY = window.scrollY;
-      let lastScrollTime = Date.now();
-      let velocity = 0;
       let direction = "none";
       let decayTimer: number | null = null;
 
       const updateGlobalScroll = () => {
-        const now = Date.now();
         const currentY = window.scrollY;
         const currentX = window.scrollX;
         const delta = currentY - lastScrollY;
-        const timeDelta = now - lastScrollTime;
 
-        if (timeDelta > 0 && delta !== 0) {
-          velocity = Math.abs((delta / timeDelta) * 1000);
-          direction = delta > 0 ? "down" : delta < 0 ? "up" : direction;
+        // Only change direction for significant movement (filters momentum bounce)
+        if (Math.abs(delta) >= DIRECTION_THRESHOLD) {
+          direction = delta > 0 ? "down" : "up";
+        }
 
+        // Reset decay timer on any scroll activity
+        if (delta !== 0) {
           if (decayTimer) clearTimeout(decayTimer);
           decayTimer = setTimeout(() => {
-            velocity = 0;
             direction = "none";
-            mergePatch({
-              scroll_velocity: 0,
-              scroll_direction: "none",
-            });
+            mergePatch({ scroll_direction: "none" });
           }, VELOCITY_DECAY_MS) as unknown as number;
         }
 
         const docHeight = document.documentElement.scrollHeight - window.innerHeight;
         const pageProgress = docHeight > 0 ? Math.round((currentY / docHeight) * 100) : 0;
 
-        const patch = {
+        mergePatch({
           scroll_x: currentX,
           scroll_y: currentY,
           scroll_direction: direction,
-          scroll_velocity: Math.round(velocity),
-          scroll_delta: delta,
           scroll_page_progress: pageProgress,
           scroll_is_top: currentY <= 0,
           scroll_is_bottom: currentY >= docHeight,
-        };
-        mergePatch(patch);
+        });
 
         lastScrollY = currentY;
-        lastScrollTime = now;
       };
 
       const throttledGlobalUpdate = createRAFThrottle(updateGlobalScroll);
@@ -143,11 +125,8 @@ const scrollAttributePlugin: AttributePlugin = {
       const scrollPageProgress = getPath("scroll_page_progress") || 0;
 
       const rect = el.getBoundingClientRect();
-      const elementTop = rect.top + window.scrollY;
-      const elementBottom = elementTop + rect.height;
       const viewportHeight = window.innerHeight;
       const visiblePercent = calculateVisiblePercent(rect, viewportHeight);
-      const isInViewport = rect.top < viewportHeight && rect.bottom > 0;
 
       let elProgress = scrollPageProgress;
       if (el.scrollHeight > el.clientHeight + 1) {
@@ -159,34 +138,22 @@ const scrollAttributePlugin: AttributePlugin = {
 
       if (smoothScroll) {
         const globalY = Number(getPath("scroll_y")) || 0;
-        const globalVelocity = Number(getPath("scroll_velocity")) || 0;
         const globalPage = Number(scrollPageProgress) || 0;
         const smoothed = smoothScroll.getSmoothData({
           scrollY: globalY,
-          velocity: globalVelocity,
+          velocity: 0,
           progress: Number(elProgress) || 0,
           pageProgress: globalPage,
           visiblePercent: Number(visiblePercent) || 0,
         });
         patchedVisiblePercent = Math.round(smoothed.visiblePercent);
         patchedProgress = Math.round(smoothed.progress);
-        // Expose smoothed global signals as optional convenience
-        const smoothedY = Math.round(smoothed.scrollY);
-        const smoothedVel = Math.round(smoothed.velocity);
-        mergePatch({
-          scroll_y_smoothed: smoothedY,
-          scroll_velocity_smoothed: smoothedVel,
-        });
       }
 
-      const elementPatch = {
-        scroll_visible: isInViewport,
+      mergePatch({
         scroll_visible_percent: patchedVisiblePercent,
         scroll_progress: patchedProgress,
-        scroll_element_top: elementTop,
-        scroll_element_bottom: elementBottom,
-      };
-      mergePatch(elementPatch);
+      });
 
       if (hasExpression) {
         try {

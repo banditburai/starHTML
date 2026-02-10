@@ -9,8 +9,7 @@ from pathlib import Path
 from starlighter import CodeBlock, StarlighterStyles
 
 from starhtml import *
-from starhtml.datastar import clipboard
-from starhtml.plugins import clipboard as clipboard_plugin
+from starhtml.plugins import clipboard
 
 
 def get_quick_reference_content() -> str:
@@ -93,7 +92,7 @@ app, rt = star_app(
     ],
 )
 
-app.register(clipboard_plugin())
+app.register(clipboard())
 
 
 @rt("/")

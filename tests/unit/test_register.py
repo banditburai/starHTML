@@ -81,34 +81,70 @@ class TestAppRegister:
         # Headers should be added
         assert len(app.hdrs) > 0
 
-    def test_register_plugin_creates_route(self):
-        """Test that registering plugin creates static file route."""
+    def test_register_plugin_has_static_route(self):
+        """Test that registered plugin has a static file route."""
         app = StarHTML()
-
-        initial_route_count = len(app.routes)
-
         app.register(persist)
 
-        # Should have added a route for serving static files
-        assert len(app.routes) > initial_route_count
+        # starhtml/plugins package route exists (created at init or by register)
+        paths = [r.path for r in app.routes]
+        assert any("starhtml/plugins" in p for p in paths)
 
 
 class TestRegisterBatchBehavior:
     """Test batching behavior when registering plugins."""
 
-    def test_multiple_register_calls_accumulate_headers(self):
-        """Test that multiple register() calls accumulate headers."""
+    def test_multiple_register_calls_accumulate_plugins(self):
+        """Test that multiple register() calls accumulate plugins internally."""
         app = StarHTML()
 
         # Register plugins separately
         app.register(persist)
-        first_count = len(app.hdrs)
+        assert len(app._registered_plugins) == 1
+        assert app._registered_plugins[0]._base_name == "persist"
 
         app.register(scroll)
-        second_count = len(app.hdrs)
+        assert len(app._registered_plugins) == 2
+        assert app._registered_plugins[1]._base_name == "scroll"
 
-        # Should have more headers after second registration
-        assert second_count > first_count
+    def test_multiple_register_calls_single_import_map(self):
+        """Test that multiple register() calls produce only ONE import map."""
+        app = StarHTML()
+
+        # Register plugins separately (this used to create duplicate import maps)
+        app.register(persist)
+        app.register(scroll)
+
+        # Count import maps in headers
+        import_maps = [h for h in app.hdrs if getattr(h, "type", None) == "importmap"]
+        assert len(import_maps) == 1, f"Expected 1 import map, got {len(import_maps)}"
+
+        # The single import map should contain both plugins
+        import_map_content = str(import_maps[0])
+        assert "persist" in import_map_content
+        assert "scroll" in import_map_content
+
+    def test_separate_and_batch_register_equivalent(self):
+        """Test that separate register() calls produce same result as batch."""
+        app_separate = StarHTML()
+        app_batch = StarHTML()
+
+        # Register separately
+        app_separate.register(persist)
+        app_separate.register(scroll)
+
+        # Register as batch
+        app_batch.register(persist, scroll)
+
+        # Both should have exactly one import map
+        maps_separate = [h for h in app_separate.hdrs if getattr(h, "type", None) == "importmap"]
+        maps_batch = [h for h in app_batch.hdrs if getattr(h, "type", None) == "importmap"]
+
+        assert len(maps_separate) == 1
+        assert len(maps_batch) == 1
+
+        # Import maps should have same content
+        assert str(maps_separate[0]) == str(maps_batch[0])
 
     def test_batch_registration_creates_single_script(self):
         """Test that batch registration creates efficient single script."""

@@ -11,7 +11,24 @@ class TestComputedSignals:
         signal = Signal("counter", 0)
 
         assert not signal._is_computed
+        # Default ifmissing=True means to_dict() is empty (uses individual attr)
+        assert signal.to_dict() == {}
+        # get_signal_attr() returns the ifmissing attribute
+        attr = signal.get_signal_attr()
+        assert attr is not None
+        assert attr[0] == "data-signals:counter__ifmissing"
+        assert attr[1] == 0
+        assert signal.get_computed_attr() is None
+
+    def test_regular_signal_with_ifmissing_false(self):
+        """Test signal with ifmissing=False uses combined format."""
+        signal = Signal("counter", 0, ifmissing=False)
+
+        assert not signal._is_computed
+        # ifmissing=False uses to_dict() for combined format
         assert signal.to_dict() == {"counter": 0}
+        # get_signal_attr() returns None when ifmissing=False
+        assert signal.get_signal_attr() is None
         assert signal.get_computed_attr() is None
 
     def test_computed_signal_detection(self):
@@ -23,11 +40,16 @@ class TestComputedSignals:
         assert computed._is_computed
 
     def test_computed_signal_to_dict(self):
-        """Test that computed signals return empty dict."""
-        regular = Signal("counter", 0)
-        computed = Signal("doubled", regular * 2)
+        """Test that computed signals return empty dict regardless of ifmissing."""
+        regular_ifmissing = Signal("counter", 0, ifmissing=True)
+        regular_override = Signal("counter2", 0, ifmissing=False)
+        computed = Signal("doubled", regular_ifmissing * 2)
 
-        assert regular.to_dict() == {"counter": 0}
+        # ifmissing=True: to_dict() empty, uses get_signal_attr() instead
+        assert regular_ifmissing.to_dict() == {}
+        # ifmissing=False: to_dict() returns the signal
+        assert regular_override.to_dict() == {"counter2": 0}
+        # computed: always empty
         assert computed.to_dict() == {}
 
     def test_computed_signal_attr_generation(self):
@@ -62,7 +84,7 @@ class TestComputedSignals:
         is_valid = Signal("is_valid", (name.length > 0) & (age >= 18))
 
         assert is_valid._is_computed
-        assert is_valid.to_dict() == {}
+        assert is_valid.to_dict() == {}  # Computed always empty
 
         attr_name, attr_value = is_valid.get_computed_attr()
         assert attr_name == "data_computed_is_valid"
@@ -73,7 +95,7 @@ class TestComputedSignals:
         song_count = Signal("song_count", playlist.filter(js("song => song && song.trim().length > 0")).length)
 
         assert song_count._is_computed
-        assert song_count.to_dict() == {}
+        assert song_count.to_dict() == {}  # Computed always empty
 
         attr_name, attr_value = song_count.get_computed_attr()
         assert attr_name == "data_computed_song_count"

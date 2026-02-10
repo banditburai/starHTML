@@ -14,11 +14,11 @@ class TestDataSignalsAttribute(unittest.TestCase):
         sig = Signal("tab", "preview")
         self.assertEqual(sig.name, "tab")
         self.assertEqual(sig.value, "preview")
-        # When used in data_signals, it creates proper initialization
+        # Default ifmissing=True uses individual attributes
         div = Div(data_signals=[sig])
         html = str(div)
-        self.assertIn("data-signals", html)
-        self.assertIn('tab: "preview"', html)
+        self.assertIn("data-signals:tab__ifmissing=", html)
+        self.assertIn("preview", html)
 
     def test_signal_with_multiline_string(self):
         """Test Signal properly handles multiline strings."""
@@ -48,11 +48,11 @@ class TestDataSignalsAttribute(unittest.TestCase):
         """Test Signal with dollar-prefixed strings as literals."""
         sig = Signal("price", "$10.99 special")
         self.assertEqual(sig.value, "$10.99 special")
-        # When used in data_signals
+        # When used in data_signals, $ strings are base64-encoded to avoid Datastar preprocessing
         div = Div(data_signals=[sig])
         html = str(div)
-        self.assertIn("data-signals", html)
-        self.assertIn("$10.99 special", html)
+        self.assertIn("data-signals:price__ifmissing=", html)
+        self.assertIn("atob(", html)
 
     def test_signal_with_js_expression(self):
         """Test Signal with JavaScript expressions using js()."""
@@ -93,13 +93,14 @@ class TestDataSignalsAttribute(unittest.TestCase):
         self.assertEqual(inactive_sig.value, False)
         self.assertEqual(data_sig.value, None)
 
-        # When used in data_signals
+        # When used in data_signals, signals use ifmissing format
         div = Div(data_signals=[count_sig, active_sig, inactive_sig, data_sig])
         html = str(div)
-        self.assertIn("count: 42", html)
-        self.assertIn("active: true", html)
-        self.assertIn("inactive: false", html)
-        self.assertIn("data: null", html)
+        self.assertIn("data-signals:count__ifmissing=", html)
+        self.assertIn("data-signals:active__ifmissing=", html)
+        self.assertIn("data-signals:inactive__ifmissing=", html)
+        # None initial values are not emitted (nothing to set as default)
+        self.assertNotIn("data-signals:data", html)
 
     def test_signal_with_complex_types(self):
         """Test Signal with lists and dicts."""
@@ -109,11 +110,13 @@ class TestDataSignalsAttribute(unittest.TestCase):
         self.assertEqual(items_sig.value, [1, 2, 3])
         self.assertEqual(config_sig.value, {"theme": "dark", "lang": "en"})
 
-        # When used in data_signals
+        # When used in data_signals, signals use ifmissing format
         div = Div(data_signals=[items_sig, config_sig])
         html = str(div)
-        self.assertIn("items:[1,2,3]", html.replace(" ", ""))
-        self.assertIn('"theme": "dark"', html)
+        self.assertIn("data-signals:items__ifmissing=", html)
+        self.assertIn("data-signals:config__ifmissing=", html)
+        self.assertIn("[1,2,3]", html.replace(" ", ""))
+        self.assertIn('"theme"', html)
 
     def test_mixed_signal_types(self):
         """Test mixing different signal value types via data_signals kwarg."""
@@ -133,12 +136,12 @@ class TestDataSignalsAttribute(unittest.TestCase):
         div = Div(data_signals=signals)
         html = str(div)
 
-        # Non-computed signals appear in data-signals
-        self.assertIn("code:", html)
-        self.assertIn('label: "Total: $"', html)
-        self.assertIn('currency: "USD"', html)
-        self.assertIn("tax_rate: 0.08", html)
-        self.assertIn("include_tax: true", html)
+        # Non-computed signals use ifmissing format by default
+        self.assertIn("data-signals:code__ifmissing=", html)
+        self.assertIn("data-signals:label__ifmissing=", html)
+        self.assertIn("data-signals:currency__ifmissing=", html)
+        self.assertIn("data-signals:tax_rate__ifmissing=", html)
+        self.assertIn("data-signals:include_tax__ifmissing=", html)
 
         # Computed signals (with js()) are NOT included in data-signals when passed via kwarg
         # They return {} from to_dict() and must be passed as children to create data-computed:* attributes
@@ -158,9 +161,9 @@ class TestDataSignalsAttribute(unittest.TestCase):
 
         html = str(div)
 
-        # Non-computed signals appear in data-signals
-        self.assertIn("price: 10", html)
-        self.assertIn("quantity: 5", html)
+        # Non-computed signals use individual ifmissing attributes (default)
+        self.assertIn("data-signals:price__ifmissing=", html)
+        self.assertIn("data-signals:quantity__ifmissing=", html)
 
         # Computed signals create data-computed:* attributes
         self.assertIn("data-computed:amount", html)
@@ -171,11 +174,11 @@ class TestDataSignalsAttribute(unittest.TestCase):
         self.assertTrue("$user.name||'Anonymous'" in html or "$user.name||&#39;Anonymous&#39;" in html)
 
         # Computed signals do NOT appear in data-signals
-        self.assertNotIn("amount:", html.split("data-computed")[0])  # Check only data-signals portion
+        self.assertNotIn("data-signals:amount", html)
 
     def test_string_vs_js_expression(self):
         """Test distinction between string literals and JS expressions."""
-        # String literals are just strings
+        # String literals are just strings - use ifmissing format by default
         string_signals = [
             Signal("signal", "$activeTab"),  # String literal
             Signal("computed", "$items.length"),  # String literal
@@ -184,8 +187,9 @@ class TestDataSignalsAttribute(unittest.TestCase):
 
         div1 = Div(data_signals=string_signals)
         html1 = str(div1)
-        # These are string values, not expressions
-        self.assertIn('signal: "$activeTab"', html1)
+        # Default ifmissing=True uses individual attributes, $ strings are base64-encoded
+        self.assertIn("data-signals:signal__ifmissing=", html1)
+        self.assertIn("atob(", html1)
 
         # JS expressions with js() create computed signals
         # When passed via data_signals kwarg, computed signals are excluded
@@ -232,8 +236,9 @@ class TestDataSignalsAttribute(unittest.TestCase):
 
         div = Div(data_signals=[empty1, empty2])
         html = str(div)
-        self.assertIn('empty1: ""', html)
-        self.assertIn('empty2: ""', html)
+        # Signals use ifmissing attribute format by default
+        self.assertIn("data-signals:empty1__ifmissing=", html)
+        self.assertIn("data-signals:empty2__ifmissing=", html)
 
     def test_unicode_and_special_chars(self):
         """Test Unicode and special characters are handled."""
@@ -271,10 +276,9 @@ class TestDataSignalsAttribute(unittest.TestCase):
         )
 
         html = str(div)
-        # Signals should be auto-collected into data-signals
-        self.assertIn("data-signals", html)
-        self.assertIn("counter: 0", html)
-        self.assertIn("step: 1", html)
+        # Auto-collected signals use ifmissing format by default
+        self.assertIn("data-signals:counter__ifmissing=", html)
+        self.assertIn("data-signals:step__ifmissing=", html)
 
     def test_build_data_signals_function(self):
         """Test build_data_signals helper function."""
@@ -287,18 +291,18 @@ class TestDataSignalsAttribute(unittest.TestCase):
 
     def test_signals_list_vs_dict(self):
         """Test data_signals accepts both list of Signals and dict."""
-        # List format - only non-computed signals appear
+        # List format with default ifmissing=True uses individual attributes
         signals_list = [
             Signal("count", 0),
             Signal("doubled", js("$count * 2")),  # Computed - excluded
         ]
         div1 = Div(data_signals=signals_list)
         html1 = str(div1)
-        self.assertIn("count: 0", html1)
+        self.assertIn("data-signals:count__ifmissing=", html1)
         # Computed signals passed via kwarg don't appear
         self.assertNotIn("doubled", html1)
 
-        # Dict format - dict values with js() are included (different from Signal objects)
+        # Dict format uses combined format (no Signal metadata)
         signals_dict = {
             "count": 0,
             "doubled": js("$count * 2"),  # js() value in dict IS included
@@ -307,7 +311,7 @@ class TestDataSignalsAttribute(unittest.TestCase):
         html2 = str(div2)
         self.assertIn("count: 0", html2)
         # js() preserves the expression as-is
-        self.assertIn("doubled: $count * 2", html2)  # Dict format includes js() values
+        self.assertIn("doubled: $count * 2", html2)
 
     def test_signal_auto_collection(self):
         """Test that Signals are automatically collected from children."""
@@ -323,13 +327,13 @@ class TestDataSignalsAttribute(unittest.TestCase):
         )
 
         html = str(container)
-        # All signals should be collected
-        self.assertIn("user_id: 123", html)
-        self.assertIn('username: "alice"', html)
-        self.assertIn('email: "alice@example.com"', html)
-        self.assertIn('role: "admin"', html)
-        self.assertIn("active: true", html)
-        self.assertIn("login_count: 0", html)
+        # All signals should be collected with ifmissing format
+        self.assertIn("data-signals:user_id__ifmissing=", html)
+        self.assertIn("data-signals:username__ifmissing=", html)
+        self.assertIn("data-signals:email__ifmissing=", html)
+        self.assertIn("data-signals:role__ifmissing=", html)
+        self.assertIn("data-signals:active__ifmissing=", html)
+        self.assertIn("data-signals:login_count__ifmissing=", html)
 
     def test_signal_operations(self):
         """Test Signal arithmetic and logical operations."""

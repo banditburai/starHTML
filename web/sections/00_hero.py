@@ -1,14 +1,10 @@
-"""Hero Section - Interactive Demo (Refactored)
-
-The main hero section for StarHTML documentation with animated stars,
-typewriter effect, and interactive controls.
-"""
+"""Hero Section - Interactive Demo"""
 
 from starhtml import *
+from starhtml.plugins import enter, motion, press
 
 
 def hero_animations():
-    """Rainbow and star animation styles."""
     return Style("""
         @keyframes rainbow-gradient {
             0%, 100% { color: #fbbf24; }
@@ -39,7 +35,6 @@ def hero_animations():
 
 
 def star_field(stars):
-    """Dynamic star field that responds to stars signal."""
     return Div(
         data_effect="""
             const diff = $stars.length - el.children.length;
@@ -79,16 +74,19 @@ def hero_title(show_rainbow):
             "star",
             cls="text-6xl sm:text-7xl md:text-8xl lg:text-9xl font-black leading-[0.85] tracking-tight",
             data_class_rainbow_sync=show_rainbow,
+            data_motion=enter(y=30, opacity=0, duration=600, spring="gentle"),
         ),
         Span(
             "html",
             cls="text-6xl sm:text-7xl md:text-8xl lg:text-9xl font-black text-black leading-[0.85] tracking-tight",
+            data_motion=enter(y=30, opacity=0, duration=600, delay=100, spring="gentle"),
         ),
         Icon(
             "vaadin:asterisk",
             cls="ml-1 pb-1 sm:pb-2 text-4xl md:text-5xl lg:text-6xl",
             style="color: #fbbf24",
             data_class_rainbow_sync=show_rainbow,
+            data_motion=enter(scale=0.5, opacity=0, duration=400, delay=200, spring="bouncy"),
             id="title-asterisk",
         ),
         cls="mb-4 flex items-baseline",
@@ -96,54 +94,56 @@ def hero_title(show_rainbow):
 
 
 def typewriter_tagline(show_rainbow):
+    texts = ["Write Python", "Build anything", "Stay brilliant"]
+    n = len(texts)
+    texts_js = f"{texts!r}"
+
+    phase = Signal("tw_phase", "typing")
+    idx = Signal("tw_idx", 0)
+    char = Signal("tw_char", 0)
+    visible = Signal("tw_visible", True)
+
     return P(
+        phase,
+        idx,
+        char,
+        visible,
         Icon(
             "vaadin:asterisk",
-            id="asterisk",
-            cls="rainbow-sync sm:pb-2 text-4xl md:text-5xl lg:text-6xl opacity-0",
+            cls="sm:pb-2 text-4xl md:text-5xl lg:text-6xl transition-opacity duration-200",
             style="color: #fbbf24",
             data_class_rainbow_sync=show_rainbow,
+            data_class_opacity_0=~visible,
         ),
-        Span(" ", id="space", cls="opacity-0 text-gray-300"),
+        Span(" ", cls="text-gray-300 transition-opacity duration-200", data_class_opacity_0=~visible),
         Span(
-            data_on_load="""
-                if (window.typewriterInitialized) return;
-                window.typewriterInitialized = true;
-
-                const texts = ['Write Python', 'Build anything', 'Stay brilliant'];
-                let index = 0, isAnimating = false;
-                const [asterisk, space, titleAsterisk] = ['asterisk', 'space', 'title-asterisk'].map(id => document.getElementById(id));
-                const { animate } = window.Motion || {};
-
-                const typewriter = async (text) => {
-                    if (!animate || isAnimating) return;
-                    isAnimating = true;
-
-                    await Promise.all([asterisk, space, el, titleAsterisk].map(elem => animate(elem, { opacity: 0 }, { duration: 0.2 })));
-                    el.textContent = '';
-
-                    await Promise.all([
-                        animate(asterisk, { opacity: 1 }, { duration: 0.2 }),
-                        animate(titleAsterisk, { opacity: 1 }, { duration: 0.2 })
-                    ]);
-                    await new Promise(r => setTimeout(r, 80));
-                    await animate(space, { opacity: 1 }, { duration: 0.2 });
-                    await new Promise(r => setTimeout(r, 80));
-                    await animate(el, { opacity: 1 }, { duration: 0.2 });
-
-                    for (const char of text) {
-                        el.textContent += char;
-                        await new Promise(r => setTimeout(r, 80));
-                    }
-
-                    isAnimating = false;
-                    setTimeout(() => !isAnimating && typewriter(texts[++index % texts.length]), 2500);
-                };
-
-                setTimeout(() => typewriter(texts[0]), 500);
-            """,
-            id="typewriter-text",
-            cls="ml-1 pb-0.5 sm:pb-2",
+            cls="ml-1 pb-0.5 sm:pb-2 transition-opacity duration-200",
+            data_class_opacity_0=~visible,
+            data_text=f"{texts_js}[{idx} % {n}].slice(0, {char})",
+        ),
+        Span(
+            style="display:none",
+            data_on_interval=(
+                f"({phase} === 'typing') && ("
+                f"{char} < {texts_js}[{idx} % {n}].length ? "
+                f"({char} = {char} + 1) : ({phase} = 'waiting'))",
+                {"duration": "80ms"},
+            ),
+        ),
+        Span(
+            style="display:none",
+            data_on_interval=(
+                f"({phase} === 'waiting') && ({phase} = 'fade-out', {visible} = false)",
+                {"duration": "2500ms"},
+            ),
+        ),
+        Span(
+            style="display:none",
+            data_on_interval=(
+                f"({phase} === 'fade-out') ? ({phase} = 'fade-in', {idx} = ({idx} + 1) % {n}, {char} = 0, {visible} = true) : "
+                f"({phase} === 'fade-in') && ({phase} = 'typing')",
+                {"duration": "250ms"},
+            ),
         ),
         cls="flex items-center text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-black text-gray-300 leading-[1.0] mb-4 min-h-[1.2em]",
     )
@@ -166,6 +166,7 @@ Span(data_text="Stars in the sky: " + stars)""",
             cls="m-0 p-0 overflow-x-auto",
         ),
         cls="bg-gray-50 border border-gray-200 rounded-xl p-6 lg:p-8 w-full overflow-hidden",
+        data_motion=enter(y=20, opacity=0, duration=500, delay=300),
     )
 
 
@@ -181,20 +182,23 @@ def star_controls(stars, star_count, show_rainbow):
                 Icon("tabler:star-filled", width="18", height="18", cls="inline-block mr-1"),
                 "Add",
                 data_on_click="$stars = [...$stars, {id: Date.now(), x: Math.random(), y: Math.random()}]; $star_count = $stars.length",
-                cls="flex items-center justify-center px-4 py-2 text-white font-semibold rounded-lg hover:scale-105 transition-transform duration-200",
+                cls="flex items-center justify-center px-4 py-2 text-white font-semibold rounded-lg",
                 data_class_rainbow_sync_bg=show_rainbow,
+                data_motion=press(scale=0.95),
             ),
             Button(
                 Icon("tabler:star-off", width="18", height="18", cls="inline-block mr-1"),
                 "Remove",
                 data_on_click="$stars = $stars.slice(0, -1); $star_count = $stars.length",
-                cls="flex items-center justify-center px-4 py-2 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300 transition-colors duration-200",
+                cls="flex items-center justify-center px-4 py-2 bg-gray-200 text-gray-700 font-semibold rounded-lg",
+                data_motion=press(scale=0.95),
             ),
             Button(
                 Icon("tabler:cloud-off", width="18", height="18", cls="inline-block mr-1"),
                 "Clear the Sky",
                 data_on_click="$stars = []; $star_count = 0",
-                cls="flex items-center justify-center px-4 py-2 border-2 border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-50 transition-colors duration-200",
+                cls="flex items-center justify-center px-4 py-2 border-2 border-gray-300 text-gray-700 font-semibold rounded-lg",
+                data_motion=press(scale=0.95),
             ),
             cls="flex items-center gap-2 flex-wrap",
         ),
@@ -213,6 +217,7 @@ def star_controls(stars, star_count, show_rainbow):
             ),
             cls="mt-6 p-3 bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200 rounded-lg",
         ),
+        data_motion=enter(y=20, opacity=0, duration=500, delay=400),
     )
 
 
@@ -233,7 +238,6 @@ def scroll_indicator():
 
 
 def hero_section():
-    """Clean, composable hero section for docs integration."""
     return Section(
         (stars := Signal("stars", [])),
         (star_count := Signal("star_count", 0)),
@@ -257,10 +261,11 @@ app, rt = star_app(
     title="Hero Section - StarHTML Documentation (Dev Mode)",
     hdrs=[
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
-        Script(src="https://cdn.jsdelivr.net/npm/motion@11.11.13/dist/motion.js"),
         iconify_script(),
     ],
 )
+
+app.register(motion())
 
 
 @rt("/")

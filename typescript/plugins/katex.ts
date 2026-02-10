@@ -20,7 +20,10 @@ const processContent = (el: Element): void => {
     renderMath(tex.trim(), false)
   );
 
-  el.innerHTML = marked.parse(content);
+  // Use parseInline for inline elements (span, a, etc.) to avoid wrapping in <p> tags.
+  // Block elements (pre, div, etc.) get full parse for prose + math mixed content.
+  const isInline = /^(span|a|em|strong|code|label|small|sub|sup)$/i.test(el.tagName);
+  el.innerHTML = isInline ? marked.parseInline(content) : marked.parse(content);
 };
 
 const katexPlugin: AttributePlugin = {
