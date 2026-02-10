@@ -81,16 +81,14 @@ class TestAppRegister:
         # Headers should be added
         assert len(app.hdrs) > 0
 
-    def test_register_plugin_creates_route(self):
-        """Test that registering plugin creates static file route."""
+    def test_register_plugin_has_static_route(self):
+        """Test that registered plugin has a static file route."""
         app = StarHTML()
-
-        initial_route_count = len(app.routes)
-
         app.register(persist)
 
-        # Should have added a route for serving static files
-        assert len(app.routes) > initial_route_count
+        # starhtml/plugins package route exists (created at init or by register)
+        paths = [r.path for r in app.routes]
+        assert any("starhtml/plugins" in p for p in paths)
 
 
 class TestRegisterBatchBehavior:

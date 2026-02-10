@@ -2,7 +2,6 @@
 
 import json
 import re
-import time
 from pathlib import Path
 from typing import Any, Literal
 
@@ -11,7 +10,6 @@ from .xtend import Script, Style
 
 _STATIC_PATH = Path(__file__).parent / "static" / "js" / "plugins"
 _PKG_NAME = "starhtml/plugins"
-_DEFAULT_PREFIX = "/_pkg"
 _CSS_IMPORT_RE = re.compile(r"@import\s+url\([^)]*\)\s*;?")
 
 
@@ -78,7 +76,12 @@ class PluginInstance:
         return self._static_path or _STATIC_PATH
 
     def get_headers(self, pkg_prefix: str) -> tuple:
-        return plugins_hdrs(self, pkg_prefix=pkg_prefix)
+        return plugins_hdrs(self)
+
+    def get_import_map(self, pkg_prefix: str) -> dict[str, str]:
+        if self.has_attribute or getattr(self, "file_actions", False):
+            return {_plugin_specifier(self): f"{pkg_prefix}/{self.get_package_name()}/{self._base_name}.js"}
+        return {}
 
 
 class _ActionMethod:
@@ -204,7 +207,12 @@ class Plugin:
         return self._static_path or _STATIC_PATH
 
     def get_headers(self, pkg_prefix: str) -> tuple:
-        return plugins_hdrs(self, pkg_prefix=pkg_prefix)
+        return plugins_hdrs(self)
+
+    def get_import_map(self, pkg_prefix: str) -> dict[str, str]:
+        if self.has_attribute or getattr(self, "file_actions", False):
+            return {_plugin_specifier(self): f"{pkg_prefix}/{self.get_package_name()}/{self._base_name}.js"}
+        return {}
 
 
 def _get_plugin_config(p) -> dict | None:
@@ -234,28 +242,10 @@ def _plugin_specifier(p) -> str:
     return f"@{p.get_package_name()}/{p._base_name}"
 
 
-def plugins_hdrs(
-    *plugins,
-    datastar_path: str = "/static/datastar.js",
-    pkg_prefix: str = _DEFAULT_PREFIX,
-    debug: bool = False,
-) -> tuple:
-    """Generate import map and loader script for plugins."""
+def plugins_hdrs(*plugins) -> tuple:
+    """Generate loader script and critical CSS for plugins."""
     if not plugins:
         return ()
-
-    v = f"?v={int(time.time())}" if debug else ""
-
-    import_map = {
-        "imports": {
-            "datastar": f"{datastar_path}{v}",
-            **{
-                _plugin_specifier(p): f"{pkg_prefix}/{p.get_package_name()}/{p._base_name}.js{v}"
-                for p in plugins
-                if p.has_attribute or getattr(p, "file_actions", False)
-            },
-        }
-    }
 
     lines = []
     counter = 0
@@ -314,7 +304,6 @@ def plugins_hdrs(
 
     return (
         *((Style(css),) if css else ()),
-        Script(json.dumps(import_map), type="importmap"),
         Script(js_code, type="module"),
     )
 

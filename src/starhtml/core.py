@@ -103,6 +103,9 @@ class StarHTML(Starlette):
         self._registered_plugins: list = []
         self._plugin_hdrs: tuple = ()
         self._lifecycle_wired: set[int] = set()
+        self._registered_packages: set[str] = set()
+        self._registered_items: set[int] = set()
+        self._import_map: dict[str, str] = {}
         secret_key = get_key(secret_key, key_fname)
 
         if sess_cls:
@@ -298,6 +301,9 @@ reg_re_param("static", "|".join(_static_exts))
 @patch
 def register_package_static(self: StarHTML, name: str, static_path, prefix: str = None):
     """Serve a package's static directory (routes inserted first for priority)."""
+    if name in self._registered_packages:
+        return
+    self._registered_packages.add(name)
     static_path = PathlibPath(static_path)
     prefix = prefix or f"/_pkg/{name}"
 
@@ -335,7 +341,7 @@ def _is_import_map(h):
     return getattr(h, "attrs", {}).get("type") == "importmap"
 
 
-def _register_item(app: StarHTML, item, prefix: str | None = None):
+def _register_item(app: StarHTML, item, pkg_prefix: str | None = None):
     """Register a Registrable item (plugin, component, or custom type)."""
     if not isinstance(item, Registrable):
         raise TypeError(
@@ -343,14 +349,24 @@ def _register_item(app: StarHTML, item, prefix: str | None = None):
             f"Item must implement: get_package_name(), get_static_path(), get_headers()"
         )
 
-    prefix = prefix or DEFAULT_PKG_PREFIX
+    if id(item) in app._registered_items:
+        return item
+    app._registered_items.add(id(item))
+
+    pkg_prefix = pkg_prefix or DEFAULT_PKG_PREFIX
+
+    # Dependencies like starelements runtime must be served before the component
+    if deps := getattr(item, "get_dependencies", None):
+        for dep_name, dep_path in deps():
+            app.register_package_static(dep_name, dep_path, f"{pkg_prefix}/{dep_name}")
+
     name, static_path = item.get_package_name(), item.get_static_path()
-    full_prefix = f"{prefix}/{name}" if static_path else ""
+    full_prefix = f"{pkg_prefix}/{name}" if static_path else ""
 
     app.register_package(
         name=name,
         static_path=static_path,
-        hdrs=item.get_headers(prefix),
+        hdrs=item.get_headers(pkg_prefix),
         prefix=full_prefix or None,
     )
     return item
@@ -366,9 +382,12 @@ def register(self: StarHTML, *items, prefix: str | None = None):
     - Custom types implementing get_package_name(), get_static_path(), get_headers()
 
     Items with on_startup/on_shutdown methods are automatically wired up.
-    Multiple register() calls accumulate plugins and regenerate a single combined import map.
+    Multiple register() calls accumulate and regenerate a single unified import map.
     """
+    import json
+
     from .plugins import Plugin, PluginInstance, plugins_hdrs
+    from .xtend import Script
 
     prefix = prefix or DEFAULT_PKG_PREFIX
     plugins, others = [], []
@@ -379,10 +398,6 @@ def register(self: StarHTML, *items, prefix: str | None = None):
         _register_item(self, item, prefix)
 
     if plugins:
-        # Import map replaces the default Datastar script tag
-        if not self._registered_plugins:
-            self.hdrs = [h for h in self.hdrs if not (getattr(h, "src", None) or "").endswith("datastar.js")]
-
         registered = {p._base_name for p in self._registered_plugins}
         for p in plugins:
             if p._base_name in registered:
@@ -395,14 +410,21 @@ def register(self: StarHTML, *items, prefix: str | None = None):
 
         old_ids = {id(h) for h in self._plugin_hdrs}
         self.hdrs = [h for h in self.hdrs if id(h) not in old_ids]
-        self._plugin_hdrs = tuple(plugins_hdrs(*self._registered_plugins, pkg_prefix=prefix))
+        self._plugin_hdrs = tuple(plugins_hdrs(*self._registered_plugins))
+        self.hdrs.extend(self._plugin_hdrs)
 
-        # Browser requires import map before any module script that uses it
-        other_hdrs = [h for h in self.hdrs if not _is_import_map(h)]
-        import_maps = [h for h in self._plugin_hdrs if _is_import_map(h)]
-        modules = [h for h in self._plugin_hdrs if not _is_import_map(h)]
-        self.hdrs = import_maps + other_hdrs + modules
+    for item in items:
+        if get_map := getattr(item, "get_import_map", None):
+            self._import_map.update(get_map(prefix))
 
+    # Browser requires one import map before any module scripts
+    self.hdrs = [
+        h for h in self.hdrs if not _is_import_map(h) and not (getattr(h, "src", None) or "").endswith("datastar.js")
+    ]
+    merged = {"imports": {"datastar": "/static/datastar.js", **self._import_map}}
+    self.hdrs.insert(0, Script(json.dumps(merged), type="importmap"))
+
+    # Wire lifecycle handlers
     for item in items:
         if id(item) in self._lifecycle_wired:
             continue

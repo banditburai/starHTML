@@ -213,23 +213,15 @@ def _find_by_type(hdrs, type_attr):
 
 
 class TestPluginsHdrs:
-    """Test plugins_hdrs() import map generation."""
+    """Test plugins_hdrs() loader script and CSS generation."""
 
-    def test_plugins_hdrs_generates_import_map_and_loader(self):
-        """Test that plugins_hdrs returns import map and loader script."""
+    def test_plugins_hdrs_generates_loader(self):
+        """Test that plugins_hdrs returns CSS and loader script."""
         hdrs = plugins_hdrs(persist, scroll)
 
         assert isinstance(hdrs, tuple)
-        # persist has critical_css, so we get Style + 2 Scripts
-        assert len(hdrs) == 3
-
-        import_map = _find_by_type(hdrs, "importmap")
-        assert import_map is not None
-
-        import_map_content = str(import_map)
-        assert "datastar" in import_map_content
-        assert "@starhtml/plugins/persist" in import_map_content
-        assert "@starhtml/plugins/scroll" in import_map_content
+        # persist has critical_css, so we get Style + Script[module]
+        assert len(hdrs) == 2
 
         loader = _find_by_type(hdrs, "module")
         assert loader is not None
@@ -244,52 +236,34 @@ class TestPluginsHdrs:
         hdrs = plugins_hdrs()
         assert hdrs == ()
 
-    def test_plugins_hdrs_with_debug_mode(self):
-        """Test that plugins_hdrs respects debug mode."""
-        hdrs = plugins_hdrs(persist, debug=True)
-
-        import_map = _find_by_type(hdrs, "importmap")
-        assert "?v=" in str(import_map)
-
-    def test_plugin_uses_own_package_path(self):
-        """Test that each plugin's URL is derived from its package name."""
-        hdrs = plugins_hdrs(persist)
-
-        import_map = _find_by_type(hdrs, "importmap")
-        # persist uses default starhtml/plugins package
-        assert "/_pkg/starhtml/plugins/persist.js" in str(import_map)
-
-    def test_custom_datastar_path(self):
-        """Test that plugins_hdrs accepts custom datastar_path."""
-        hdrs = plugins_hdrs(persist, datastar_path="/custom/datastar.js")
-
-        import_map = _find_by_type(hdrs, "importmap")
-        assert "/custom/datastar.js" in str(import_map)
+    def test_plugin_import_map_entries(self):
+        """Test that get_import_map returns correct specifier-to-URL mapping."""
+        entries = persist.get_import_map("/_pkg")
+        assert "@starhtml/plugins/persist" in entries
+        assert entries["@starhtml/plugins/persist"] == "/_pkg/starhtml/plugins/persist.js"
 
 
 class TestPluginIntegration:
     """Test plugin integration patterns."""
 
     def test_multiple_plugins(self):
-        """Test that multiple plugins generate correct output."""
+        """Test that multiple plugins generate correct loader."""
         hdrs = plugins_hdrs(persist, scroll, resize, canvas)
 
-        import_map = _find_by_type(hdrs, "importmap")
-        import_map_content = str(import_map)
-        assert "@starhtml/plugins/persist" in import_map_content
-        assert "@starhtml/plugins/scroll" in import_map_content
-        assert "@starhtml/plugins/resize" in import_map_content
-        assert "@starhtml/plugins/canvas" in import_map_content
+        loader = _find_by_type(hdrs, "module")
+        loader_content = str(loader)
+        assert "@starhtml/plugins/persist" in loader_content
+        assert "@starhtml/plugins/scroll" in loader_content
+        assert "@starhtml/plugins/resize" in loader_content
+        assert "@starhtml/plugins/canvas" in loader_content
 
     def test_mixed_inline_and_file_plugins(self):
         """Test combining inline (clipboard) and file-based (persist) plugins."""
         hdrs = plugins_hdrs(clipboard, persist)
 
-        # Import map should NOT include inline plugins
-        import_map = _find_by_type(hdrs, "importmap")
-        import_map_content = str(import_map)
-        assert "@starhtml/plugins/clipboard" not in import_map_content
-        assert "@starhtml/plugins/persist" in import_map_content
+        # Inline plugins don't appear in import maps
+        entries = clipboard.get_import_map("/_pkg")
+        assert entries == {}
 
         # Loader should inline clipboard
         loader = _find_by_type(hdrs, "module")
@@ -325,8 +299,8 @@ class TestPluginProtocol:
         """Test get_headers returns tuple of headers."""
         hdrs = persist.get_headers(pkg_prefix="/_pkg")
         assert isinstance(hdrs, tuple)
-        # persist has critical_css, so: Style + Script[importmap] + Script[module]
-        assert len(hdrs) == 3
+        # persist has critical_css, so: Style + Script[module]
+        assert len(hdrs) == 2
 
 
 class TestCustomPlugins:
