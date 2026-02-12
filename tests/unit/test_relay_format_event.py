@@ -9,9 +9,9 @@ import pytest
 
 from starhtml import Div, P, Span
 from starhtml.realtime import (
-    SignalEvent,
     ElementEvent,
     ScriptEvent,
+    SignalEvent,
     format_event,
 )
 
@@ -21,20 +21,26 @@ class TestSignalEvent:
 
     def test_basic_signals(self):
         result = format_event(SignalEvent({"status": "ok", "count": 42}))
-        expected = "\n".join([
-            "event: datastar-patch-signals",
-            'data: signals {"status": "ok", "count": 42}',
-            "", "",
-        ])
+        expected = "\n".join(
+            [
+                "event: datastar-patch-signals",
+                'data: signals {"status": "ok", "count": 42}',
+                "",
+                "",
+            ]
+        )
         assert result == expected
 
     def test_empty_signals_dict(self):
         result = format_event(SignalEvent({}))
-        expected = "\n".join([
-            "event: datastar-patch-signals",
-            "data: signals {}",
-            "", "",
-        ])
+        expected = "\n".join(
+            [
+                "event: datastar-patch-signals",
+                "data: signals {}",
+                "",
+                "",
+            ]
+        )
         assert result == expected
 
     def test_nested_signals(self):
@@ -51,7 +57,7 @@ class TestSignalEvent:
         assert "null" in result
 
     def test_signal_with_special_characters(self):
-        result = format_event(SignalEvent({"msg": "hello <world> & \"friends\""}))
+        result = format_event(SignalEvent({"msg": 'hello <world> & "friends"'}))
         assert "event: datastar-patch-signals" in result
         assert "data: signals " in result
         # JSON-encoded, so quotes are escaped in the JSON string
@@ -76,13 +82,16 @@ class TestElementEvent:
         """Default mode is 'inner', which is not the SSE default ('outer'),
         so a mode line should appear in the output."""
         result = format_event(ElementEvent("<p>hello</p>", "#target"))
-        expected = "\n".join([
-            "event: datastar-patch-elements",
-            "data: mode inner",
-            "data: selector #target",
-            "data: elements &lt;p&gt;hello&lt;/p&gt;",
-            "", "",
-        ])
+        expected = "\n".join(
+            [
+                "event: datastar-patch-elements",
+                "data: mode inner",
+                "data: selector #target",
+                "data: elements &lt;p&gt;hello&lt;/p&gt;",
+                "",
+                "",
+            ]
+        )
         assert result == expected
 
     def test_outer_mode_omits_mode_line(self):
@@ -179,24 +188,30 @@ class TestScriptEvent:
 
     def test_script_auto_remove_true_format(self):
         result = format_event(ScriptEvent("alert(1)"))
-        expected = "\n".join([
-            "event: datastar-patch-elements",
-            "data: mode append",
-            "data: selector body",
-            'data: elements <script data-effect="el.remove()">alert(1)</script>',
-            "", "",
-        ])
+        expected = "\n".join(
+            [
+                "event: datastar-patch-elements",
+                "data: mode append",
+                "data: selector body",
+                'data: elements <script data-effect="el.remove()">alert(1)</script>',
+                "",
+                "",
+            ]
+        )
         assert result == expected
 
     def test_script_auto_remove_false_format(self):
         result = format_event(ScriptEvent("alert(1)", auto_remove=False))
-        expected = "\n".join([
-            "event: datastar-patch-elements",
-            "data: mode append",
-            "data: selector body",
-            "data: elements <script>alert(1)</script>",
-            "", "",
-        ])
+        expected = "\n".join(
+            [
+                "event: datastar-patch-elements",
+                "data: mode append",
+                "data: selector body",
+                "data: elements <script>alert(1)</script>",
+                "",
+                "",
+            ]
+        )
         assert result == expected
 
     def test_empty_script(self):

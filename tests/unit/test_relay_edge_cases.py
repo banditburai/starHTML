@@ -13,6 +13,8 @@ Complements basic behavior tests with:
 import asyncio
 import threading
 
+import pytest
+
 from starhtml import Div, P, Span
 from starhtml.realtime import (
     ElementEvent,
@@ -400,11 +402,8 @@ class TestFormatEventWithFTObjects:
 
     def test_signal_event_format_event_type_error(self):
         """format_event raises TypeError for unknown event types."""
-        try:
+        with pytest.raises(TypeError, match="Unknown event type"):
             format_event("not an event")
-            assert False, "Should have raised TypeError"
-        except TypeError as exc:
-            assert "Unknown event type" in str(exc)
 
 
 class TestSubscribeUnsubscribeChurn:
