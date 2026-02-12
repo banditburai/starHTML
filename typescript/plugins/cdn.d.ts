@@ -2,6 +2,97 @@
  * Type declarations for CDN modules (resolved at runtime).
  */
 
+declare module "https://cdn.jsdelivr.net/npm/@floating-ui/dom@1/+esm" {
+  type Side = "top" | "bottom" | "left" | "right";
+  type Alignment = "start" | "end";
+  export type Placement = Side | `${Side}-${Alignment}`;
+  export type Strategy = "absolute" | "fixed";
+
+  export interface Middleware {
+    name: string;
+    fn(state: MiddlewareState): Promise<MiddlewareReturn> | MiddlewareReturn;
+    options?: any;
+  }
+
+  interface MiddlewareState {
+    x: number;
+    y: number;
+    placement: Placement;
+    strategy: Strategy;
+    elements: { reference: Element; floating: HTMLElement };
+    rects: { reference: Rect; floating: Rect };
+    middlewareData: Record<string, any>;
+  }
+
+  interface MiddlewareReturn {
+    x?: number;
+    y?: number;
+    data?: Record<string, any>;
+    reset?: boolean | { placement?: Placement };
+  }
+
+  interface Rect {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }
+
+  interface ComputePositionReturn {
+    x: number;
+    y: number;
+    placement: Placement;
+    strategy: Strategy;
+    middlewareData: Record<string, any>;
+  }
+
+  interface ComputePositionConfig {
+    placement?: Placement;
+    strategy?: Strategy;
+    middleware?: Middleware[];
+  }
+
+  export function computePosition(
+    reference: Element | { getBoundingClientRect(): DOMRect; contextElement?: Element },
+    floating: HTMLElement,
+    config?: ComputePositionConfig
+  ): Promise<ComputePositionReturn>;
+
+  interface AutoUpdateOptions {
+    ancestorScroll?: boolean;
+    ancestorResize?: boolean;
+    elementResize?: boolean;
+    layoutShift?: boolean;
+    animationFrame?: boolean;
+  }
+
+  export function autoUpdate(
+    reference: Element,
+    floating: HTMLElement,
+    update: () => void,
+    options?: AutoUpdateOptions
+  ): () => void;
+
+  export function offset(
+    value?: number | { mainAxis?: number; crossAxis?: number }
+  ): Middleware;
+
+  export function flip(options?: { padding?: number; fallbackPlacements?: Placement[] }): Middleware;
+
+  export function shift(options?: { padding?: number; limiter?: any }): Middleware;
+
+  export function hide(options?: { strategy?: "referenceHidden" | "escaped" }): Middleware;
+
+  export function size(options?: {
+    apply?: (state: {
+      availableWidth: number;
+      availableHeight: number;
+      elements: { floating: HTMLElement };
+    }) => void;
+    padding?: number;
+  }): Middleware;
+}
+
 declare module "https://cdn.jsdelivr.net/npm/marked/lib/marked.esm.js" {
   export function parse(src: string): string;
   export function parseInline(src: string): string;

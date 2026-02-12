@@ -9,7 +9,7 @@ import {
   offset,
   shift,
   size,
-} from "@floating-ui/dom";
+} from "https://cdn.jsdelivr.net/npm/@floating-ui/dom@1/+esm";
 import { effect, getPath, mergePatch } from "datastar";
 import type { AttributeContext, AttributePlugin, OnRemovalFn } from "./types.js";
 

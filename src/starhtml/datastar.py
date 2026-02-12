@@ -710,6 +710,7 @@ Number = js("Number")
 String = js("String")
 Boolean = js("Boolean")
 evt = js("evt")
+el = js("el")
 document = js("document")
 
 
@@ -967,6 +968,7 @@ __all__ = [
     "String",
     "Boolean",
     "evt",
+    "el",
     "document",
     "process_datastar_kwargs",
     "to_js_value",
