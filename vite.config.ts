@@ -57,6 +57,7 @@ export default defineConfig({
     rollupOptions: {
       external: [
         'datastar',
+        'https://cdn.jsdelivr.net/npm/@floating-ui/dom@1/+esm',
         'https://cdn.jsdelivr.net/npm/marked/lib/marked.esm.js',
         'https://cdn.jsdelivr.net/npm/katex/dist/katex.mjs',
         'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs',

@@ -414,6 +414,13 @@ DEMOS = [
         "28_datastar_helpers_showcase.py",
         "Patterns",
     ),
+    Demo(
+        "29-drawing",
+        "Drawing Canvas",
+        "SVG drawing canvas with floating toolbar",
+        "29_drawing_canvas.py",
+        "Patterns",
+    ),
 ]
 
 

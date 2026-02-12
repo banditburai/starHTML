@@ -40,7 +40,7 @@ dev = [
     "brotli>=1.1.0",
 ]
 
-demo = ["starlighter"]
+demo = ["starlighter", "starelements>=0.1.1", "star-drawing>=0.1.0"]
 
 [build-system]
 requires = ["hatchling"]

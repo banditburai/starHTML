@@ -1,9 +1,13 @@
 """Real-time functionality: WebSockets, SSE, and live reload for StarHTML."""
 
+import asyncio
 import inspect
+import logging
 import re
 from collections.abc import AsyncGenerator, Callable, Generator
+from dataclasses import dataclass
 from functools import partial, wraps
+from threading import Lock
 from typing import Any, Literal, Protocol, runtime_checkable
 from warnings import warn
 
@@ -33,6 +37,14 @@ __all__ = [
     "LiveReloadJs",
     "live_reload_ws",
     "StarHTMLWithLiveReload",
+    "Relay",
+    "SignalEvent",
+    "ElementEvent",
+    "ScriptEvent",
+    "SSEEvent",
+    "format_event",
+    "RELAY_QUEUE_SIZE",
+    "SSE_KEEPALIVE_TIMEOUT",
 ]
 
 
@@ -425,6 +437,93 @@ def sse(handler: Callable) -> Callable:
         return StreamingResponse(stream_sse_items(generator), headers=SSE_HEADERS, media_type="text/event-stream")
 
     return sse_wrapper
+
+
+logger = logging.getLogger(__name__)
+
+RELAY_QUEUE_SIZE = 500
+SSE_KEEPALIVE_TIMEOUT = 15.0
+
+
+@dataclass(slots=True)
+class SignalEvent:
+    signals: dict[str, Any]
+
+
+@dataclass(slots=True)
+class ElementEvent:
+    element: Any  # FT object or HTML string
+    selector: str
+    mode: SSEMode = "inner"
+
+
+@dataclass(slots=True)
+class ScriptEvent:
+    script: str
+    auto_remove: bool = True
+
+
+type SSEEvent = SignalEvent | ElementEvent | ScriptEvent
+
+
+def format_event(event: SSEEvent) -> str:
+    match event:
+        case SignalEvent(signals=signals_dict):
+            return format_signal_event(signals_dict)
+        case ElementEvent(element=el, selector=sel, mode=m):
+            return format_element_event(el, sel, m)
+        case ScriptEvent(script=content, auto_remove=ar):
+            from .xtend import Script
+
+            attrs = {"data-effect": "el.remove()"} if ar else {}
+            return format_element_event(Script(content, **attrs), "body", "append")
+        case _:
+            raise TypeError(f"Unknown event type: {type(event)}")
+
+
+class Relay:
+    """In-process pub/sub for SSE events. Thread-safe publish, async subscribe."""
+
+    __slots__ = ("_lock", "_subscribers", "_maxsize")
+
+    def __init__(self, maxsize: int = RELAY_QUEUE_SIZE) -> None:
+        self._lock = Lock()
+        self._subscribers: list[asyncio.Queue[SSEEvent]] = []
+        self._maxsize = maxsize
+
+    def subscribe(self) -> asyncio.Queue[SSEEvent]:
+        q = asyncio.Queue[SSEEvent](maxsize=self._maxsize)
+        with self._lock:
+            self._subscribers.append(q)
+        logger.debug("Client subscribed (%d total)", len(self._subscribers))
+        return q
+
+    def unsubscribe(self, q: asyncio.Queue[SSEEvent]) -> None:
+        with self._lock:
+            try:
+                self._subscribers.remove(q)
+            except ValueError:
+                pass
+        logger.debug("Client unsubscribed (%d remaining)", len(self._subscribers))
+
+    def emit(self, event: SSEEvent) -> None:
+        with self._lock:
+            subscribers = list(self._subscribers)
+        for q in subscribers:
+            try:
+                q.put_nowait(event)
+            except asyncio.QueueFull:
+                logger.warning("Subscriber queue full, dropping event")
+
+    def emit_signals(self, signals: dict[str, Any]) -> None:
+        if signals:
+            self.emit(SignalEvent(signals))
+
+    def emit_element(self, element: Any, selector: str, mode: SSEMode = "inner") -> None:
+        self.emit(ElementEvent(element, selector, mode))
+
+    def emit_script(self, script: str, auto_remove: bool = True) -> None:
+        self.emit(ScriptEvent(script, auto_remove))
 
 
 # ============================================================================
