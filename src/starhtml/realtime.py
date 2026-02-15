@@ -4,6 +4,7 @@ import asyncio
 import inspect
 import logging
 import re
+import time
 from collections.abc import AsyncGenerator, Callable, Generator
 from dataclasses import dataclass
 from functools import partial, wraps
@@ -202,7 +203,11 @@ def EventStream(s):
 
 
 def format_sse_event(
-    event_type: str, data_lines: list[str], event_id: str | None = None, retry: int = RETRY_DURATION
+    event_type: str,
+    data_lines: list[str],
+    event_id: str | None = None,
+    retry: int = RETRY_DURATION,
+    debug_ctx: dict[str, Any] | None = None,
 ) -> str:
     """Format an SSE event according to Datastar specification.
 
@@ -211,7 +216,8 @@ def format_sse_event(
     2. id: EVENT_ID (if provided)
     3. retry: RETRY_DURATION (unless default of 1000)
     4. data: DATA (for each of the dataLines)
-    5. \n (end of event)
+    5. data: x-debug-* (debug metadata, if debug_ctx provided)
+    6. \n (end of event)
     """
     parts = [f"event: {event_type}"]
 
@@ -222,6 +228,12 @@ def format_sse_event(
         parts.append(f"retry: {retry}")
 
     parts.extend([f"data: {line}" for line in data_lines])
+
+    if debug_ctx:
+        parts.append(f"data: x-debug-seq {debug_ctx['seq']}")
+        parts.append(f"data: x-debug-ts {int(time.time() * 1000)}")
+        parts.append(f"data: x-debug-handler {debug_ctx['handler']}")
+        parts.append(f"data: x-debug-route {debug_ctx['route']}")
 
     return "\n".join(parts) + "\n\n"
 
@@ -240,7 +252,11 @@ def split_multiline_html(html: str) -> list[str]:
     return [line for line in lines if line.strip()]  # Remove empty lines
 
 
-def format_signal_event(signals_dict: dict[str, Any], only_if_missing: bool = False) -> str:
+def format_signal_event(
+    signals_dict: dict[str, Any],
+    only_if_missing: bool = False,
+    debug_ctx: dict[str, Any] | None = None,
+) -> str:
     """Format a signals event for Datastar using JSON Merge Patch semantics (RFC 7386)."""
     data_lines = []
 
@@ -253,7 +269,7 @@ def format_signal_event(signals_dict: dict[str, Any], only_if_missing: bool = Fa
         raise ValueError(f"Failed to serialize signals: {e}") from e
 
     data_lines.append(f"signals {escape_newlines(data)}")
-    return format_sse_event("datastar-patch-signals", data_lines)
+    return format_sse_event("datastar-patch-signals", data_lines, debug_ctx=debug_ctx)
 
 
 def format_element_event(
@@ -262,6 +278,7 @@ def format_element_event(
     mode: SSEMode = DEFAULT_MODE,
     use_view_transition: bool = False,
     preserve_whitespace: bool | None = None,
+    debug_ctx: dict[str, Any] | None = None,
 ) -> str:
     """Format an element/fragment event for Datastar.
 
@@ -296,7 +313,7 @@ def format_element_event(
     else:
         data_lines.append(f"elements {element_html}")
 
-    return format_sse_event("datastar-patch-elements", data_lines)
+    return format_sse_event("datastar-patch-elements", data_lines, debug_ctx=debug_ctx)
 
 
 def signals(only_if_missing: bool = False, **kwargs) -> tuple[str, dict[str, Any]]:
