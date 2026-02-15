@@ -9,7 +9,7 @@ from collections.abc import AsyncGenerator, Callable, Generator
 from dataclasses import dataclass
 from functools import partial, wraps
 from threading import Lock
-from typing import Any, Literal, Protocol, runtime_checkable
+from typing import Any, Literal, Protocol, TypedDict, runtime_checkable
 from warnings import warn
 
 from fastcore.utils import dict2obj, noop
@@ -44,6 +44,7 @@ __all__ = [
     "ScriptEvent",
     "SSEEvent",
     "format_event",
+    "DebugContext",
     "RELAY_QUEUE_SIZE",
     "SSE_KEEPALIVE_TIMEOUT",
 ]
@@ -187,6 +188,15 @@ SSEMode = Literal["outer", "inner", "replace", "prepend", "append", "before", "a
 NEWLINE_REGEX = re.compile(r"\r\n|\r|\n")
 SELECTOR_VALIDATION_REGEX = re.compile(r"^[#\.\[\]_\w:*=\-\'\"]+$")
 
+
+class DebugContext(TypedDict):
+    """Debug metadata attached to SSE events when debug=True."""
+
+    seq: int
+    handler: str
+    route: str
+
+
 try:
     from orjson import dumps as _orjson_dumps
 
@@ -207,7 +217,7 @@ def format_sse_event(
     data_lines: list[str],
     event_id: str | None = None,
     retry: int = RETRY_DURATION,
-    debug_ctx: dict[str, Any] | None = None,
+    debug_ctx: DebugContext | None = None,
 ) -> str:
     """Format an SSE event according to Datastar specification.
 
@@ -255,7 +265,7 @@ def split_multiline_html(html: str) -> list[str]:
 def format_signal_event(
     signals_dict: dict[str, Any],
     only_if_missing: bool = False,
-    debug_ctx: dict[str, Any] | None = None,
+    debug_ctx: DebugContext | None = None,
 ) -> str:
     """Format a signals event for Datastar using JSON Merge Patch semantics (RFC 7386)."""
     data_lines = []
@@ -278,7 +288,7 @@ def format_element_event(
     mode: SSEMode = DEFAULT_MODE,
     use_view_transition: bool = False,
     preserve_whitespace: bool | None = None,
-    debug_ctx: dict[str, Any] | None = None,
+    debug_ctx: DebugContext | None = None,
 ) -> str:
     """Format an element/fragment event for Datastar.
 

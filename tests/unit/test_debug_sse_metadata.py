@@ -57,3 +57,12 @@ class TestSSEDebugMetadata:
         data_idx = next(i for i, l in enumerate(lines) if l.startswith("data: signals"))
         debug_idx = next(i for i, l in enumerate(lines) if l.startswith("data: x-debug"))
         assert debug_idx > data_idx, "Debug metadata should come after regular data"
+
+    def test_element_event_multiline_with_debug(self):
+        """Debug metadata comes after all element data lines in multiline HTML."""
+        debug_ctx = {"handler": "h", "route": "/r", "seq": 1}
+        event = format_element_event("<div>\n<p>line1</p>\n<p>line2</p>\n</div>", debug_ctx=debug_ctx)
+        lines = event.strip().split("\n")
+        last_elements_idx = max(i for i, l in enumerate(lines) if l.startswith("data: elements"))
+        first_debug_idx = next(i for i, l in enumerate(lines) if l.startswith("data: x-debug"))
+        assert first_debug_idx > last_elements_idx
