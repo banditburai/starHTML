@@ -691,7 +691,12 @@ def reset_timeout(timer: "Signal", ms: Any, *actions: Any, window: bool = False)
 
 
 def scroll_to(
-    target: "str | Expr", *, duration: int = 400, offset: int = 0, force: bool = False, focus: bool = False,
+    target: "str | Expr",
+    *,
+    duration: int = 400,
+    offset: int = 0,
+    force: bool = False,
+    focus: bool = False,
 ) -> _JSRaw:
     """Smooth ease-out scroll to element. Skips if already visible unless force=True.
 

@@ -48,11 +48,11 @@ class TestDataSignalsAttribute(unittest.TestCase):
         """Test Signal with dollar-prefixed strings as literals."""
         sig = Signal("price", "$10.99 special")
         self.assertEqual(sig.value, "$10.99 special")
-        # When used in data_signals, $ strings are base64-encoded to avoid Datastar preprocessing
+        # When used in data_signals, $ strings use unicode escapes to avoid Datastar preprocessing
         div = Div(data_signals=[sig])
         html = str(div)
         self.assertIn("data-signals:price__ifmissing=", html)
-        self.assertIn("atob(", html)
+        self.assertIn("\\u0024", html)
 
     def test_signal_with_js_expression(self):
         """Test Signal with JavaScript expressions using js()."""
@@ -187,9 +187,9 @@ class TestDataSignalsAttribute(unittest.TestCase):
 
         div1 = Div(data_signals=string_signals)
         html1 = str(div1)
-        # Default ifmissing=True uses individual attributes, $ strings are base64-encoded
+        # Default ifmissing=True uses individual attributes, $ strings use unicode escapes
         self.assertIn("data-signals:signal__ifmissing=", html1)
-        self.assertIn("atob(", html1)
+        self.assertIn("\\u0024", html1)
 
         # JS expressions with js() create computed signals
         # When passed via data_signals kwarg, computed signals are excluded
