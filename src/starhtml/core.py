@@ -1,7 +1,9 @@
 """The `StarHTML` subclass of `Starlette`"""
 
 import asyncio
+import os
 import re
+import sys
 from copy import deepcopy
 from functools import partialmethod
 from pathlib import Path as PathlibPath
@@ -130,6 +132,11 @@ class StarHTML(Starlette):
         excs = {
             k: _wrap_ex(v, k, hdrs, ftrs, htmlkw, bodykw, body_wrap=body_wrap) for k, v in exception_handlers.items()
         }
+        # Env var override for debug mode
+        env_debug = os.environ.get("STARHTML_DEBUG")
+        if env_debug is not None:
+            debug = env_debug in ("1", "true", "yes")
+
         super().__init__(
             debug,
             routes,
@@ -139,6 +146,9 @@ class StarHTML(Starlette):
             on_shutdown=on_shutdown,
             lifespan=lifespan,
         )
+
+        if self.debug:
+            print("WARNING: StarHTML debug mode is ON. Do not use in production.", file=sys.stderr)
 
         # Serve bundled Datastar v1.0.0-RC.7 (external vendored dependency)
         datastar_path = PathlibPath(__file__).parent / "static" / "datastar.js"
