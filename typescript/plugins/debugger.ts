@@ -45,10 +45,12 @@ const PANEL_STYLES = `
     z-index: 99999;
     font-family: ui-monospace, 'SF Mono', Monaco, 'Cascadia Mono', monospace;
     font-size: 12px;
+    color-scheme: dark;
   }
+  :host, :host * { box-sizing: border-box; }
   .debugger-tab {
     position: absolute;
-    bottom: 0;
+    bottom: 100%;
     right: 20px;
     background: #1e1e2e;
     color: #cdd6f4;
@@ -87,7 +89,6 @@ const PANEL_STYLES = `
   .resize-handle:hover { background: #89b4fa33; }
   .tab-bar {
     display: flex;
-    gap: 0;
     border-bottom: 1px solid #45475a;
     padding: 0 8px;
   }
@@ -149,6 +150,7 @@ class StarHTMLDebugger extends HTMLElement {
   private activeTab: string;
   private badge!: HTMLSpanElement;
   private unseenCount: number = 0;
+  private keydownHandler: ((e: KeyboardEvent) => void) | null = null;
 
   constructor() {
     super();
@@ -156,10 +158,18 @@ class StarHTMLDebugger extends HTMLElement {
 
     // Restore state from sessionStorage
     this.isOpen = sessionStorage.getItem("starhtml-debug-open") === "true";
-    this.panelHeight = parseInt(sessionStorage.getItem("starhtml-debug-height") || "300");
+    const stored = Number(sessionStorage.getItem("starhtml-debug-height"));
+    this.panelHeight = Number.isNaN(stored) || stored <= 0 ? 300 : stored;
     this.activeTab = sessionStorage.getItem("starhtml-debug-tab") || "sse";
 
     this.render();
+  }
+
+  disconnectedCallback(): void {
+    if (this.keydownHandler) {
+      document.removeEventListener("keydown", this.keydownHandler);
+      this.keydownHandler = null;
+    }
   }
 
   private render(): void {
@@ -221,13 +231,14 @@ class StarHTMLDebugger extends HTMLElement {
       document.addEventListener("mouseup", onUp);
     });
 
-    // Keyboard shortcut: Ctrl/Cmd + Shift + .
-    document.addEventListener("keydown", (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === ".") {
+    // Keyboard shortcut: Ctrl/Cmd + Shift + Period
+    this.keydownHandler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.code === "Period") {
         e.preventDefault();
         this.toggle();
       }
-    });
+    };
+    document.addEventListener("keydown", this.keydownHandler);
   }
 
   private toggle(): void {
