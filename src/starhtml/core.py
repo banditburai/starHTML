@@ -135,7 +135,7 @@ class StarHTML(Starlette):
         # Env var override for debug mode
         env_debug = os.environ.get("STARHTML_DEBUG")
         if env_debug is not None:
-            debug = env_debug in ("1", "true", "yes")
+            debug = env_debug.lower() in ("1", "true", "yes")
 
         super().__init__(
             debug,

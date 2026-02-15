@@ -52,6 +52,13 @@ class TestDebugFlag:
             StarHTML(debug=False)
         assert "debug mode" not in captured.getvalue()
 
+    def test_debug_env_case_insensitive(self):
+        """STARHTML_DEBUG=TRUE (uppercase) should work."""
+        for val in ("TRUE", "True", "YES", "Yes"):
+            with patch.dict(os.environ, {"STARHTML_DEBUG": val}):
+                app = StarHTML(debug=False)
+                assert app.debug is True, f"Failed for STARHTML_DEBUG={val}"
+
     def test_debug_no_env_var_passthrough(self):
         """Without env var, debug param passes through as-is."""
         with patch.dict(os.environ, {}, clear=False):
