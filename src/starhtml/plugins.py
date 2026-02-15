@@ -313,8 +313,8 @@ def plugins_hdrs(*plugins) -> tuple:
 # ============================================================
 
 Spring = Literal["gentle", "bouncy", "tight", "slow"]
-EnterPreset = Literal["fade", "slide-up", "slide-down", "scale", "bounce"]
-InViewPreset = Literal["fade", "slide-up", "slide-down", "scale"]
+EnterPreset = Literal["fade", "slide-up", "slide-down", "slide-left", "slide-right", "scale", "bounce"]
+InViewPreset = Literal["fade", "slide-up", "slide-down", "slide-left", "slide-right", "scale"]
 
 
 def _motion_str(type_name: str, **kwargs) -> str:

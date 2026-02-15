@@ -93,25 +93,16 @@ const persistAttributePlugin: AttributePlugin = {
       ? 0
       : Number.parseInt(String(getModValue(mods, "throttle") ?? DEFAULT_THROTTLE));
 
-    let cachedData: Record<string, any> = {};
-    let lastSavedData: Record<string, any> | null = null;
-    const isShallowEqual = (a: Record<string, any> | null, b: Record<string, any>): boolean => {
-      if (!a) return false;
-      const aKeys = Object.keys(a);
-      const bKeys = Object.keys(b);
-      if (aKeys.length !== bKeys.length) return false;
-      for (const k of aKeys) {
-        if (a[k] !== b[k]) return false;
-      }
-      return true;
+    let lastJson = "";
+    let pendingJson = "";
+    let pendingData: Record<string, any> = {};
+
+    const save = () => {
+      if (pendingJson === lastJson) return;
+      lastJson = pendingJson;
+      saveToStorage(storage, storageKey, pendingData);
     };
-    const persist = () => {
-      if (Object.keys(cachedData).length === 0) return;
-      if (isShallowEqual(lastSavedData, cachedData)) return;
-      saveToStorage(storage, storageKey, cachedData);
-      lastSavedData = { ...cachedData };
-    };
-    const throttledPersist = throttleMs > 0 ? createDebounce(persist, throttleMs) : persist;
+    const throttledSave = throttleMs > 0 ? createDebounce(save, throttleMs) : save;
 
     if (signals.length === 0) return;
 
@@ -122,8 +113,11 @@ const persistAttributePlugin: AttributePlugin = {
           data[signal] = getPath(signal);
         } catch {}
       }
-      cachedData = data;
-      throttledPersist();
+      // JSON.stringify deep-reads Proxy objects, subscribing to nested keys.
+      // Without this, dict/object signal mutations don't trigger re-runs.
+      pendingJson = JSON.stringify(data);
+      pendingData = data;
+      throttledSave();
     });
   },
 };
