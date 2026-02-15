@@ -30,6 +30,8 @@ const ANIMATION_PRESETS: Record<string, Keyframes> = {
   fade: { opacity: [0, 1] },
   "slide-up": { y: [20, 0], opacity: [0, 1] },
   "slide-down": { y: [-20, 0], opacity: [0, 1] },
+  "slide-left": { x: [20, 0], opacity: [0, 1] },
+  "slide-right": { x: [-20, 0], opacity: [0, 1] },
   scale: { scale: [0.9, 1], opacity: [0, 1] },
   bounce: { y: [-10, 0], opacity: [0, 1] },
 };

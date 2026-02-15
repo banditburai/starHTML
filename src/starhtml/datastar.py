@@ -9,7 +9,6 @@ Core types:
 - Helpers: match(), switch(), js(), f() and others for common patterns
 """
 
-import base64
 import json
 import operator
 import re
@@ -222,10 +221,9 @@ class Expr(ABC):
 
 
 def _safe_js_string(s: str) -> str:
-    """Use atob() for strings with @ or $ to avoid Datastar's expression preprocessor."""
+    """Escape @ and $ as \\uXXXX in JSON strings to avoid Datastar's expression preprocessor."""
     if re.search(r"[@$]", s):
-        b64 = base64.b64encode(s.encode()).decode()
-        return f'atob("{b64}")'
+        return re.sub(r"[@$]", lambda m: f"\\u{ord(m.group()):04x}", json.dumps(s))
     return json.dumps(s)
 
 
@@ -692,6 +690,33 @@ def reset_timeout(timer: "Signal", ms: Any, *actions: Any, window: bool = False)
     return _JSRaw(f"clearTimeout({timer_ref}); {timer_ref} = setTimeout(() => {{ {action_js} }}, {ms_js})")
 
 
+def scroll_to(
+    target: "str | Expr", *, duration: int = 400, offset: int = 0, force: bool = False, focus: bool = False,
+) -> _JSRaw:
+    """Smooth ease-out scroll to element. Skips if already visible unless force=True.
+
+    scroll_to(".my-section")
+    scroll_to(el.closest('.card'), duration=600, offset=48)
+    scroll_to("#error-field", force=True, focus=True)
+    """
+    target_js = (
+        f"document.querySelector({_safe_js_string(target)})"
+        if isinstance(target, str)
+        else _ensure_expr(target).to_js()
+    )
+    check = "" if force else "if(r.top<0||r.bottom>innerHeight)"
+    on_done = "else _e.focus()" if focus else ""
+    # Cancel previous scroll animation to prevent jitter from competing calls
+    return _JSRaw(
+        f"{{const _e={target_js};if(_e){{const r=_e.getBoundingClientRect();"
+        f"{check}{{if(window._sRaf)cancelAnimationFrame(window._sRaf);"
+        f"const s=scrollY,y=s+r.top-{offset},d={duration},t0=performance.now();"
+        f"window._sRaf=requestAnimationFrame(function f(t){{const p=Math.min((t-t0)/d,1);"
+        f"scrollTo(0,s+(y-s)*p*(2-p));"
+        f"if(p<1)window._sRaf=requestAnimationFrame(f){on_done}}})}}}}}}"
+    )
+
+
 def _action(verb: str, url: str, data: dict[str, Any] | None = None, **kwargs) -> _JSRaw:
     payload = {**(data or {}), **kwargs}
     if not payload:
@@ -712,6 +737,7 @@ Boolean = js("Boolean")
 evt = js("evt")
 el = js("el")
 document = js("document")
+window = js("window")
 
 
 def emit(event_name: str, **detail) -> _JSRaw:
@@ -902,6 +928,8 @@ def process_datastar_kwargs(kwargs: dict) -> tuple[dict, set[Signal]]:
                 js_str = expr.to_js()
                 if key in ("data_bind", "data_ref", "data_indicator") and isinstance(expr, Signal):
                     processed[normalized_key] = expr._id
+                    if signal_attr := expr.get_signal_attr():
+                        processed[signal_attr[0]] = NotStr(_to_js(signal_attr[1], allow_expressions=False))
                 elif key == "data_class":
                     processed["data-class"] = NotStr(js_str)
                 else:
@@ -955,6 +983,7 @@ __all__ = [
     "set_timeout",
     "clear_timeout",
     "reset_timeout",
+    "scroll_to",
     # Custom events
     "emit",
     # JS globals
@@ -970,6 +999,7 @@ __all__ = [
     "evt",
     "el",
     "document",
+    "window",
     "process_datastar_kwargs",
     "to_js_value",
     # Plugin registration

@@ -240,6 +240,15 @@ class TestSpecialDataAttributes:
 
         assert processed["data-bind"] == "username"
 
+    def test_data_bind_declares_signal_with_initial_value(self):
+        """data_bind with a Signal should also emit data-signals declaration."""
+        title = Signal("notebook_title", "My Notebook")
+        kwargs = {"data_bind": title}
+        processed, _ = process_datastar_kwargs(kwargs)
+
+        assert processed["data-bind"] == "notebook_title"
+        assert "data-signals:notebook_title__ifmissing" in processed
+
     def test_data_ref_uses_signal_id(self):
         """data_ref with a Signal should use the signal's id."""
         my_ref = Signal("my_ref", None)
