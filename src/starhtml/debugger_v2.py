@@ -400,6 +400,9 @@ if (copyAllBtn) {
             copyAllBtn.textContent = 'Copied!';
             copyAllBtn.classList.add('copied');
             setTimeout(() => { copyAllBtn.textContent = 'Copy All'; copyAllBtn.classList.remove('copied'); }, 1500);
+        }).catch(() => {
+            copyAllBtn.textContent = 'Failed';
+            setTimeout(() => { copyAllBtn.textContent = 'Copy All'; }, 1500);
         });
     });
 }
@@ -422,6 +425,9 @@ if (eventListEl) {
                 copyBtn.textContent = 'Copied!';
                 copyBtn.classList.add('copied');
                 setTimeout(() => { copyBtn.textContent = 'Copy'; copyBtn.classList.remove('copied'); }, 1500);
+            }).catch(() => {
+                copyBtn.textContent = 'Failed';
+                setTimeout(() => { copyBtn.textContent = 'Copy'; }, 1500);
             });
             return;
         }
@@ -481,7 +487,7 @@ function renderSSETab() {
     for (const chip of capture.CHIP_CATEGORIES) {
         const count = visible.filter(ev => chip.types.includes(ev.type)).length;
         const chipEl = chipRefs[chip.key];
-        if (chipEl) chipEl.textContent = chip.label + ' (' + count + ')';
+        if (chipEl) chipEl.textContent = chip.label.charAt(0).toUpperCase() + chip.label.slice(1) + ' (' + count + ')';
     }
 
     // Update event count label
@@ -511,7 +517,8 @@ function renderSSETab() {
         }
     }
 
-    // Full render fallback
+    // Full render fallback — reset expand state since innerHTML wipes detail divs
+    $$expanded_id = -1;
     let html = '';
     for (const ev of filtered) html += capture.buildRowHtml(ev);
     eventListEl.innerHTML = html;
