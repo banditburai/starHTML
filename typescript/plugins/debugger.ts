@@ -45,6 +45,45 @@ export function getMorphWindow() { return morphWindow; }
 
 let panelRef: StarHTMLDebugger | null = null;
 
+// ============================================================================
+// MutationObserver — morph correlation
+// ============================================================================
+
+let observer: MutationObserver | null = null;
+const debuggerTag = "starhtml-debugger";
+
+function startObserving(): void {
+  if (observer) return;
+  observer = new MutationObserver((records) => {
+    // Filter out mutations within the debugger itself
+    const filtered = records.filter(r => {
+      let node = r.target as HTMLElement;
+      while (node) {
+        if (node.tagName?.toLowerCase() === debuggerTag) return false;
+        node = node.parentElement as HTMLElement;
+      }
+      return true;
+    });
+
+    // If morph window is open, collect records
+    if (morphWindow && filtered.length > 0) {
+      morphWindow.records.push(...filtered);
+    }
+  });
+
+  observer.observe(document.body, {
+    childList: true,
+    attributes: true,
+    attributeOldValue: true,
+    subtree: true,
+  });
+}
+
+function stopObserving(): void {
+  observer?.disconnect();
+  observer = null;
+}
+
 function captureSSEEvents(): void {
   document.addEventListener("datastar-fetch", (e: Event) => {
     const detail = (e as CustomEvent).detail;
@@ -313,6 +352,7 @@ class StarHTMLDebugger extends HTMLElement {
       document.removeEventListener("keydown", this.keydownHandler);
       this.keydownHandler = null;
     }
+    stopObserving();
   }
 
   private render(): void {
@@ -340,6 +380,7 @@ class StarHTMLDebugger extends HTMLElement {
 
     if (this.isOpen) {
       this.panel.classList.add("open");
+      startObserving();
     }
 
     this.setupEventListeners();
@@ -397,7 +438,10 @@ class StarHTMLDebugger extends HTMLElement {
     if (this.isOpen) {
       this.unseenCount = 0;
       this.badge.style.display = "none";
+      startObserving();
       this.renderTabContent();
+    } else {
+      stopObserving();
     }
   }
 
