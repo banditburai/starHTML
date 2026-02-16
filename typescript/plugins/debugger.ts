@@ -316,6 +316,13 @@ const PANEL_STYLES = `
     font-weight: 600;
   }
   .jump-btn:hover { background: #b4d0fb; }
+  .morph-summary { color: #a6e3a1; margin-bottom: 4px; }
+  .morph-list { padding-left: 12px; }
+  .morph-item { padding: 1px 0; }
+  .morph-item .selector { color: #89b4fa; }
+  .morph-item .old-val { color: #f38ba8; text-decoration: line-through; }
+  .morph-item .new-val { color: #a6e3a1; }
+  .morph-item .flash-warn { color: #f9e2af; }
 `;
 
 const TYPE_CONFIG: Record<string, { label: string; cls: string }> = {
@@ -334,6 +341,15 @@ function formatTime(ts: number): string {
 
 function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+function selectorPath(el: Element): string {
+  if (el.id) return `#${el.id}`;
+  let path = el.tagName.toLowerCase();
+  if (el.className && typeof el.className === "string") {
+    path += "." + el.className.trim().split(/\s+/).slice(0, 2).join(".");
+  }
+  return path;
 }
 
 class StarHTMLDebugger extends HTMLElement {
@@ -646,12 +662,57 @@ class StarHTMLDebugger extends HTMLElement {
       parts.push(escapeHtml(json));
     }
 
-    // Morph records summary (rendered in detail in Task 8)
+    // Morph detail display
     if (ev.morphRecords && ev.morphRecords.length > 0) {
-      const added = ev.morphRecords.filter(r => r.type === "childList" && r.addedNodes.length > 0).length;
-      const removed = ev.morphRecords.filter(r => r.type === "childList" && r.removedNodes.length > 0).length;
-      const attrs = ev.morphRecords.filter(r => r.type === "attributes").length;
-      parts.push(`<b>morphs:</b> ${added} added, ${removed} removed, ${attrs} attributes`);
+      const addedCount = ev.morphRecords.filter(r => r.type === "childList" && r.addedNodes.length > 0).length;
+      const removedCount = ev.morphRecords.filter(r => r.type === "childList" && r.removedNodes.length > 0).length;
+      const attrsCount = ev.morphRecords.filter(r => r.type === "attributes").length;
+      const charCount = ev.morphRecords.filter(r => r.type === "characterData").length;
+
+      let summary = `<div class="morph-summary"><b>morphs:</b> ${addedCount} added, ${removedCount} removed, ${attrsCount} attributes`;
+      if (charCount > 0) summary += `, ${charCount} text`;
+      summary += `</div>`;
+
+      // Flash detection: same element + same attribute changed multiple times
+      const attrChanges = new Map<string, number>();
+      for (const r of ev.morphRecords) {
+        if (r.type === "attributes" && r.target instanceof Element) {
+          const key = `${selectorPath(r.target)}[${r.attributeName}]`;
+          attrChanges.set(key, (attrChanges.get(key) ?? 0) + 1);
+        }
+      }
+
+      let items = "";
+      for (const r of ev.morphRecords) {
+        if (r.type === "childList") {
+          for (const node of r.addedNodes) {
+            if (node instanceof Element) {
+              const parent = r.target instanceof Element ? selectorPath(r.target) : r.target.nodeName;
+              items += `<div class="morph-item">+ Added <span class="selector">&lt;${escapeHtml(selectorPath(node))}&gt;</span> to <span class="selector">${escapeHtml(parent)}</span></div>`;
+            }
+          }
+          for (const node of r.removedNodes) {
+            if (node instanceof Element) {
+              const parent = r.target instanceof Element ? selectorPath(r.target) : r.target.nodeName;
+              items += `<div class="morph-item">- Removed <span class="selector">&lt;${escapeHtml(selectorPath(node))}&gt;</span> from <span class="selector">${escapeHtml(parent)}</span></div>`;
+            }
+          }
+        } else if (r.type === "attributes" && r.target instanceof Element) {
+          const sel = selectorPath(r.target);
+          const attr = r.attributeName ?? "";
+          const oldVal = r.oldValue ?? "";
+          const newVal = (r.target as Element).getAttribute(attr) ?? "";
+          const key = `${sel}[${attr}]`;
+          const flash = (attrChanges.get(key) ?? 0) > 1 ? ` <span class="flash-warn">&#9888; flash</span>` : "";
+          items += `<div class="morph-item">~ <span class="selector">${escapeHtml(sel)}</span> [${escapeHtml(attr)}] <span class="old-val">${escapeHtml(oldVal)}</span> → <span class="new-val">${escapeHtml(newVal)}</span>${flash}</div>`;
+        } else if (r.type === "characterData") {
+          const parent = r.target.parentElement;
+          const sel = parent ? selectorPath(parent) : "#text";
+          items += `<div class="morph-item">~ text in <span class="selector">${escapeHtml(sel)}</span></div>`;
+        }
+      }
+
+      parts.push(summary + (items ? `<div class="morph-list">${items}</div>` : ""));
     }
 
     return parts.join("\n");
