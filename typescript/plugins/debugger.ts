@@ -145,6 +145,7 @@ const PANEL_STYLES = `
     z-index: 99999;
     font-family: ui-monospace, 'SF Mono', Monaco, 'Cascadia Mono', monospace;
     font-size: 12px;
+    line-height: 1.5;
     color-scheme: dark;
   }
   :host, :host * { box-sizing: border-box; }
@@ -178,15 +179,23 @@ const PANEL_STYLES = `
     flex-direction: column;
     overflow: hidden;
   }
-  .debugger-panel.open {
-    display: flex;
-  }
+  .debugger-panel.open { display: flex; }
   .resize-handle {
-    height: 4px;
+    height: 6px;
     cursor: ns-resize;
     background: transparent;
+    display: flex;
+    justify-content: center;
+    align-items: center;
   }
-  .resize-handle:hover { background: #89b4fa33; }
+  .resize-handle::after {
+    content: '';
+    width: 36px;
+    height: 3px;
+    border-radius: 2px;
+    background: #45475a;
+  }
+  .resize-handle:hover::after { background: #89b4fa; }
   .tab-bar {
     display: flex;
     border-bottom: 1px solid #45475a;
@@ -196,23 +205,31 @@ const PANEL_STYLES = `
     padding: 6px 16px;
     background: none;
     border: none;
-    color: #6c7086;
+    color: #9399b2;
     cursor: pointer;
     border-bottom: 2px solid transparent;
     font-family: inherit;
     font-size: 11px;
+    transition: color 0.1s ease, border-color 0.1s ease;
   }
   .tab-btn.active {
     color: #89b4fa;
     border-bottom-color: #89b4fa;
   }
   .tab-btn:hover { color: #cdd6f4; }
+  .tab-btn:focus-visible { outline: 2px solid #89b4fa; outline-offset: -2px; }
   .tab-content {
     flex: 1;
     overflow-y: auto;
     padding: 8px;
     position: relative;
+    scrollbar-width: thin;
+    scrollbar-color: #45475a transparent;
   }
+  .tab-content::-webkit-scrollbar { width: 8px; }
+  .tab-content::-webkit-scrollbar-track { background: transparent; }
+  .tab-content::-webkit-scrollbar-thumb { background: #45475a; border-radius: 4px; }
+  .tab-content::-webkit-scrollbar-thumb:hover { background: #585b70; }
   .toolbar {
     display: flex;
     align-items: center;
@@ -224,70 +241,94 @@ const PANEL_STYLES = `
     background: #313244;
     border: 1px solid #45475a;
     color: #cdd6f4;
-    padding: 2px 8px;
+    padding: 4px 8px;
     border-radius: 4px;
     font-family: inherit;
     font-size: 11px;
   }
+  .toolbar input::placeholder { color: #585b70; opacity: 1; }
+  .toolbar input:focus-visible { outline: 2px solid #89b4fa; outline-offset: -1px; }
   .toolbar button {
     background: #313244;
     border: 1px solid #45475a;
     color: #cdd6f4;
-    padding: 2px 8px;
+    padding: 4px 8px;
     border-radius: 4px;
     cursor: pointer;
     font-family: inherit;
     font-size: 11px;
   }
   .toolbar button:hover { background: #45475a; }
+  .toolbar button:focus-visible { outline: 2px solid #89b4fa; outline-offset: -1px; }
   .toolbar .clear-events-btn { color: #a6adc8; }
   .toolbar .clear-events-btn:hover { color: #f38ba8; background: #3e1525; border-color: #f38ba8; }
   .filter-wrap { position: relative; display: flex; align-items: center; }
   .filter-wrap .clear-filter-btn {
     position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
-    background: none; border: none; color: #6c7086; cursor: pointer;
+    background: none; border: none; color: #9399b2; cursor: pointer;
     font-size: 14px; padding: 0 4px; line-height: 1;
   }
   .filter-wrap .clear-filter-btn:hover { color: #cdd6f4; }
-  .toolbar .count { color: #6c7086; margin-left: auto; }
+  .toolbar .count { color: #9399b2; margin-left: auto; }
   .event-list { display: flex; flex-direction: column; }
   .event-row {
     display: flex;
     align-items: baseline;
     gap: 8px;
-    padding: 3px 4px;
-    border-bottom: 1px solid #181825;
+    padding: 4px 8px;
+    border-bottom: 1px solid #11111b;
     cursor: pointer;
     white-space: nowrap;
   }
-  .event-row:hover { background: #313244; }
-  .event-row.expanded { background: #313244; }
-  .event-time { color: #6c7086; flex-shrink: 0; }
-  .event-type {
-    padding: 1px 6px;
-    border-radius: 3px;
+  .event-row::before {
+    content: '\\25B8';
+    color: #585b70;
+    flex-shrink: 0;
+    width: 12px;
+    text-align: center;
     font-size: 10px;
+  }
+  .event-row.expanded::before {
+    content: '\\25BE';
+    color: #9399b2;
+  }
+  .event-row:hover { background: #2a2b3d; }
+  .event-row.expanded { background: #313244; border-bottom-color: transparent; }
+  .event-time { color: #9399b2; flex-shrink: 0; }
+  .event-type {
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 11px;
     font-weight: 600;
     flex-shrink: 0;
+    min-width: 56px;
+    text-align: center;
   }
   .type-signals { background: #1e3a5f; color: #89b4fa; }
   .type-elements { background: #1e3f2a; color: #a6e3a1; }
   .type-script { background: #2e1f5e; color: #cba6f7; }
-  .type-lifecycle { background: #313244; color: #6c7086; }
+  .type-lifecycle { background: #313244; color: #bac2de; }
   .type-error { background: #3e1525; color: #f38ba8; }
   .event-handler { color: #f9e2af; flex-shrink: 0; }
-  .event-route { color: #6c7086; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .event-route { color: #9399b2; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
   .event-detail {
     padding: 6px 8px 6px 24px;
     background: #181825;
-    border-bottom: 1px solid #313244;
+    border-bottom: 1px solid #11111b;
+    border-left: 2px solid #89b4fa;
     white-space: pre-wrap;
-    word-break: break-all;
+    word-break: break-word;
+    overflow-wrap: break-word;
     font-size: 11px;
     color: #a6adc8;
     max-height: 200px;
     overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #45475a transparent;
   }
+  .event-detail::-webkit-scrollbar { width: 6px; }
+  .event-detail::-webkit-scrollbar-track { background: transparent; }
+  .event-detail::-webkit-scrollbar-thumb { background: #45475a; border-radius: 3px; }
   .jump-btn {
     position: absolute;
     bottom: 8px;
@@ -306,6 +347,9 @@ const PANEL_STYLES = `
   .morph-summary { color: #a6e3a1; margin-bottom: 4px; }
   .morph-list { padding-left: 12px; }
   .morph-item { padding: 1px 0; }
+  .morph-item .added { color: #a6e3a1; }
+  .morph-item .removed { color: #f38ba8; }
+  .morph-item .changed { color: #f9e2af; }
   .morph-item .selector { color: #89b4fa; }
   .morph-item .old-val { color: #f38ba8; text-decoration: line-through; }
   .morph-item .new-val { color: #a6e3a1; }
@@ -669,18 +713,18 @@ class StarHTMLDebugger extends HTMLElement {
           const parent = r.target instanceof Element ? selectorPath(r.target) : r.target.nodeName;
           for (const node of r.addedNodes) {
             if (node instanceof Element) {
-              items += `<div class="morph-item">+ Added <span class="selector">&lt;${escapeHtml(selectorPath(node))}&gt;</span> to <span class="selector">${escapeHtml(parent)}</span></div>`;
+              items += `<div class="morph-item"><span class="added">+</span> Added <span class="selector">&lt;${escapeHtml(selectorPath(node))}&gt;</span> to <span class="selector">${escapeHtml(parent)}</span></div>`;
             } else if (node.nodeType === Node.TEXT_NODE) {
               const preview = (node.textContent ?? "").slice(0, 40);
-              items += `<div class="morph-item">+ Added text "${escapeHtml(preview)}" to <span class="selector">${escapeHtml(parent)}</span></div>`;
+              items += `<div class="morph-item"><span class="added">+</span> Added text "${escapeHtml(preview)}" to <span class="selector">${escapeHtml(parent)}</span></div>`;
             }
           }
           for (const node of r.removedNodes) {
             if (node instanceof Element) {
-              items += `<div class="morph-item">- Removed <span class="selector">&lt;${escapeHtml(selectorPath(node))}&gt;</span> from <span class="selector">${escapeHtml(parent)}</span></div>`;
+              items += `<div class="morph-item"><span class="removed">-</span> Removed <span class="selector">&lt;${escapeHtml(selectorPath(node))}&gt;</span> from <span class="selector">${escapeHtml(parent)}</span></div>`;
             } else if (node.nodeType === Node.TEXT_NODE) {
               const preview = (node.textContent ?? "").slice(0, 40);
-              items += `<div class="morph-item">- Removed text "${escapeHtml(preview)}" from <span class="selector">${escapeHtml(parent)}</span></div>`;
+              items += `<div class="morph-item"><span class="removed">-</span> Removed text "${escapeHtml(preview)}" from <span class="selector">${escapeHtml(parent)}</span></div>`;
             }
           }
         } else if (r.type === "attributes" && r.target instanceof Element) {
@@ -691,7 +735,7 @@ class StarHTMLDebugger extends HTMLElement {
           const elId = elementIds.get(r.target);
           const key = `${elId}[${attr}]`;
           const flash = (attrChanges.get(key) ?? 0) > 1 ? ` <span class="flash-warn">&#9888; flash</span>` : "";
-          items += `<div class="morph-item">~ <span class="selector">${escapeHtml(sel)}</span> [${escapeHtml(attr)}] <span class="old-val">${escapeHtml(oldVal)}</span> → <span class="new-val">${escapeHtml(newVal)}</span>${flash}</div>`;
+          items += `<div class="morph-item"><span class="changed">~</span> <span class="selector">${escapeHtml(sel)}</span> [${escapeHtml(attr)}] <span class="old-val">${escapeHtml(oldVal)}</span> → <span class="new-val">${escapeHtml(newVal)}</span>${flash}</div>`;
         } else if (r.type === "characterData") {
           const parent = r.target.parentElement;
           const sel = parent ? selectorPath(parent) : "#text";
