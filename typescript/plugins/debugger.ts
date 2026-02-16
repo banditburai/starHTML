@@ -52,6 +52,8 @@ let panelRef: StarHTMLDebugger | null = null;
 let observer: MutationObserver | null = null;
 const DEBUGGER_TAG = "STARHTML-DEBUGGER";
 const MAX_MORPH_RECORDS = 500;
+// Capture attribute newValue at observation time (MutationRecord only stores oldValue)
+const attrNewValues = new WeakMap<MutationRecord, string>();
 
 function startObserving(): void {
   if (observer) return;
@@ -74,6 +76,10 @@ function startObserving(): void {
           }
         }
         if (skip) continue;
+      }
+      // Capture current attribute value at observation time
+      if (r.type === "attributes" && r.target instanceof Element) {
+        attrNewValues.set(r, r.target.getAttribute(r.attributeName ?? "") ?? "");
       }
       morphWindow.records.push(r);
     }
@@ -674,10 +680,14 @@ class StarHTMLDebugger extends HTMLElement {
       summary += `</div>`;
 
       // Flash detection: same element + same attribute changed multiple times
+      // Use element identity (WeakMap) to avoid false positives from non-unique selectors
+      const elementIds = new WeakMap<Element, number>();
       const attrChanges = new Map<string, number>();
+      let nextElId = 0;
       for (const r of ev.morphRecords) {
         if (r.type === "attributes" && r.target instanceof Element) {
-          const key = `${selectorPath(r.target)}[${r.attributeName}]`;
+          if (!elementIds.has(r.target)) elementIds.set(r.target, nextElId++);
+          const key = `${elementIds.get(r.target)}[${r.attributeName}]`;
           attrChanges.set(key, (attrChanges.get(key) ?? 0) + 1);
         }
       }
@@ -685,24 +695,30 @@ class StarHTMLDebugger extends HTMLElement {
       let items = "";
       for (const r of ev.morphRecords) {
         if (r.type === "childList") {
+          const parent = r.target instanceof Element ? selectorPath(r.target) : r.target.nodeName;
           for (const node of r.addedNodes) {
             if (node instanceof Element) {
-              const parent = r.target instanceof Element ? selectorPath(r.target) : r.target.nodeName;
               items += `<div class="morph-item">+ Added <span class="selector">&lt;${escapeHtml(selectorPath(node))}&gt;</span> to <span class="selector">${escapeHtml(parent)}</span></div>`;
+            } else if (node.nodeType === Node.TEXT_NODE) {
+              const preview = (node.textContent ?? "").slice(0, 40);
+              items += `<div class="morph-item">+ Added text "${escapeHtml(preview)}" to <span class="selector">${escapeHtml(parent)}</span></div>`;
             }
           }
           for (const node of r.removedNodes) {
             if (node instanceof Element) {
-              const parent = r.target instanceof Element ? selectorPath(r.target) : r.target.nodeName;
               items += `<div class="morph-item">- Removed <span class="selector">&lt;${escapeHtml(selectorPath(node))}&gt;</span> from <span class="selector">${escapeHtml(parent)}</span></div>`;
+            } else if (node.nodeType === Node.TEXT_NODE) {
+              const preview = (node.textContent ?? "").slice(0, 40);
+              items += `<div class="morph-item">- Removed text "${escapeHtml(preview)}" from <span class="selector">${escapeHtml(parent)}</span></div>`;
             }
           }
         } else if (r.type === "attributes" && r.target instanceof Element) {
           const sel = selectorPath(r.target);
           const attr = r.attributeName ?? "";
           const oldVal = r.oldValue ?? "";
-          const newVal = (r.target as Element).getAttribute(attr) ?? "";
-          const key = `${sel}[${attr}]`;
+          const newVal = attrNewValues.get(r) ?? (r.target as Element).getAttribute(attr) ?? "";
+          const elId = elementIds.get(r.target);
+          const key = `${elId}[${attr}]`;
           const flash = (attrChanges.get(key) ?? 0) > 1 ? ` <span class="flash-warn">&#9888; flash</span>` : "";
           items += `<div class="morph-item">~ <span class="selector">${escapeHtml(sel)}</span> [${escapeHtml(attr)}] <span class="old-val">${escapeHtml(oldVal)}</span> → <span class="new-val">${escapeHtml(newVal)}</span>${flash}</div>`;
         } else if (r.type === "characterData") {
