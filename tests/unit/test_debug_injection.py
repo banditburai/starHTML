@@ -1,6 +1,7 @@
 """Tests for debugger auto-injection when debug=True."""
 
 import os
+import sys
 from unittest.mock import patch
 
 from starhtml.core import StarHTML
@@ -56,3 +57,34 @@ class TestDebugInjection:
             app = StarHTML(debug=False)
             hdrs_html = "".join(str(h) for h in app.hdrs)
             assert "debugger-capture.js" in hdrs_html
+
+    def test_graceful_fallback_without_starelements(self):
+        """When starelements is missing, debugger prints warning and skips."""
+        import importlib
+        import starhtml.debugger as dbg_mod
+
+        # Evict cached debugger_v2 so the import is re-attempted
+        cached = {
+            k: sys.modules.pop(k)
+            for k in list(sys.modules)
+            if k.startswith("starelements") or k == "starhtml.debugger_v2"
+        }
+        try:
+            real_import = importlib.__import__
+
+            def mock_import(name, *args, **kwargs):
+                if name == "starelements" or name.startswith("starelements."):
+                    raise ModuleNotFoundError(f"No module named '{name}'")
+                return real_import(name, *args, **kwargs)
+
+            with patch("builtins.__import__", side_effect=mock_import):
+                # Reload debugger module to clear any cached import
+                importlib.reload(dbg_mod)
+                app = StarHTML(debug=True)
+                hdrs_html = "".join(str(h) for h in app.hdrs)
+                ftrs_html = "".join(str(h) for h in app.ftrs)
+                assert "debugger-capture.js" not in hdrs_html
+                assert "starhtml-debugger" not in ftrs_html
+        finally:
+            sys.modules.update(cached)
+            importlib.reload(dbg_mod)
