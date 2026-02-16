@@ -50,24 +50,32 @@ let panelRef: StarHTMLDebugger | null = null;
 // ============================================================================
 
 let observer: MutationObserver | null = null;
-const debuggerTag = "starhtml-debugger";
+const DEBUGGER_TAG = "STARHTML-DEBUGGER";
+const MAX_MORPH_RECORDS = 500;
 
 function startObserving(): void {
   if (observer) return;
   observer = new MutationObserver((records) => {
-    // Filter out mutations within the debugger itself
-    const filtered = records.filter(r => {
-      let node = r.target as HTMLElement;
-      while (node) {
-        if (node.tagName?.toLowerCase() === debuggerTag) return false;
-        node = node.parentElement as HTMLElement;
-      }
-      return true;
-    });
+    if (!morphWindow) return;
 
-    // If morph window is open, collect records
-    if (morphWindow && filtered.length > 0) {
-      morphWindow.records.push(...filtered);
+    // Shadow DOM isolates debugger-internal mutations from this observer.
+    // Only filter light-DOM mutations that target or add/remove the debugger element.
+    for (const r of records) {
+      if (morphWindow.records.length >= MAX_MORPH_RECORDS) break;
+      if ((r.target as Element).tagName === DEBUGGER_TAG) continue;
+      if (r.type === "childList") {
+        let skip = false;
+        for (const node of r.addedNodes) {
+          if ((node as Element).tagName === DEBUGGER_TAG) { skip = true; break; }
+        }
+        if (!skip) {
+          for (const node of r.removedNodes) {
+            if ((node as Element).tagName === DEBUGGER_TAG) { skip = true; break; }
+          }
+        }
+        if (skip) continue;
+      }
+      morphWindow.records.push(r);
     }
   });
 
@@ -75,13 +83,24 @@ function startObserving(): void {
     childList: true,
     attributes: true,
     attributeOldValue: true,
+    characterData: true,
+    characterDataOldValue: true,
     subtree: true,
   });
 }
 
 function stopObserving(): void {
-  observer?.disconnect();
-  observer = null;
+  if (observer) {
+    const pending = observer.takeRecords();
+    if (morphWindow && pending.length > 0) {
+      for (const r of pending) {
+        if (morphWindow.records.length >= MAX_MORPH_RECORDS) break;
+        morphWindow.records.push(r);
+      }
+    }
+    observer.disconnect();
+    observer = null;
+  }
 }
 
 function captureSSEEvents(): void {
