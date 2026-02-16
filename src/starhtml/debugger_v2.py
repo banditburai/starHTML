@@ -283,7 +283,7 @@ DEBUGGER_CSS = """
 """
 
 DEBUGGER_SETUP = """
-// --- Task 4: Lifecycle + persistence ---
+// --- Lifecycle + persistence ---
 
 // Initialize capture module (SSE event interception)
 capture.init();
@@ -326,7 +326,7 @@ onCleanup(() => { document.documentElement.style.paddingBottom = ''; });
 // Reset unseen count when panel opens
 effect(() => { if ($$is_open) $$unseen_count = 0; });
 
-// --- Task 5: Render pipeline ---
+// --- Render pipeline ---
 
 // Local render state (plain vars, not signals — no reactivity needed)
 let lastRenderedIds = [];
@@ -545,7 +545,7 @@ effect(() => {
     needsFullRender = true;
 });
 
-// --- Task 6: Resize + keyboard ---
+// --- Resize + keyboard ---
 
 // Resize handle drag
 const resizeHandle = refs('resize_handle');
