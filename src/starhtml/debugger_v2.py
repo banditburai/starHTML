@@ -296,12 +296,14 @@ const unsub = capture.subscribe(() => {
 onCleanup(unsub);
 
 // Restore state from sessionStorage
-const storedOpen = sessionStorage.getItem('starhtml-debug-open');
-if (storedOpen === 'true') $$is_open = true;
-const storedHeight = Number(sessionStorage.getItem('starhtml-debug-height'));
-if (storedHeight > 0) $$panel_height = storedHeight;
-const storedTab = sessionStorage.getItem('starhtml-debug-tab');
-if (storedTab) $$active_tab = storedTab;
+try {
+    const storedOpen = sessionStorage.getItem('starhtml-debug-open');
+    if (storedOpen === 'true') $$is_open = true;
+    const storedHeight = Number(sessionStorage.getItem('starhtml-debug-height'));
+    if (storedHeight > 0) $$panel_height = storedHeight;
+    const storedTab = sessionStorage.getItem('starhtml-debug-tab');
+    if (storedTab) $$active_tab = storedTab;
+} catch(e) { /* sessionStorage unavailable (sandboxed iframe, privacy mode) */ }
 
 // Persist signal changes to sessionStorage
 effect(() => sessionStorage.setItem('starhtml-debug-open', String($$is_open)));
@@ -313,6 +315,7 @@ effect(() => {
     if ($$is_open) capture.startObserving();
     else capture.stopObserving();
 });
+onCleanup(() => capture.stopObserving());
 
 // Page inset — push page content above the panel
 effect(() => {
