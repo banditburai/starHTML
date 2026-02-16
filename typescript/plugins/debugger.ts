@@ -199,7 +199,79 @@ const PANEL_STYLES = `
     font-size: 11px;
   }
   .toolbar button:hover { background: #45475a; }
+  .toolbar .count { color: #6c7086; margin-left: auto; }
+  .event-list { display: flex; flex-direction: column; }
+  .event-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 3px 4px;
+    border-bottom: 1px solid #181825;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .event-row:hover { background: #313244; }
+  .event-row.expanded { background: #313244; }
+  .event-time { color: #6c7086; flex-shrink: 0; }
+  .event-type {
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+  .type-signals { background: #1e3a5f; color: #89b4fa; }
+  .type-elements { background: #1e3f2a; color: #a6e3a1; }
+  .type-script { background: #2e1f5e; color: #cba6f7; }
+  .type-lifecycle { background: #313244; color: #6c7086; }
+  .type-error { background: #3e1525; color: #f38ba8; }
+  .event-handler { color: #f9e2af; flex-shrink: 0; }
+  .event-route { color: #6c7086; overflow: hidden; text-overflow: ellipsis; }
+  .event-detail {
+    padding: 6px 8px 6px 24px;
+    background: #181825;
+    border-bottom: 1px solid #313244;
+    white-space: pre-wrap;
+    word-break: break-all;
+    font-size: 11px;
+    color: #a6adc8;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+  .jump-btn {
+    position: absolute;
+    bottom: 8px;
+    right: 16px;
+    background: #89b4fa;
+    color: #1e1e2e;
+    border: none;
+    padding: 4px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .jump-btn:hover { background: #b4d0fb; }
 `;
+
+const TYPE_CONFIG: Record<string, { label: string; cls: string }> = {
+  "datastar-patch-signals": { label: "signals", cls: "type-signals" },
+  "datastar-patch-elements": { label: "elements", cls: "type-elements" },
+  "datastar-execute-script": { label: "script", cls: "type-script" },
+  "started": { label: "start", cls: "type-lifecycle" },
+  "finished": { label: "done", cls: "type-lifecycle" },
+  "error": { label: "error", cls: "type-error" },
+};
+
+function formatTime(ts: number): string {
+  const d = new Date(ts);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}.${String(d.getMilliseconds()).padStart(3, "0")}`;
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
 
 class StarHTMLDebugger extends HTMLElement {
   private shadow: ShadowRoot;
@@ -211,6 +283,10 @@ class StarHTMLDebugger extends HTMLElement {
   private badge!: HTMLSpanElement;
   private unseenCount: number = 0;
   private keydownHandler: ((e: KeyboardEvent) => void) | null = null;
+  private filterText: string = "";
+  private expandedIdx: number = -1;
+  private rafPending: boolean = false;
+  private userAtBottom: boolean = true;
 
   constructor() {
     super();
@@ -255,9 +331,15 @@ class StarHTMLDebugger extends HTMLElement {
     this.tab = this.shadow.querySelector(".debugger-tab")!;
     this.badge = this.shadow.querySelector(".badge")!;
 
-    if (this.isOpen) this.panel.classList.add("open");
+    if (this.isOpen) {
+      this.panel.classList.add("open");
+    }
 
     this.setupEventListeners();
+
+    if (this.isOpen) {
+      this.renderTabContent();
+    }
   }
 
   private setupEventListeners(): void {
@@ -308,6 +390,7 @@ class StarHTMLDebugger extends HTMLElement {
     if (this.isOpen) {
       this.unseenCount = 0;
       this.badge.style.display = "none";
+      this.renderTabContent();
     }
   }
 
@@ -317,7 +400,8 @@ class StarHTMLDebugger extends HTMLElement {
     for (const btn of this.shadow.querySelectorAll(".tab-btn")) {
       btn.classList.toggle("active", (btn as HTMLElement).dataset.tab === tabId);
     }
-    // Re-render tab content (implemented in Task 6)
+    this.expandedIdx = -1;
+    this.renderTabContent();
   }
 
   // Called by event capture (Task 5) when new events arrive
@@ -327,6 +411,161 @@ class StarHTMLDebugger extends HTMLElement {
       this.badge.textContent = String(this.unseenCount);
       this.badge.style.display = "";
     }
+    this.scheduleRender();
+  }
+
+  private scheduleRender(): void {
+    if (this.rafPending) return;
+    this.rafPending = true;
+    requestAnimationFrame(() => {
+      this.rafPending = false;
+      if (this.isOpen && this.activeTab === "sse") {
+        this.renderSSETab();
+      }
+    });
+  }
+
+  private renderTabContent(): void {
+    if (this.activeTab === "sse") {
+      this.renderSSETab();
+    } else {
+      const content = this.shadow.getElementById("tab-content")!;
+      content.innerHTML = `<div style="color:#6c7086;padding:16px;">Coming in Phase 2</div>`;
+    }
+  }
+
+  private renderSSETab(): void {
+    const content = this.shadow.getElementById("tab-content")!;
+    const filter = this.filterText.toLowerCase();
+
+    const filtered = filter
+      ? events.filter(ev => {
+          const typeCfg = TYPE_CONFIG[ev.type];
+          const label = typeCfg?.label ?? ev.type;
+          const handler = ev.debugMeta?.handler ?? "";
+          const route = ev.debugMeta?.route ?? "";
+          return label.includes(filter) || handler.includes(filter) || route.includes(filter) || ev.type.includes(filter);
+        })
+      : events;
+
+    // Check scroll position before re-render
+    const wasAtBottom = this.userAtBottom;
+
+    let html = `<div class="toolbar">
+      <input type="text" placeholder="Filter..." value="${escapeHtml(this.filterText)}" class="filter-input" style="width:160px">
+      <button class="clear-btn">Clear</button>
+      <span class="count">${filtered.length} event${filtered.length !== 1 ? "s" : ""}</span>
+    </div>
+    <div class="event-list" style="position:relative">`;
+
+    for (let i = 0; i < filtered.length; i++) {
+      const ev = filtered[i];
+      const cfg = TYPE_CONFIG[ev.type] ?? { label: ev.type.replace("datastar-", ""), cls: "type-lifecycle" };
+      const handler = ev.debugMeta?.handler ?? "";
+      const route = ev.debugMeta?.route ?? "";
+      const globalIdx = events.indexOf(ev);
+      const expanded = globalIdx === this.expandedIdx;
+
+      html += `<div class="event-row${expanded ? " expanded" : ""}" data-idx="${globalIdx}">
+        <span class="event-time">${formatTime(ev.timestamp)}</span>
+        <span class="event-type ${cfg.cls}">${cfg.label}</span>
+        ${handler ? `<span class="event-handler">${escapeHtml(handler)}</span>` : ""}
+        ${route ? `<span class="event-route">${escapeHtml(route)}</span>` : ""}
+      </div>`;
+
+      if (expanded) {
+        const detail = this.formatEventDetail(ev);
+        html += `<div class="event-detail">${detail}</div>`;
+      }
+    }
+
+    html += `</div>`;
+
+    // Jump to latest button (shown when scrolled up)
+    if (!this.userAtBottom && filtered.length > 0) {
+      html += `<button class="jump-btn">Jump to latest</button>`;
+    }
+
+    content.innerHTML = html;
+
+    // Attach event listeners
+    const filterInput = content.querySelector(".filter-input") as HTMLInputElement | null;
+    filterInput?.addEventListener("input", (e) => {
+      this.filterText = (e.target as HTMLInputElement).value;
+      this.expandedIdx = -1;
+      this.renderSSETab();
+    });
+
+    const clearBtn = content.querySelector(".clear-btn");
+    clearBtn?.addEventListener("click", () => {
+      clearEvents();
+      this.expandedIdx = -1;
+      this.renderSSETab();
+    });
+
+    const jumpBtn = content.querySelector(".jump-btn");
+    jumpBtn?.addEventListener("click", () => {
+      const list = content.querySelector(".event-list");
+      if (list) {
+        list.scrollTop = list.scrollHeight;
+        this.userAtBottom = true;
+        jumpBtn.remove();
+      }
+    });
+
+    // Row click to expand/collapse
+    for (const row of content.querySelectorAll(".event-row")) {
+      row.addEventListener("click", () => {
+        const idx = Number((row as HTMLElement).dataset.idx);
+        this.expandedIdx = this.expandedIdx === idx ? -1 : idx;
+        this.renderSSETab();
+      });
+    }
+
+    // Track scroll position for auto-scroll
+    const list = content.querySelector(".event-list") as HTMLElement | null;
+    if (list) {
+      list.addEventListener("scroll", () => {
+        this.userAtBottom = list.scrollTop + list.clientHeight >= list.scrollHeight - 20;
+      });
+      // Auto-scroll if was at bottom
+      if (wasAtBottom) {
+        list.scrollTop = list.scrollHeight;
+      }
+    }
+
+    // Restore focus to filter input
+    if (filterInput && document.activeElement === null) {
+      // Don't steal focus
+    }
+  }
+
+  private formatEventDetail(ev: DebugSSEEvent): string {
+    const parts: string[] = [];
+
+    if (ev.debugMeta) {
+      parts.push(`<b>seq:</b> ${ev.debugMeta.seq}  <b>ts:</b> ${ev.debugMeta.ts}  <b>handler:</b> ${escapeHtml(ev.debugMeta.handler)}  <b>route:</b> ${escapeHtml(ev.debugMeta.route)}`);
+    }
+
+    // Show argsRaw (excluding debug metadata keys)
+    const args: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(ev.argsRaw)) {
+      if (!k.startsWith("x-debug-")) args[k] = v;
+    }
+    if (Object.keys(args).length > 0) {
+      const json = JSON.stringify(args, null, 2);
+      parts.push(escapeHtml(json));
+    }
+
+    // Morph records summary (rendered in detail in Task 8)
+    if (ev.morphRecords && ev.morphRecords.length > 0) {
+      const added = ev.morphRecords.filter(r => r.type === "childList" && r.addedNodes.length > 0).length;
+      const removed = ev.morphRecords.filter(r => r.type === "childList" && r.removedNodes.length > 0).length;
+      const attrs = ev.morphRecords.filter(r => r.type === "attributes").length;
+      parts.push(`<b>morphs:</b> ${added} added, ${removed} removed, ${attrs} attributes`);
+    }
+
+    return parts.join("\n");
   }
 }
 
