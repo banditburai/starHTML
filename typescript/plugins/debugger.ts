@@ -474,6 +474,13 @@ const PANEL_STYLES = `
   .group-1 { border-left: 2px solid #a6e3a1; }
   .group-2 { border-left: 2px solid #cba6f7; }
   .event-duration { color: #9399b2; flex-shrink: 0; font-size: 10px; }
+  .copy-btn {
+    background: #313244; border: 1px solid #45475a; color: #9399b2;
+    padding: 2px 8px; border-radius: 3px; cursor: pointer;
+    font-family: inherit; font-size: 10px; float: right;
+  }
+  .copy-btn:hover { background: #45475a; color: #cdd6f4; }
+  .copy-btn.copied { color: #a6e3a1; border-color: #a6e3a1; }
 `;
 
 const TYPE_CONFIG: Record<string, { label: string; cls: string }> = {
@@ -694,6 +701,7 @@ class StarHTMLDebugger extends HTMLElement {
           <button class="clear-filter-btn" style="display:none" title="Clear filter">&times;</button>
         </div>
         <button class="clear-events-btn" title="Clear visible events">Clear Events</button>
+        <button class="copy-all-btn" title="Copy all visible events for LLM context">Copy All</button>
         <span class="count"></span>
       `;
 
@@ -741,6 +749,16 @@ class StarHTMLDebugger extends HTMLElement {
         }
         this.expandedId = -1;
         this.renderSSETab();
+      });
+
+      this.sseToolbar.querySelector(".copy-all-btn")!.addEventListener("click", (e) => {
+        const btn = e.target as HTMLButtonElement;
+        const text = this.formatAllEventsForExport();
+        navigator.clipboard.writeText(text).then(() => {
+          btn.textContent = "Copied!";
+          btn.classList.add("copied");
+          setTimeout(() => { btn.textContent = "Copy All"; btn.classList.remove("copied"); }, 1500);
+        });
       });
 
       content.addEventListener("scroll", () => {
@@ -816,11 +834,26 @@ class StarHTMLDebugger extends HTMLElement {
       </div>`;
 
       if (expanded) {
-        html += `<div class="event-detail">${this.formatEventDetail(ev)}</div>`;
+        html += `<div class="event-detail"><button class="copy-btn" data-copy-eid="${ev.id}">Copy</button>${this.formatEventDetail(ev)}</div>`;
       }
     }
 
     eventList.innerHTML = html;
+
+    for (const copyBtn of eventList.querySelectorAll<HTMLButtonElement>(".copy-btn[data-copy-eid]")) {
+      copyBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const eid = Number(copyBtn.dataset.copyEid);
+        const ev = events.find(ev => ev.id === eid);
+        if (!ev) return;
+        const text = this.formatSingleEventForExport(ev);
+        navigator.clipboard.writeText(text).then(() => {
+          copyBtn.textContent = "Copied!";
+          copyBtn.classList.add("copied");
+          setTimeout(() => { copyBtn.textContent = "Copy"; copyBtn.classList.remove("copied"); }, 1500);
+        });
+      });
+    }
 
     for (const row of eventList.querySelectorAll<HTMLElement>(".event-row")) {
       row.addEventListener("click", () => {
@@ -944,6 +977,74 @@ class StarHTMLDebugger extends HTMLElement {
     }
 
     return parts.join("\n");
+  }
+
+  private formatSingleEventForExport(ev: DebugSSEEvent): string {
+    const cfg = TYPE_CONFIG[ev.type] ?? { label: ev.type.replace("datastar-", "") };
+    const dur = ev.duration != null
+      ? ev.duration >= 1000 ? ` (${(ev.duration / 1000).toFixed(1)}s)` : ` (${ev.duration}ms)`
+      : "";
+    const preview = this.eventPreview(ev);
+    let out = `[${formatTime(ev.timestamp)}] ${cfg.label}${dur}${preview ? "  " + preview : ""}`;
+
+    if (ev.debugMeta) {
+      out += `\n  handler: ${ev.debugMeta.handler}  route: ${ev.debugMeta.route}`;
+    }
+
+    const args: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(ev.argsRaw)) {
+      if (!k.startsWith("x-debug-")) args[k] = v;
+    }
+    if (Object.keys(args).length > 0) {
+      const decoded = deepDecodeJsonStrings(args);
+      out += "\n  " + JSON.stringify(decoded, null, 2).replace(/\n/g, "\n  ");
+    }
+
+    if (ev.morphs && ev.morphs.length > 0) {
+      const added = ev.morphs.filter(m => m.type === "childList" && (m.added?.length ?? 0) > 0).length;
+      const removed = ev.morphs.filter(m => m.type === "childList" && (m.removed?.length ?? 0) > 0).length;
+      const attrs = ev.morphs.filter(m => m.type === "attributes").length;
+      out += `\n  morphs: ${added} added, ${removed} removed, ${attrs} attributes`;
+      for (const m of ev.morphs) {
+        if (m.type === "childList") {
+          for (const desc of (m.added ?? [])) out += `\n    + Added ${desc} to ${m.targetSelector}`;
+          for (const desc of (m.removed ?? [])) out += `\n    - Removed ${desc} from ${m.targetSelector}`;
+        } else if (m.type === "attributes") {
+          out += `\n    ~ ${m.targetSelector} [${m.attributeName}] ${m.oldValue} → ${m.newValue}${m.flash ? " ⚠ flash" : ""}`;
+        }
+      }
+    }
+    return out;
+  }
+
+  private formatAllEventsForExport(): string {
+    const visible = events.filter(ev => ev.id >= this.visibleSinceId);
+    let allowedTypes: Set<string> | null = null;
+    if (this.activeTypeFilters.size > 0) {
+      allowedTypes = new Set<string>();
+      for (const chip of CHIP_CATEGORIES) {
+        if (this.activeTypeFilters.has(chip.key)) {
+          for (const t of chip.types) allowedTypes.add(t);
+        }
+      }
+    }
+    const filter = this.filterText.toLowerCase();
+    const filtered = visible.filter(ev => {
+      if (allowedTypes && !allowedTypes.has(ev.type)) return false;
+      if (filter) {
+        const label = TYPE_CONFIG[ev.type]?.label ?? ev.type;
+        const handler = (ev.debugMeta?.handler ?? "").toLowerCase();
+        const route = (ev.debugMeta?.route ?? "").toLowerCase();
+        if (!(label.includes(filter) || handler.includes(filter) || route.includes(filter) || ev.type.includes(filter))) return false;
+      }
+      return true;
+    });
+
+    const lines = [`=== StarHTML Debug Events (${filtered.length} events) ===`, ""];
+    for (const ev of filtered) {
+      lines.push(this.formatSingleEventForExport(ev));
+    }
+    return lines.join("\n");
   }
 }
 
