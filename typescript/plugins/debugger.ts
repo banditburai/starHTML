@@ -291,6 +291,8 @@ const PANEL_STYLES = `
     display: flex;
     border-bottom: 1px solid #45475a;
     padding: 0 8px;
+    cursor: ns-resize;
+    user-select: none;
   }
   .tab-btn {
     padding: 6px 16px;
@@ -326,6 +328,7 @@ const PANEL_STYLES = `
     align-items: center;
     gap: 8px;
     padding: 4px 8px;
+    user-select: none;
     border-bottom: 1px solid #313244;
   }
   .toolbar input {
@@ -421,9 +424,10 @@ const PANEL_STYLES = `
   .event-detail::-webkit-scrollbar-track { background: transparent; }
   .event-detail::-webkit-scrollbar-thumb { background: #45475a; border-radius: 3px; }
   .jump-btn {
-    position: absolute;
+    position: sticky;
     bottom: 8px;
-    right: 16px;
+    float: right;
+    margin-right: 8px;
     background: #89b4fa;
     color: #1e1e2e;
     border: none;
@@ -433,8 +437,26 @@ const PANEL_STYLES = `
     font-family: inherit;
     font-size: 11px;
     font-weight: 600;
+    z-index: 1;
   }
   .jump-btn:hover { background: #b4d0fb; }
+  .detail-section { margin-bottom: 6px; }
+  .detail-section:last-child { margin-bottom: 0; }
+  .detail-header { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+  .detail-header .mode-badge {
+    background: #313244; color: #cba6f7; padding: 1px 6px; border-radius: 3px;
+    font-size: 10px; font-weight: 600; text-transform: uppercase;
+  }
+  .detail-header .target { color: #89b4fa; }
+  .detail-label { color: #585b70; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px; }
+  .html-block {
+    background: #11111b; padding: 6px 8px; border-radius: 3px; border: 1px solid #313244;
+    overflow-x: auto; white-space: pre-wrap; word-break: break-word;
+  }
+  .html-block .ht { color: #89b4fa; }
+  .html-block .ha { color: #f9e2af; }
+  .html-block .hv { color: #a6e3a1; }
+  .html-block .hx { color: #9399b2; }
   .morph-summary { color: #a6e3a1; margin-bottom: 4px; }
   .morph-list { padding-left: 12px; }
   .morph-item { padding: 1px 0; }
@@ -511,6 +533,30 @@ function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, c => ESCAPE_MAP[c]);
 }
 
+/** Simple HTML syntax highlighter: tags blue, attrs yellow, values green, text gray */
+function highlightHtml(raw: string): string {
+  // Tokenize into tags and text runs
+  return raw.replace(/(<\/?)([\w-]+)((?:\s+[\w-]+(?:=(?:"[^"]*"|'[^']*'|[^\s>]*))?)*)\s*(\/?>)|([^<]+)/g,
+    (_match, open: string | undefined, tag: string | undefined, attrs: string | undefined, close: string | undefined, text: string | undefined) => {
+      if (text !== undefined) {
+        // Text node content
+        return `<span class="hx">${escapeHtml(text)}</span>`;
+      }
+      // Tag with attributes
+      let out = `<span class="ht">${escapeHtml(open!)}${escapeHtml(tag!)}</span>`;
+      if (attrs) {
+        out += attrs.replace(/([\w-]+)(=)("[^"]*"|'[^']*'|[^\s>]*)/g,
+          (_m: string, name: string, eq: string, val: string) =>
+            `<span class="ha">${escapeHtml(name)}</span>${eq}<span class="hv">${escapeHtml(val)}</span>`
+        ).replace(/(?:^|\s)([\w-]+)(?=\s|$)/g,
+          (_m: string, name: string) => ` <span class="ha">${escapeHtml(name)}</span>`
+        );
+      }
+      out += `<span class="ht">${escapeHtml(close!)}</span>`;
+      return out;
+    });
+}
+
 function selectorPath(el: Element): string {
   if (el.id) return `#${el.id}`;
   let path = el.tagName.toLowerCase();
@@ -557,6 +603,7 @@ class StarHTMLDebugger extends HTMLElement {
       document.removeEventListener("keydown", this.keydownHandler);
       this.keydownHandler = null;
     }
+    document.documentElement.style.paddingBottom = "";
     stopObserving();
   }
 
@@ -587,6 +634,7 @@ class StarHTMLDebugger extends HTMLElement {
     }
 
     this.setupEventListeners();
+    this.updatePageInset();
 
     if (this.isOpen) {
       this.renderTabContent();
@@ -602,15 +650,14 @@ class StarHTMLDebugger extends HTMLElement {
       this.switchTab(btn.dataset.tab!);
     });
 
-    const handle = this.shadow.querySelector(".resize-handle")!;
-    let startY = 0, startH = 0;
-    handle.addEventListener("mousedown", (e: Event) => {
+    const startResize = (e: Event) => {
       const me = e as MouseEvent;
-      startY = me.clientY;
-      startH = this.panelHeight;
+      const startY = me.clientY;
+      const startH = this.panelHeight;
       const onMove = (e: MouseEvent) => {
         this.panelHeight = Math.max(150, Math.min(window.innerHeight * 0.8, startH - (e.clientY - startY)));
         this.panel.style.height = `${this.panelHeight}px`;
+        this.updatePageInset();
       };
       const onUp = () => {
         document.removeEventListener("mousemove", onMove);
@@ -619,6 +666,14 @@ class StarHTMLDebugger extends HTMLElement {
       };
       document.addEventListener("mousemove", onMove);
       document.addEventListener("mouseup", onUp);
+    };
+
+    this.shadow.querySelector(".resize-handle")!.addEventListener("mousedown", startResize);
+
+    // Allow dragging from the tab-bar area too (but not from tab buttons)
+    this.shadow.querySelector(".tab-bar")!.addEventListener("mousedown", (e: Event) => {
+      if ((e.target as HTMLElement).closest(".tab-btn")) return;
+      startResize(e);
     });
 
     this.keydownHandler = (e: KeyboardEvent) => {
@@ -630,10 +685,16 @@ class StarHTMLDebugger extends HTMLElement {
     document.addEventListener("keydown", this.keydownHandler);
   }
 
+  private updatePageInset(): void {
+    document.documentElement.style.paddingBottom =
+      this.isOpen ? `${this.panelHeight}px` : "";
+  }
+
   private toggle(): void {
     this.isOpen = !this.isOpen;
     this.panel.classList.toggle("open", this.isOpen);
     sessionStorage.setItem("starhtml-debug-open", String(this.isOpen));
+    this.updatePageInset();
     if (this.isOpen) {
       this.unseenCount = 0;
       this.badge.style.display = "none";
@@ -991,21 +1052,47 @@ class StarHTMLDebugger extends HTMLElement {
   }
 
   private formatEventDetail(ev: DebugSSEEvent): string {
-    const parts: string[] = [];
+    const sections: string[] = [];
 
+    // Debug metadata
     if (ev.debugMeta) {
-      parts.push(`<b>seq:</b> ${ev.debugMeta.seq}  <b>ts:</b> ${ev.debugMeta.ts}  <b>handler:</b> ${escapeHtml(ev.debugMeta.handler)}  <b>route:</b> ${escapeHtml(ev.debugMeta.route)}`);
+      sections.push(`<div class="detail-section"><b>seq:</b> ${ev.debugMeta.seq}  <b>ts:</b> ${ev.debugMeta.ts}  <b>handler:</b> ${escapeHtml(ev.debugMeta.handler)}  <b>route:</b> ${escapeHtml(ev.debugMeta.route)}</div>`);
     }
 
+    // Split args into data fields vs HTML content
     const args: Record<string, unknown> = {};
+    const htmlStrings: [string, string][] = [];
     for (const [k, v] of Object.entries(ev.argsRaw)) {
-      if (!k.startsWith("x-debug-")) args[k] = v;
+      if (k.startsWith("x-debug-")) continue;
+      if (typeof v === "string" && v.trimStart().startsWith("<")) {
+        htmlStrings.push([k, v]);
+      } else {
+        args[k] = v;
+      }
     }
+
+    // For elements events: show mode + selector as a structured header
+    const isElements = ev.type === "datastar-patch-elements";
+    if (isElements && (args.mode || args.selector)) {
+      const mode = String(args.mode ?? "morph");
+      const sel = String(args.selector ?? "");
+      sections.push(`<div class="detail-section"><div class="detail-header"><span class="mode-badge">${escapeHtml(mode)}</span><span class="ht">→</span> <span class="target">${escapeHtml(sel)}</span></div></div>`);
+      delete args.mode;
+      delete args.selector;
+    }
+
+    // Remaining data args as JSON
     if (Object.keys(args).length > 0) {
       const decoded = deepDecodeJsonStrings(args);
-      parts.push(escapeHtml(JSON.stringify(decoded, null, 2)));
+      sections.push(`<div class="detail-section">${escapeHtml(JSON.stringify(decoded, null, 2))}</div>`);
     }
 
+    // HTML content with syntax highlighting
+    for (const [key, html] of htmlStrings) {
+      sections.push(`<div class="detail-section"><div class="detail-label">${escapeHtml(key)}</div><div class="html-block">${highlightHtml(html)}</div></div>`);
+    }
+
+    // Morph records
     if (ev.morphs && ev.morphs.length > 0) {
       const addedCount = ev.morphs.filter(m => m.type === "childList" && (m.added?.length ?? 0) > 0).length;
       const removedCount = ev.morphs.filter(m => m.type === "childList" && (m.removed?.length ?? 0) > 0).length;
@@ -1033,10 +1120,10 @@ class StarHTMLDebugger extends HTMLElement {
         }
       }
 
-      parts.push(summary + (items ? `<div class="morph-list">${items}</div>` : ""));
+      sections.push(`<div class="detail-section">${summary}${items ? `<div class="morph-list">${items}</div>` : ""}</div>`);
     }
 
-    return parts.join("\n");
+    return sections.join("");
   }
 
   private formatSingleEventForExport(ev: DebugSSEEvent): string {
@@ -1052,12 +1139,21 @@ class StarHTMLDebugger extends HTMLElement {
     }
 
     const args: Record<string, unknown> = {};
+    const htmlStrings: [string, string][] = [];
     for (const [k, v] of Object.entries(ev.argsRaw)) {
-      if (!k.startsWith("x-debug-")) args[k] = v;
+      if (k.startsWith("x-debug-")) continue;
+      if (typeof v === "string" && v.trimStart().startsWith("<")) {
+        htmlStrings.push([k, v]);
+      } else {
+        args[k] = v;
+      }
     }
     if (Object.keys(args).length > 0) {
       const decoded = deepDecodeJsonStrings(args);
       out += "\n  " + JSON.stringify(decoded, null, 2).replace(/\n/g, "\n  ");
+    }
+    for (const [key, html] of htmlStrings) {
+      out += `\n  ${key}:\n    ${html.replace(/\n/g, "\n    ")}`;
     }
 
     if (ev.morphs && ev.morphs.length > 0) {
