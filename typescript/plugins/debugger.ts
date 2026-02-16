@@ -1,3 +1,14 @@
+interface SerializedMorph {
+  type: "childList" | "attributes" | "characterData";
+  targetSelector: string;
+  attributeName?: string;
+  oldValue?: string;
+  newValue?: string;
+  added?: string[];
+  removed?: string[];
+  flash?: boolean;
+}
+
 export interface DebugSSEEvent {
   id: number;
   type: string;
@@ -10,7 +21,7 @@ export interface DebugSSEEvent {
     handler: string;
     route: string;
   };
-  morphRecords?: MutationRecord[];
+  morphs?: SerializedMorph[];
 }
 
 let nextEventId = 0;
@@ -36,8 +47,6 @@ let panelRef: StarHTMLDebugger | null = null;
 let observer: MutationObserver | null = null;
 const DEBUGGER_TAG = "STARHTML-DEBUGGER";
 const MAX_MORPH_RECORDS = 500;
-// MutationRecord only stores oldValue; capture newValue at observation time
-const attrNewValues = new WeakMap<MutationRecord, string>();
 
 function startObserving(): void {
   if (observer) return;
@@ -59,9 +68,6 @@ function startObserving(): void {
           }
         }
         if (skip) continue;
-      }
-      if (r.type === "attributes" && r.target instanceof Element) {
-        attrNewValues.set(r, r.target.getAttribute(r.attributeName ?? "") ?? "");
       }
       morphWindow.records.push(r);
     }
@@ -88,6 +94,72 @@ function stopObserving(): void {
   }
   observer.disconnect();
   observer = null;
+}
+
+function deepDecodeJsonStrings(val: unknown): unknown {
+  if (typeof val === "string") {
+    const trimmed = val.trim();
+    if ((trimmed.startsWith("{") && trimmed.endsWith("}")) || (trimmed.startsWith("[") && trimmed.endsWith("]"))) {
+      try { return deepDecodeJsonStrings(JSON.parse(trimmed)); } catch { /* not JSON */ }
+    }
+    return val;
+  }
+  if (Array.isArray(val)) return val.map(deepDecodeJsonStrings);
+  if (val && typeof val === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(val)) out[k] = deepDecodeJsonStrings(v);
+    return out;
+  }
+  return val;
+}
+
+function serializeMorphRecords(records: MutationRecord[]): SerializedMorph[] {
+  // Track attribute changes per element+attr for flash detection
+  const elementIds = new WeakMap<Element, number>();
+  const attrChanges = new Map<string, number>();
+  let nextElId = 0;
+
+  for (const r of records) {
+    if (r.type === "attributes" && r.target instanceof Element) {
+      if (!elementIds.has(r.target)) elementIds.set(r.target, nextElId++);
+      const key = `${elementIds.get(r.target)}[${r.attributeName}]`;
+      attrChanges.set(key, (attrChanges.get(key) ?? 0) + 1);
+    }
+  }
+
+  const morphs: SerializedMorph[] = [];
+  for (const r of records) {
+    if (r.type === "childList") {
+      const parent = r.target instanceof Element ? selectorPath(r.target) : r.target.nodeName;
+      const added: string[] = [];
+      for (const node of r.addedNodes) {
+        if (node instanceof Element) added.push(`<${selectorPath(node)}>`);
+        else if (node.nodeType === Node.TEXT_NODE) added.push(`"${(node.textContent ?? "").slice(0, 40)}"`);
+      }
+      const removed: string[] = [];
+      for (const node of r.removedNodes) {
+        if (node instanceof Element) removed.push(`<${selectorPath(node)}>`);
+        else if (node.nodeType === Node.TEXT_NODE) removed.push(`"${(node.textContent ?? "").slice(0, 40)}"`);
+      }
+      if (added.length > 0 || removed.length > 0) {
+        morphs.push({ type: "childList", targetSelector: parent, added, removed });
+      }
+    } else if (r.type === "attributes" && r.target instanceof Element) {
+      const sel = selectorPath(r.target);
+      const attr = r.attributeName ?? "";
+      const oldVal = r.oldValue ?? "";
+      const newVal = r.target.getAttribute(attr) ?? "";
+      const elId = elementIds.get(r.target);
+      const key = `${elId}[${attr}]`;
+      const flash = (attrChanges.get(key) ?? 0) > 1;
+      morphs.push({ type: "attributes", targetSelector: sel, attributeName: attr, oldValue: oldVal, newValue: newVal, flash });
+    } else if (r.type === "characterData") {
+      const parent = r.target.parentElement;
+      const sel = parent ? selectorPath(parent) : "#text";
+      morphs.push({ type: "characterData", targetSelector: sel, oldValue: r.oldValue ?? "" });
+    }
+  }
+  return morphs;
 }
 
 function captureSSEEvents(): void {
@@ -118,7 +190,7 @@ function captureSSEEvents(): void {
       morphWindow = { sseEvent: event, records: [] };
       setTimeout(() => {
         if (morphWindow) {
-          event.morphRecords = morphWindow.records;
+          event.morphs = serializeMorphRecords(morphWindow.records);
           morphWindow = null;
         }
       }, 0);
@@ -685,64 +757,34 @@ class StarHTMLDebugger extends HTMLElement {
       if (!k.startsWith("x-debug-")) args[k] = v;
     }
     if (Object.keys(args).length > 0) {
-      parts.push(escapeHtml(JSON.stringify(args, null, 2)));
+      const decoded = deepDecodeJsonStrings(args);
+      parts.push(escapeHtml(JSON.stringify(decoded, null, 2)));
     }
 
-    if (ev.morphRecords && ev.morphRecords.length > 0) {
-      const addedCount = ev.morphRecords.filter(r => r.type === "childList" && r.addedNodes.length > 0).length;
-      const removedCount = ev.morphRecords.filter(r => r.type === "childList" && r.removedNodes.length > 0).length;
-      const attrsCount = ev.morphRecords.filter(r => r.type === "attributes").length;
-      const charCount = ev.morphRecords.filter(r => r.type === "characterData").length;
+    if (ev.morphs && ev.morphs.length > 0) {
+      const addedCount = ev.morphs.filter(m => m.type === "childList" && (m.added?.length ?? 0) > 0).length;
+      const removedCount = ev.morphs.filter(m => m.type === "childList" && (m.removed?.length ?? 0) > 0).length;
+      const attrsCount = ev.morphs.filter(m => m.type === "attributes").length;
+      const charCount = ev.morphs.filter(m => m.type === "characterData").length;
 
       let summary = `<div class="morph-summary"><b>morphs:</b> ${addedCount} added, ${removedCount} removed, ${attrsCount} attributes`;
       if (charCount > 0) summary += `, ${charCount} text`;
       summary += `</div>`;
 
-      // Use element identity to avoid false positives from non-unique selectors
-      const elementIds = new WeakMap<Element, number>();
-      const attrChanges = new Map<string, number>();
-      let nextElId = 0;
-      for (const r of ev.morphRecords) {
-        if (r.type === "attributes" && r.target instanceof Element) {
-          if (!elementIds.has(r.target)) elementIds.set(r.target, nextElId++);
-          const key = `${elementIds.get(r.target)}[${r.attributeName}]`;
-          attrChanges.set(key, (attrChanges.get(key) ?? 0) + 1);
-        }
-      }
-
       let items = "";
-      for (const r of ev.morphRecords) {
-        if (r.type === "childList") {
-          const parent = r.target instanceof Element ? selectorPath(r.target) : r.target.nodeName;
-          for (const node of r.addedNodes) {
-            if (node instanceof Element) {
-              items += `<div class="morph-item"><span class="added">+</span> Added <span class="selector">&lt;${escapeHtml(selectorPath(node))}&gt;</span> to <span class="selector">${escapeHtml(parent)}</span></div>`;
-            } else if (node.nodeType === Node.TEXT_NODE) {
-              const preview = (node.textContent ?? "").slice(0, 40);
-              items += `<div class="morph-item"><span class="added">+</span> Added text "${escapeHtml(preview)}" to <span class="selector">${escapeHtml(parent)}</span></div>`;
-            }
+      for (const m of ev.morphs) {
+        if (m.type === "childList") {
+          for (const desc of (m.added ?? [])) {
+            items += `<div class="morph-item"><span class="added">+</span> Added <span class="selector">${escapeHtml(desc)}</span> to <span class="selector">${escapeHtml(m.targetSelector)}</span></div>`;
           }
-          for (const node of r.removedNodes) {
-            if (node instanceof Element) {
-              items += `<div class="morph-item"><span class="removed">-</span> Removed <span class="selector">&lt;${escapeHtml(selectorPath(node))}&gt;</span> from <span class="selector">${escapeHtml(parent)}</span></div>`;
-            } else if (node.nodeType === Node.TEXT_NODE) {
-              const preview = (node.textContent ?? "").slice(0, 40);
-              items += `<div class="morph-item"><span class="removed">-</span> Removed text "${escapeHtml(preview)}" from <span class="selector">${escapeHtml(parent)}</span></div>`;
-            }
+          for (const desc of (m.removed ?? [])) {
+            items += `<div class="morph-item"><span class="removed">-</span> Removed <span class="selector">${escapeHtml(desc)}</span> from <span class="selector">${escapeHtml(m.targetSelector)}</span></div>`;
           }
-        } else if (r.type === "attributes" && r.target instanceof Element) {
-          const sel = selectorPath(r.target);
-          const attr = r.attributeName ?? "";
-          const oldVal = r.oldValue ?? "";
-          const newVal = attrNewValues.get(r) ?? (r.target as Element).getAttribute(attr) ?? "";
-          const elId = elementIds.get(r.target);
-          const key = `${elId}[${attr}]`;
-          const flash = (attrChanges.get(key) ?? 0) > 1 ? ` <span class="flash-warn">&#9888; flash</span>` : "";
-          items += `<div class="morph-item"><span class="changed">~</span> <span class="selector">${escapeHtml(sel)}</span> [${escapeHtml(attr)}] <span class="old-val">${escapeHtml(oldVal)}</span> → <span class="new-val">${escapeHtml(newVal)}</span>${flash}</div>`;
-        } else if (r.type === "characterData") {
-          const parent = r.target.parentElement;
-          const sel = parent ? selectorPath(parent) : "#text";
-          items += `<div class="morph-item">~ text in <span class="selector">${escapeHtml(sel)}</span></div>`;
+        } else if (m.type === "attributes") {
+          const flash = m.flash ? ` <span class="flash-warn">&#9888; flash</span>` : "";
+          items += `<div class="morph-item"><span class="changed">~</span> <span class="selector">${escapeHtml(m.targetSelector)}</span> [${escapeHtml(m.attributeName ?? "")}] <span class="old-val">${escapeHtml(m.oldValue ?? "")}</span> → <span class="new-val">${escapeHtml(m.newValue ?? "")}</span>${flash}</div>`;
+        } else if (m.type === "characterData") {
+          items += `<div class="morph-item">~ text in <span class="selector">${escapeHtml(m.targetSelector)}</span></div>`;
         }
       }
 
