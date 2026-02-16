@@ -328,11 +328,6 @@ effect(() => { if ($$is_open) $$unseen_count = 0; });
 
 // --- Task 5: Render pipeline ---
 
-// Shadow DOM workaround: refs() uses this.querySelector which only searches light DOM.
-// For shadow DOM components, we need to query the shadow root directly.
-const root = el.shadowRoot || el;
-const sref = (name) => root.querySelector('[data-ref="' + namespace + '_' + name + '"]');
-
 // Local render state (plain vars, not signals — no reactivity needed)
 let lastRenderedIds = [];
 let needsFullRender = true;
@@ -341,11 +336,12 @@ let userAtBottom = true;
 let activeTypeFilters = new Set();
 
 // DOM refs
-const eventListEl = sref('event_list');
-const eventCountLabel = sref('event_count_label');
-const copyAllBtn = sref('copy_all_btn');
-const clearEventsBtn = sref('clear_events_btn');
-const tabContentEl = eventListEl ? eventListEl.parentElement : null;
+const eventListEl = refs('event_list');
+const eventCountLabel = refs('event_count_label');
+const copyAllBtn = refs('copy_all_btn');
+const clearEventsBtn = refs('clear_events_btn');
+const tabContentEl = refs('tab_content');
+const jumpBtn = refs('jump_btn');
 
 // Scroll tracking
 if (tabContentEl) {
@@ -354,38 +350,43 @@ if (tabContentEl) {
     });
 }
 
-// Type filter chip click handling
+// Chip refs (for count text updates in renderSSETab)
 const chipRefs = {
-    signals: sref('chip_signals'),
-    elements: sref('chip_elements'),
-    script: sref('chip_script'),
-    lifecycle: sref('chip_lifecycle'),
+    signals: refs('chip_signals'),
+    elements: refs('chip_elements'),
+    script: refs('chip_script'),
+    lifecycle: refs('chip_lifecycle'),
 };
-for (const [key, chipEl] of Object.entries(chipRefs)) {
-    if (!chipEl) continue;
-    chipEl.addEventListener('click', () => {
-        if (activeTypeFilters.has(key)) {
-            activeTypeFilters.delete(key);
-            chipEl.classList.remove('active');
-        } else {
-            activeTypeFilters.add(key);
-            chipEl.classList.add('active');
-        }
-        $$expanded_id = -1;
-        needsFullRender = true;
-        renderSSETab();
-    });
-}
 
-// Clear Events button
+// Build filter set from chip toggle signals
+// scheduleRender() called explicitly because activeTypeFilters is a plain Set, not a signal
+effect(() => {
+    activeTypeFilters = new Set();
+    if ($$chip_signals_on) activeTypeFilters.add('signals');
+    if ($$chip_elements_on) activeTypeFilters.add('elements');
+    if ($$chip_script_on) activeTypeFilters.add('script');
+    if ($$chip_lifecycle_on) activeTypeFilters.add('lifecycle');
+    $$expanded_id = -1; // collapse expanded row since filter changed
+    needsFullRender = true;
+    scheduleRender();
+});
+
+// Clear Events button (needsFullRender + render handled by reactive effects)
 if (clearEventsBtn) {
     clearEventsBtn.addEventListener('click', () => {
         const evts = capture.getEvents();
         const latest = evts[evts.length - 1];
         $$visible_since_id = latest ? latest.id + 1 : 0;
         $$expanded_id = -1;
-        needsFullRender = true;
-        renderSSETab();
+    });
+}
+
+// Jump to Latest button
+if (jumpBtn) {
+    jumpBtn.addEventListener('click', () => {
+        if (tabContentEl) tabContentEl.scrollTop = tabContentEl.scrollHeight;
+        userAtBottom = true;
+        $$show_jump_btn = false;
     });
 }
 
@@ -505,7 +506,7 @@ function renderSSETab() {
             lastRenderedIds = filteredIds;
             needsFullRender = false;
             if (wasAtBottom && tabContentEl) tabContentEl.scrollTop = tabContentEl.scrollHeight;
-            updateJumpButton(filtered.length);
+            $$show_jump_btn = !userAtBottom && filtered.length > 0;
             return;
         }
     }
@@ -518,28 +519,7 @@ function renderSSETab() {
     needsFullRender = false;
 
     if (wasAtBottom && tabContentEl) tabContentEl.scrollTop = tabContentEl.scrollHeight;
-    updateJumpButton(filtered.length);
-}
-
-// Jump to Latest button
-function updateJumpButton(eventCount) {
-    if (!tabContentEl) return;
-    let jumpBtn = tabContentEl.querySelector('.jump-btn');
-    if (!userAtBottom && eventCount > 0) {
-        if (!jumpBtn) {
-            jumpBtn = document.createElement('button');
-            jumpBtn.className = 'jump-btn';
-            jumpBtn.textContent = 'Jump to latest';
-            jumpBtn.addEventListener('click', () => {
-                tabContentEl.scrollTop = tabContentEl.scrollHeight;
-                userAtBottom = true;
-                jumpBtn.remove();
-            });
-            tabContentEl.appendChild(jumpBtn);
-        }
-    } else if (jumpBtn) {
-        jumpBtn.remove();
-    }
+    $$show_jump_btn = !userAtBottom && filtered.length > 0;
 }
 
 // Reactive render trigger — re-render when signals change
@@ -551,14 +531,23 @@ effect(() => {
     if ($$is_open && $$active_tab === 'sse') scheduleRender();
 });
 
-// Force full re-render when filter text changes
+// Force full re-render when filter text or visible_since_id changes
 effect(() => {
     void $$filter_text;
+    void $$visible_since_id;
     needsFullRender = true;
 });
 
 // --- Task 6: Resize + keyboard wired below ---
 """
+
+
+CHIP_DEFS = (
+    ("Signals", "signals"),
+    ("Elements", "elements"),
+    ("Script", "script"),
+    ("Lifecycle", "lifecycle"),
+)
 
 
 @element(
@@ -575,8 +564,8 @@ def StarHTMLDebugger():
     visible_since_id = Local("visible_since_id", 0, type_=int)
     expanded_id = Local("expanded_id", -1, type_=int)
     event_count = Local("event_count", 0, type_=int)
-    # type_filters not declared as Local — managed imperatively in setup script
-    # (dict signals require JSON codec and add complexity for chip toggle UX)
+    chips = {key: Local(f"chip_{key}_on", False, type_=bool) for _, key in CHIP_DEFS}
+    show_jump_btn = Local("show_jump_btn", False, type_=bool)
 
     return Div(
         Style(DEBUGGER_CSS),
@@ -625,10 +614,13 @@ def StarHTMLDebugger():
                 Div(
                     # Type filter chips
                     Div(
-                        Span("Signals", data_ref="chip_signals", cls="type-chip chip-signals"),
-                        Span("Elements", data_ref="chip_elements", cls="type-chip chip-elements"),
-                        Span("Script", data_ref="chip_script", cls="type-chip chip-script"),
-                        Span("Lifecycle", data_ref="chip_lifecycle", cls="type-chip chip-lifecycle"),
+                        *[Span(
+                            label,
+                            data_ref=f"chip_{key}",
+                            data_on_click=chips[key].toggle(),
+                            data_class_active=chips[key],
+                            cls=f"type-chip chip-{key}",
+                        ) for label, key in CHIP_DEFS],
                         cls="type-chips",
                     ),
                     Div(cls="toolbar-sep"),
@@ -668,6 +660,13 @@ def StarHTMLDebugger():
                 ),
                 # Event list container (populated imperatively by setup script)
                 Div(data_ref="event_list", cls="event-list"),
+                Button(
+                    "Jump to latest",
+                    data_show=show_jump_btn,
+                    data_ref="jump_btn",
+                    cls="jump-btn",
+                ),
+                data_ref="tab_content",
                 data_show=active_tab == "sse",
                 cls="tab-content",
             ),
