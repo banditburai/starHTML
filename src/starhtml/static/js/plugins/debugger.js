@@ -6,7 +6,7 @@ function getEvents() {
   return events;
 }
 function clearEvents() {
-  events = [];
+  events.length = 0;
 }
 let morphWindow = null;
 function getMorphWindow() {
@@ -210,6 +210,15 @@ const PANEL_STYLES = `
     font-size: 11px;
   }
   .toolbar button:hover { background: #45475a; }
+  .toolbar .clear-events-btn { color: #a6adc8; }
+  .toolbar .clear-events-btn:hover { color: #f38ba8; background: #3e1525; border-color: #f38ba8; }
+  .filter-wrap { position: relative; display: flex; align-items: center; }
+  .filter-wrap .clear-filter-btn {
+    position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+    background: none; border: none; color: #6c7086; cursor: pointer;
+    font-size: 14px; padding: 0 4px; line-height: 1;
+  }
+  .filter-wrap .clear-filter-btn:hover { color: #cdd6f4; }
   .toolbar .count { color: #6c7086; margin-left: auto; }
   .event-list { display: flex; flex-direction: column; }
   .event-row {
@@ -302,6 +311,7 @@ class StarHTMLDebugger extends HTMLElement {
     this.unseenCount = 0;
     this.keydownHandler = null;
     this.filterText = "";
+    this.visibleSinceId = 0;
     this.expandedId = -1;
     this.rafPending = false;
     this.userAtBottom = true;
@@ -438,8 +448,11 @@ class StarHTMLDebugger extends HTMLElement {
       this.sseToolbar = document.createElement("div");
       this.sseToolbar.className = "toolbar";
       this.sseToolbar.innerHTML = `
-        <input type="text" placeholder="Filter..." class="filter-input" style="width:160px">
-        <button class="clear-btn">Clear</button>
+        <div class="filter-wrap">
+          <input type="text" placeholder="Filter..." class="filter-input" style="width:160px;padding-right:20px">
+          <button class="clear-filter-btn" style="display:none" title="Clear filter">&times;</button>
+        </div>
+        <button class="clear-events-btn" title="Clear visible events">Clear Events</button>
         <span class="count"></span>
       `;
       this.sseEventList = document.createElement("div");
@@ -447,13 +460,23 @@ class StarHTMLDebugger extends HTMLElement {
       content.appendChild(this.sseToolbar);
       content.appendChild(this.sseEventList);
       const filterInput = this.sseToolbar.querySelector(".filter-input");
+      const clearFilterBtn = this.sseToolbar.querySelector(".clear-filter-btn");
       filterInput.addEventListener("input", () => {
         this.filterText = filterInput.value;
+        clearFilterBtn.style.display = this.filterText ? "" : "none";
         this.expandedId = -1;
         this.renderSSETab();
       });
-      this.sseToolbar.querySelector(".clear-btn").addEventListener("click", () => {
-        clearEvents();
+      clearFilterBtn.addEventListener("click", () => {
+        this.filterText = "";
+        filterInput.value = "";
+        clearFilterBtn.style.display = "none";
+        this.expandedId = -1;
+        this.renderSSETab();
+      });
+      this.sseToolbar.querySelector(".clear-events-btn").addEventListener("click", () => {
+        const latest = events[events.length - 1];
+        this.visibleSinceId = latest ? latest.id + 1 : 0;
         this.expandedId = -1;
         this.renderSSETab();
       });
@@ -467,12 +490,13 @@ class StarHTMLDebugger extends HTMLElement {
     const content = this.shadow.getElementById("tab-content");
     const eventList = this.sseEventList;
     const filter = this.filterText.toLowerCase();
-    const filtered = filter ? events.filter((ev) => {
+    const visible = events.filter((ev) => ev.id >= this.visibleSinceId);
+    const filtered = filter ? visible.filter((ev) => {
       const label = TYPE_CONFIG[ev.type]?.label ?? ev.type;
       const handler = (ev.debugMeta?.handler ?? "").toLowerCase();
       const route = (ev.debugMeta?.route ?? "").toLowerCase();
       return label.includes(filter) || handler.includes(filter) || route.includes(filter) || ev.type.includes(filter);
-    }) : events;
+    }) : visible;
     this.sseToolbar.querySelector(".count").textContent = `${filtered.length} event${filtered.length !== 1 ? "s" : ""}`;
     const wasAtBottom = this.userAtBottom;
     let html = "";
