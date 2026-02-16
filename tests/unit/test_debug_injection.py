@@ -63,11 +63,11 @@ class TestDebugInjection:
         import importlib
         import starhtml.debugger as dbg_mod
 
-        # Evict cached debugger_v2 so the import is re-attempted
+        # Evict cached starelements so the import is re-attempted on reload
         cached = {
             k: sys.modules.pop(k)
             for k in list(sys.modules)
-            if k.startswith("starelements") or k == "starhtml.debugger_v2"
+            if k.startswith("starelements")
         }
         try:
             real_import = importlib.__import__

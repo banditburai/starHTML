@@ -18,7 +18,6 @@ export default defineConfig({
         'mermaid': './typescript/plugins/mermaid.ts',
         'motion': './typescript/plugins/motion.ts',
         'motion-svg': './typescript/plugins/motion-svg.ts',
-        'debugger': './typescript/plugins/debugger.ts',
         'debugger-capture': './typescript/plugins/debugger-capture.ts',
       },
       formats: ['es'],
