@@ -538,6 +538,8 @@ class StarHTMLDebugger extends HTMLElement {
   private sseToolbar: HTMLDivElement | null = null;
   private sseEventList: HTMLDivElement | null = null;
   private activeTypeFilters: Set<string> = new Set();
+  private lastRenderedIds: number[] = [];
+  private needsFullRender: boolean = true;
 
   constructor() {
     super();
@@ -718,6 +720,7 @@ class StarHTMLDebugger extends HTMLElement {
         this.filterText = filterInput.value;
         clearFilterBtn.style.display = this.filterText ? "" : "none";
         this.expandedId = -1;
+        this.needsFullRender = true;
         this.renderSSETab();
       });
 
@@ -726,6 +729,7 @@ class StarHTMLDebugger extends HTMLElement {
         filterInput.value = "";
         clearFilterBtn.style.display = "none";
         this.expandedId = -1;
+        this.needsFullRender = true;
         this.renderSSETab();
       });
 
@@ -733,6 +737,7 @@ class StarHTMLDebugger extends HTMLElement {
         const latest = events[events.length - 1];
         this.visibleSinceId = latest ? latest.id + 1 : 0;
         this.expandedId = -1;
+        this.needsFullRender = true;
         this.renderSSETab();
       });
 
@@ -748,7 +753,59 @@ class StarHTMLDebugger extends HTMLElement {
           chip.classList.add("active");
         }
         this.expandedId = -1;
+        this.needsFullRender = true;
         this.renderSSETab();
+      });
+
+      // Event delegation: single click handler for all rows and copy buttons
+      this.sseEventList.addEventListener("click", (e) => {
+        const target = e.target as HTMLElement;
+
+        // Handle copy button
+        const copyBtn = target.closest<HTMLButtonElement>(".copy-btn[data-copy-eid]");
+        if (copyBtn) {
+          e.stopPropagation();
+          const eid = Number(copyBtn.dataset.copyEid);
+          const ev = events.find(ev => ev.id === eid);
+          if (!ev) return;
+          const text = this.formatSingleEventForExport(ev);
+          navigator.clipboard.writeText(text).then(() => {
+            copyBtn.textContent = "Copied!";
+            copyBtn.classList.add("copied");
+            setTimeout(() => { copyBtn.textContent = "Copy"; copyBtn.classList.remove("copied"); }, 1500);
+          });
+          return;
+        }
+
+        // Handle row click (expand/collapse)
+        const row = target.closest<HTMLElement>(".event-row");
+        if (!row) return;
+        const eid = Number(row.dataset.eid);
+        const wasExpanded = this.expandedId === eid;
+        const prevExpandedId = this.expandedId;
+        this.expandedId = wasExpanded ? -1 : eid;
+
+        // Collapse previously expanded row
+        if (prevExpandedId !== -1) {
+          const prevRow = this.sseEventList!.querySelector<HTMLElement>(`.event-row[data-eid="${prevExpandedId}"]`);
+          if (prevRow) {
+            prevRow.classList.remove("expanded");
+            const prevDetail = prevRow.nextElementSibling;
+            if (prevDetail?.classList.contains("event-detail")) prevDetail.remove();
+          }
+        }
+
+        // Expand new row (if not collapsing)
+        if (!wasExpanded) {
+          row.classList.add("expanded");
+          const ev = events.find(ev => ev.id === eid);
+          if (ev) {
+            const detail = document.createElement("div");
+            detail.className = "event-detail";
+            detail.innerHTML = `<button class="copy-btn" data-copy-eid="${ev.id}">Copy</button>${this.formatEventDetail(ev)}`;
+            row.insertAdjacentElement("afterend", detail);
+          }
+        }
       });
 
       this.sseToolbar.querySelector(".copy-all-btn")!.addEventListener("click", (e) => {
@@ -808,63 +865,48 @@ class StarHTMLDebugger extends HTMLElement {
       `${filtered.length} event${filtered.length !== 1 ? "s" : ""}`;
 
     const wasAtBottom = this.userAtBottom;
+    const filteredIds = filtered.map(ev => ev.id);
 
-    let html = "";
-    for (const ev of filtered) {
-      const cfg = TYPE_CONFIG[ev.type] ?? { label: ev.type.replace("datastar-", ""), cls: "type-lifecycle" };
-      const handler = ev.debugMeta?.handler ?? "";
-      const route = ev.debugMeta?.route ?? "";
-      const expanded = ev.id === this.expandedId;
+    // Incremental append: if previous render is a prefix of current, only append new rows
+    if (!this.needsFullRender && filteredIds.length >= this.lastRenderedIds.length) {
+      let canIncrement = true;
+      for (let i = 0; i < this.lastRenderedIds.length; i++) {
+        if (this.lastRenderedIds[i] !== filteredIds[i]) { canIncrement = false; break; }
+      }
+      if (canIncrement && filteredIds.length > this.lastRenderedIds.length) {
+        const newEvents = filtered.slice(this.lastRenderedIds.length);
+        let appendHtml = "";
+        for (const ev of newEvents) {
+          appendHtml += this.buildRowHtml(ev);
+        }
+        eventList.insertAdjacentHTML("beforeend", appendHtml);
+        this.lastRenderedIds = filteredIds;
+        this.needsFullRender = false;
 
-      const preview = this.eventPreview(ev);
-      const badge = this.morphBadge(ev);
-      const groupCls = ev.groupId != null ? ` group-${ev.groupId % 3}` : "";
-      const dur = ev.duration != null
-        ? ev.duration >= 1000 ? `${(ev.duration / 1000).toFixed(1)}s` : `${ev.duration}ms`
-        : "";
-
-      html += `<div class="event-row${expanded ? " expanded" : ""}${groupCls}" data-eid="${ev.id}">
-        <span class="event-time">${formatTime(ev.timestamp)}</span>
-        <span class="event-type ${cfg.cls}">${escapeHtml(cfg.label)}</span>
-        ${dur ? `<span class="event-duration">(${dur})</span>` : ""}
-        ${handler ? `<span class="event-handler">${escapeHtml(handler)}</span>` : ""}
-        ${preview ? `<span class="event-preview">${escapeHtml(preview)}</span>` : ""}
-        ${badge ? `<span class="morph-badge">${escapeHtml(badge)}</span>` : ""}
-        ${!preview && route ? `<span class="event-route">${escapeHtml(route)}</span>` : ""}
-      </div>`;
-
-      if (expanded) {
-        html += `<div class="event-detail"><button class="copy-btn" data-copy-eid="${ev.id}">Copy</button>${this.formatEventDetail(ev)}</div>`;
+        if (wasAtBottom) content.scrollTop = content.scrollHeight;
+        this.updateJumpButton(content, filtered.length);
+        return;
       }
     }
 
+    // Full render fallback
+    let html = "";
+    for (const ev of filtered) {
+      html += this.buildRowHtml(ev);
+    }
     eventList.innerHTML = html;
+    this.lastRenderedIds = filteredIds;
+    this.needsFullRender = false;
 
-    for (const copyBtn of eventList.querySelectorAll<HTMLButtonElement>(".copy-btn[data-copy-eid]")) {
-      copyBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        const eid = Number(copyBtn.dataset.copyEid);
-        const ev = events.find(ev => ev.id === eid);
-        if (!ev) return;
-        const text = this.formatSingleEventForExport(ev);
-        navigator.clipboard.writeText(text).then(() => {
-          copyBtn.textContent = "Copied!";
-          copyBtn.classList.add("copied");
-          setTimeout(() => { copyBtn.textContent = "Copy"; copyBtn.classList.remove("copied"); }, 1500);
-        });
-      });
+    if (wasAtBottom) {
+      content.scrollTop = content.scrollHeight;
     }
+    this.updateJumpButton(content, filtered.length);
+  }
 
-    for (const row of eventList.querySelectorAll<HTMLElement>(".event-row")) {
-      row.addEventListener("click", () => {
-        const eid = Number(row.dataset.eid);
-        this.expandedId = this.expandedId === eid ? -1 : eid;
-        this.renderSSETab();
-      });
-    }
-
+  private updateJumpButton(content: HTMLElement, eventCount: number): void {
     let jumpBtn = content.querySelector(".jump-btn") as HTMLButtonElement | null;
-    if (!this.userAtBottom && filtered.length > 0) {
+    if (!this.userAtBottom && eventCount > 0) {
       if (!jumpBtn) {
         jumpBtn = document.createElement("button");
         jumpBtn.className = "jump-btn";
@@ -879,10 +921,28 @@ class StarHTMLDebugger extends HTMLElement {
     } else if (jumpBtn) {
       jumpBtn.remove();
     }
+  }
 
-    if (wasAtBottom) {
-      content.scrollTop = content.scrollHeight;
-    }
+  private buildRowHtml(ev: DebugSSEEvent): string {
+    const cfg = TYPE_CONFIG[ev.type] ?? { label: ev.type.replace("datastar-", ""), cls: "type-lifecycle" };
+    const handler = ev.debugMeta?.handler ?? "";
+    const route = ev.debugMeta?.route ?? "";
+    const preview = this.eventPreview(ev);
+    const badge = this.morphBadge(ev);
+    const groupCls = ev.groupId != null ? ` group-${ev.groupId % 3}` : "";
+    const dur = ev.duration != null
+      ? ev.duration >= 1000 ? `${(ev.duration / 1000).toFixed(1)}s` : `${ev.duration}ms`
+      : "";
+
+    return `<div class="event-row${groupCls}" data-eid="${ev.id}">
+      <span class="event-time">${formatTime(ev.timestamp)}</span>
+      <span class="event-type ${cfg.cls}">${escapeHtml(cfg.label)}</span>
+      ${dur ? `<span class="event-duration">(${dur})</span>` : ""}
+      ${handler ? `<span class="event-handler">${escapeHtml(handler)}</span>` : ""}
+      ${preview ? `<span class="event-preview">${escapeHtml(preview)}</span>` : ""}
+      ${badge ? `<span class="morph-badge">${escapeHtml(badge)}</span>` : ""}
+      ${!preview && route ? `<span class="event-route">${escapeHtml(route)}</span>` : ""}
+    </div>`;
   }
 
   private eventPreview(ev: DebugSSEEvent): string {
