@@ -151,9 +151,8 @@ class StarHTML(Starlette):
 
         if self.debug:
             print("WARNING: StarHTML debug mode is ON. Do not use in production.", file=sys.stderr)
-            from .debugger import debugger_hdrs, debugger_ftrs
-            self.hdrs.extend(debugger_hdrs())
-            self.ftrs.extend(debugger_ftrs())
+            from .debugger import setup_debugger
+            setup_debugger(self)
 
         if datastar == "patched":
             datastar_path = PathlibPath(__file__).parent / "static" / "datastar.js"

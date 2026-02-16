@@ -10,7 +10,7 @@ class TestDebugInjection:
     def test_debug_injects_script(self):
         app = StarHTML(debug=True)
         hdrs_html = "".join(str(h) for h in app.hdrs)
-        assert "debugger.js" in hdrs_html
+        assert "debugger-capture.js" in hdrs_html
 
     def test_debug_injects_panel_element(self):
         app = StarHTML(debug=True)
@@ -20,7 +20,7 @@ class TestDebugInjection:
     def test_no_debug_no_script(self):
         app = StarHTML(debug=False)
         hdrs_html = "".join(str(h) for h in app.hdrs)
-        assert "debugger.js" not in hdrs_html
+        assert "debugger-capture.js" not in hdrs_html
 
     def test_no_debug_no_panel(self):
         app = StarHTML(debug=False)
@@ -39,7 +39,7 @@ class TestDebugInjection:
         app = StarHTML(debug=True, hdrs=[custom])
         hdrs_html = "".join(str(h) for h in app.hdrs)
         assert "custom" in hdrs_html
-        assert "debugger.js" in hdrs_html
+        assert "debugger-capture.js" in hdrs_html
 
     def test_debug_preserves_custom_ftrs(self):
         """Debugger footer appended after user ftrs."""
@@ -55,4 +55,4 @@ class TestDebugInjection:
         with patch.dict(os.environ, {"STARHTML_DEBUG": "1"}):
             app = StarHTML(debug=False)
             hdrs_html = "".join(str(h) for h in app.hdrs)
-            assert "debugger.js" in hdrs_html
+            assert "debugger-capture.js" in hdrs_html
