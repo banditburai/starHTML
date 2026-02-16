@@ -6,6 +6,7 @@
 
 // Types
 export interface DebugSSEEvent {
+  id: number;
   type: string;
   timestamp: number;
   el: HTMLElement | null;
@@ -18,6 +19,8 @@ export interface DebugSSEEvent {
   };
   morphRecords?: MutationRecord[];
 }
+
+let nextEventId = 0;
 
 // Ring buffer for events
 const MAX_EVENTS = 3000;
@@ -56,6 +59,7 @@ function captureSSEEvents(): void {
     } : undefined;
 
     const event: DebugSSEEvent = {
+      id: nextEventId++,
       type,
       timestamp: Date.now(),
       el,
@@ -171,6 +175,7 @@ const PANEL_STYLES = `
     flex: 1;
     overflow-y: auto;
     padding: 8px;
+    position: relative;
   }
   .toolbar {
     display: flex;
@@ -226,7 +231,7 @@ const PANEL_STYLES = `
   .type-lifecycle { background: #313244; color: #6c7086; }
   .type-error { background: #3e1525; color: #f38ba8; }
   .event-handler { color: #f9e2af; flex-shrink: 0; }
-  .event-route { color: #6c7086; overflow: hidden; text-overflow: ellipsis; }
+  .event-route { color: #6c7086; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
   .event-detail {
     padding: 6px 8px 6px 24px;
     background: #181825;
@@ -270,7 +275,7 @@ function formatTime(ts: number): string {
 }
 
 function escapeHtml(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
 class StarHTMLDebugger extends HTMLElement {
@@ -284,9 +289,11 @@ class StarHTMLDebugger extends HTMLElement {
   private unseenCount: number = 0;
   private keydownHandler: ((e: KeyboardEvent) => void) | null = null;
   private filterText: string = "";
-  private expandedIdx: number = -1;
+  private expandedId: number = -1;
   private rafPending: boolean = false;
   private userAtBottom: boolean = true;
+  private sseToolbar: HTMLDivElement | null = null;
+  private sseEventList: HTMLDivElement | null = null;
 
   constructor() {
     super();
@@ -400,7 +407,9 @@ class StarHTMLDebugger extends HTMLElement {
     for (const btn of this.shadow.querySelectorAll(".tab-btn")) {
       btn.classList.toggle("active", (btn as HTMLElement).dataset.tab === tabId);
     }
-    this.expandedIdx = -1;
+    this.expandedId = -1;
+    this.sseToolbar = null;
+    this.sseEventList = null;
     this.renderTabContent();
   }
 
@@ -434,41 +443,84 @@ class StarHTMLDebugger extends HTMLElement {
     }
   }
 
-  private renderSSETab(): void {
+  private ensureSSEStructure(): void {
     const content = this.shadow.getElementById("tab-content")!;
+
+    // Create persistent toolbar and event list if not already present
+    if (!this.sseToolbar || !content.contains(this.sseToolbar)) {
+      content.innerHTML = "";
+
+      this.sseToolbar = document.createElement("div");
+      this.sseToolbar.className = "toolbar";
+      this.sseToolbar.innerHTML = `
+        <input type="text" placeholder="Filter..." class="filter-input" style="width:160px">
+        <button class="clear-btn">Clear</button>
+        <span class="count"></span>
+      `;
+
+      this.sseEventList = document.createElement("div");
+      this.sseEventList.className = "event-list";
+
+      content.appendChild(this.sseToolbar);
+      content.appendChild(this.sseEventList);
+
+      // Persistent listeners on toolbar
+      const filterInput = this.sseToolbar.querySelector(".filter-input") as HTMLInputElement;
+      filterInput.addEventListener("input", () => {
+        this.filterText = filterInput.value;
+        this.expandedId = -1;
+        this.renderSSETab();
+      });
+
+      const clearBtn = this.sseToolbar.querySelector(".clear-btn")!;
+      clearBtn.addEventListener("click", () => {
+        clearEvents();
+        this.expandedId = -1;
+        this.renderSSETab();
+      });
+
+      // Scroll tracking on the content container (the scrollable element)
+      content.addEventListener("scroll", () => {
+        this.userAtBottom = content.scrollTop + content.clientHeight >= content.scrollHeight - 20;
+      });
+    }
+  }
+
+  private renderSSETab(): void {
+    this.ensureSSEStructure();
+    const content = this.shadow.getElementById("tab-content")!;
+    const eventList = this.sseEventList!;
     const filter = this.filterText.toLowerCase();
 
     const filtered = filter
       ? events.filter(ev => {
           const typeCfg = TYPE_CONFIG[ev.type];
           const label = typeCfg?.label ?? ev.type;
-          const handler = ev.debugMeta?.handler ?? "";
-          const route = ev.debugMeta?.route ?? "";
+          const handler = (ev.debugMeta?.handler ?? "").toLowerCase();
+          const route = (ev.debugMeta?.route ?? "").toLowerCase();
           return label.includes(filter) || handler.includes(filter) || route.includes(filter) || ev.type.includes(filter);
         })
       : events;
 
+    // Update count
+    const countEl = this.sseToolbar!.querySelector(".count")!;
+    countEl.textContent = `${filtered.length} event${filtered.length !== 1 ? "s" : ""}`;
+
     // Check scroll position before re-render
     const wasAtBottom = this.userAtBottom;
 
-    let html = `<div class="toolbar">
-      <input type="text" placeholder="Filter..." value="${escapeHtml(this.filterText)}" class="filter-input" style="width:160px">
-      <button class="clear-btn">Clear</button>
-      <span class="count">${filtered.length} event${filtered.length !== 1 ? "s" : ""}</span>
-    </div>
-    <div class="event-list" style="position:relative">`;
-
+    // Build event rows HTML
+    let html = "";
     for (let i = 0; i < filtered.length; i++) {
       const ev = filtered[i];
       const cfg = TYPE_CONFIG[ev.type] ?? { label: ev.type.replace("datastar-", ""), cls: "type-lifecycle" };
       const handler = ev.debugMeta?.handler ?? "";
       const route = ev.debugMeta?.route ?? "";
-      const globalIdx = events.indexOf(ev);
-      const expanded = globalIdx === this.expandedIdx;
+      const expanded = ev.id === this.expandedId;
 
-      html += `<div class="event-row${expanded ? " expanded" : ""}" data-idx="${globalIdx}">
+      html += `<div class="event-row${expanded ? " expanded" : ""}" data-eid="${ev.id}">
         <span class="event-time">${formatTime(ev.timestamp)}</span>
-        <span class="event-type ${cfg.cls}">${cfg.label}</span>
+        <span class="event-type ${cfg.cls}">${escapeHtml(cfg.label)}</span>
         ${handler ? `<span class="event-handler">${escapeHtml(handler)}</span>` : ""}
         ${route ? `<span class="event-route">${escapeHtml(route)}</span>` : ""}
       </div>`;
@@ -479,64 +531,38 @@ class StarHTMLDebugger extends HTMLElement {
       }
     }
 
-    html += `</div>`;
-
-    // Jump to latest button (shown when scrolled up)
-    if (!this.userAtBottom && filtered.length > 0) {
-      html += `<button class="jump-btn">Jump to latest</button>`;
-    }
-
-    content.innerHTML = html;
-
-    // Attach event listeners
-    const filterInput = content.querySelector(".filter-input") as HTMLInputElement | null;
-    filterInput?.addEventListener("input", (e) => {
-      this.filterText = (e.target as HTMLInputElement).value;
-      this.expandedIdx = -1;
-      this.renderSSETab();
-    });
-
-    const clearBtn = content.querySelector(".clear-btn");
-    clearBtn?.addEventListener("click", () => {
-      clearEvents();
-      this.expandedIdx = -1;
-      this.renderSSETab();
-    });
-
-    const jumpBtn = content.querySelector(".jump-btn");
-    jumpBtn?.addEventListener("click", () => {
-      const list = content.querySelector(".event-list");
-      if (list) {
-        list.scrollTop = list.scrollHeight;
-        this.userAtBottom = true;
-        jumpBtn.remove();
-      }
-    });
+    eventList.innerHTML = html;
 
     // Row click to expand/collapse
-    for (const row of content.querySelectorAll(".event-row")) {
+    for (const row of eventList.querySelectorAll(".event-row")) {
       row.addEventListener("click", () => {
-        const idx = Number((row as HTMLElement).dataset.idx);
-        this.expandedIdx = this.expandedIdx === idx ? -1 : idx;
+        const eid = Number((row as HTMLElement).dataset.eid);
+        this.expandedId = this.expandedId === eid ? -1 : eid;
         this.renderSSETab();
       });
     }
 
-    // Track scroll position for auto-scroll
-    const list = content.querySelector(".event-list") as HTMLElement | null;
-    if (list) {
-      list.addEventListener("scroll", () => {
-        this.userAtBottom = list.scrollTop + list.clientHeight >= list.scrollHeight - 20;
-      });
-      // Auto-scroll if was at bottom
-      if (wasAtBottom) {
-        list.scrollTop = list.scrollHeight;
+    // Manage jump-to-latest button
+    let jumpBtn = content.querySelector(".jump-btn") as HTMLButtonElement | null;
+    if (!this.userAtBottom && filtered.length > 0) {
+      if (!jumpBtn) {
+        jumpBtn = document.createElement("button");
+        jumpBtn.className = "jump-btn";
+        jumpBtn.textContent = "Jump to latest";
+        jumpBtn.addEventListener("click", () => {
+          content.scrollTop = content.scrollHeight;
+          this.userAtBottom = true;
+          jumpBtn?.remove();
+        });
+        content.appendChild(jumpBtn);
       }
+    } else if (jumpBtn) {
+      jumpBtn.remove();
     }
 
-    // Restore focus to filter input
-    if (filterInput && document.activeElement === null) {
-      // Don't steal focus
+    // Auto-scroll if was at bottom
+    if (wasAtBottom) {
+      content.scrollTop = content.scrollHeight;
     }
   }
 
