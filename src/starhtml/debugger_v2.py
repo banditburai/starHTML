@@ -282,7 +282,49 @@ DEBUGGER_CSS = """
   .copy-btn.copied { color: #a6e3a1; border-color: #a6e3a1; }
 """
 
-DEBUGGER_SETUP = "// Setup wired in Tasks 4-6"
+DEBUGGER_SETUP = """
+// --- Task 4: Lifecycle + persistence ---
+
+// Initialize capture module (SSE event interception)
+capture.init();
+
+// Subscribe to new events from capture module
+const unsub = capture.subscribe(() => {
+    $$event_count = capture.getEventCount();
+    if (!$$is_open) $$unseen_count = $$unseen_count + 1;
+});
+onCleanup(unsub);
+
+// Restore state from sessionStorage
+const storedOpen = sessionStorage.getItem('starhtml-debug-open');
+if (storedOpen === 'true') $$is_open = true;
+const storedHeight = Number(sessionStorage.getItem('starhtml-debug-height'));
+if (storedHeight > 0) $$panel_height = storedHeight;
+const storedTab = sessionStorage.getItem('starhtml-debug-tab');
+if (storedTab) $$active_tab = storedTab;
+
+// Persist signal changes to sessionStorage
+effect(() => sessionStorage.setItem('starhtml-debug-open', String($$is_open)));
+effect(() => sessionStorage.setItem('starhtml-debug-height', String($$panel_height)));
+effect(() => sessionStorage.setItem('starhtml-debug-tab', $$active_tab));
+
+// MutationObserver lifecycle — observe when panel is open
+effect(() => {
+    if ($$is_open) capture.startObserving();
+    else capture.stopObserving();
+});
+
+// Page inset — push page content above the panel
+effect(() => {
+    document.documentElement.style.paddingBottom = $$is_open ? $$panel_height + 'px' : '';
+});
+onCleanup(() => { document.documentElement.style.paddingBottom = ''; });
+
+// Reset unseen count when panel opens
+effect(() => { if ($$is_open) $$unseen_count = 0; });
+
+// --- Tasks 5-6: Render pipeline + resize/keyboard wired below ---
+"""
 
 
 @element(
