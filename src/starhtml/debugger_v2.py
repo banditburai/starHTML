@@ -545,7 +545,45 @@ effect(() => {
     needsFullRender = true;
 });
 
-// --- Task 6: Resize + keyboard wired below ---
+// --- Task 6: Resize + keyboard ---
+
+// Resize handle drag
+const resizeHandle = refs('resize_handle');
+const tabBar = refs('tab_bar');
+
+const startResize = (e) => {
+    const startY = e.clientY;
+    const startH = $$panel_height;
+    const onMove = (e) => {
+        $$panel_height = Math.max(150, Math.min(window.innerHeight * 0.8, startH - (e.clientY - startY)));
+    };
+    const onUp = () => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+};
+
+if (resizeHandle) resizeHandle.addEventListener('mousedown', startResize);
+
+// Tab-bar as resize target (drag from empty space, not tab buttons)
+if (tabBar) {
+    tabBar.addEventListener('mousedown', (e) => {
+        if (e.target.closest('.tab-btn')) return;
+        startResize(e);
+    });
+}
+
+// Keyboard shortcut: Ctrl+Shift+. (or Cmd+Shift+.)
+const onKeydown = (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.code === 'Period') {
+        e.preventDefault();
+        $$is_open = !$$is_open;
+    }
+};
+document.addEventListener('keydown', onKeydown);
+onCleanup(() => document.removeEventListener('keydown', onKeydown));
 """
 
 
