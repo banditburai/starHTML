@@ -386,6 +386,29 @@ const PANEL_STYLES = `
   .morph-item .flash-warn { color: #f9e2af; }
   .event-preview { color: #9399b2; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1; }
   .morph-badge { color: #a6e3a1; flex-shrink: 0; font-size: 10px; }
+  .type-chips { display: flex; gap: 4px; align-items: center; }
+  .type-chip {
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid transparent;
+    opacity: 0.4;
+    transition: opacity 0.1s ease;
+    user-select: none;
+  }
+  .type-chip:hover { opacity: 0.7; }
+  .type-chip.active { opacity: 1; }
+  .chip-signals { background: #1e3a5f; color: #89b4fa; border-color: #1e3a5f; }
+  .chip-signals.active { border-color: #89b4fa; }
+  .chip-elements { background: #1e3f2a; color: #a6e3a1; border-color: #1e3f2a; }
+  .chip-elements.active { border-color: #a6e3a1; }
+  .chip-script { background: #2e1f5e; color: #cba6f7; border-color: #2e1f5e; }
+  .chip-script.active { border-color: #cba6f7; }
+  .chip-lifecycle { background: #313244; color: #bac2de; border-color: #313244; }
+  .chip-lifecycle.active { border-color: #bac2de; }
+  .toolbar-sep { width: 1px; height: 16px; background: #45475a; flex-shrink: 0; }
 `;
 const TYPE_CONFIG = {
   "datastar-patch-signals": { label: "signals", cls: "type-signals" },
@@ -397,6 +420,12 @@ const TYPE_CONFIG = {
   "retrying": { label: "retry", cls: "type-lifecycle" },
   "retries-failed": { label: "failed", cls: "type-error" }
 };
+const CHIP_CATEGORIES = [
+  { key: "signals", label: "signals", cls: "chip-signals", types: ["datastar-patch-signals"] },
+  { key: "elements", label: "elements", cls: "chip-elements", types: ["datastar-patch-elements"] },
+  { key: "script", label: "script", cls: "chip-script", types: ["datastar-execute-script"] },
+  { key: "lifecycle", label: "lifecycle", cls: "chip-lifecycle", types: ["started", "finished", "error", "retrying", "retries-failed"] }
+];
 function formatTime(ts) {
   const d = new Date(ts);
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}.${String(d.getMilliseconds()).padStart(3, "0")}`;
@@ -425,6 +454,7 @@ class StarHTMLDebugger extends HTMLElement {
     this.userAtBottom = true;
     this.sseToolbar = null;
     this.sseEventList = null;
+    this.activeTypeFilters = /* @__PURE__ */ new Set();
     this.shadow = this.attachShadow({ mode: "open" });
     this.isOpen = sessionStorage.getItem("starhtml-debug-open") === "true";
     const stored = Number(sessionStorage.getItem("starhtml-debug-height"));
@@ -556,7 +586,12 @@ class StarHTMLDebugger extends HTMLElement {
       content.innerHTML = "";
       this.sseToolbar = document.createElement("div");
       this.sseToolbar.className = "toolbar";
+      const chipsHtml = CHIP_CATEGORIES.map(
+        (c) => `<span class="type-chip ${c.cls}${this.activeTypeFilters.has(c.key) ? " active" : ""}" data-chip="${c.key}">${c.label}</span>`
+      ).join("");
       this.sseToolbar.innerHTML = `
+        <div class="type-chips">${chipsHtml}</div>
+        <div class="toolbar-sep"></div>
         <div class="filter-wrap">
           <input type="text" placeholder="Filter..." class="filter-input" style="width:160px;padding-right:20px">
           <button class="clear-filter-btn" style="display:none" title="Clear filter">&times;</button>
@@ -589,6 +624,20 @@ class StarHTMLDebugger extends HTMLElement {
         this.expandedId = -1;
         this.renderSSETab();
       });
+      this.sseToolbar.querySelector(".type-chips").addEventListener("click", (e) => {
+        const chip = e.target.closest(".type-chip");
+        if (!chip) return;
+        const key = chip.dataset.chip;
+        if (this.activeTypeFilters.has(key)) {
+          this.activeTypeFilters.delete(key);
+          chip.classList.remove("active");
+        } else {
+          this.activeTypeFilters.add(key);
+          chip.classList.add("active");
+        }
+        this.expandedId = -1;
+        this.renderSSETab();
+      });
       content.addEventListener("scroll", () => {
         this.userAtBottom = content.scrollTop + content.clientHeight >= content.scrollHeight - 20;
       });
@@ -600,12 +649,30 @@ class StarHTMLDebugger extends HTMLElement {
     const eventList = this.sseEventList;
     const filter = this.filterText.toLowerCase();
     const visible = events.filter((ev) => ev.id >= this.visibleSinceId);
-    const filtered = filter ? visible.filter((ev) => {
-      const label = TYPE_CONFIG[ev.type]?.label ?? ev.type;
-      const handler = (ev.debugMeta?.handler ?? "").toLowerCase();
-      const route = (ev.debugMeta?.route ?? "").toLowerCase();
-      return label.includes(filter) || handler.includes(filter) || route.includes(filter) || ev.type.includes(filter);
-    }) : visible;
+    let allowedTypes = null;
+    if (this.activeTypeFilters.size > 0) {
+      allowedTypes = /* @__PURE__ */ new Set();
+      for (const chip of CHIP_CATEGORIES) {
+        if (this.activeTypeFilters.has(chip.key)) {
+          for (const t of chip.types) allowedTypes.add(t);
+        }
+      }
+    }
+    const filtered = visible.filter((ev) => {
+      if (allowedTypes && !allowedTypes.has(ev.type)) return false;
+      if (filter) {
+        const label = TYPE_CONFIG[ev.type]?.label ?? ev.type;
+        const handler = (ev.debugMeta?.handler ?? "").toLowerCase();
+        const route = (ev.debugMeta?.route ?? "").toLowerCase();
+        if (!(label.includes(filter) || handler.includes(filter) || route.includes(filter) || ev.type.includes(filter))) return false;
+      }
+      return true;
+    });
+    for (const chip of CHIP_CATEGORIES) {
+      const count = visible.filter((ev) => chip.types.includes(ev.type)).length;
+      const el = this.sseToolbar.querySelector(`.type-chip[data-chip="${chip.key}"]`);
+      if (el) el.textContent = `${chip.label} (${count})`;
+    }
     this.sseToolbar.querySelector(".count").textContent = `${filtered.length} event${filtered.length !== 1 ? "s" : ""}`;
     const wasAtBottom = this.userAtBottom;
     let html = "";
