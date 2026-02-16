@@ -331,7 +331,9 @@ const TYPE_CONFIG = {
   "datastar-execute-script": { label: "script", cls: "type-script" },
   "started": { label: "start", cls: "type-lifecycle" },
   "finished": { label: "done", cls: "type-lifecycle" },
-  "error": { label: "error", cls: "type-error" }
+  "error": { label: "error", cls: "type-error" },
+  "retrying": { label: "retry", cls: "type-lifecycle" },
+  "retries-failed": { label: "failed", cls: "type-error" }
 };
 function formatTime(ts) {
   const d = new Date(ts);
@@ -369,6 +371,7 @@ class StarHTMLDebugger extends HTMLElement {
     this.render();
   }
   disconnectedCallback() {
+    if (panelRef === this) panelRef = null;
     if (this.keydownHandler) {
       document.removeEventListener("keydown", this.keydownHandler);
       this.keydownHandler = null;
@@ -657,7 +660,9 @@ class StarHTMLDebugger extends HTMLElement {
     return parts.join("\n");
   }
 }
-customElements.define("starhtml-debugger", StarHTMLDebugger);
+if (!customElements.get("starhtml-debugger")) {
+  customElements.define("starhtml-debugger", StarHTMLDebugger);
+}
 let initialized = false;
 function init() {
   if (initialized) return;

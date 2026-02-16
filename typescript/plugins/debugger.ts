@@ -363,6 +363,8 @@ const TYPE_CONFIG: Record<string, { label: string; cls: string }> = {
   "started": { label: "start", cls: "type-lifecycle" },
   "finished": { label: "done", cls: "type-lifecycle" },
   "error": { label: "error", cls: "type-error" },
+  "retrying": { label: "retry", cls: "type-lifecycle" },
+  "retries-failed": { label: "failed", cls: "type-error" },
 };
 
 function formatTime(ts: number): string {
@@ -413,6 +415,7 @@ class StarHTMLDebugger extends HTMLElement {
   }
 
   disconnectedCallback(): void {
+    if (panelRef === this) panelRef = null;
     if (this.keydownHandler) {
       document.removeEventListener("keydown", this.keydownHandler);
       this.keydownHandler = null;
@@ -750,7 +753,9 @@ class StarHTMLDebugger extends HTMLElement {
   }
 }
 
-customElements.define("starhtml-debugger", StarHTMLDebugger);
+if (!customElements.get("starhtml-debugger")) {
+  customElements.define("starhtml-debugger", StarHTMLDebugger);
+}
 
 let initialized = false;
 
