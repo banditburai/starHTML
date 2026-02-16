@@ -1,7 +1,7 @@
 """StarHTML application factory and configuration utilities"""
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Literal
 
 from fastcore.utils import first
 from starlette.requests import HTTPConnection
@@ -53,8 +53,10 @@ def star_app(
     reload_interval: int = 1000,
     static_path: str = ".",
     body_wrap: Callable = None,
+    datastar: Literal["patched", "cdn"] = "patched",
     **kwargs: Any,
 ):
+    # datastar: "patched" (default, vendored with StarHTML fixes) or "cdn" (vanilla from jsdelivr)
     from .core import noop_body
 
     if body_wrap is None:
@@ -89,6 +91,7 @@ def star_app(
         reload_attempts=reload_attempts,
         reload_interval=reload_interval,
         body_wrap=body_wrap,
+        datastar=datastar,
     )
     app.static_route_exts(static_path=static_path)
 
@@ -115,23 +118,25 @@ def star_app(
     return app, app.route, *db_tables
 
 
-DATASTAR_VERSION = "1.0.0-RC.7"
+DATASTAR_VERSION = "1.0.0-RC.7+starhtml"
+_DATASTAR_CDN_TEMPLATE = "https://cdn.jsdelivr.net/gh/starfederation/datastar@{version}/bundles/datastar.js"
 ICONIFY_VERSION = "2.3.0"
 
 
-def def_hdrs(fallback_path="/static/datastar.js"):
-    """Generate default headers for StarHTML apps."""
+def datastar_cdn_url() -> str:
+    return _DATASTAR_CDN_TEMPLATE.format(version=DATASTAR_VERSION.split("+")[0])
+
+
+def def_hdrs(datastar_url="/static/datastar.js"):
     from .tags import Meta, Style
     from .xtend import Script
 
-    headers = [
-        Style(":not(:defined){visibility:hidden}"),  # Prevent FOUC for custom elements
+    return [
+        Style(":not(:defined){visibility:hidden}"),
         Meta(charset="utf-8"),
         Meta(name="viewport", content="width=device-width, initial-scale=1, viewport-fit=cover"),
-        Script(src=fallback_path, type="module"),
+        Script(src=datastar_url, type="module"),
     ]
-
-    return headers
 
 
 def theme_script(

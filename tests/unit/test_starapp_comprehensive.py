@@ -226,7 +226,7 @@ class TestDefHdrs:
 
     @patch("starhtml.tags.Meta")
     @patch("starhtml.xtend.Script")
-    def test_def_hdrs_custom_fallback_path(self, mock_script, mock_meta):
+    def test_def_hdrs_custom_datastar_url(self, mock_script, mock_meta):
         """Test def_hdrs with custom fallback path."""
         mock_script_instance = Mock()
         mock_meta_instance = Mock()
@@ -234,7 +234,7 @@ class TestDefHdrs:
         mock_meta.return_value = mock_meta_instance
 
         custom_fallback = "/assets/datastar.js"
-        result = def_hdrs(fallback_path=custom_fallback)
+        result = def_hdrs(datastar_url=custom_fallback)
 
         # Headers now include FOUC style
         assert len(result) == 4  # style, charset, viewport, datastar (no iconify by default)
@@ -521,12 +521,12 @@ class TestRealWorldScenarios:
         mock_meta.return_value = Mock()
 
         # Production setup with custom fallback path
-        headers = def_hdrs(fallback_path="/static/datastar-v1.0.0.js")
+        headers = def_hdrs(datastar_url="/static/datastar-v1.0.0.js")
 
         assert len(headers) == 4  # style, charset, viewport, datastar
         assert mock_script.call_count == 1  # datastar only
 
-        # Datastar script uses local fallback_path directly
+        # Datastar script uses local datastar_url directly
         datastar_call = mock_script.call_args_list[0]
         if "src" in datastar_call[1]:
             assert "/static/datastar-v1.0.0.js" in datastar_call[1]["src"]

@@ -7,7 +7,7 @@ import sys
 from copy import deepcopy
 from functools import partialmethod
 from pathlib import Path as PathlibPath
-from typing import Protocol, runtime_checkable
+from typing import Literal, Protocol, runtime_checkable
 
 from fastcore.utils import (
     Path,
@@ -27,7 +27,7 @@ from starlette.routing import Route, WebSocketRoute
 
 from .realtime import _ws_endp, setup_ws
 from .server import _mk_locfunc, _wrap_call, _wrap_ex, _wrap_req, all_meths, cookie, render_response, serve
-from .starapp import Beforeware, def_hdrs
+from .starapp import Beforeware, datastar_cdn_url, def_hdrs
 from .utils import _list, _params, get_key, noop_body, reg_re_param
 
 
@@ -90,15 +90,18 @@ class StarHTML(Starlette):
         htmlkw=None,
         canonical=True,
         static_path=None,
+        datastar: Literal["patched", "cdn"] = "patched",
         **bodykw,
     ):
         middleware, before, after = map(_list, (middleware, before, after))
         self.title, self.canonical = title, canonical
         hdrs, ftrs = map(listify, (hdrs, ftrs))
 
+        self._datastar_url = datastar_cdn_url() if datastar == "cdn" else "/static/datastar.js"
+
         htmlkw = htmlkw or {}
         if default_hdrs:
-            hdrs = def_hdrs() + hdrs
+            hdrs = def_hdrs(datastar_url=self._datastar_url) + hdrs
         on_startup, on_shutdown = listify(on_startup) or None, listify(on_shutdown) or None
         self.lifespan, self.hdrs, self.ftrs = lifespan, hdrs, ftrs
         self.body_wrap, self.before, self.after, self.htmlkw, self.bodykw = body_wrap, before, after, htmlkw, bodykw
@@ -152,14 +155,13 @@ class StarHTML(Starlette):
             self.hdrs.extend(debugger_hdrs())
             self.ftrs.extend(debugger_ftrs())
 
-        # Serve bundled Datastar v1.0.0-RC.7 (external vendored dependency)
-        datastar_path = PathlibPath(__file__).parent / "static" / "datastar.js"
+        if datastar == "patched":
+            datastar_path = PathlibPath(__file__).parent / "static" / "datastar.js"
 
-        @self.route("/static/datastar.js")
-        async def serve_datastar():
-            return FileResponse(datastar_path, media_type="application/javascript")
+            @self.route("/static/datastar.js")
+            async def serve_datastar():
+                return FileResponse(datastar_path, media_type="application/javascript")
 
-        # Register framework plugins (served at /_pkg/starhtml/plugins/)
         self.register_package_static(
             name="starhtml/plugins",
             static_path=PathlibPath(__file__).parent / "static" / "js" / "plugins",
@@ -433,7 +435,7 @@ def register(self: StarHTML, *items, prefix: str | None = None):
     self.hdrs = [
         h for h in self.hdrs if not _is_import_map(h) and not (getattr(h, "src", None) or "").endswith("datastar.js")
     ]
-    merged = {"imports": {"datastar": "/static/datastar.js", **self._import_map}}
+    merged = {"imports": {"datastar": self._datastar_url, **self._import_map}}
     self.hdrs.insert(0, Script(json.dumps(merged), type="importmap"))
 
     # Wire lifecycle handlers
