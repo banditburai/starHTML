@@ -326,7 +326,238 @@ onCleanup(() => { document.documentElement.style.paddingBottom = ''; });
 // Reset unseen count when panel opens
 effect(() => { if ($$is_open) $$unseen_count = 0; });
 
-// --- Tasks 5-6: Render pipeline + resize/keyboard wired below ---
+// --- Task 5: Render pipeline ---
+
+// Shadow DOM workaround: refs() uses this.querySelector which only searches light DOM.
+// For shadow DOM components, we need to query the shadow root directly.
+const root = el.shadowRoot || el;
+const sref = (name) => root.querySelector('[data-ref="' + namespace + '_' + name + '"]');
+
+// Local render state (plain vars, not signals — no reactivity needed)
+let lastRenderedIds = [];
+let needsFullRender = true;
+let rafPending = false;
+let userAtBottom = true;
+let activeTypeFilters = new Set();
+
+// DOM refs
+const eventListEl = sref('event_list');
+const eventCountLabel = sref('event_count_label');
+const copyAllBtn = sref('copy_all_btn');
+const clearEventsBtn = sref('clear_events_btn');
+const tabContentEl = eventListEl ? eventListEl.parentElement : null;
+
+// Scroll tracking
+if (tabContentEl) {
+    tabContentEl.addEventListener('scroll', () => {
+        userAtBottom = tabContentEl.scrollTop + tabContentEl.clientHeight >= tabContentEl.scrollHeight - 20;
+    });
+}
+
+// Type filter chip click handling
+const chipRefs = {
+    signals: sref('chip_signals'),
+    elements: sref('chip_elements'),
+    script: sref('chip_script'),
+    lifecycle: sref('chip_lifecycle'),
+};
+for (const [key, chipEl] of Object.entries(chipRefs)) {
+    if (!chipEl) continue;
+    chipEl.addEventListener('click', () => {
+        if (activeTypeFilters.has(key)) {
+            activeTypeFilters.delete(key);
+            chipEl.classList.remove('active');
+        } else {
+            activeTypeFilters.add(key);
+            chipEl.classList.add('active');
+        }
+        $$expanded_id = -1;
+        needsFullRender = true;
+        renderSSETab();
+    });
+}
+
+// Clear Events button
+if (clearEventsBtn) {
+    clearEventsBtn.addEventListener('click', () => {
+        const evts = capture.getEvents();
+        const latest = evts[evts.length - 1];
+        $$visible_since_id = latest ? latest.id + 1 : 0;
+        $$expanded_id = -1;
+        needsFullRender = true;
+        renderSSETab();
+    });
+}
+
+// Copy All button
+if (copyAllBtn) {
+    copyAllBtn.addEventListener('click', () => {
+        const allowedTypes = capture.buildAllowedTypes(activeTypeFilters);
+        const filtered = capture.getFilteredEvents($$visible_since_id, allowedTypes, $$filter_text);
+        const text = capture.formatAllEventsForExport(filtered);
+        navigator.clipboard.writeText(text).then(() => {
+            copyAllBtn.textContent = 'Copied!';
+            copyAllBtn.classList.add('copied');
+            setTimeout(() => { copyAllBtn.textContent = 'Copy All'; copyAllBtn.classList.remove('copied'); }, 1500);
+        });
+    });
+}
+
+// Event delegation on event list (expand/collapse + copy buttons)
+if (eventListEl) {
+    eventListEl.addEventListener('click', (e) => {
+        const target = e.target;
+
+        // Copy single event button
+        const copyBtn = target.closest('.copy-btn[data-copy-eid]');
+        if (copyBtn) {
+            e.stopPropagation();
+            const eid = Number(copyBtn.dataset.copyEid);
+            const evts = capture.getEvents();
+            const ev = evts.find(ev => ev.id === eid);
+            if (!ev) return;
+            const text = capture.formatSingleEventForExport(ev);
+            navigator.clipboard.writeText(text).then(() => {
+                copyBtn.textContent = 'Copied!';
+                copyBtn.classList.add('copied');
+                setTimeout(() => { copyBtn.textContent = 'Copy'; copyBtn.classList.remove('copied'); }, 1500);
+            });
+            return;
+        }
+
+        // Row expand/collapse
+        const row = target.closest('.event-row');
+        if (!row) return;
+        const eid = Number(row.dataset.eid);
+        const wasExpanded = $$expanded_id === eid;
+        const prevExpandedId = $$expanded_id;
+        $$expanded_id = wasExpanded ? -1 : eid;
+
+        // Collapse previous
+        if (prevExpandedId !== -1) {
+            const prevRow = eventListEl.querySelector('.event-row[data-eid="' + prevExpandedId + '"]');
+            if (prevRow) {
+                prevRow.classList.remove('expanded');
+                const prevDetail = prevRow.nextElementSibling;
+                if (prevDetail && prevDetail.classList.contains('event-detail')) prevDetail.remove();
+            }
+        }
+
+        // Expand new
+        if (!wasExpanded) {
+            row.classList.add('expanded');
+            const evts = capture.getEvents();
+            const ev = evts.find(ev => ev.id === eid);
+            if (ev) {
+                const detail = document.createElement('div');
+                detail.className = 'event-detail';
+                detail.innerHTML = '<button class="copy-btn" data-copy-eid="' + ev.id + '">Copy</button>' + capture.formatEventDetail(ev);
+                row.insertAdjacentElement('afterend', detail);
+            }
+        }
+    });
+}
+
+// Schedule render via RAF
+function scheduleRender() {
+    if (rafPending) return;
+    rafPending = true;
+    requestAnimationFrame(() => {
+        rafPending = false;
+        if ($$is_open && $$active_tab === 'sse') renderSSETab();
+    });
+}
+
+// Main render function
+function renderSSETab() {
+    if (!eventListEl) return;
+
+    const allowedTypes = capture.buildAllowedTypes(activeTypeFilters);
+    const filtered = capture.getFilteredEvents($$visible_since_id, allowedTypes, $$filter_text);
+
+    // Update chip counts
+    const visible = capture.getFilteredEvents($$visible_since_id, null, '');
+    for (const chip of capture.CHIP_CATEGORIES) {
+        const count = visible.filter(ev => chip.types.includes(ev.type)).length;
+        const chipEl = chipRefs[chip.key];
+        if (chipEl) chipEl.textContent = chip.label + ' (' + count + ')';
+    }
+
+    // Update event count label
+    if (eventCountLabel) {
+        eventCountLabel.textContent = filtered.length + ' event' + (filtered.length !== 1 ? 's' : '');
+    }
+
+    const wasAtBottom = userAtBottom;
+    const filteredIds = filtered.map(ev => ev.id);
+
+    // Incremental append
+    if (!needsFullRender && filteredIds.length >= lastRenderedIds.length) {
+        let canIncrement = true;
+        for (let i = 0; i < lastRenderedIds.length; i++) {
+            if (lastRenderedIds[i] !== filteredIds[i]) { canIncrement = false; break; }
+        }
+        if (canIncrement && filteredIds.length > lastRenderedIds.length) {
+            const newEvents = filtered.slice(lastRenderedIds.length);
+            let appendHtml = '';
+            for (const ev of newEvents) appendHtml += capture.buildRowHtml(ev);
+            eventListEl.insertAdjacentHTML('beforeend', appendHtml);
+            lastRenderedIds = filteredIds;
+            needsFullRender = false;
+            if (wasAtBottom && tabContentEl) tabContentEl.scrollTop = tabContentEl.scrollHeight;
+            updateJumpButton(filtered.length);
+            return;
+        }
+    }
+
+    // Full render fallback
+    let html = '';
+    for (const ev of filtered) html += capture.buildRowHtml(ev);
+    eventListEl.innerHTML = html;
+    lastRenderedIds = filteredIds;
+    needsFullRender = false;
+
+    if (wasAtBottom && tabContentEl) tabContentEl.scrollTop = tabContentEl.scrollHeight;
+    updateJumpButton(filtered.length);
+}
+
+// Jump to Latest button
+function updateJumpButton(eventCount) {
+    if (!tabContentEl) return;
+    let jumpBtn = tabContentEl.querySelector('.jump-btn');
+    if (!userAtBottom && eventCount > 0) {
+        if (!jumpBtn) {
+            jumpBtn = document.createElement('button');
+            jumpBtn.className = 'jump-btn';
+            jumpBtn.textContent = 'Jump to latest';
+            jumpBtn.addEventListener('click', () => {
+                tabContentEl.scrollTop = tabContentEl.scrollHeight;
+                userAtBottom = true;
+                jumpBtn.remove();
+            });
+            tabContentEl.appendChild(jumpBtn);
+        }
+    } else if (jumpBtn) {
+        jumpBtn.remove();
+    }
+}
+
+// Reactive render trigger — re-render when signals change
+effect(() => {
+    void $$event_count;
+    void $$filter_text;
+    void $$visible_since_id;
+    void $$expanded_id;
+    if ($$is_open && $$active_tab === 'sse') scheduleRender();
+});
+
+// Force full re-render when filter text changes
+effect(() => {
+    void $$filter_text;
+    needsFullRender = true;
+});
+
+// --- Task 6: Resize + keyboard wired below ---
 """
 
 
