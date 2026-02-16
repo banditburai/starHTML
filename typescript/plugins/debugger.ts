@@ -6,7 +6,6 @@ import {
   TYPE_CONFIG, CHIP_CATEGORIES,
   getEvents, clearEvents, startObserving, stopObserving,
   subscribe, getFilteredEvents, buildAllowedTypes,
-  formatTime, escapeHtml,
   buildRowHtml, formatEventDetail, formatSingleEventForExport, formatAllEventsForExport,
   init,
 } from './debugger-capture';
