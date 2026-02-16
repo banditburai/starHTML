@@ -240,10 +240,12 @@ def format_sse_event(
     parts.extend([f"data: {line}" for line in data_lines])
 
     if debug_ctx:
-        parts.append(f"data: x-debug-seq {debug_ctx['seq']}")
-        parts.append(f"data: x-debug-ts {int(time.time() * 1000)}")
-        parts.append(f"data: x-debug-handler {debug_ctx['handler']}")
-        parts.append(f"data: x-debug-route {debug_ctx['route']}")
+        parts.extend([
+            f"data: x-debug-seq {debug_ctx['seq']}",
+            f"data: x-debug-ts {int(time.time() * 1000)}",
+            f"data: x-debug-handler {debug_ctx['handler']}",
+            f"data: x-debug-route {debug_ctx['route']}",
+        ])
 
     return "\n".join(parts) + "\n\n"
 

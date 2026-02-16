@@ -1,61 +1,43 @@
-export interface DebugSSEEvent {
-  id: number;
-  type: string;
-  timestamp: number;
-  el: HTMLElement | null;
-  argsRaw: Record<string, unknown>;
-  debugMeta?: {
-    seq: number;
-    ts: number;
-    handler: string;
-    route: string;
-  };
-  morphRecords?: MutationRecord[];
-}
-
 let nextEventId = 0;
-
-const MAX_EVENTS = 3000;
+const MAX_EVENTS = 3e3;
 const PRESERVE_INITIAL = 200;
-let events: DebugSSEEvent[] = [];
-
-export function getEvents(): readonly DebugSSEEvent[] {
+let events = [];
+function getEvents() {
   return events;
 }
-
-export function clearEvents(): void {
+function clearEvents() {
   events = [];
 }
-
-let morphWindow: { sseEvent: DebugSSEEvent; records: MutationRecord[] } | null = null;
-
-export function getMorphWindow() { return morphWindow; }
-
-let panelRef: StarHTMLDebugger | null = null;
-
-let observer: MutationObserver | null = null;
+let morphWindow = null;
+function getMorphWindow() {
+  return morphWindow;
+}
+let panelRef = null;
+let observer = null;
 const DEBUGGER_TAG = "STARHTML-DEBUGGER";
 const MAX_MORPH_RECORDS = 500;
-// MutationRecord only stores oldValue; capture newValue at observation time
-const attrNewValues = new WeakMap<MutationRecord, string>();
-
-function startObserving(): void {
+const attrNewValues = /* @__PURE__ */ new WeakMap();
+function startObserving() {
   if (observer) return;
   observer = new MutationObserver((records) => {
     if (!morphWindow) return;
-    // Shadow DOM isolates debugger-internal mutations; only filter
-    // light-DOM mutations that target or add/remove the debugger element
     for (const r of records) {
       if (morphWindow.records.length >= MAX_MORPH_RECORDS) break;
-      if ((r.target as Element).tagName === DEBUGGER_TAG) continue;
+      if (r.target.tagName === DEBUGGER_TAG) continue;
       if (r.type === "childList") {
         let skip = false;
         for (const node of r.addedNodes) {
-          if ((node as Element).tagName === DEBUGGER_TAG) { skip = true; break; }
+          if (node.tagName === DEBUGGER_TAG) {
+            skip = true;
+            break;
+          }
         }
         if (!skip) {
           for (const node of r.removedNodes) {
-            if ((node as Element).tagName === DEBUGGER_TAG) { skip = true; break; }
+            if (node.tagName === DEBUGGER_TAG) {
+              skip = true;
+              break;
+            }
           }
         }
         if (skip) continue;
@@ -66,18 +48,16 @@ function startObserving(): void {
       morphWindow.records.push(r);
     }
   });
-
   observer.observe(document.body, {
     childList: true,
     attributes: true,
     attributeOldValue: true,
     characterData: true,
     characterDataOldValue: true,
-    subtree: true,
+    subtree: true
   });
 }
-
-function stopObserving(): void {
+function stopObserving() {
   if (!observer) return;
   const pending = observer.takeRecords();
   if (morphWindow) {
@@ -89,31 +69,24 @@ function stopObserving(): void {
   observer.disconnect();
   observer = null;
 }
-
-function captureSSEEvents(): void {
-  document.addEventListener("datastar-fetch", (e: Event) => {
-    const { type, el, argsRaw } = (e as CustomEvent).detail;
-
+function captureSSEEvents() {
+  document.addEventListener("datastar-fetch", (e) => {
+    const { type, el, argsRaw } = e.detail;
     const debugMeta = argsRaw?.["x-debug-seq"] != null ? {
       seq: Number(argsRaw["x-debug-seq"]),
       ts: Number(argsRaw["x-debug-ts"]),
       handler: String(argsRaw["x-debug-handler"] ?? ""),
-      route: String(argsRaw["x-debug-route"] ?? ""),
-    } : undefined;
-
-    const event: DebugSSEEvent = {
+      route: String(argsRaw["x-debug-route"] ?? "")
+    } : void 0;
+    const event = {
       id: nextEventId++,
       type,
       timestamp: Date.now(),
       el,
       argsRaw: { ...argsRaw },
-      debugMeta,
+      debugMeta
     };
-
     addEvent(event);
-
-    // setTimeout(0) to close — MO callbacks fire after microtasks
-    // but before macrotasks, so records land inside the window
     if (type === "datastar-patch-elements") {
       morphWindow = { sseEvent: event, records: [] };
       setTimeout(() => {
@@ -125,17 +98,14 @@ function captureSSEEvents(): void {
     }
   });
 }
-
-function addEvent(event: DebugSSEEvent): void {
+function addEvent(event) {
   events.push(event);
-  // Preserve initial events, evict oldest from the middle
   if (events.length > MAX_EVENTS) {
     events.splice(PRESERVE_INITIAL, events.length - MAX_EVENTS);
   }
-  panelRef ??= document.querySelector("starhtml-debugger") as StarHTMLDebugger | null;
+  panelRef ?? (panelRef = document.querySelector("starhtml-debugger"));
   panelRef?.notifyNewEvent();
 }
-
 const PANEL_STYLES = `
   :host {
     position: fixed;
@@ -302,27 +272,23 @@ const PANEL_STYLES = `
   .morph-item .new-val { color: #a6e3a1; }
   .morph-item .flash-warn { color: #f9e2af; }
 `;
-
-const TYPE_CONFIG: Record<string, { label: string; cls: string }> = {
+const TYPE_CONFIG = {
   "datastar-patch-signals": { label: "signals", cls: "type-signals" },
   "datastar-patch-elements": { label: "elements", cls: "type-elements" },
   "datastar-execute-script": { label: "script", cls: "type-script" },
   "started": { label: "start", cls: "type-lifecycle" },
   "finished": { label: "done", cls: "type-lifecycle" },
-  "error": { label: "error", cls: "type-error" },
+  "error": { label: "error", cls: "type-error" }
 };
-
-function formatTime(ts: number): string {
+function formatTime(ts) {
   const d = new Date(ts);
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}.${String(d.getMilliseconds()).padStart(3, "0")}`;
 }
-
-const ESCAPE_MAP: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, c => ESCAPE_MAP[c]);
+const ESCAPE_MAP = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, (c) => ESCAPE_MAP[c]);
 }
-
-function selectorPath(el: Element): string {
+function selectorPath(el) {
   if (el.id) return `#${el.id}`;
   let path = el.tagName.toLowerCase();
   if (el.className && typeof el.className === "string") {
@@ -330,26 +296,17 @@ function selectorPath(el: Element): string {
   }
   return path;
 }
-
 class StarHTMLDebugger extends HTMLElement {
-  private shadow: ShadowRoot;
-  private panel!: HTMLDivElement;
-  private tab!: HTMLDivElement;
-  private isOpen: boolean;
-  private panelHeight: number;
-  private activeTab: string;
-  private badge!: HTMLSpanElement;
-  private unseenCount: number = 0;
-  private keydownHandler: ((e: KeyboardEvent) => void) | null = null;
-  private filterText: string = "";
-  private expandedId: number = -1;
-  private rafPending: boolean = false;
-  private userAtBottom: boolean = true;
-  private sseToolbar: HTMLDivElement | null = null;
-  private sseEventList: HTMLDivElement | null = null;
-
   constructor() {
     super();
+    this.unseenCount = 0;
+    this.keydownHandler = null;
+    this.filterText = "";
+    this.expandedId = -1;
+    this.rafPending = false;
+    this.userAtBottom = true;
+    this.sseToolbar = null;
+    this.sseEventList = null;
     this.shadow = this.attachShadow({ mode: "open" });
     this.isOpen = sessionStorage.getItem("starhtml-debug-open") === "true";
     const stored = Number(sessionStorage.getItem("starhtml-debug-height"));
@@ -357,16 +314,14 @@ class StarHTMLDebugger extends HTMLElement {
     this.activeTab = sessionStorage.getItem("starhtml-debug-tab") || "sse";
     this.render();
   }
-
-  disconnectedCallback(): void {
+  disconnectedCallback() {
     if (this.keydownHandler) {
       document.removeEventListener("keydown", this.keydownHandler);
       this.keydownHandler = null;
     }
     stopObserving();
   }
-
-  private render(): void {
+  render() {
     this.shadow.innerHTML = `
       <style>${PANEL_STYLES}</style>
       <div class="debugger-tab">
@@ -382,40 +337,33 @@ class StarHTMLDebugger extends HTMLElement {
         <div class="tab-content" id="tab-content"></div>
       </div>
     `;
-
-    this.panel = this.shadow.querySelector(".debugger-panel")!;
-    this.tab = this.shadow.querySelector(".debugger-tab")!;
-    this.badge = this.shadow.querySelector(".badge")!;
-
+    this.panel = this.shadow.querySelector(".debugger-panel");
+    this.tab = this.shadow.querySelector(".debugger-tab");
+    this.badge = this.shadow.querySelector(".badge");
     if (this.isOpen) {
       this.panel.classList.add("open");
       startObserving();
     }
-
     this.setupEventListeners();
-
     if (this.isOpen) {
       this.renderTabContent();
     }
   }
-
-  private setupEventListeners(): void {
+  setupEventListeners() {
     this.tab.addEventListener("click", () => this.toggle());
-
-    this.shadow.querySelector(".tab-bar")!.addEventListener("click", (e) => {
-      const btn = (e.target as HTMLElement).closest<HTMLElement>(".tab-btn");
+    this.shadow.querySelector(".tab-bar").addEventListener("click", (e) => {
+      const btn = e.target.closest(".tab-btn");
       if (!btn) return;
-      this.switchTab(btn.dataset.tab!);
+      this.switchTab(btn.dataset.tab);
     });
-
-    const handle = this.shadow.querySelector(".resize-handle")!;
+    const handle = this.shadow.querySelector(".resize-handle");
     let startY = 0, startH = 0;
-    handle.addEventListener("mousedown", (e: Event) => {
-      const me = e as MouseEvent;
+    handle.addEventListener("mousedown", (e) => {
+      const me = e;
       startY = me.clientY;
       startH = this.panelHeight;
-      const onMove = (e: MouseEvent) => {
-        this.panelHeight = Math.max(150, Math.min(window.innerHeight * 0.8, startH - (e.clientY - startY)));
+      const onMove = (e2) => {
+        this.panelHeight = Math.max(150, Math.min(window.innerHeight * 0.8, startH - (e2.clientY - startY)));
         this.panel.style.height = `${this.panelHeight}px`;
       };
       const onUp = () => {
@@ -426,8 +374,7 @@ class StarHTMLDebugger extends HTMLElement {
       document.addEventListener("mousemove", onMove);
       document.addEventListener("mouseup", onUp);
     });
-
-    this.keydownHandler = (e: KeyboardEvent) => {
+    this.keydownHandler = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.code === "Period") {
         e.preventDefault();
         this.toggle();
@@ -435,8 +382,7 @@ class StarHTMLDebugger extends HTMLElement {
     };
     document.addEventListener("keydown", this.keydownHandler);
   }
-
-  private toggle(): void {
+  toggle() {
     this.isOpen = !this.isOpen;
     this.panel.classList.toggle("open", this.isOpen);
     sessionStorage.setItem("starhtml-debug-open", String(this.isOpen));
@@ -449,11 +395,10 @@ class StarHTMLDebugger extends HTMLElement {
       stopObserving();
     }
   }
-
-  private switchTab(tabId: string): void {
+  switchTab(tabId) {
     this.activeTab = tabId;
     sessionStorage.setItem("starhtml-debug-tab", tabId);
-    for (const btn of this.shadow.querySelectorAll<HTMLElement>(".tab-btn")) {
+    for (const btn of this.shadow.querySelectorAll(".tab-btn")) {
       btn.classList.toggle("active", btn.dataset.tab === tabId);
     }
     this.expandedId = -1;
@@ -461,8 +406,7 @@ class StarHTMLDebugger extends HTMLElement {
     this.sseEventList = null;
     this.renderTabContent();
   }
-
-  public notifyNewEvent(): void {
+  notifyNewEvent() {
     if (!this.isOpen) {
       this.unseenCount++;
       this.badge.textContent = String(this.unseenCount);
@@ -470,8 +414,7 @@ class StarHTMLDebugger extends HTMLElement {
     }
     this.scheduleRender();
   }
-
-  private scheduleRender(): void {
+  scheduleRender() {
     if (this.rafPending) return;
     this.rafPending = true;
     requestAnimationFrame(() => {
@@ -481,21 +424,17 @@ class StarHTMLDebugger extends HTMLElement {
       }
     });
   }
-
-  private renderTabContent(): void {
+  renderTabContent() {
     if (this.activeTab === "sse") {
       this.renderSSETab();
     } else {
-      this.shadow.getElementById("tab-content")!.innerHTML =
-        `<div style="color:#6c7086;padding:16px;">Coming in Phase 2</div>`;
+      this.shadow.getElementById("tab-content").innerHTML = `<div style="color:#6c7086;padding:16px;">Coming in Phase 2</div>`;
     }
   }
-
-  private ensureSSEStructure(): void {
-    const content = this.shadow.getElementById("tab-content")!;
+  ensureSSEStructure() {
+    const content = this.shadow.getElementById("tab-content");
     if (!this.sseToolbar || !content.contains(this.sseToolbar)) {
       content.innerHTML = "";
-
       this.sseToolbar = document.createElement("div");
       this.sseToolbar.className = "toolbar";
       this.sseToolbar.innerHTML = `
@@ -503,82 +442,64 @@ class StarHTMLDebugger extends HTMLElement {
         <button class="clear-btn">Clear</button>
         <span class="count"></span>
       `;
-
       this.sseEventList = document.createElement("div");
       this.sseEventList.className = "event-list";
-
       content.appendChild(this.sseToolbar);
       content.appendChild(this.sseEventList);
-
-      const filterInput = this.sseToolbar.querySelector(".filter-input") as HTMLInputElement;
+      const filterInput = this.sseToolbar.querySelector(".filter-input");
       filterInput.addEventListener("input", () => {
         this.filterText = filterInput.value;
         this.expandedId = -1;
         this.renderSSETab();
       });
-
-      this.sseToolbar.querySelector(".clear-btn")!.addEventListener("click", () => {
+      this.sseToolbar.querySelector(".clear-btn").addEventListener("click", () => {
         clearEvents();
         this.expandedId = -1;
         this.renderSSETab();
       });
-
       content.addEventListener("scroll", () => {
         this.userAtBottom = content.scrollTop + content.clientHeight >= content.scrollHeight - 20;
       });
     }
   }
-
-  private renderSSETab(): void {
+  renderSSETab() {
     this.ensureSSEStructure();
-    const content = this.shadow.getElementById("tab-content")!;
-    const eventList = this.sseEventList!;
+    const content = this.shadow.getElementById("tab-content");
+    const eventList = this.sseEventList;
     const filter = this.filterText.toLowerCase();
-
-    const filtered = filter
-      ? events.filter(ev => {
-          const label = TYPE_CONFIG[ev.type]?.label ?? ev.type;
-          const handler = (ev.debugMeta?.handler ?? "").toLowerCase();
-          const route = (ev.debugMeta?.route ?? "").toLowerCase();
-          return label.includes(filter) || handler.includes(filter) || route.includes(filter) || ev.type.includes(filter);
-        })
-      : events;
-
-    this.sseToolbar!.querySelector(".count")!.textContent =
-      `${filtered.length} event${filtered.length !== 1 ? "s" : ""}`;
-
+    const filtered = filter ? events.filter((ev) => {
+      const label = TYPE_CONFIG[ev.type]?.label ?? ev.type;
+      const handler = (ev.debugMeta?.handler ?? "").toLowerCase();
+      const route = (ev.debugMeta?.route ?? "").toLowerCase();
+      return label.includes(filter) || handler.includes(filter) || route.includes(filter) || ev.type.includes(filter);
+    }) : events;
+    this.sseToolbar.querySelector(".count").textContent = `${filtered.length} event${filtered.length !== 1 ? "s" : ""}`;
     const wasAtBottom = this.userAtBottom;
-
     let html = "";
     for (const ev of filtered) {
       const cfg = TYPE_CONFIG[ev.type] ?? { label: ev.type.replace("datastar-", ""), cls: "type-lifecycle" };
       const handler = ev.debugMeta?.handler ?? "";
       const route = ev.debugMeta?.route ?? "";
       const expanded = ev.id === this.expandedId;
-
       html += `<div class="event-row${expanded ? " expanded" : ""}" data-eid="${ev.id}">
         <span class="event-time">${formatTime(ev.timestamp)}</span>
         <span class="event-type ${cfg.cls}">${escapeHtml(cfg.label)}</span>
         ${handler ? `<span class="event-handler">${escapeHtml(handler)}</span>` : ""}
         ${route ? `<span class="event-route">${escapeHtml(route)}</span>` : ""}
       </div>`;
-
       if (expanded) {
         html += `<div class="event-detail">${this.formatEventDetail(ev)}</div>`;
       }
     }
-
     eventList.innerHTML = html;
-
-    for (const row of eventList.querySelectorAll<HTMLElement>(".event-row")) {
+    for (const row of eventList.querySelectorAll(".event-row")) {
       row.addEventListener("click", () => {
         const eid = Number(row.dataset.eid);
         this.expandedId = this.expandedId === eid ? -1 : eid;
         this.renderSSETab();
       });
     }
-
-    let jumpBtn = content.querySelector(".jump-btn") as HTMLButtonElement | null;
+    let jumpBtn = content.querySelector(".jump-btn");
     if (!this.userAtBottom && filtered.length > 0) {
       if (!jumpBtn) {
         jumpBtn = document.createElement("button");
@@ -594,40 +515,32 @@ class StarHTMLDebugger extends HTMLElement {
     } else if (jumpBtn) {
       jumpBtn.remove();
     }
-
     if (wasAtBottom) {
       content.scrollTop = content.scrollHeight;
     }
   }
-
-  private formatEventDetail(ev: DebugSSEEvent): string {
-    const parts: string[] = [];
-
+  formatEventDetail(ev) {
+    const parts = [];
     if (ev.debugMeta) {
       parts.push(`<b>seq:</b> ${ev.debugMeta.seq}  <b>ts:</b> ${ev.debugMeta.ts}  <b>handler:</b> ${escapeHtml(ev.debugMeta.handler)}  <b>route:</b> ${escapeHtml(ev.debugMeta.route)}`);
     }
-
-    const args: Record<string, unknown> = {};
+    const args = {};
     for (const [k, v] of Object.entries(ev.argsRaw)) {
       if (!k.startsWith("x-debug-")) args[k] = v;
     }
     if (Object.keys(args).length > 0) {
       parts.push(escapeHtml(JSON.stringify(args, null, 2)));
     }
-
     if (ev.morphRecords && ev.morphRecords.length > 0) {
-      const addedCount = ev.morphRecords.filter(r => r.type === "childList" && r.addedNodes.length > 0).length;
-      const removedCount = ev.morphRecords.filter(r => r.type === "childList" && r.removedNodes.length > 0).length;
-      const attrsCount = ev.morphRecords.filter(r => r.type === "attributes").length;
-      const charCount = ev.morphRecords.filter(r => r.type === "characterData").length;
-
+      const addedCount = ev.morphRecords.filter((r) => r.type === "childList" && r.addedNodes.length > 0).length;
+      const removedCount = ev.morphRecords.filter((r) => r.type === "childList" && r.removedNodes.length > 0).length;
+      const attrsCount = ev.morphRecords.filter((r) => r.type === "attributes").length;
+      const charCount = ev.morphRecords.filter((r) => r.type === "characterData").length;
       let summary = `<div class="morph-summary"><b>morphs:</b> ${addedCount} added, ${removedCount} removed, ${attrsCount} attributes`;
       if (charCount > 0) summary += `, ${charCount} text`;
       summary += `</div>`;
-
-      // Use element identity to avoid false positives from non-unique selectors
-      const elementIds = new WeakMap<Element, number>();
-      const attrChanges = new Map<string, number>();
+      const elementIds = /* @__PURE__ */ new WeakMap();
+      const attrChanges = /* @__PURE__ */ new Map();
       let nextElId = 0;
       for (const r of ev.morphRecords) {
         if (r.type === "attributes" && r.target instanceof Element) {
@@ -636,7 +549,6 @@ class StarHTMLDebugger extends HTMLElement {
           attrChanges.set(key, (attrChanges.get(key) ?? 0) + 1);
         }
       }
-
       let items = "";
       for (const r of ev.morphRecords) {
         if (r.type === "childList") {
@@ -661,7 +573,7 @@ class StarHTMLDebugger extends HTMLElement {
           const sel = selectorPath(r.target);
           const attr = r.attributeName ?? "";
           const oldVal = r.oldValue ?? "";
-          const newVal = attrNewValues.get(r) ?? (r.target as Element).getAttribute(attr) ?? "";
+          const newVal = attrNewValues.get(r) ?? r.target.getAttribute(attr) ?? "";
           const elId = elementIds.get(r.target);
           const key = `${elId}[${attr}]`;
           const flash = (attrChanges.get(key) ?? 0) > 1 ? ` <span class="flash-warn">&#9888; flash</span>` : "";
@@ -672,21 +584,22 @@ class StarHTMLDebugger extends HTMLElement {
           items += `<div class="morph-item">~ text in <span class="selector">${escapeHtml(sel)}</span></div>`;
         }
       }
-
       parts.push(summary + (items ? `<div class="morph-list">${items}</div>` : ""));
     }
-
     return parts.join("\n");
   }
 }
-
 customElements.define("starhtml-debugger", StarHTMLDebugger);
-
 let initialized = false;
-
-export function init(): void {
+function init() {
   if (initialized) return;
   initialized = true;
   captureSSEEvents();
   console.log("[starhtml-debugger] initialized");
 }
+export {
+  clearEvents,
+  getEvents,
+  getMorphWindow,
+  init
+};

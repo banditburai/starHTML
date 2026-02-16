@@ -23,7 +23,6 @@ class TestDebugFlag:
             assert app.debug is False
 
     def test_debug_env_override_on(self):
-        """STARHTML_DEBUG=1 forces debug on."""
         with patch.dict(os.environ, {"STARHTML_DEBUG": "1"}):
             app = StarHTML(debug=False)
             assert app.debug is True
@@ -39,14 +38,12 @@ class TestDebugFlag:
             assert app.debug is True
 
     def test_debug_stderr_warning(self):
-        """Debug mode prints a warning to stderr."""
         captured = StringIO()
         with patch("sys.stderr", captured):
             StarHTML(debug=True)
         assert "debug mode is ON" in captured.getvalue()
 
     def test_no_debug_no_warning(self):
-        """No warning when debug is off."""
         captured = StringIO()
         with patch("sys.stderr", captured):
             StarHTML(debug=False)
