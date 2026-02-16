@@ -1,6 +1,5 @@
 // debugger-capture.ts — Data layer, event capture, rendering helpers.
-// Standalone module consumed by both the legacy debugger.ts and the
-// StarElements-based debugger component (Phase 2).
+// Standalone data-layer module consumed by the StarElements debugger component.
 
 // ─── Interfaces ────────────────────────────────────────────────────
 
