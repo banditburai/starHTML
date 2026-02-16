@@ -384,6 +384,8 @@ const PANEL_STYLES = `
   .morph-item .old-val { color: #f38ba8; text-decoration: line-through; }
   .morph-item .new-val { color: #a6e3a1; }
   .morph-item .flash-warn { color: #f9e2af; }
+  .event-preview { color: #9399b2; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1; }
+  .morph-badge { color: #a6e3a1; flex-shrink: 0; font-size: 10px; }
 `;
 const TYPE_CONFIG = {
   "datastar-patch-signals": { label: "signals", cls: "type-signals" },
@@ -612,11 +614,15 @@ class StarHTMLDebugger extends HTMLElement {
       const handler = ev.debugMeta?.handler ?? "";
       const route = ev.debugMeta?.route ?? "";
       const expanded = ev.id === this.expandedId;
+      const preview = this.eventPreview(ev);
+      const badge = this.morphBadge(ev);
       html += `<div class="event-row${expanded ? " expanded" : ""}" data-eid="${ev.id}">
         <span class="event-time">${formatTime(ev.timestamp)}</span>
         <span class="event-type ${cfg.cls}">${escapeHtml(cfg.label)}</span>
         ${handler ? `<span class="event-handler">${escapeHtml(handler)}</span>` : ""}
-        ${route ? `<span class="event-route">${escapeHtml(route)}</span>` : ""}
+        ${preview ? `<span class="event-preview">${escapeHtml(preview)}</span>` : ""}
+        ${badge ? `<span class="morph-badge">${escapeHtml(badge)}</span>` : ""}
+        ${!preview && route ? `<span class="event-route">${escapeHtml(route)}</span>` : ""}
       </div>`;
       if (expanded) {
         html += `<div class="event-detail">${this.formatEventDetail(ev)}</div>`;
@@ -649,6 +655,37 @@ class StarHTMLDebugger extends HTMLElement {
     if (wasAtBottom) {
       content.scrollTop = content.scrollHeight;
     }
+  }
+  eventPreview(ev) {
+    const args = ev.argsRaw;
+    if (ev.type === "datastar-patch-signals") {
+      const raw = args.signals;
+      if (typeof raw === "string") {
+        try {
+          const obj = JSON.parse(raw);
+          return Object.entries(obj).map(([k, v]) => `${k}: ${JSON.stringify(v)}`).join(", ").slice(0, 60);
+        } catch {
+        }
+      }
+      return "";
+    }
+    if (ev.type === "datastar-patch-elements") {
+      const mode = args.mode ?? "outer";
+      const selector = args.selector ?? "";
+      return `${mode} ${selector}`;
+    }
+    if (ev.type === "datastar-execute-script") {
+      const script = String(args.script ?? "").slice(0, 40);
+      return script;
+    }
+    return "";
+  }
+  morphBadge(ev) {
+    if (!ev.morphs || ev.morphs.length === 0) return "";
+    const added = ev.morphs.filter((m) => m.type === "childList" && (m.added?.length ?? 0) > 0).length;
+    const removed = ev.morphs.filter((m) => m.type === "childList" && (m.removed?.length ?? 0) > 0).length;
+    const changed = ev.morphs.filter((m) => m.type === "attributes").length;
+    return `+${added} -${removed} ~${changed}`;
   }
   formatEventDetail(ev) {
     const parts = [];
