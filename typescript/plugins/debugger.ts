@@ -19,7 +19,7 @@ export interface DebugSSEEvent {
   morphRecords?: MutationRecord[];
 }
 
-// Ring buffer for events (eviction logic in Task 5)
+// Ring buffer for events
 const MAX_EVENTS = 3000;
 const PRESERVE_INITIAL = 200;
 let events: DebugSSEEvent[] = [];
@@ -30,6 +30,64 @@ export function getEvents(): readonly DebugSSEEvent[] {
 
 export function clearEvents(): void {
   events = [];
+}
+
+// ============================================================================
+// SSE Event Capture
+// ============================================================================
+
+let morphWindow: { sseEvent: DebugSSEEvent; records: MutationRecord[] } | null = null;
+
+export { morphWindow };
+
+function captureSSEEvents(): void {
+  document.addEventListener("datastar-fetch", (e: Event) => {
+    const detail = (e as CustomEvent).detail;
+    const { type, el, argsRaw } = detail;
+
+    // Extract debug metadata from argsRaw if present
+    const debugMeta = argsRaw?.["x-debug-seq"] != null ? {
+      seq: Number(argsRaw["x-debug-seq"]),
+      ts: Number(argsRaw["x-debug-ts"]),
+      handler: String(argsRaw["x-debug-handler"] ?? ""),
+      route: String(argsRaw["x-debug-route"] ?? ""),
+    } : undefined;
+
+    const event: DebugSSEEvent = {
+      type,
+      timestamp: Date.now(),
+      el,
+      argsRaw: { ...argsRaw },
+      debugMeta,
+    };
+
+    addEvent(event);
+
+    // If this is a patch-elements event, open a morph window
+    if (type === "datastar-patch-elements") {
+      morphWindow = { sseEvent: event, records: [] };
+      // Close the morph window on next microtask (morph is synchronous)
+      queueMicrotask(() => {
+        if (morphWindow) {
+          event.morphRecords = morphWindow.records;
+          morphWindow = null;
+        }
+      });
+    }
+  });
+}
+
+function addEvent(event: DebugSSEEvent): void {
+  events.push(event);
+  // Two-tier eviction: preserve first PRESERVE_INITIAL, ring-buffer the rest
+  if (events.length > MAX_EVENTS) {
+    const preserved = events.slice(0, PRESERVE_INITIAL);
+    const recent = events.slice(-(MAX_EVENTS - PRESERVE_INITIAL));
+    events = [...preserved, ...recent];
+  }
+  // Notify the panel component
+  const panel = document.querySelector("starhtml-debugger") as StarHTMLDebugger | null;
+  panel?.notifyNewEvent();
 }
 
 // ============================================================================
@@ -277,5 +335,6 @@ customElements.define("starhtml-debugger", StarHTMLDebugger);
 // ============================================================================
 
 export function init(): void {
+  captureSSEEvents();
   console.log("[starhtml-debugger] initialized");
 }
