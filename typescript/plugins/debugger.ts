@@ -22,6 +22,8 @@ export interface DebugSSEEvent {
     route: string;
   };
   morphs?: SerializedMorph[];
+  groupId?: number;
+  duration?: number;
 }
 
 let nextEventId = 0;
@@ -162,6 +164,9 @@ function serializeMorphRecords(records: MutationRecord[]): SerializedMorph[] {
   return morphs;
 }
 
+let nextGroupId = 0;
+const openGroups = new WeakMap<HTMLElement, { groupId: number; startTime: number }>();
+
 function captureSSEEvents(): void {
   document.addEventListener("datastar-fetch", (e: Event) => {
     const { type, el, argsRaw } = (e as CustomEvent).detail;
@@ -181,6 +186,20 @@ function captureSSEEvents(): void {
       argsRaw: { ...argsRaw },
       debugMeta,
     };
+
+    // Request grouping: started opens a group, finished closes it
+    if (type === "started" && el) {
+      const gid = nextGroupId++;
+      openGroups.set(el, { groupId: gid, startTime: event.timestamp });
+      event.groupId = gid;
+    } else if (el && openGroups.has(el)) {
+      const group = openGroups.get(el)!;
+      event.groupId = group.groupId;
+      if (type === "finished" || type === "error" || type === "retries-failed") {
+        event.duration = event.timestamp - group.startTime;
+        openGroups.delete(el);
+      }
+    }
 
     addEvent(event);
 
@@ -451,6 +470,10 @@ const PANEL_STYLES = `
   .chip-lifecycle { background: #313244; color: #bac2de; border-color: #313244; }
   .chip-lifecycle.active { border-color: #bac2de; }
   .toolbar-sep { width: 1px; height: 16px; background: #45475a; flex-shrink: 0; }
+  .group-0 { border-left: 2px solid #89b4fa; }
+  .group-1 { border-left: 2px solid #a6e3a1; }
+  .group-2 { border-left: 2px solid #cba6f7; }
+  .event-duration { color: #9399b2; flex-shrink: 0; font-size: 10px; }
 `;
 
 const TYPE_CONFIG: Record<string, { label: string; cls: string }> = {
@@ -777,10 +800,15 @@ class StarHTMLDebugger extends HTMLElement {
 
       const preview = this.eventPreview(ev);
       const badge = this.morphBadge(ev);
+      const groupCls = ev.groupId != null ? ` group-${ev.groupId % 3}` : "";
+      const dur = ev.duration != null
+        ? ev.duration >= 1000 ? `${(ev.duration / 1000).toFixed(1)}s` : `${ev.duration}ms`
+        : "";
 
-      html += `<div class="event-row${expanded ? " expanded" : ""}" data-eid="${ev.id}">
+      html += `<div class="event-row${expanded ? " expanded" : ""}${groupCls}" data-eid="${ev.id}">
         <span class="event-time">${formatTime(ev.timestamp)}</span>
         <span class="event-type ${cfg.cls}">${escapeHtml(cfg.label)}</span>
+        ${dur ? `<span class="event-duration">(${dur})</span>` : ""}
         ${handler ? `<span class="event-handler">${escapeHtml(handler)}</span>` : ""}
         ${preview ? `<span class="event-preview">${escapeHtml(preview)}</span>` : ""}
         ${badge ? `<span class="morph-badge">${escapeHtml(badge)}</span>` : ""}
@@ -844,6 +872,19 @@ class StarHTMLDebugger extends HTMLElement {
     if (ev.type === "datastar-execute-script") {
       const script = String(args.script ?? "").slice(0, 40);
       return script;
+    }
+    if (ev.type === "started") {
+      const route = ev.debugMeta?.route ?? "";
+      if (route) return route;
+      // Try to extract from element's data-on-click or similar
+      if (ev.el) {
+        for (const attr of ev.el.attributes) {
+          if (attr.name.startsWith("data-on-") && attr.value) {
+            const match = attr.value.match(/(?:get|post|put|patch|delete)\s*\(\s*['"]([^'"]+)/i);
+            if (match) return match[1];
+          }
+        }
+      }
     }
     return "";
   }
