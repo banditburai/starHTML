@@ -38,7 +38,9 @@ export function clearEvents(): void {
 
 let morphWindow: { sseEvent: DebugSSEEvent; records: MutationRecord[] } | null = null;
 
-export { morphWindow };
+export function getMorphWindow() { return morphWindow; }
+
+let panelRef: StarHTMLDebugger | null = null;
 
 function captureSSEEvents(): void {
   document.addEventListener("datastar-fetch", (e: Event) => {
@@ -63,31 +65,31 @@ function captureSSEEvents(): void {
 
     addEvent(event);
 
-    // If this is a patch-elements event, open a morph window
+    // If this is a patch-elements event, open a morph window.
+    // Use setTimeout(0) to close — MutationObserver callbacks fire after
+    // microtasks but before macrotasks, so setTimeout gives the MO callback
+    // in Task 7 time to push records into morphWindow.records.
     if (type === "datastar-patch-elements") {
       morphWindow = { sseEvent: event, records: [] };
-      // Close the morph window on next microtask (morph is synchronous)
-      queueMicrotask(() => {
+      setTimeout(() => {
         if (morphWindow) {
           event.morphRecords = morphWindow.records;
           morphWindow = null;
         }
-      });
+      }, 0);
     }
   });
 }
 
 function addEvent(event: DebugSSEEvent): void {
   events.push(event);
-  // Two-tier eviction: preserve first PRESERVE_INITIAL, ring-buffer the rest
+  // Two-tier eviction: preserve first PRESERVE_INITIAL, evict oldest middle
   if (events.length > MAX_EVENTS) {
-    const preserved = events.slice(0, PRESERVE_INITIAL);
-    const recent = events.slice(-(MAX_EVENTS - PRESERVE_INITIAL));
-    events = [...preserved, ...recent];
+    events.splice(PRESERVE_INITIAL, events.length - MAX_EVENTS);
   }
   // Notify the panel component
-  const panel = document.querySelector("starhtml-debugger") as StarHTMLDebugger | null;
-  panel?.notifyNewEvent();
+  panelRef ??= document.querySelector("starhtml-debugger") as StarHTMLDebugger | null;
+  panelRef?.notifyNewEvent();
 }
 
 // ============================================================================
@@ -334,7 +336,11 @@ customElements.define("starhtml-debugger", StarHTMLDebugger);
 // Init
 // ============================================================================
 
+let initialized = false;
+
 export function init(): void {
+  if (initialized) return;
+  initialized = true;
   captureSSEEvents();
   console.log("[starhtml-debugger] initialized");
 }
