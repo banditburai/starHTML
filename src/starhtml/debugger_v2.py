@@ -44,11 +44,10 @@ DEBUGGER_CSS = """
     background: #1e1e2e;
     color: #cdd6f4;
     border-top: 2px solid #89b4fa;
-    display: none;
+    display: flex;
     flex-direction: column;
     overflow: hidden;
   }
-  .debugger-panel.open { display: flex; }
   .resize-handle {
     height: 6px;
     cursor: ns-resize;
@@ -314,7 +313,7 @@ def StarHTMLDebugger():
                 data_text=unseen_count,
                 cls="badge",
             ),
-            data_on_click=f"{is_open} = !{is_open}",
+            data_on_click=is_open.toggle(),
             cls="debugger-tab",
         ),
         # --- Panel ---
@@ -325,20 +324,20 @@ def StarHTMLDebugger():
             Div(
                 Button(
                     "SSE Events",
-                    data_on_click=f"{active_tab} = 'sse'",
-                    data_class_active=f"{active_tab} === 'sse'",
+                    data_on_click=active_tab.set("sse"),
+                    data_class_active=active_tab == "sse",
                     cls="tab-btn",
                 ),
                 Button(
                     "Signals",
-                    data_on_click=f"{active_tab} = 'signals'",
-                    data_class_active=f"{active_tab} === 'signals'",
+                    data_on_click=active_tab.set("signals"),
+                    data_class_active=active_tab == "signals",
                     cls="tab-btn",
                 ),
                 Button(
                     "Timeline",
-                    data_on_click=f"{active_tab} = 'timeline'",
-                    data_class_active=f"{active_tab} === 'timeline'",
+                    data_on_click=active_tab.set("timeline"),
+                    data_class_active=active_tab == "timeline",
                     cls="tab-btn",
                 ),
                 data_ref="tab_bar",
@@ -362,13 +361,13 @@ def StarHTMLDebugger():
                         Input(
                             type="text",
                             placeholder="Filter...",
-                            data_model=filter_text,
+                            data_bind=filter_text,
                             style="width:160px;padding-right:20px",
                         ),
                         Button(
                             "\u00d7",
-                            data_show=f"{filter_text} !== ''",
-                            data_on_click=f"{filter_text} = ''",
+                            data_show=filter_text != "",
+                            data_on_click=filter_text.set(""),
                             cls="clear-filter-btn",
                             title="Clear filter",
                         ),
@@ -393,21 +392,24 @@ def StarHTMLDebugger():
                 ),
                 # Event list container (populated imperatively by setup script)
                 Div(data_ref="event_list", cls="event-list"),
-                data_show=f"{active_tab} === 'sse'",
+                data_show=active_tab == "sse",
+                cls="tab-content",
             ),
             # Signals tab placeholder
             Div(
                 Div("Coming in Phase 3", style="color:#6c7086;padding:16px;"),
-                data_show=f"{active_tab} === 'signals'",
+                data_show=active_tab == "signals",
+                cls="tab-content",
             ),
             # Timeline tab placeholder
             Div(
                 Div("Coming in Phase 3", style="color:#6c7086;padding:16px;"),
-                data_show=f"{active_tab} === 'timeline'",
+                data_show=active_tab == "timeline",
+                cls="tab-content",
             ),
             data_ref="panel",
             data_show=is_open,
-            cls="debugger-panel open",
-            style=f"height:{panel_height}px",
+            data_style_height=panel_height + "px",
+            cls="debugger-panel",
         ),
     )
