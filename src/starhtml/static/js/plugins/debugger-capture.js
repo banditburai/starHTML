@@ -6,13 +6,14 @@ const TYPE_CONFIG = {
   "finished": { label: "done", cls: "type-lifecycle" },
   "error": { label: "error", cls: "type-error" },
   "retrying": { label: "retry", cls: "type-lifecycle" },
-  "retries-failed": { label: "failed", cls: "type-error" }
+  "retries-failed": { label: "failed", cls: "type-error" },
+  "sse-malformed": { label: "malformed", cls: "type-malformed" }
 };
 const CHIP_CATEGORIES = [
   { key: "signals", label: "signals", cls: "chip-signals", types: ["datastar-patch-signals"] },
   { key: "elements", label: "elements", cls: "chip-elements", types: ["datastar-patch-elements"] },
   { key: "script", label: "script", cls: "chip-script", types: ["datastar-execute-script"] },
-  { key: "lifecycle", label: "lifecycle", cls: "chip-lifecycle", types: ["started", "finished", "error", "retrying", "retries-failed"] }
+  { key: "lifecycle", label: "lifecycle", cls: "chip-lifecycle", types: ["started", "finished", "error", "retrying", "retries-failed", "sse-malformed"] }
 ];
 const MAX_EVENTS = 3e3;
 const PRESERVE_INITIAL = 200;
@@ -236,6 +237,9 @@ function addEvent(event) {
   }
   for (const fn of subscribers) fn();
 }
+function injectEvent(partial) {
+  addEvent({ ...partial, id: nextEventId++ });
+}
 function formatTime(ts) {
   const d = new Date(ts);
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}.${String(d.getMilliseconds()).padStart(3, "0")}`;
@@ -299,6 +303,11 @@ function eventPreview(ev) {
         }
       }
     }
+  }
+  if (ev.type === "sse-malformed") {
+    const code = String(ev.argsRaw.code ?? "");
+    const msg = String(ev.argsRaw.message ?? "");
+    return code ? `${code}: ${msg}`.slice(0, 80) : msg.slice(0, 80);
   }
   return "";
 }
@@ -465,6 +474,7 @@ export {
   getMorphWindow,
   highlightHtml,
   init,
+  injectEvent,
   morphBadge,
   startObserving,
   stopObserving,

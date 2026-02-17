@@ -42,13 +42,14 @@ export const TYPE_CONFIG: Record<string, { label: string; cls: string }> = {
   "error": { label: "error", cls: "type-error" },
   "retrying": { label: "retry", cls: "type-lifecycle" },
   "retries-failed": { label: "failed", cls: "type-error" },
+  "sse-malformed": { label: "malformed", cls: "type-malformed" },
 };
 
 export const CHIP_CATEGORIES: { key: string; label: string; cls: string; types: string[] }[] = [
   { key: "signals", label: "signals", cls: "chip-signals", types: ["datastar-patch-signals"] },
   { key: "elements", label: "elements", cls: "chip-elements", types: ["datastar-patch-elements"] },
   { key: "script", label: "script", cls: "chip-script", types: ["datastar-execute-script"] },
-  { key: "lifecycle", label: "lifecycle", cls: "chip-lifecycle", types: ["started", "finished", "error", "retrying", "retries-failed"] },
+  { key: "lifecycle", label: "lifecycle", cls: "chip-lifecycle", types: ["started", "finished", "error", "retrying", "retries-failed", "sse-malformed"] },
 ];
 
 // ─── Event storage ─────────────────────────────────────────────────
@@ -311,6 +312,11 @@ function addEvent(event: DebugSSEEvent): void {
   for (const fn of subscribers) fn();
 }
 
+/** Inject a synthetic event from an external source (e.g. malformed SSE validator). */
+export function injectEvent(partial: Omit<DebugSSEEvent, "id">): void {
+  addEvent({ ...partial, id: nextEventId++ });
+}
+
 // ─── Rendering helpers ─────────────────────────────────────────────
 
 export function formatTime(ts: number): string {
@@ -376,6 +382,11 @@ export function eventPreview(ev: DebugSSEEvent): string {
         }
       }
     }
+  }
+  if (ev.type === "sse-malformed") {
+    const code = String(ev.argsRaw.code ?? "");
+    const msg = String(ev.argsRaw.message ?? "");
+    return code ? `${code}: ${msg}`.slice(0, 80) : msg.slice(0, 80);
   }
   return "";
 }

@@ -3,6 +3,8 @@
 // a ring buffer of TimelineEvents grouped into causal traces.
 
 import { getPath } from "datastar";
+import { install as installSSEValidator, uninstall as uninstallSSEValidator, type SSEValidationError } from "./debugger-sse-validator";
+import { injectEvent as injectCaptureEvent } from "./debugger-capture";
 
 // ─── Event Types ──────────────────────────────────────────────────
 
@@ -313,6 +315,38 @@ function captureSignalChanges(): void {
   document.addEventListener("datastar-signal-patch", signalPatchListener);
 }
 
+// ─── Malformed SSE Capture ───────────────────────────────────────
+
+function captureMalformedSSE(): void {
+  installSSEValidator((error: SSEValidationError) => {
+    // Emit into timeline ring buffer
+    const data: MalformedSseData = {
+      level: error.level,
+      code: error.code,
+      message: error.message,
+      rawText: error.rawText,
+      url: error.url,
+      byteOffset: error.byteOffset,
+    };
+    emit("sse-malformed", data);
+
+    // Also inject into capture store so it shows in SSE Events tab
+    injectCaptureEvent({
+      type: "sse-malformed",
+      timestamp: Date.now(),
+      el: null,
+      argsRaw: {
+        level: error.level,
+        code: error.code,
+        message: error.message,
+        rawText: error.rawText,
+        url: error.url,
+        byteOffset: error.byteOffset,
+      },
+    });
+  });
+}
+
 // ─── Init / Cleanup ──────────────────────────────────────────────
 
 export function init(): void {
@@ -321,6 +355,7 @@ export function init(): void {
   captureSSELifecycle();
   captureUserActions();
   captureSignalChanges();
+  captureMalformedSSE();
 }
 
 export function cleanup(): void {
@@ -336,6 +371,7 @@ export function cleanup(): void {
     document.removeEventListener("datastar-signal-patch", signalPatchListener);
     signalPatchListener = null;
   }
+  uninstallSSEValidator();
   initialized = false;
   buffer.length = 0;
   nextEventId = 0;

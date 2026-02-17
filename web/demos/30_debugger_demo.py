@@ -197,6 +197,35 @@ def home():
             cls="mb-12 p-8 bg-white border border-gray-200 rounded",
         ),
 
+        # -- Malformed SSE --
+        Div(
+            H3("Malformed SSE", cls="text-2xl font-bold mb-6"),
+            P("Test the SSE validator by triggering intentionally malformed responses.",
+              cls="text-gray-500 mb-6"),
+            Div(
+                Button(
+                    Icon("material-symbols:warning", cls="mr-2"),
+                    "Bad JSON",
+                    data_on_click=get("malformed-json"),
+                    cls=f"{BTN} bg-red-600 text-white hover:bg-red-700",
+                ),
+                Button(
+                    Icon("material-symbols:warning", cls="mr-2"),
+                    "Missing Event Type",
+                    data_on_click=get("malformed-no-type"),
+                    cls=f"{BTN} bg-red-600 text-white hover:bg-red-700",
+                ),
+                Button(
+                    Icon("material-symbols:warning", cls="mr-2"),
+                    "Merged Events",
+                    data_on_click=get("malformed-merged"),
+                    cls=f"{BTN} bg-red-600 text-white hover:bg-red-700",
+                ),
+                cls="mb-6 flex flex-wrap gap-2",
+            ),
+            cls="mb-12 p-8 bg-white border border-gray-200 rounded",
+        ),
+
         # -- Rapid Signal Changes --
         Div(
             H3("Rapid Updates", cls="text-2xl font-bold mb-6"),
@@ -250,6 +279,41 @@ def update_attr(req):
             cls="min-h-[100px] p-4 bg-blue-50 border-2 border-blue-400 rounded space-y-2",
         ),
         "#dynamic-content",
+    )
+
+
+def _malformed_stream(raw_sse: str):
+    """Return a StreamingResponse with raw SSE text (for malformed SSE testing)."""
+    async def generate():
+        yield raw_sse.encode()
+    return StreamingResponse(generate(), media_type="text/event-stream")
+
+
+@rt("/malformed-json")
+def malformed_json(req):
+    return _malformed_stream(
+        "event: datastar-patch-signals\n"
+        "data: signals {not valid json\n"
+        "\n"
+    )
+
+
+@rt("/malformed-no-type")
+def malformed_no_type(req):
+    return _malformed_stream(
+        "data: signals {\"count\": 1}\n"
+        "\n"
+    )
+
+
+@rt("/malformed-merged")
+def malformed_merged(req):
+    return _malformed_stream(
+        "event: datastar-patch-signals\n"
+        "data: signals {\"count\": 1}\n"
+        "event: datastar-patch-signals\n"
+        "data: signals {\"count\": 2}\n"
+        "\n"
     )
 
 

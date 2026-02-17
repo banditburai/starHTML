@@ -234,6 +234,7 @@ else:
   .type-script { background: #2e1f5e; color: #cba6f7; }
   .type-lifecycle { background: #313244; color: #bac2de; }
   .type-error { background: #3e1525; color: #f38ba8; }
+  .type-malformed { background: #3e1525; color: #f38ba8; }
   .event-handler { color: #f9e2af; flex-shrink: 0; }
   .event-route { color: #9399b2; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
   .event-detail {
