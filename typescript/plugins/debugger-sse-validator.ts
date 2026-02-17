@@ -38,6 +38,7 @@ const VALID_ELEMENT_MODES = new Set([
 
 let originalFetch: typeof window.fetch | null = null;
 let activeCallback: SSEValidationCallback | null = null;
+const encoder = new TextEncoder();
 
 // ─── Public API ────────────────────────────────────────────────────
 
@@ -58,21 +59,29 @@ export function uninstall(): void {
 
 // ─── Fetch interceptor ─────────────────────────────────────────────
 
-function isDatastarSSERequest(input: RequestInfo | URL, init?: RequestInit): boolean {
-  const headers = init?.headers;
-  if (headers) {
-    if (headers instanceof Headers) {
-      if (headers.has("Datastar-Request")) return true;
-      if (headers.get("Accept") === "text/event-stream") return true;
-    } else if (Array.isArray(headers)) {
-      for (const [k, v] of headers) {
-        if (k === "Datastar-Request") return true;
-        if (k === "Accept" && v === "text/event-stream") return true;
-      }
-    } else {
-      if ("Datastar-Request" in headers) return true;
-      if ((headers as Record<string, string>)["Accept"] === "text/event-stream") return true;
+function checkHeadersInit(headers: HeadersInit): boolean {
+  if (headers instanceof Headers) {
+    if (headers.has("Datastar-Request")) return true;
+    if (headers.get("Accept") === "text/event-stream") return true;
+  } else if (Array.isArray(headers)) {
+    for (const [k, v] of headers) {
+      if (k === "Datastar-Request") return true;
+      if (k === "Accept" && v === "text/event-stream") return true;
     }
+  } else {
+    if ("Datastar-Request" in headers) return true;
+    if ((headers as Record<string, string>)["Accept"] === "text/event-stream") return true;
+  }
+  return false;
+}
+
+function isDatastarSSERequest(input: RequestInfo | URL, init?: RequestInit): boolean {
+  // Check init headers first (they override Request headers per fetch spec)
+  if (init?.headers && checkHeadersInit(init.headers)) return true;
+  // Also check Request object headers (fetch(new Request(url, { headers })))
+  if (input instanceof Request) {
+    if (input.headers.has("Datastar-Request")) return true;
+    if (input.headers.get("Accept") === "text/event-stream") return true;
   }
   return false;
 }
@@ -121,12 +130,16 @@ async function interceptedFetch(
   // Start async validation (fire and forget)
   validateStream(validatorCopy, url);
 
-  // Return a new Response with the Datastar copy
-  return new Response(datastarCopy, {
+  // Return a new Response with the Datastar copy, preserving original properties
+  const proxied = new Response(datastarCopy, {
     status: response.status,
     statusText: response.statusText,
     headers: response.headers,
   });
+  Object.defineProperty(proxied, "url", { value: response.url });
+  Object.defineProperty(proxied, "type", { value: response.type });
+  Object.defineProperty(proxied, "redirected", { value: response.redirected });
+  return proxied;
 }
 
 // ─── Stream validation ─────────────────────────────────────────────
@@ -159,7 +172,7 @@ async function validateStream(stream: ReadableStream<Uint8Array>, url: string): 
         if (rawEvent.trim()) {
           validateRawEvent(rawEvent, url, byteOffset);
         }
-        byteOffset += new TextEncoder().encode(rawEvent).byteLength + 2;
+        byteOffset += encoder.encode(rawEvent).byteLength + 2;
       }
     }
 
