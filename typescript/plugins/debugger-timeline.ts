@@ -601,7 +601,7 @@ export function getTraces(): TraceSummary[] {
       domMutations,
       sseEvents,
       malformedEvents,
-      warnings: [], // Populated by detectWarnings() in task 7
+      warnings: detectWarnings(events),
       status: isStale ? "stale" : isComplete ? "complete" : "active",
     });
   }
@@ -609,6 +609,179 @@ export function getTraces(): TraceSummary[] {
   // Most recent first
   summaries.sort((a, b) => b.rootEvent.ts - a.rootEvent.ts);
   return summaries;
+}
+
+// ─── Warning Detection ────────────────────────────────────────────
+
+const EXCESSIVE_EFFECTS_THRESHOLD = 15;
+const PING_PONG_THRESHOLD = 3;
+const MORPH_WINDOW_MS = 100;
+
+/** Detect anomaly patterns in a trace's events. */
+export function detectWarnings(events: TimelineEvent[]): Warning[] {
+  const warnings: Warning[] = [];
+
+  detectSignalPingPong(events, warnings);
+  detectExcessiveEffects(events, warnings);
+  detectHangingRequest(events, warnings);
+  detectSelectorRace(events, warnings);
+  detectNoMorphs(events, warnings);
+  detectAttributeFlash(events, warnings);
+
+  return warnings;
+}
+
+/** Same signal changed 3+ times in one trace. */
+function detectSignalPingPong(events: TimelineEvent[], out: Warning[]): void {
+  const counts = new Map<string, number>();
+  for (const e of events) {
+    if (e.type === "signal-change") {
+      const path = (e.data as SignalChangeData).path;
+      counts.set(path, (counts.get(path) ?? 0) + 1);
+    }
+  }
+  for (const [path, count] of counts) {
+    if (count >= PING_PONG_THRESHOLD) {
+      out.push({
+        code: "SIGNAL_PING_PONG",
+        message: `Signal "${path}" changed ${count} times in this trace`,
+      });
+    }
+  }
+}
+
+/** More than 15 effect evaluations per trace. */
+function detectExcessiveEffects(events: TimelineEvent[], out: Warning[]): void {
+  let count = 0;
+  for (const e of events) {
+    if (e.type === "effect-eval") count++;
+  }
+  if (count > EXCESSIVE_EFFECTS_THRESHOLD) {
+    out.push({
+      code: "EXCESSIVE_EFFECTS",
+      message: `${count} effect evaluations in this trace (threshold: ${EXCESSIVE_EFFECTS_THRESHOLD})`,
+    });
+  }
+}
+
+/** SSE started with no finished after 5s. */
+function detectHangingRequest(events: TimelineEvent[], out: Warning[]): void {
+  const started = new Map<string, TimelineEvent>(); // elSelector → started event
+  const finished = new Set<string>();
+
+  for (const e of events) {
+    if (e.type !== "sse-lifecycle") continue;
+    const d = e.data as SseEventData;
+    if (d.sseType === "started") {
+      started.set(d.elSelector || String(e.id), e);
+    } else if (d.sseType === "finished" || d.sseType === "error" || d.sseType === "retries-failed") {
+      finished.add(d.elSelector || String(e.id));
+    }
+  }
+
+  const now = performance.now();
+  for (const [key, startEvent] of started) {
+    if (!finished.has(key) && (now - startEvent.ts > STALE_TRACE_MS)) {
+      const d = startEvent.data as SseEventData;
+      out.push({
+        code: "HANGING_REQUEST",
+        message: `SSE request to ${d.route || d.handler || "unknown"} started ${Math.round((now - startEvent.ts) / 1000)}s ago with no response`,
+      });
+    }
+  }
+}
+
+/** Two elements events targeting same selector in one trace. */
+function detectSelectorRace(events: TimelineEvent[], out: Warning[]): void {
+  const selectorCounts = new Map<string, number>();
+
+  for (const e of events) {
+    if (e.type !== "sse-lifecycle") continue;
+    const d = e.data as SseEventData;
+    if (d.sseType !== "datastar-patch-elements" && d.sseType !== "started") {
+      // Check payload for elements events within SSE
+      if (d.elSelector) {
+        selectorCounts.set(d.elSelector, (selectorCounts.get(d.elSelector) ?? 0) + 1);
+      }
+    }
+  }
+
+  // Also check for elements-type SSE events targeting same selector
+  const elementSelectors = new Map<string, number>();
+  for (const e of events) {
+    if (e.type === "sse-lifecycle") {
+      const d = e.data as SseEventData;
+      if (d.payload?.selector) {
+        const sel = String(d.payload.selector);
+        elementSelectors.set(sel, (elementSelectors.get(sel) ?? 0) + 1);
+      }
+    }
+  }
+
+  for (const [sel, count] of elementSelectors) {
+    if (count >= 2) {
+      out.push({
+        code: "SELECTOR_RACE",
+        message: `${count} elements events targeted "${sel}" in this trace`,
+      });
+    }
+  }
+}
+
+/** Elements event that produced zero DOM mutations (within morph window). */
+function detectNoMorphs(events: TimelineEvent[], out: Warning[]): void {
+  // Find elements-type SSE events and check if DOM mutations follow within morph window
+  for (let i = 0; i < events.length; i++) {
+    const e = events[i];
+    if (e.type !== "sse-lifecycle") continue;
+    const d = e.data as SseEventData;
+    if (d.sseType !== "datastar-patch-elements") continue;
+
+    // Look for DOM mutations within morph window after this event
+    let hasMorph = false;
+    for (let j = i + 1; j < events.length; j++) {
+      if (events[j].ts - e.ts > MORPH_WINDOW_MS) break;
+      if (events[j].type === "dom-mutation") {
+        hasMorph = true;
+        break;
+      }
+    }
+
+    if (!hasMorph) {
+      const sel = d.payload?.selector ? String(d.payload.selector) : "unknown";
+      out.push({
+        code: "NO_MORPHS",
+        message: `Elements event targeting "${sel}" produced zero DOM mutations`,
+      });
+    }
+  }
+}
+
+/** Same attribute changed 2+ times within morph window. */
+function detectAttributeFlash(events: TimelineEvent[], out: Warning[]): void {
+  // Group DOM mutation events by morph window
+  const domEvents = events.filter(e => e.type === "dom-mutation");
+  if (domEvents.length < 2) return;
+
+  // Sliding window: group mutations within MORPH_WINDOW_MS of each other
+  const attrChanges = new Map<string, number>(); // "selector[attr]" → count
+
+  for (let i = 0; i < domEvents.length; i++) {
+    const d = domEvents[i].data as DomMutationData;
+    if (d.mutationType !== "attributes" || !d.attributeName) continue;
+
+    const key = `${d.targetSelector}[${d.attributeName}]`;
+    attrChanges.set(key, (attrChanges.get(key) ?? 0) + 1);
+  }
+
+  for (const [key, count] of attrChanges) {
+    if (count >= 2) {
+      out.push({
+        code: "ATTRIBUTE_FLASH",
+        message: `Attribute ${key} changed ${count} times in this trace`,
+      });
+    }
+  }
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────

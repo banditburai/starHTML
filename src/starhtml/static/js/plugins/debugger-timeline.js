@@ -701,13 +701,149 @@ function getTraces() {
       domMutations,
       sseEvents,
       malformedEvents,
-      warnings: [],
-      // Populated by detectWarnings() in task 7
+      warnings: detectWarnings(events),
       status: isStale ? "stale" : isComplete ? "complete" : "active"
     });
   }
   summaries.sort((a, b) => b.rootEvent.ts - a.rootEvent.ts);
   return summaries;
+}
+const EXCESSIVE_EFFECTS_THRESHOLD = 15;
+const PING_PONG_THRESHOLD = 3;
+const MORPH_WINDOW_MS = 100;
+function detectWarnings(events) {
+  const warnings = [];
+  detectSignalPingPong(events, warnings);
+  detectExcessiveEffects(events, warnings);
+  detectHangingRequest(events, warnings);
+  detectSelectorRace(events, warnings);
+  detectNoMorphs(events, warnings);
+  detectAttributeFlash(events, warnings);
+  return warnings;
+}
+function detectSignalPingPong(events, out) {
+  const counts = /* @__PURE__ */ new Map();
+  for (const e of events) {
+    if (e.type === "signal-change") {
+      const path = e.data.path;
+      counts.set(path, (counts.get(path) ?? 0) + 1);
+    }
+  }
+  for (const [path, count] of counts) {
+    if (count >= PING_PONG_THRESHOLD) {
+      out.push({
+        code: "SIGNAL_PING_PONG",
+        message: `Signal "${path}" changed ${count} times in this trace`
+      });
+    }
+  }
+}
+function detectExcessiveEffects(events, out) {
+  let count = 0;
+  for (const e of events) {
+    if (e.type === "effect-eval") count++;
+  }
+  if (count > EXCESSIVE_EFFECTS_THRESHOLD) {
+    out.push({
+      code: "EXCESSIVE_EFFECTS",
+      message: `${count} effect evaluations in this trace (threshold: ${EXCESSIVE_EFFECTS_THRESHOLD})`
+    });
+  }
+}
+function detectHangingRequest(events, out) {
+  const started = /* @__PURE__ */ new Map();
+  const finished = /* @__PURE__ */ new Set();
+  for (const e of events) {
+    if (e.type !== "sse-lifecycle") continue;
+    const d = e.data;
+    if (d.sseType === "started") {
+      started.set(d.elSelector || String(e.id), e);
+    } else if (d.sseType === "finished" || d.sseType === "error" || d.sseType === "retries-failed") {
+      finished.add(d.elSelector || String(e.id));
+    }
+  }
+  const now = performance.now();
+  for (const [key, startEvent] of started) {
+    if (!finished.has(key) && now - startEvent.ts > STALE_TRACE_MS) {
+      const d = startEvent.data;
+      out.push({
+        code: "HANGING_REQUEST",
+        message: `SSE request to ${d.route || d.handler || "unknown"} started ${Math.round((now - startEvent.ts) / 1e3)}s ago with no response`
+      });
+    }
+  }
+}
+function detectSelectorRace(events, out) {
+  const selectorCounts = /* @__PURE__ */ new Map();
+  for (const e of events) {
+    if (e.type !== "sse-lifecycle") continue;
+    const d = e.data;
+    if (d.sseType !== "datastar-patch-elements" && d.sseType !== "started") {
+      if (d.elSelector) {
+        selectorCounts.set(d.elSelector, (selectorCounts.get(d.elSelector) ?? 0) + 1);
+      }
+    }
+  }
+  const elementSelectors = /* @__PURE__ */ new Map();
+  for (const e of events) {
+    if (e.type === "sse-lifecycle") {
+      const d = e.data;
+      if (d.payload?.selector) {
+        const sel = String(d.payload.selector);
+        elementSelectors.set(sel, (elementSelectors.get(sel) ?? 0) + 1);
+      }
+    }
+  }
+  for (const [sel, count] of elementSelectors) {
+    if (count >= 2) {
+      out.push({
+        code: "SELECTOR_RACE",
+        message: `${count} elements events targeted "${sel}" in this trace`
+      });
+    }
+  }
+}
+function detectNoMorphs(events, out) {
+  for (let i = 0; i < events.length; i++) {
+    const e = events[i];
+    if (e.type !== "sse-lifecycle") continue;
+    const d = e.data;
+    if (d.sseType !== "datastar-patch-elements") continue;
+    let hasMorph = false;
+    for (let j = i + 1; j < events.length; j++) {
+      if (events[j].ts - e.ts > MORPH_WINDOW_MS) break;
+      if (events[j].type === "dom-mutation") {
+        hasMorph = true;
+        break;
+      }
+    }
+    if (!hasMorph) {
+      const sel = d.payload?.selector ? String(d.payload.selector) : "unknown";
+      out.push({
+        code: "NO_MORPHS",
+        message: `Elements event targeting "${sel}" produced zero DOM mutations`
+      });
+    }
+  }
+}
+function detectAttributeFlash(events, out) {
+  const domEvents = events.filter((e) => e.type === "dom-mutation");
+  if (domEvents.length < 2) return;
+  const attrChanges = /* @__PURE__ */ new Map();
+  for (let i = 0; i < domEvents.length; i++) {
+    const d = domEvents[i].data;
+    if (d.mutationType !== "attributes" || !d.attributeName) continue;
+    const key = `${d.targetSelector}[${d.attributeName}]`;
+    attrChanges.set(key, (attrChanges.get(key) ?? 0) + 1);
+  }
+  for (const [key, count] of attrChanges) {
+    if (count >= 2) {
+      out.push({
+        code: "ATTRIBUTE_FLASH",
+        message: `Attribute ${key} changed ${count} times in this trace`
+      });
+    }
+  }
 }
 function selectorFor(el) {
   if (el.id) return `#${el.id}`;
@@ -778,6 +914,7 @@ export {
   clampValue,
   cleanup,
   describeRootCause,
+  detectWarnings,
   emit,
   formatTime,
   getActiveTraceId,
