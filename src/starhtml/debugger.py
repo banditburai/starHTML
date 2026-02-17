@@ -710,6 +710,122 @@ const onKeydown = (e) => {
 };
 document.addEventListener('keydown', onKeydown);
 onCleanup(() => document.removeEventListener('keydown', onKeydown));
+
+// --- Signals tab ---
+
+// Determine debugger's own namespace prefix for exclusion
+const debuggerNs = el.getAttribute('data-star-id') || '_star_starhtml_debugger_';
+// Local() signal names exist un-namespaced in the Datastar store (via data-bind)
+const debuggerSignalNames = [
+    'is_open', 'panel_height', 'active_tab', 'unseen_count',
+    'filter_text', 'visible_since_id', 'expanded_id', 'event_count',
+    'chip_signals_on', 'chip_elements_on', 'chip_script_on', 'chip_lifecycle_on',
+    'show_jump_btn', 'signal_count', 'signal_filter', 'signal_expanded_path',
+];
+signals.init(debuggerNs, debuggerSignalNames);
+onCleanup(() => signals.cleanup());
+
+// DOM refs for signals tab
+const signalListEl = refs('signal_list');
+const signalCountLabel = refs('signal_count_label');
+const signalTabCount = refs('signal_tab_count');
+const signalEmpty = refs('signal_empty');
+const clearPersistBtn = refs('clear_persist_btn');
+
+// Render state for signals tab
+let signalRafPending = false;
+let collapsedGroups = new Set();
+
+// Subscribe to signal changes
+const signalUnsub = signals.subscribe(() => {
+    $$signal_count = signals.getSignalCount();
+    if ($$is_open && $$active_tab === 'signals') scheduleSignalRender();
+});
+onCleanup(signalUnsub);
+
+function scheduleSignalRender() {
+    if (signalRafPending) return;
+    signalRafPending = true;
+    requestAnimationFrame(() => {
+        signalRafPending = false;
+        if ($$is_open && $$active_tab === 'signals') renderSignalsTab();
+    });
+}
+
+function renderSignalsTab() {
+    if (!signalListEl) return;
+    const groups = signals.getGroupedEntries($$signal_filter);
+    const totalCount = signals.getSignalCount();
+
+    // Update count displays
+    if (signalCountLabel) signalCountLabel.textContent = totalCount + ' signal' + (totalCount !== 1 ? 's' : '');
+    if (signalTabCount) signalTabCount.textContent = totalCount > 0 ? '(' + totalCount + ')' : '';
+
+    // Empty state
+    if (signalEmpty) signalEmpty.style.display = totalCount === 0 ? '' : 'none';
+
+    // Build HTML
+    let html = '';
+    for (const group of groups) {
+        const isCollapsed = collapsedGroups.has(group.namespace);
+        html += signals.buildGroupHeaderHtml(group, isCollapsed);
+        if (!isCollapsed) {
+            for (const entry of group.entries) {
+                html += signals.buildSignalRowHtml(entry);
+                if ($$signal_expanded_path === entry.path) {
+                    html += signals.buildSignalDetailHtml(entry);
+                }
+            }
+        }
+    }
+    signalListEl.innerHTML = html;
+}
+
+// Event delegation on signal list
+if (signalListEl) {
+    signalListEl.addEventListener('click', (e) => {
+        const target = e.target;
+
+        // Group header toggle
+        const header = target.closest('.signal-group-header');
+        if (header) {
+            const ns = header.dataset.ns ?? '';
+            if (collapsedGroups.has(ns)) collapsedGroups.delete(ns);
+            else collapsedGroups.add(ns);
+            renderSignalsTab();
+            return;
+        }
+
+        // Signal row click — copy path to clipboard
+        const row = target.closest('.signal-row');
+        if (row) {
+            const path = row.dataset.path;
+            if (path) {
+                // Toggle detail expansion
+                $$signal_expanded_path = $$signal_expanded_path === path ? '' : path;
+                renderSignalsTab();
+            }
+            return;
+        }
+    });
+}
+
+// Clear Persisted button handler
+if (clearPersistBtn) {
+    clearPersistBtn.addEventListener('click', () => {
+        signals.clearPersistedData();
+        clearPersistBtn.textContent = 'Cleared!';
+        setTimeout(() => { clearPersistBtn.textContent = 'Clear Persisted'; }, 1500);
+    });
+}
+
+// Reactive render trigger for signals tab
+effect(() => {
+    void $$signal_count;
+    void $$signal_filter;
+    void $$signal_expanded_path;
+    if ($$is_open && $$active_tab === 'signals') scheduleSignalRender();
+});
 """
 
     CHIP_DEFS = (

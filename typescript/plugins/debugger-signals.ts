@@ -28,6 +28,7 @@ export interface SignalGroup {
 
 const entries: Map<string, SignalEntry> = new Map();
 let debuggerPrefix = "";
+let debuggerSignalNames: Set<string> = new Set();
 let pollInterval: ReturnType<typeof setInterval> | null = null;
 const subscribers = new Set<() => void>();
 
@@ -39,11 +40,13 @@ const MAX_PREV_VALUE_SIZE = 1024;
 
 // ─── Public API ────────────────────────────────────────────────────
 
-/** Initialize signal tracking. excludePrefix filters out the debugger's own signals. */
-export function init(excludePrefix: string): void {
+/** Initialize signal tracking. excludePrefix filters the debugger's namespaced signals;
+ *  excludeNames filters un-namespaced Local() signal names (created by data-bind). */
+export function init(excludePrefix: string, excludeNames?: string[]): void {
   if (initialized) return;
   initialized = true;
   debuggerPrefix = excludePrefix;
+  debuggerSignalNames = new Set(excludeNames || []);
   document.addEventListener("datastar-signal-patch", onSignalPatch as EventListener);
   structuralPoll();  // initial poll
   pollInterval = setInterval(structuralPoll, 2000);
@@ -97,6 +100,14 @@ export function clearPersistedData(): void {
   notifySubscribers();
 }
 
+// ─── Exclusion ─────────────────────────────────────────────────────
+
+function isDebuggerSignal(path: string): boolean {
+  if (debuggerPrefix && path.startsWith(debuggerPrefix)) return true;
+  if (debuggerSignalNames.has(path)) return true;
+  return false;
+}
+
 // ─── Patch Listener ────────────────────────────────────────────────
 
 function onSignalPatch(e: CustomEvent): void {
@@ -107,7 +118,7 @@ function onSignalPatch(e: CustomEvent): void {
   let changed = false;
 
   for (const path of paths) {
-    if (path.startsWith(debuggerPrefix)) continue;
+    if (isDebuggerSignal(path)) continue;
     try {
       const value = getPath(path);
       if (updateOrCreateEntry(path, value)) changed = true;
@@ -121,11 +132,14 @@ function onSignalPatch(e: CustomEvent): void {
 
 function structuralPoll(): void {
   const excludeRe = debuggerPrefix ? new RegExp("^" + escapeRegex(debuggerPrefix)) : undefined;
-  let allSignals: [string, unknown][];
+  let result: Record<string, unknown>;
   try {
-    allSignals = filtered(excludeRe ? { exclude: excludeRe } : undefined);
+    // filtered() returns a nested object (not an array), e.g. { count: 3, theme: "dark" }
+    result = filtered(excludeRe ? { exclude: excludeRe } : undefined) as unknown as Record<string, unknown>;
   } catch { return; }
 
+  // Flatten nested object to [path, value] pairs
+  const allSignals = flattenToEntries(result, "");
   const seenPaths = new Set<string>();
 
   for (const [path, value] of allSignals) {
@@ -204,7 +218,7 @@ function detectNamespaces(): void {
   try {
     document.querySelectorAll("[data-star-id]").forEach(el => {
       const id = el.getAttribute("data-star-id");
-      if (id && !id.startsWith(debuggerPrefix)) {
+      if (id && !(debuggerPrefix && id.startsWith(debuggerPrefix))) {
         nsMap.set(id, el.tagName.toLowerCase());
       }
     });
@@ -276,6 +290,21 @@ function scanStorage(storage: Storage, type: "local" | "session"): void {
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────
+
+/** Flatten a nested object into [dot-path, value] tuples (for filtered() results). */
+function flattenToEntries(obj: Record<string, unknown>, prefix: string): [string, unknown][] {
+  const result: [string, unknown][] = [];
+  for (const key of Object.keys(obj)) {
+    const fullPath = prefix ? `${prefix}.${key}` : key;
+    const val = obj[key];
+    if (val && typeof val === "object" && !Array.isArray(val) && !(val instanceof Date)) {
+      result.push(...flattenToEntries(val as Record<string, unknown>, fullPath));
+    } else {
+      result.push([fullPath, val]);
+    }
+  }
+  return result;
+}
 
 /** Flatten a nested object into dot-path keys. */
 function flattenNestedObject(obj: Record<string, unknown>, prefix: string): string[] {
