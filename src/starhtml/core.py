@@ -219,33 +219,29 @@ def _endp(self: StarHTML, f, body_wrap):
         req.injects = []
         req.hdrs, req.ftrs, req.htmlkw, req.bodykw = map(deepcopy, (self.hdrs, self.ftrs, self.htmlkw, self.bodykw))
         req.hdrs, req.ftrs = listify(req.hdrs), listify(req.ftrs)
-        # Set debug context so SSE format functions auto-attach metadata
-        _debug_token = None
+        # Set debug context so SSE format functions auto-attach metadata.
+        # No reset needed: each ASGI request runs in its own asyncio.Task
+        # which gets an isolated copy of context vars.
         if _is_debug:
             from .realtime import set_debug_context
-            _debug_token = set_debug_context(handler=f.__name__, route=req.url.path)
-        try:
-            for b in self.before:
-                if not resp:
-                    if isinstance(b, Beforeware):
-                        bf, skip = b.f, b.skip
-                    else:
-                        bf, skip = b, []
-                    if not any(re.fullmatch(r, req.url.path) for r in skip):
-                        resp = await _wrap_call(bf, req, _params(bf))
-            req.body_wrap = body_wrap
+            set_debug_context(handler=f.__name__, route=req.url.path)
+        for b in self.before:
             if not resp:
-                resp = await _wrap_call(f, req, sig.parameters)
-            for a in self.after:
-                _, *wreq = await _wrap_req(req, _params(a))
-                nr = a(resp, *wreq)
-                if nr:
-                    resp = nr
-            return render_response(req, resp, sig.return_annotation)
-        finally:
-            if _debug_token is not None:
-                from .realtime import _debug_ctx_var
-                _debug_ctx_var.reset(_debug_token)
+                if isinstance(b, Beforeware):
+                    bf, skip = b.f, b.skip
+                else:
+                    bf, skip = b, []
+                if not any(re.fullmatch(r, req.url.path) for r in skip):
+                    resp = await _wrap_call(bf, req, _params(bf))
+        req.body_wrap = body_wrap
+        if not resp:
+            resp = await _wrap_call(f, req, sig.parameters)
+        for a in self.after:
+            _, *wreq = await _wrap_req(req, _params(a))
+            nr = a(resp, *wreq)
+            if nr:
+                resp = nr
+        return render_response(req, resp, sig.return_annotation)
 
     return _f
 

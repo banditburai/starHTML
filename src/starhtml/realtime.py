@@ -295,6 +295,8 @@ def format_signal_event(
     debug_ctx: DebugContext | None = None,
 ) -> str:
     """Format a signals event for Datastar using JSON Merge Patch semantics (RFC 7386)."""
+    if debug_ctx is None:
+        debug_ctx = get_debug_context()
     data_lines = []
 
     if only_if_missing:
@@ -321,6 +323,8 @@ def format_element_event(
 
     preserve_whitespace: None=auto-detect (<pre>/<textarea>), True=keep empty lines, False=strip.
     """
+    if debug_ctx is None:
+        debug_ctx = get_debug_context()
     if mode not in VALID_MODES:
         raise ValueError(f"Invalid mode '{mode}'. Must be one of: {', '.join(sorted(VALID_MODES))}")
 
@@ -410,16 +414,15 @@ def sse_message(elm, event="message"):
 
 def process_sse_item(item_type: str, payload: Any) -> str | None:
     """Process an SSE item and return the formatted output."""
-    debug_ctx = get_debug_context()
     match item_type:
         case "signals":
             if isinstance(payload, dict) and "payload" in payload:
                 signal_data = payload["payload"]
                 options = payload.get("options", {})
                 only_if_missing = options.get("only_if_missing", False)
-                return format_signal_event(signal_data, only_if_missing=only_if_missing, debug_ctx=debug_ctx)
+                return format_signal_event(signal_data, only_if_missing=only_if_missing)
             else:
-                return format_signal_event(payload, debug_ctx=debug_ctx)
+                return format_signal_event(payload)
         case "elements":
             if isinstance(payload, tuple):
                 element = payload[0]
@@ -441,7 +444,7 @@ def process_sse_item(item_type: str, payload: Any) -> str | None:
                 if element_id := element.attrs.get("id"):
                     selector = f"#{element_id}"
 
-            return format_element_event(element, selector, mode, use_view_transition, preserve_whitespace, debug_ctx=debug_ctx)
+            return format_element_event(element, selector, mode, use_view_transition, preserve_whitespace)
         case _:
             raise ValueError(f"Unknown SSE item type: {item_type}")
 
@@ -522,17 +525,16 @@ type SSEEvent = SignalEvent | ElementEvent | ScriptEvent
 
 
 def format_event(event: SSEEvent) -> str:
-    debug_ctx = get_debug_context()
     match event:
         case SignalEvent(signals=signals_dict):
-            return format_signal_event(signals_dict, debug_ctx=debug_ctx)
+            return format_signal_event(signals_dict)
         case ElementEvent(element=el, selector=sel, mode=m):
-            return format_element_event(el, sel, m, debug_ctx=debug_ctx)
+            return format_element_event(el, sel, m)
         case ScriptEvent(script=content, auto_remove=ar):
             from .xtend import Script
 
             attrs = {"data-effect": "el.remove()"} if ar else {}
-            return format_element_event(Script(content, **attrs), "body", "append", debug_ctx=debug_ctx)
+            return format_element_event(Script(content, **attrs), "body", "append")
         case _:
             raise TypeError(f"Unknown event type: {type(event)}")
 

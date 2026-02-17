@@ -2,7 +2,18 @@
 
 import re
 
-from starhtml.realtime import format_signal_event, format_element_event, format_sse_event
+from starhtml.realtime import (
+    format_signal_event,
+    format_element_event,
+    format_sse_event,
+    set_debug_context,
+    get_debug_context,
+    _debug_ctx_var,
+    process_sse_item,
+    format_event,
+    SignalEvent,
+    ElementEvent,
+)
 
 
 class TestSSEDebugMetadata:
@@ -59,3 +70,63 @@ class TestSSEDebugMetadata:
         last_elements_idx = max(i for i, l in enumerate(lines) if l.startswith("data: elements"))
         first_debug_idx = next(i for i, l in enumerate(lines) if l.startswith("data: x-debug"))
         assert first_debug_idx > last_elements_idx
+
+
+class TestDebugContextAutoRead:
+    """Tests for context var auto-read in format functions."""
+
+    def test_format_signal_event_reads_from_context_var(self):
+        """format_signal_event auto-reads debug context when not explicitly passed."""
+        token = set_debug_context(handler="my_handler", route="/my/route")
+        try:
+            event = format_signal_event({"x": 1})
+            assert "x-debug-handler my_handler" in event
+            assert "x-debug-route /my/route" in event
+        finally:
+            _debug_ctx_var.reset(token)
+
+    def test_format_element_event_reads_from_context_var(self):
+        """format_element_event auto-reads debug context when not explicitly passed."""
+        token = set_debug_context(handler="render_page", route="/page")
+        try:
+            event = format_element_event("<div>test</div>")
+            assert "x-debug-handler render_page" in event
+            assert "x-debug-route /page" in event
+        finally:
+            _debug_ctx_var.reset(token)
+
+    def test_no_context_var_means_no_debug(self):
+        """Without context var set, no debug metadata appears."""
+        assert get_debug_context() is None
+        event = format_signal_event({"x": 1})
+        assert "x-debug" not in event
+
+    def test_explicit_debug_ctx_overrides_context_var(self):
+        """Explicit debug_ctx parameter takes precedence over context var."""
+        token = set_debug_context(handler="contextvar_handler", route="/cv")
+        try:
+            explicit = {"handler": "explicit_handler", "route": "/explicit", "seq": 99}
+            event = format_signal_event({"x": 1}, debug_ctx=explicit)
+            assert "x-debug-handler explicit_handler" in event
+            assert "x-debug-route /explicit" in event
+            assert "contextvar_handler" not in event
+        finally:
+            _debug_ctx_var.reset(token)
+
+    def test_process_sse_item_gets_debug_via_auto_read(self):
+        """process_sse_item delegates to format functions which auto-read context."""
+        token = set_debug_context(handler="sse_handler", route="/sse/test")
+        try:
+            result = process_sse_item("signals", {"payload": {"count": 1}, "options": {}})
+            assert "x-debug-handler sse_handler" in result
+        finally:
+            _debug_ctx_var.reset(token)
+
+    def test_format_event_gets_debug_via_auto_read(self):
+        """format_event delegates to format functions which auto-read context."""
+        token = set_debug_context(handler="event_handler", route="/events")
+        try:
+            result = format_event(SignalEvent(signals={"x": 1}))
+            assert "x-debug-handler event_handler" in result
+        finally:
+            _debug_ctx_var.reset(token)
