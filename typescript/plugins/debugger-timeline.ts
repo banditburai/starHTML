@@ -2,6 +2,8 @@
 // Captures user actions, SSE events, signal changes, and DOM mutations as
 // a ring buffer of TimelineEvents grouped into causal traces.
 
+import { getPath } from "datastar";
+
 // ─── Event Types ──────────────────────────────────────────────────
 
 export type TimelineEventType =
@@ -193,18 +195,148 @@ function captureSSELifecycle(): void {
   document.addEventListener("datastar-fetch", sseListener);
 }
 
+// ─── User Action Capture ─────────────────────────────────────────
+
+const DEBUGGER_TAG = "STARHTML-DEBUGGER";
+const USER_ACTION_EVENTS = ["click", "input", "submit", "keydown"] as const;
+let userActionListeners: Array<{ type: string; fn: (e: Event) => void }> = [];
+
+function isInsideDebugger(el: Element): boolean {
+  let node: Element | null = el;
+  while (node) {
+    if (node.tagName === DEBUGGER_TAG) return true;
+    node = node.parentElement;
+  }
+  // Also check shadow DOM host
+  const root = el.getRootNode();
+  if (root instanceof ShadowRoot && root.host?.tagName === DEBUGGER_TAG) return true;
+  return false;
+}
+
+function captureUserActions(): void {
+  for (const eventType of USER_ACTION_EVENTS) {
+    const fn = (e: Event) => {
+      const target = e.target;
+      if (!(target instanceof Element)) return;
+      if (isInsideDebugger(target)) return;
+
+      // For non-click events, only capture if target has a data-on-* attribute
+      if (eventType !== "click") {
+        const attrName = `data-on-${eventType}`;
+        if (!target.hasAttribute(attrName) && !target.closest(`[${attrName}]`)) return;
+      }
+
+      // Extract datastar action from data-on-{eventType} attribute
+      let datastarAction: string | null = null;
+      const actionEl = target.closest(`[data-on-${eventType}]`) ?? target;
+      const actionAttr = actionEl.getAttribute(`data-on-${eventType}`);
+      if (actionAttr) datastarAction = actionAttr.slice(0, 100);
+
+      const data: UserActionData = {
+        eventType,
+        targetSelector: selectorFor(target),
+        targetText: (target.textContent ?? "").trim().slice(0, 40),
+        datastarAction,
+      };
+
+      emit("user-action", data, { beginTrace: true });
+    };
+    document.addEventListener(eventType, fn, true); // capture phase
+    userActionListeners.push({ type: eventType, fn });
+  }
+}
+
+// ─── Signal Change Capture ───────────────────────────────────────
+
+let signalPatchListener: ((e: Event) => void) | null = null;
+
+/** Flatten nested object into dot-separated paths. */
+function flattenPaths(obj: unknown, prefix: string, out: string[]): void {
+  if (obj && typeof obj === "object" && !Array.isArray(obj)) {
+    for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
+      const path = prefix ? `${prefix}.${k}` : k;
+      if (v && typeof v === "object" && !Array.isArray(v)) {
+        flattenPaths(v, path, out);
+      } else {
+        out.push(path);
+      }
+    }
+  }
+}
+
+function captureSignalChanges(): void {
+  // Cache previous signal values for old→new diff
+  const prevValues = new Map<string, unknown>();
+
+  signalPatchListener = (e: Event) => {
+    const detail = (e as CustomEvent).detail;
+    if (!detail || typeof detail !== "object") return;
+
+    const paths: string[] = [];
+    flattenPaths(detail, "", paths);
+
+    // Infer source: if inside an active SSE trace, it's "sse"; if inside a
+    // user-action trace, it's "user"; otherwise "init"
+    let source: SignalChangeData["source"] = "init";
+    if (activeTraceId !== null) {
+      const rootEvent = buffer.find(
+        ev => ev.traceId === activeTraceId && ev.parentId === null
+      );
+      if (rootEvent) {
+        if (rootEvent.type === "sse-lifecycle") source = "sse";
+        else if (rootEvent.type === "user-action") source = "user";
+      }
+    }
+
+    for (const path of paths) {
+      // Skip debugger's own signals
+      if (path.startsWith("starhtml_debugger")) continue;
+
+      let newValue: unknown;
+      try {
+        newValue = getPath(path);
+      } catch { continue; }
+
+      const oldValue = prevValues.get(path);
+      // Only emit if value actually changed
+      if (oldValue === newValue) continue;
+
+      prevValues.set(path, newValue);
+
+      const data: SignalChangeData = {
+        path,
+        oldValue: clampValue(oldValue),
+        newValue: clampValue(newValue),
+        source,
+      };
+      emit("signal-change", data);
+    }
+  };
+  document.addEventListener("datastar-signal-patch", signalPatchListener);
+}
+
 // ─── Init / Cleanup ──────────────────────────────────────────────
 
 export function init(): void {
   if (initialized) return;
   initialized = true;
   captureSSELifecycle();
+  captureUserActions();
+  captureSignalChanges();
 }
 
 export function cleanup(): void {
   if (sseListener) {
     document.removeEventListener("datastar-fetch", sseListener);
     sseListener = null;
+  }
+  for (const { type, fn } of userActionListeners) {
+    document.removeEventListener(type, fn, true);
+  }
+  userActionListeners = [];
+  if (signalPatchListener) {
+    document.removeEventListener("datastar-signal-patch", signalPatchListener);
+    signalPatchListener = null;
   }
   initialized = false;
   buffer.length = 0;
