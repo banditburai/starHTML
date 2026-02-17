@@ -1,7 +1,9 @@
 """Real-time functionality: WebSockets, SSE, and live reload for StarHTML."""
 
 import asyncio
+import contextvars
 import inspect
+import itertools
 import logging
 import re
 import time
@@ -45,6 +47,8 @@ __all__ = [
     "SSEEvent",
     "format_event",
     "DebugContext",
+    "set_debug_context",
+    "get_debug_context",
     "RELAY_QUEUE_SIZE",
     "SSE_KEEPALIVE_TIMEOUT",
 ]
@@ -195,6 +199,27 @@ class DebugContext(TypedDict):
     seq: int
     handler: str
     route: str
+
+
+# ─── Debug context propagation ────────────────────────────────────
+# Set by _endp() in core.py when debug=True. SSE format functions
+# auto-read it so handler code never needs to pass debug_ctx manually.
+
+_debug_ctx_var: contextvars.ContextVar[DebugContext | None] = contextvars.ContextVar(
+    "starhtml_debug_ctx", default=None
+)
+_debug_seq = itertools.count(1)
+
+
+def set_debug_context(handler: str, route: str) -> contextvars.Token:
+    """Set debug context for the current request. Returns token for reset."""
+    ctx: DebugContext = {"seq": next(_debug_seq), "handler": handler, "route": route}
+    return _debug_ctx_var.set(ctx)
+
+
+def get_debug_context() -> DebugContext | None:
+    """Get debug context for the current request, if set."""
+    return _debug_ctx_var.get()
 
 
 try:
@@ -385,15 +410,16 @@ def sse_message(elm, event="message"):
 
 def process_sse_item(item_type: str, payload: Any) -> str | None:
     """Process an SSE item and return the formatted output."""
+    debug_ctx = get_debug_context()
     match item_type:
         case "signals":
             if isinstance(payload, dict) and "payload" in payload:
                 signal_data = payload["payload"]
                 options = payload.get("options", {})
                 only_if_missing = options.get("only_if_missing", False)
-                return format_signal_event(signal_data, only_if_missing=only_if_missing)
+                return format_signal_event(signal_data, only_if_missing=only_if_missing, debug_ctx=debug_ctx)
             else:
-                return format_signal_event(payload)
+                return format_signal_event(payload, debug_ctx=debug_ctx)
         case "elements":
             if isinstance(payload, tuple):
                 element = payload[0]
@@ -415,7 +441,7 @@ def process_sse_item(item_type: str, payload: Any) -> str | None:
                 if element_id := element.attrs.get("id"):
                     selector = f"#{element_id}"
 
-            return format_element_event(element, selector, mode, use_view_transition, preserve_whitespace)
+            return format_element_event(element, selector, mode, use_view_transition, preserve_whitespace, debug_ctx=debug_ctx)
         case _:
             raise ValueError(f"Unknown SSE item type: {item_type}")
 
@@ -496,16 +522,17 @@ type SSEEvent = SignalEvent | ElementEvent | ScriptEvent
 
 
 def format_event(event: SSEEvent) -> str:
+    debug_ctx = get_debug_context()
     match event:
         case SignalEvent(signals=signals_dict):
-            return format_signal_event(signals_dict)
+            return format_signal_event(signals_dict, debug_ctx=debug_ctx)
         case ElementEvent(element=el, selector=sel, mode=m):
-            return format_element_event(el, sel, m)
+            return format_element_event(el, sel, m, debug_ctx=debug_ctx)
         case ScriptEvent(script=content, auto_remove=ar):
             from .xtend import Script
 
             attrs = {"data-effect": "el.remove()"} if ar else {}
-            return format_element_event(Script(content, **attrs), "body", "append")
+            return format_element_event(Script(content, **attrs), "body", "append", debug_ctx=debug_ctx)
         case _:
             raise TypeError(f"Unknown event type: {type(event)}")
 
