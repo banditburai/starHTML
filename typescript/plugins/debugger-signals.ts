@@ -449,7 +449,7 @@ export function buildSignalRowHtml(entry: SignalEntry): string {
     statusBadge = ` <span class="signal-removed-badge">\u26A0 removed</span>`;
   }
 
-  return `<div class="${classes}" data-path="${escapeHtml(entry.path)}" title="Click to copy path">` +
+  return `<div class="${classes}" data-path="${escapeHtml(entry.path)}" title="Click to expand">` +
     `<span class="signal-name">${escapeHtml(displayName)}</span>` +
     `<span class="signal-value ${typeClass}">${escapeHtml(formattedValue)}</span>` +
     persistBadge + statusBadge +
