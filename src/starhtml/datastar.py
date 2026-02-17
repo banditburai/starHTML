@@ -216,6 +216,16 @@ class Expr(ABC):
             args.append(_ensure_expr(end))
         return MethodCall(self, "slice", args)
 
+    def default(self, fallback: Any) -> "_JSRaw":
+        """Fallback: val.default(x) → val ?? x"""
+        return _JSRaw(f"({self.to_js()} ?? {_ensure_expr(fallback).to_js()})")
+
+    def one_of(self, *choices: Any, default: Any = None) -> "Conditional":
+        """Guard: val.one_of("a", "b") → ["a","b"].includes(val) ? val : "a" """
+        fallback = _ensure_expr(default if default is not None else choices[0])
+        choices_js = ", ".join(_ensure_expr(c).to_js() for c in choices)
+        return Conditional(_JSRaw(f"[{choices_js}].includes({self.to_js()})"), self, fallback)
+
     def with_(self, **modifiers) -> tuple:
         return (self, modifiers)
 
@@ -769,9 +779,6 @@ def register_on_plugin(name: str) -> None:
 
 
 def _normalize_data_key(key: str) -> str:
-    if key == "data_on_load":
-        return "data-init"
-
     # Registered on-* plugins use hyphen syntax, DOM events use colon syntax
     if key.startswith("data_on_"):
         base_name = key.removeprefix("data_on_").split("__")[0]

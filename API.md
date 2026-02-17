@@ -34,9 +34,11 @@ data_on_submit=post("/api/save")           # HTTP request
 
 # 4. Signal operations
 counter.add(1)                             # → $counter++
-counter.set(0)                             # → $counter = 0  
+counter.set(0)                             # → $counter = 0
 is_visible.toggle()                        # → $is_visible = !$is_visible
 name.upper().contains("ADMIN")             # → $name.toUpperCase().includes("ADMIN")
+count.default(0)                           # → ($count ?? 0)
+theme.one_of("light", "dark")             # → ["light","dark"].includes($theme) ? $theme : "light"
 
 # 5. Logical expressions
 all(name, email, age)                      # All truthy → !!$name && !!$email && !!$age
@@ -120,6 +122,25 @@ counter.set(10)              # Set value
 counter.add(1)               # Increment/add
 counter.toggle()             # Boolean toggle
 name.upper()                 # String methods
+```
+
+#### Value Guards
+
+```python
+# Nullish fallback — safe default when signal may be undefined
+count.default(0)                        # → ($count ?? 0)
+user.email.default("")                  # → ($user.email ?? "")
+count.default(0).clamp(0, 99)           # Chains with other expressions
+
+# Enum guard — constrain to allowed values, fallback to first (or explicit default)
+theme.one_of("light", "dark")           # → (["light","dark"].includes($theme) ? $theme : "light")
+theme.one_of("light", "dark", "auto", default="light")
+
+# Practical: guard a display value
+data_text=status.one_of("draft", "review", "published")
+
+# Guard before match — ensure theme is valid, then map to classes
+data_attr_class=match(theme.one_of("light", "dark"), light="bg-white", dark="bg-gray-900")
 ```
 
 ## Essential Reactivity
