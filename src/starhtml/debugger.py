@@ -333,6 +333,61 @@ else:
   }
   .copy-btn:hover { background: #45475a; color: #cdd6f4; }
   .copy-btn.copied { color: #a6e3a1; border-color: #a6e3a1; }
+  /* --- Signals tab --- */
+  .signal-list { display: flex; flex-direction: column; }
+  .signal-group-header {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 8px; cursor: pointer; user-select: none;
+    color: #cdd6f4; font-weight: 600; font-size: 11px;
+    border-bottom: 1px solid #11111b;
+  }
+  .signal-group-header:hover { background: #2a2b3d; }
+  .signal-group-header .group-toggle {
+    color: #585b70; width: 12px; text-align: center; font-size: 10px;
+  }
+  .signal-group-header .group-count { color: #9399b2; font-weight: 400; }
+  .signal-row {
+    display: flex; align-items: baseline; gap: 8px;
+    padding: 3px 8px 3px 28px;
+    border-bottom: 1px solid #11111b; cursor: pointer;
+  }
+  .signal-row:hover { background: #2a2b3d; }
+  .signal-name {
+    color: #cdd6f4; flex-shrink: 0; min-width: 120px;
+    overflow: hidden; text-overflow: ellipsis;
+  }
+  .signal-value {
+    flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .signal-persist { color: #9399b2; flex-shrink: 0; font-size: 10px; }
+  .sv-string { color: #a6e3a1; }
+  .sv-number { color: #89b4fa; }
+  .sv-boolean { color: #fab387; }
+  .sv-object, .sv-array { color: #9399b2; }
+  @keyframes signal-flash {
+    0% { background: #2a3f1e; }
+    100% { background: transparent; }
+  }
+  .signal-changed { animation: signal-flash 2s ease-out; }
+  .signal-stale .signal-name { color: #585b70; }
+  .signal-stale .signal-value { color: #585b70; }
+  .signal-removed { opacity: 0.4; text-decoration: line-through; }
+  .signal-removed-badge { color: #f9e2af; font-size: 10px; }
+  .signal-detail {
+    padding: 6px 8px 6px 28px; background: #181825;
+    border-bottom: 1px solid #11111b; border-left: 2px solid #89b4fa;
+    font-size: 11px; color: #a6adc8;
+  }
+  .signal-detail .sd-row { padding: 2px 0; }
+  .signal-detail .sd-label {
+    color: #585b70; font-size: 10px; text-transform: uppercase; margin-right: 8px;
+  }
+  .signal-detail pre {
+    margin: 2px 0; padding: 4px 6px; background: #11111b;
+    border-radius: 3px; border: 1px solid #313244;
+    white-space: pre-wrap; word-break: break-word; max-height: 150px;
+    overflow-y: auto; scrollbar-width: thin; scrollbar-color: #45475a transparent;
+  }
 """
 
     DEBUGGER_SETUP = """
