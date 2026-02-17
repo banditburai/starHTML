@@ -1,58 +1,53 @@
 // debugger-signals.ts — Signal tracking data layer for the StarHTML debugger.
-// Standalone module consumed by the StarElements debugger component.
 
 import { filtered, getPath } from "datastar";
-
-// ─── Interfaces ────────────────────────────────────────────────────
 
 export interface SignalEntry {
   path: string;
   value: unknown;
   previousValue: unknown;
   type: "string" | "number" | "boolean" | "object" | "array";
-  source: string;        // "page", "component:my-counter", "persist:starhtml-persist"
-  namespace: string;     // "" for page-level, component tag, or persist key
+  source: string;
+  namespace: string;
   status: "live" | "stale" | "removed";
-  lastChanged: number;   // Date.now() timestamp
+  lastChanged: number;
   persistStorage?: "local" | "session";
 }
 
 export interface SignalGroup {
   namespace: string;
-  displayName: string;   // "Page Signals", component tag, persist key
+  displayName: string;
   entries: SignalEntry[];
   count: number;
 }
 
-// ─── State ─────────────────────────────────────────────────────────
+const POLL_INTERVAL_MS = 2000;
+const CHANGE_FLASH_MS = 2000;
+const REMOVED_CLEANUP_MS = 6000;
+const REMOVED_DISPLAY_MS = 4000;
+const MAX_DISPLAY_STRING = 40;
+const MAX_PREV_VALUE_SIZE = 1024;
 
 const entries: Map<string, SignalEntry> = new Map();
 let debuggerPrefix = "";
 let debuggerSignalNames: Set<string> = new Set();
 let pollInterval: ReturnType<typeof setInterval> | null = null;
 const subscribers = new Set<() => void>();
-
 let pendingNotify = false;
 let initialized = false;
 
-// Previous value size cap (1KB serialized)
-const MAX_PREV_VALUE_SIZE = 1024;
-
-// ─── Public API ────────────────────────────────────────────────────
-
-/** Initialize signal tracking. excludePrefix filters the debugger's namespaced signals;
- *  excludeNames filters un-namespaced Local() signal names (created by data-bind). */
+/** excludePrefix filters namespaced signals; excludeNames filters
+ *  un-namespaced Local() signal names created by data-bind. */
 export function init(excludePrefix: string, excludeNames?: string[]): void {
   if (initialized) return;
   initialized = true;
   debuggerPrefix = excludePrefix;
   debuggerSignalNames = new Set(excludeNames || []);
   document.addEventListener("datastar-signal-patch", onSignalPatch as EventListener);
-  structuralPoll();  // initial poll
-  pollInterval = setInterval(structuralPoll, 2000);
+  structuralPoll();
+  pollInterval = setInterval(structuralPoll, POLL_INTERVAL_MS);
 }
 
-/** Clean up listeners and timers. */
 export function cleanup(): void {
   document.removeEventListener("datastar-signal-patch", onSignalPatch as EventListener);
   if (pollInterval !== null) {
@@ -64,18 +59,16 @@ export function cleanup(): void {
   initialized = false;
 }
 
-/** Subscribe to signal changes. Returns unsubscribe function. */
 export function subscribe(fn: () => void): () => void {
   subscribers.add(fn);
   return () => { subscribers.delete(fn); };
 }
 
-/** Get all signal entries. */
 export function getEntries(): Map<string, SignalEntry> {
   return entries;
 }
 
-/** Get total signal count (excluding removed). */
+/** Excludes entries with status "removed". */
 export function getSignalCount(): number {
   let count = 0;
   for (const entry of entries.values()) {
@@ -84,7 +77,6 @@ export function getSignalCount(): number {
   return count;
 }
 
-/** Clear all persisted signal data from storage. */
 export function clearPersistedData(): void {
   for (const storage of [localStorage, sessionStorage]) {
     const keysToRemove: string[] = [];
@@ -100,15 +92,11 @@ export function clearPersistedData(): void {
   notifySubscribers();
 }
 
-// ─── Exclusion ─────────────────────────────────────────────────────
-
 function isDebuggerSignal(path: string): boolean {
   if (debuggerPrefix && path.startsWith(debuggerPrefix)) return true;
   if (debuggerSignalNames.has(path)) return true;
   return false;
 }
-
-// ─── Patch Listener ────────────────────────────────────────────────
 
 function onSignalPatch(e: CustomEvent): void {
   const detail = e.detail;
@@ -128,26 +116,24 @@ function onSignalPatch(e: CustomEvent): void {
   if (changed) scheduleNotify();
 }
 
-// ─── Structural Poll ───────────────────────────────────────────────
-
 function structuralPoll(): void {
   const excludeRe = debuggerPrefix ? new RegExp("^" + escapeRegex(debuggerPrefix)) : undefined;
   let result: Record<string, unknown>;
   try {
-    // filtered() returns a nested object (not an array), e.g. { count: 3, theme: "dark" }
+    // filtered() returns a nested object (not an array), via Datastar's Me() function
     result = filtered(excludeRe ? { exclude: excludeRe } : undefined) as unknown as Record<string, unknown>;
   } catch { return; }
 
-  // Flatten nested object to [path, value] pairs
   const allSignals = flattenToEntries(result, "");
   const seenPaths = new Set<string>();
 
   for (const [path, value] of allSignals) {
+    if (isDebuggerSignal(path)) continue;
     seenPaths.add(path);
     if (!entries.has(path)) {
       updateOrCreateEntry(path, value);
     } else {
-      // Update value if changed (poll catches changes missed by patch events)
+      // Poll catches changes missed by patch events
       const entry = entries.get(path)!;
       if (!valuesEqual(entry.value, value)) {
         updateExistingEntry(entry, value);
@@ -156,7 +142,6 @@ function structuralPoll(): void {
     }
   }
 
-  // Mark disappeared signals
   for (const [path, entry] of entries) {
     if (!seenPaths.has(path)) {
       if (entry.status === "live") entry.status = "stale";
@@ -164,9 +149,8 @@ function structuralPoll(): void {
     }
   }
 
-  // Clean up entries that have been "removed" for a full cycle
   for (const [path, entry] of entries) {
-    if (entry.status === "removed" && Date.now() - entry.lastChanged > 6000) {
+    if (entry.status === "removed" && Date.now() - entry.lastChanged > REMOVED_CLEANUP_MS) {
       entries.delete(path);
     }
   }
@@ -176,8 +160,6 @@ function structuralPoll(): void {
   notifySubscribers();
 }
 
-// ─── Entry Management ──────────────────────────────────────────────
-
 function updateOrCreateEntry(path: string, value: unknown): boolean {
   const existing = entries.get(path);
   if (existing) {
@@ -186,7 +168,6 @@ function updateOrCreateEntry(path: string, value: unknown): boolean {
     return true;
   }
 
-  // Create new entry
   entries.set(path, {
     path,
     value,
@@ -201,7 +182,6 @@ function updateOrCreateEntry(path: string, value: unknown): boolean {
 }
 
 function updateExistingEntry(entry: SignalEntry, value: unknown): void {
-  // Cap previousValue size
   const prevStr = safeStringify(entry.value);
   entry.previousValue = prevStr.length <= MAX_PREV_VALUE_SIZE ? entry.value : "[too large]";
   entry.value = value;
@@ -210,10 +190,7 @@ function updateExistingEntry(entry: SignalEntry, value: unknown): void {
   entry.status = "live";
 }
 
-// ─── Namespace Detection ───────────────────────────────────────────
-
 function detectNamespaces(): void {
-  // Phase 1: DOM walk for [data-star-id] elements
   const nsMap = new Map<string, string>();
   try {
     document.querySelectorAll("[data-star-id]").forEach(el => {
@@ -224,11 +201,9 @@ function detectNamespaces(): void {
     });
   } catch { /* DOM query failed */ }
 
-  // Phase 2: Assign namespaces to entries
   for (const [path, entry] of entries) {
     let matched = false;
 
-    // Check DOM-based namespaces first
     for (const [prefix, tag] of nsMap) {
       if (path.startsWith(prefix + "_") || path === prefix) {
         entry.namespace = tag;
@@ -241,7 +216,7 @@ function detectNamespaces(): void {
     }
 
     if (!matched) {
-      // Regex fallback for _star_{tag}_id{N}_ pattern
+      // Fallback: _star_{tag}_id{N}_ pattern when DOM element is gone
       const m = path.match(/^(_star_\w+_id\d+)_/);
       if (m) {
         const tag = m[1].replace(/^_star_/, "").replace(/_id\d+$/, "").replace(/_/g, "-");
@@ -257,12 +232,8 @@ function detectNamespaces(): void {
   }
 }
 
-// ─── Persistence Detection ─────────────────────────────────────────
-
 function detectPersistence(): void {
-  // Clear existing persist flags
   for (const entry of entries.values()) entry.persistStorage = undefined;
-
   try { scanStorage(localStorage, "local"); } catch { /* unavailable */ }
   try { scanStorage(sessionStorage, "session"); } catch { /* unavailable */ }
 }
@@ -289,9 +260,7 @@ function scanStorage(storage: Storage, type: "local" | "session"): void {
   }
 }
 
-// ─── Helpers ───────────────────────────────────────────────────────
-
-/** Flatten a nested object into [dot-path, value] tuples (for filtered() results). */
+/** Walk a nested object (from filtered()) back to [dot-path, leaf-value] tuples. */
 function flattenToEntries(obj: Record<string, unknown>, prefix: string): [string, unknown][] {
   const result: [string, unknown][] = [];
   for (const key of Object.keys(obj)) {
@@ -306,7 +275,6 @@ function flattenToEntries(obj: Record<string, unknown>, prefix: string): [string
   return result;
 }
 
-/** Flatten a nested object into dot-path keys. */
 function flattenNestedObject(obj: Record<string, unknown>, prefix: string): string[] {
   const paths: string[] = [];
   for (const key of Object.keys(obj)) {
@@ -353,8 +321,6 @@ function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-// ─── Notification ──────────────────────────────────────────────────
-
 function notifySubscribers(): void {
   for (const fn of subscribers) fn();
 }
@@ -368,15 +334,10 @@ function scheduleNotify(): void {
   });
 }
 
-// ─── Render Helpers ────────────────────────────────────────────────
-
-/** Strip namespace prefix from a signal path for display. */
 export function stripNamespace(path: string, namespace: string): string {
   if (!namespace) return path;
-  // Regex: _star_{tag}_id{N}_ prefix
   const m = path.match(/^_star_\w+_id\d+_(.+)$/);
   if (m) return m[1];
-  // DOM-based: try stripping namespace + _
   const candidates = [namespace.replace(/-/g, "_"), namespace];
   for (const prefix of candidates) {
     if (path.startsWith(prefix + "_")) return path.slice(prefix.length + 1);
@@ -384,15 +345,13 @@ export function stripNamespace(path: string, namespace: string): string {
   return path;
 }
 
-/** Get entries grouped by namespace, optionally filtered. */
 export function getGroupedEntries(filter: string): SignalGroup[] {
   const filterLower = filter.toLowerCase();
   const groups = new Map<string, SignalEntry[]>();
 
   for (const entry of entries.values()) {
-    if (entry.status === "removed" && Date.now() - entry.lastChanged > 4000) continue;
+    if (entry.status === "removed" && Date.now() - entry.lastChanged > REMOVED_DISPLAY_MS) continue;
 
-    // Filter check
     if (filterLower) {
       const displayName = stripNamespace(entry.path, entry.namespace);
       if (!entry.path.toLowerCase().includes(filterLower) &&
@@ -406,7 +365,7 @@ export function getGroupedEntries(filter: string): SignalGroup[] {
     groups.get(ns)!.push(entry);
   }
 
-  // Sort groups: page first, then components alphabetically, then persist
+  // Page first, then components alphabetically
   const result: SignalGroup[] = [];
   const sortedKeys = [...groups.keys()].sort((a, b) => {
     if (a === "" && b !== "") return -1;
@@ -416,7 +375,6 @@ export function getGroupedEntries(filter: string): SignalGroup[] {
 
   for (const ns of sortedKeys) {
     const groupEntries = groups.get(ns)!;
-    // Sort entries alphabetically by display name within group
     groupEntries.sort((a, b) => {
       const aName = stripNamespace(a.path, a.namespace);
       const bName = stripNamespace(b.path, b.namespace);
@@ -434,13 +392,12 @@ export function getGroupedEntries(filter: string): SignalGroup[] {
   return result;
 }
 
-/** Format a signal value for display (truncated). */
 export function formatSignalValue(value: unknown, type: SignalEntry["type"]): string {
   if (value === null || value === undefined) return "null";
   switch (type) {
     case "string": {
       const s = String(value);
-      return s.length > 40 ? `"${s.slice(0, 37)}…"` : `"${s}"`;
+      return s.length > MAX_DISPLAY_STRING ? `"${s.slice(0, MAX_DISPLAY_STRING - 3)}…"` : `"${s}"`;
     }
     case "number":
     case "boolean":
@@ -458,7 +415,6 @@ export function formatSignalValue(value: unknown, type: SignalEntry["type"]): st
   }
 }
 
-/** Build HTML for a group header. */
 export function buildGroupHeaderHtml(group: SignalGroup, collapsed: boolean): string {
   const toggle = collapsed ? "\u25B8" : "\u25BE";
   const esc = escapeHtml;
@@ -469,12 +425,11 @@ export function buildGroupHeaderHtml(group: SignalGroup, collapsed: boolean): st
     `</div>`;
 }
 
-/** Build HTML for a signal row. */
 export function buildSignalRowHtml(entry: SignalEntry): string {
   const displayName = stripNamespace(entry.path, entry.namespace);
   const formattedValue = formatSignalValue(entry.value, entry.type);
   const typeClass = `sv-${entry.type}`;
-  const isChanged = Date.now() - entry.lastChanged < 2000;
+  const isChanged = Date.now() - entry.lastChanged < CHANGE_FLASH_MS;
 
   let classes = "signal-row";
   if (isChanged) classes += " signal-changed";
@@ -501,7 +456,6 @@ export function buildSignalRowHtml(entry: SignalEntry): string {
     `</div>`;
 }
 
-/** Build HTML for an expanded signal detail view. */
 export function buildSignalDetailHtml(entry: SignalEntry): string {
   const esc = escapeHtml;
   let html = `<div class="signal-detail">`;

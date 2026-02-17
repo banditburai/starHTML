@@ -393,10 +393,8 @@ else:
     DEBUGGER_SETUP = """
 // --- Lifecycle + persistence ---
 
-// Initialize capture module (SSE event interception)
 capture.init();
 
-// Subscribe to new events from capture module
 const unsub = capture.subscribe((ev) => {
     $$event_count = capture.getEventCount();
     if (!$$is_open) {
@@ -406,7 +404,6 @@ const unsub = capture.subscribe((ev) => {
 });
 onCleanup(unsub);
 
-// Restore state from sessionStorage
 try {
     const storedOpen = sessionStorage.getItem('starhtml-debug-open');
     if (storedOpen === 'true') $$is_open = true;
@@ -414,39 +411,35 @@ try {
     if (storedHeight > 0) $$panel_height = storedHeight;
     const storedTab = sessionStorage.getItem('starhtml-debug-tab');
     if (storedTab) $$active_tab = storedTab;
-} catch(e) { /* sessionStorage unavailable (sandboxed iframe, privacy mode) */ }
+} catch(e) { /* sessionStorage unavailable */ }
 
-// Persist signal changes to sessionStorage
 effect(() => sessionStorage.setItem('starhtml-debug-open', String($$is_open)));
 effect(() => sessionStorage.setItem('starhtml-debug-height', String($$panel_height)));
 effect(() => sessionStorage.setItem('starhtml-debug-tab', $$active_tab));
 
-// MutationObserver lifecycle — observe when panel is open
 effect(() => {
     if ($$is_open) capture.startObserving();
     else capture.stopObserving();
 });
 onCleanup(() => capture.stopObserving());
 
-// Page inset — push page content above the panel
+// Push page content above the panel
 effect(() => {
     document.documentElement.style.paddingBottom = $$is_open ? $$panel_height + 'px' : '';
 });
 onCleanup(() => { document.documentElement.style.paddingBottom = ''; });
 
-// Reset unseen count when panel opens
 effect(() => { if ($$is_open) $$unseen_count = 0; });
 
 // --- Render pipeline ---
 
-// Local render state (plain vars, not signals — no reactivity needed)
+// Plain vars, not signals — no reactivity needed
 let lastRenderedIds = [];
 let needsFullRender = true;
 let rafPending = false;
 let userAtBottom = true;
 let activeTypeFilters = new Set(['signals', 'elements', 'script']);
 
-// DOM refs
 const eventListEl = refs('event_list');
 const eventCountLabel = refs('event_count_label');
 const copyAllBtn = refs('copy_all_btn');
@@ -454,14 +447,12 @@ const clearEventsBtn = refs('clear_events_btn');
 const tabContentEl = refs('tab_content');
 const jumpBtn = refs('jump_btn');
 
-// Scroll tracking
 if (tabContentEl) {
     tabContentEl.addEventListener('scroll', () => {
         userAtBottom = tabContentEl.scrollTop + tabContentEl.clientHeight >= tabContentEl.scrollHeight - 20;
     });
 }
 
-// Chip refs (for count text updates in renderSSETab)
 const chipRefs = {
     signals: refs('chip_signals'),
     elements: refs('chip_elements'),
@@ -469,9 +460,8 @@ const chipRefs = {
     lifecycle: refs('chip_lifecycle'),
 };
 
-// Build filter set from chip toggle signals
-// Guard: only trigger full render if the active set actually changed
-// (Datastar processing data-class:active bindings can re-trigger this effect spuriously)
+// Only trigger full render if the active set actually changed
+// (Datastar data-class:active bindings can re-trigger this effect spuriously)
 effect(() => {
     const newFilters = new Set();
     if ($$chip_signals_on) newFilters.add('signals');
@@ -488,7 +478,6 @@ effect(() => {
     }
 });
 
-// Clear Events button (needsFullRender + render handled by reactive effects)
 if (clearEventsBtn) {
     clearEventsBtn.addEventListener('click', () => {
         const evts = capture.getEvents();
@@ -498,7 +487,6 @@ if (clearEventsBtn) {
     });
 }
 
-// Jump to Latest button
 if (jumpBtn) {
     jumpBtn.addEventListener('click', () => {
         if (tabContentEl) tabContentEl.scrollTop = tabContentEl.scrollHeight;
@@ -507,7 +495,6 @@ if (jumpBtn) {
     });
 }
 
-// Copy All button
 if (copyAllBtn) {
     copyAllBtn.addEventListener('click', () => {
         const allowedTypes = capture.buildAllowedTypes(activeTypeFilters);
@@ -524,12 +511,10 @@ if (copyAllBtn) {
     });
 }
 
-// Event delegation on event list (expand/collapse + copy buttons)
 if (eventListEl) {
     eventListEl.addEventListener('click', (e) => {
         const target = e.target;
 
-        // Copy single event button
         const copyBtn = target.closest('.copy-btn[data-copy-eid]');
         if (copyBtn) {
             e.stopPropagation();
@@ -549,7 +534,6 @@ if (eventListEl) {
             return;
         }
 
-        // Row expand/collapse
         const row = target.closest('.event-row');
         if (!row) return;
         const eid = Number(row.dataset.eid);
@@ -557,7 +541,6 @@ if (eventListEl) {
         const prevExpandedId = $$expanded_id;
         $$expanded_id = wasExpanded ? -1 : eid;
 
-        // Collapse previous
         if (prevExpandedId !== -1) {
             const prevRow = eventListEl.querySelector('.event-row[data-eid="' + prevExpandedId + '"]');
             if (prevRow) {
@@ -567,7 +550,6 @@ if (eventListEl) {
             }
         }
 
-        // Expand new
         if (!wasExpanded) {
             row.classList.add('expanded');
             const evts = capture.getEvents();
@@ -582,7 +564,6 @@ if (eventListEl) {
     });
 }
 
-// Schedule render via RAF
 function scheduleRender() {
     if (rafPending) return;
     rafPending = true;
@@ -592,14 +573,12 @@ function scheduleRender() {
     });
 }
 
-// Main render function
 function renderSSETab() {
     if (!eventListEl) return;
 
     const allowedTypes = capture.buildAllowedTypes(activeTypeFilters);
     const filtered = capture.getFilteredEvents($$visible_since_id, allowedTypes, $$filter_text);
 
-    // Update chip counts
     const visible = capture.getFilteredEvents($$visible_since_id, null, '');
     for (const chip of capture.CHIP_CATEGORIES) {
         const count = visible.filter(ev => chip.types.includes(ev.type)).length;
@@ -607,7 +586,6 @@ function renderSSETab() {
         if (chipEl) chipEl.textContent = chip.label.charAt(0).toUpperCase() + chip.label.slice(1) + ' (' + count + ')';
     }
 
-    // Update event count label
     if (eventCountLabel) {
         eventCountLabel.textContent = filtered.length + ' event' + (filtered.length !== 1 ? 's' : '');
     }
@@ -615,7 +593,6 @@ function renderSSETab() {
     const wasAtBottom = userAtBottom;
     const filteredIds = filtered.map(ev => ev.id);
 
-    // Incremental append
     if (!needsFullRender && filteredIds.length >= lastRenderedIds.length) {
         let canIncrement = true;
         for (let i = 0; i < lastRenderedIds.length; i++) {
@@ -631,12 +608,11 @@ function renderSSETab() {
                 if (wasAtBottom && tabContentEl) tabContentEl.scrollTop = tabContentEl.scrollHeight;
                 $$show_jump_btn = !userAtBottom && filtered.length > 0;
             }
-            // Same events, no changes — return without full re-render
             return;
         }
     }
 
-    // Full render fallback — reset expand state since innerHTML wipes detail divs
+    // innerHTML wipes detail divs, so reset expand state
     $$expanded_id = -1;
     let html = '';
     for (const ev of filtered) html += capture.buildRowHtml(ev);
@@ -648,8 +624,7 @@ function renderSSETab() {
     $$show_jump_btn = !userAtBottom && filtered.length > 0;
 }
 
-// Reactive render trigger — re-render when signals change
-// NOTE: $$expanded_id deliberately excluded — expand/collapse is imperative (click handler)
+// $$expanded_id deliberately excluded — expand/collapse is imperative (click handler)
 effect(() => {
     void $$event_count;
     void $$filter_text;
@@ -657,7 +632,6 @@ effect(() => {
     if ($$is_open && $$active_tab === 'sse') scheduleRender();
 });
 
-// Force full re-render when filter text or visible_since_id changes
 // Guard against spurious fires from Datastar data-bind processing
 let _lastFilterText = $$filter_text;
 let _lastVisibleSinceId = $$visible_since_id;
@@ -673,7 +647,6 @@ effect(() => {
 
 // --- Resize + keyboard ---
 
-// Resize handle drag
 const resizeHandle = refs('resize_handle');
 const tabBar = refs('tab_bar');
 
@@ -693,7 +666,7 @@ const startResize = (e) => {
 
 if (resizeHandle) resizeHandle.addEventListener('mousedown', startResize);
 
-// Tab-bar as resize target (drag from empty space, not tab buttons)
+// Drag from empty tab-bar space, not tab buttons
 if (tabBar) {
     tabBar.addEventListener('mousedown', (e) => {
         if (e.target.closest('.tab-btn')) return;
@@ -701,7 +674,7 @@ if (tabBar) {
     });
 }
 
-// Keyboard shortcut: Ctrl+Shift+. (or Cmd+Shift+.)
+// Ctrl+Shift+. (or Cmd+Shift+.)
 const onKeydown = (e) => {
     if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.code === 'Period') {
         e.preventDefault();
@@ -713,7 +686,6 @@ onCleanup(() => document.removeEventListener('keydown', onKeydown));
 
 // --- Signals tab ---
 
-// Determine debugger's own namespace prefix for exclusion
 const debuggerNs = el.getAttribute('data-star-id') || '_star_starhtml_debugger_';
 // Local() signal names exist un-namespaced in the Datastar store (via data-bind)
 const debuggerSignalNames = [
@@ -725,18 +697,15 @@ const debuggerSignalNames = [
 signals.init(debuggerNs, debuggerSignalNames);
 onCleanup(() => signals.cleanup());
 
-// DOM refs for signals tab
 const signalListEl = refs('signal_list');
 const signalCountLabel = refs('signal_count_label');
 const signalTabCount = refs('signal_tab_count');
 const signalEmpty = refs('signal_empty');
 const clearPersistBtn = refs('clear_persist_btn');
 
-// Render state for signals tab
 let signalRafPending = false;
 let collapsedGroups = new Set();
 
-// Subscribe to signal changes
 const signalUnsub = signals.subscribe(() => {
     $$signal_count = signals.getSignalCount();
     if ($$is_open && $$active_tab === 'signals') scheduleSignalRender();
@@ -757,14 +726,10 @@ function renderSignalsTab() {
     const groups = signals.getGroupedEntries($$signal_filter);
     const totalCount = signals.getSignalCount();
 
-    // Update count displays
     if (signalCountLabel) signalCountLabel.textContent = totalCount + ' signal' + (totalCount !== 1 ? 's' : '');
     if (signalTabCount) signalTabCount.textContent = totalCount > 0 ? '(' + totalCount + ')' : '';
-
-    // Empty state
     if (signalEmpty) signalEmpty.style.display = totalCount === 0 ? '' : 'none';
 
-    // Build HTML
     let html = '';
     for (const group of groups) {
         const isCollapsed = collapsedGroups.has(group.namespace);
@@ -781,12 +746,10 @@ function renderSignalsTab() {
     signalListEl.innerHTML = html;
 }
 
-// Event delegation on signal list
 if (signalListEl) {
     signalListEl.addEventListener('click', (e) => {
         const target = e.target;
 
-        // Group header toggle
         const header = target.closest('.signal-group-header');
         if (header) {
             const ns = header.dataset.ns ?? '';
@@ -796,12 +759,10 @@ if (signalListEl) {
             return;
         }
 
-        // Signal row click — copy path to clipboard
         const row = target.closest('.signal-row');
         if (row) {
             const path = row.dataset.path;
             if (path) {
-                // Toggle detail expansion
                 $$signal_expanded_path = $$signal_expanded_path === path ? '' : path;
                 renderSignalsTab();
             }
@@ -810,7 +771,6 @@ if (signalListEl) {
     });
 }
 
-// Clear Persisted button handler
 if (clearPersistBtn) {
     clearPersistBtn.addEventListener('click', () => {
         signals.clearPersistedData();
@@ -819,7 +779,6 @@ if (clearPersistBtn) {
     });
 }
 
-// Reactive render trigger for signals tab
 effect(() => {
     void $$signal_count;
     void $$signal_filter;
@@ -861,7 +820,6 @@ effect(() => {
         return Div(
             Style(DEBUGGER_CSS),
             Script(DEBUGGER_SETUP),
-            # --- Debugger tab (toggle button) ---
             Div(
                 "StarHTML Debug",
                 Span(
@@ -872,11 +830,8 @@ effect(() => {
                 data_on_click=is_open.toggle(),
                 cls="debugger-tab",
             ),
-            # --- Panel ---
             Div(
-                # Resize handle
                 Div(data_ref="resize_handle", cls="resize-handle"),
-                # Tab bar
                 Div(
                     Button(
                         "SSE Events",
@@ -903,11 +858,9 @@ effect(() => {
                     data_ref="tab_bar",
                     cls="tab-bar",
                 ),
-                # SSE tab content
+                # SSE tab
                 Div(
-                    # Toolbar
                     Div(
-                        # Type filter chips
                         Div(
                             *[Span(
                                 label,
@@ -919,7 +872,6 @@ effect(() => {
                             cls="type-chips",
                         ),
                         Div(cls="toolbar-sep"),
-                        # Filter input
                         Div(
                             Input(
                                 type="text",
@@ -936,24 +888,20 @@ effect(() => {
                             ),
                             cls="filter-wrap",
                         ),
-                        # Clear Events button
                         Button(
                             "Clear Events",
                             data_ref="clear_events_btn",
                             cls="clear-events-btn",
                             title="Clear visible events",
                         ),
-                        # Copy All button
                         Button(
                             "Copy All",
                             data_ref="copy_all_btn",
                             title="Copy all visible events for LLM context",
                         ),
-                        # Event count
                         Span(data_ref="event_count_label", cls="count"),
                         cls="toolbar",
                     ),
-                    # Event list container (populated imperatively by setup script)
                     Div(data_ref="event_list", cls="event-list"),
                     Button(
                         "Jump to latest",
@@ -965,11 +913,9 @@ effect(() => {
                     data_show=active_tab == "sse",
                     cls="tab-content",
                 ),
-                # Signals tab content
+                # Signals tab
                 Div(
-                    # Toolbar
                     Div(
-                        # Filter input
                         Div(
                             Input(
                                 type="text",
@@ -986,9 +932,7 @@ effect(() => {
                             ),
                             cls="filter-wrap",
                         ),
-                        # Signal count
                         Span(data_ref="signal_count_label", cls="count"),
-                        # Clear Persisted button
                         Button(
                             "Clear Persisted",
                             data_ref="clear_persist_btn",
@@ -997,19 +941,16 @@ effect(() => {
                         ),
                         cls="toolbar",
                     ),
-                    # Signal list container (populated imperatively)
                     Div(data_ref="signal_list", cls="signal-list"),
-                    # Empty state
                     Div(
                         "No signals detected",
                         data_ref="signal_empty",
                         style="color:#6c7086;padding:16px;text-align:center;",
                     ),
-                    data_ref="signal_tab_content",
                     data_show=active_tab == "signals",
                     cls="tab-content",
                 ),
-                # Timeline tab placeholder
+                # Timeline tab (placeholder)
                 Div(
                     Div("Coming in Phase 3", style="color:#6c7086;padding:16px;"),
                     data_show=active_tab == "timeline",
