@@ -31,10 +31,8 @@ let debuggerPrefix = "";
 let pollInterval: ReturnType<typeof setInterval> | null = null;
 const subscribers = new Set<() => void>();
 
-// Throttle: track last notify time per signal path (100ms cooldown)
-const lastNotifyTime = new Map<string, number>();
 let pendingNotify = false;
-const NOTIFY_THROTTLE_MS = 100;
+let initialized = false;
 
 // Previous value size cap (1KB serialized)
 const MAX_PREV_VALUE_SIZE = 1024;
@@ -43,6 +41,8 @@ const MAX_PREV_VALUE_SIZE = 1024;
 
 /** Initialize signal tracking. excludePrefix filters out the debugger's own signals. */
 export function init(excludePrefix: string): void {
+  if (initialized) return;
+  initialized = true;
   debuggerPrefix = excludePrefix;
   document.addEventListener("datastar-signal-patch", onSignalPatch as EventListener);
   structuralPoll();  // initial poll
@@ -58,7 +58,7 @@ export function cleanup(): void {
   }
   entries.clear();
   subscribers.clear();
-  lastNotifyTime.clear();
+  initialized = false;
 }
 
 /** Subscribe to signal changes. Returns unsubscribe function. */
@@ -257,8 +257,6 @@ function scanStorage(storage: Storage, type: "local" | "session"): void {
   for (let i = 0; i < storage.length; i++) {
     const key = storage.key(i);
     if (!key || !key.startsWith("starhtml-persist")) continue;
-    // Skip debugger's own session storage keys
-    if (key.startsWith("starhtml-debug")) continue;
     try {
       const raw = storage.getItem(key);
       if (!raw) continue;
@@ -318,6 +316,10 @@ function safeStringify(v: unknown): string {
   try { return JSON.stringify(v); } catch { return String(v); }
 }
 
+function prettyStringify(v: unknown): string {
+  try { return JSON.stringify(v, null, 2); } catch { return String(v); }
+}
+
 function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -342,14 +344,6 @@ function scheduleNotify(): void {
 /** Strip namespace prefix from a signal path for display. */
 export function stripNamespace(path: string, namespace: string): string {
   if (!namespace) return path;
-  // Try DOM-based prefix (exact data-star-id + _)
-  const nsEntries = entries.get(path);
-  if (nsEntries) {
-    // Find the prefix that matches this namespace
-    for (const [p] of entries) {
-      if (p === path) continue;
-    }
-  }
   // Regex: _star_{tag}_id{N}_ prefix
   const m = path.match(/^_star_\w+_id\d+_(.+)$/);
   if (m) return m[1];
@@ -483,9 +477,9 @@ export function buildSignalDetailHtml(entry: SignalEntry): string {
   const esc = escapeHtml;
   let html = `<div class="signal-detail">`;
   html += `<div class="sd-row"><span class="sd-label">Path:</span> ${esc(entry.path)}</div>`;
-  html += `<div class="sd-row"><span class="sd-label">Value:</span><pre>${esc(safeStringify(entry.value))}</pre></div>`;
+  html += `<div class="sd-row"><span class="sd-label">Value:</span><pre>${esc(prettyStringify(entry.value))}</pre></div>`;
   if (entry.previousValue !== null) {
-    html += `<div class="sd-row"><span class="sd-label">Previous:</span><pre>${esc(safeStringify(entry.previousValue))}</pre></div>`;
+    html += `<div class="sd-row"><span class="sd-label">Previous:</span><pre>${esc(prettyStringify(entry.previousValue))}</pre></div>`;
   }
   html += `<div class="sd-row"><span class="sd-label">Type:</span> ${esc(entry.type)}</div>`;
   html += `<div class="sd-row"><span class="sd-label">Source:</span> ${esc(entry.source)}</div>`;
