@@ -126,7 +126,7 @@ let traceCloseScheduled = false;
 // Async SSE correlation: element → { traceId, startedEventId }
 // When an SSE request starts during a trace, we save the mapping. When async
 // SSE responses arrive later, we resume the original trace.
-const sseElTraces = new WeakMap<HTMLElement, { traceId: number; startedEventId: number }>();
+let sseElTraces = new WeakMap<HTMLElement, { traceId: number; startedEventId: number }>();
 
 // Subscriber notifications
 const subscribers = new Set<() => void>();
@@ -135,8 +135,10 @@ let initialized = false;
 
 // ─── SSE Lifecycle Capture ────────────────────────────────────────
 
+let sseListener: ((e: Event) => void) | null = null;
+
 function captureSSELifecycle(): void {
-  document.addEventListener("datastar-fetch", (e: Event) => {
+  sseListener = (e: Event) => {
     const { type, el, argsRaw } = (e as CustomEvent).detail;
 
     const debugMeta = argsRaw?.["x-debug-seq"] != null ? {
@@ -187,7 +189,8 @@ function captureSSELifecycle(): void {
         if (el) sseElTraces.delete(el);
       }
     }
-  });
+  };
+  document.addEventListener("datastar-fetch", sseListener);
 }
 
 // ─── Init / Cleanup ──────────────────────────────────────────────
@@ -199,6 +202,10 @@ export function init(): void {
 }
 
 export function cleanup(): void {
+  if (sseListener) {
+    document.removeEventListener("datastar-fetch", sseListener);
+    sseListener = null;
+  }
   initialized = false;
   buffer.length = 0;
   nextEventId = 0;
@@ -206,6 +213,7 @@ export function cleanup(): void {
   activeTraceId = null;
   activeParentId = null;
   activeDepth = 0;
+  sseElTraces = new WeakMap();
   subscribers.clear();
 }
 
@@ -257,20 +265,19 @@ function scheduleTraceClose(): void {
   traceCloseScheduled = true;
   Promise.resolve().then(() => {
     traceCloseScheduled = false;
-    // Don't close if an SSE request is still open — it will close on 'finished'
+    // Don't close if an SSE request is still open — count starts vs finishes
+    // to handle concurrent SSE requests within the same trace
     if (activeTraceId !== null) {
-      const hasOpenSse = buffer.some(
-        e => e.traceId === activeTraceId &&
-             e.type === "sse-lifecycle" &&
-             (e.data as SseEventData).sseType === "started"
-      ) && !buffer.some(
-        e => e.traceId === activeTraceId &&
-             e.type === "sse-lifecycle" &&
-             ((e.data as SseEventData).sseType === "finished" ||
-              (e.data as SseEventData).sseType === "error" ||
-              (e.data as SseEventData).sseType === "retries-failed")
-      );
-      if (!hasOpenSse) {
+      let startedCount = 0;
+      let finishedCount = 0;
+      for (const e of buffer) {
+        if (e.traceId === activeTraceId && e.type === "sse-lifecycle") {
+          const sseType = (e.data as SseEventData).sseType;
+          if (sseType === "started") startedCount++;
+          else if (sseType === "finished" || sseType === "error" || sseType === "retries-failed") finishedCount++;
+        }
+      }
+      if (startedCount <= finishedCount) {
         closeTrace();
       }
     }
@@ -288,6 +295,9 @@ function closeTrace(): void {
  *  downstream signal changes and DOM mutations are grouped correctly. The
  *  trace closes again when the microtask queue drains. */
 function resumeTrace(traceId: number, parentId: number): void {
+  if (activeTraceId !== null && activeTraceId !== traceId) {
+    closeTrace();
+  }
   activeTraceId = traceId;
   activeParentId = parentId;
   activeDepth = 1;
@@ -388,8 +398,8 @@ export function getTraces(): TraceSummary[] {
     let domMutations = 0;
     let sseEvents = 0;
     let malformedEvents = 0;
-    let hasOpenSse = false;
-    let hasClosedSse = false;
+    let sseStarted = 0;
+    let sseFinished = 0;
 
     for (const e of events) {
       switch (e.type) {
@@ -399,17 +409,15 @@ export function getTraces(): TraceSummary[] {
         case "sse-lifecycle": {
           sseEvents++;
           const sseType = (e.data as SseEventData).sseType;
-          if (sseType === "started") hasOpenSse = true;
-          if (sseType === "finished" || sseType === "error" || sseType === "retries-failed") {
-            hasClosedSse = true;
-          }
+          if (sseType === "started") sseStarted++;
+          else if (sseType === "finished" || sseType === "error" || sseType === "retries-failed") sseFinished++;
           break;
         }
         case "sse-malformed": malformedEvents++; break;
       }
     }
 
-    const isComplete = !hasOpenSse || hasClosedSse;
+    const isComplete = sseStarted === 0 || sseStarted <= sseFinished;
     const isStale = !isComplete && (now - lastTs > STALE_TRACE_MS);
 
     summaries.push({
