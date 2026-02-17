@@ -123,6 +123,7 @@ let nextTraceId = 0;
 let activeTraceId: number | null = null;
 let activeParentId: number | null = null;
 let activeDepth = 0;
+let activeTraceRootType: TimelineEventType | null = null;
 let traceCloseScheduled = false;
 
 // Async SSE correlation: element → { traceId, startedEventId }
@@ -180,7 +181,7 @@ function captureSSELifecycle(): void {
       if (el && activeTraceId === null) {
         const saved = sseElTraces.get(el);
         if (saved) {
-          resumeTrace(saved.traceId, saved.startedEventId);
+          resumeTrace(saved.traceId, saved.startedEventId, "sse-lifecycle");
         }
       }
 
@@ -275,18 +276,10 @@ function captureSignalChanges(): void {
     const paths: string[] = [];
     flattenPaths(detail, "", paths);
 
-    // Infer source: if inside an active SSE trace, it's "sse"; if inside a
-    // user-action trace, it's "user"; otherwise "init"
+    // Infer source from cached root type (O(1) instead of buffer scan)
     let source: SignalChangeData["source"] = "init";
-    if (activeTraceId !== null) {
-      const rootEvent = buffer.find(
-        ev => ev.traceId === activeTraceId && ev.parentId === null
-      );
-      if (rootEvent) {
-        if (rootEvent.type === "sse-lifecycle") source = "sse";
-        else if (rootEvent.type === "user-action") source = "user";
-      }
-    }
+    if (activeTraceRootType === "sse-lifecycle") source = "sse";
+    else if (activeTraceRootType === "user-action") source = "user";
 
     for (const path of paths) {
       // Skip debugger's own signals
@@ -298,8 +291,13 @@ function captureSignalChanges(): void {
       } catch { continue; }
 
       const oldValue = prevValues.get(path);
-      // Only emit if value actually changed
+      // Deep equality: reference check for primitives, JSON for objects/arrays
       if (oldValue === newValue) continue;
+      if (typeof oldValue === "object" && typeof newValue === "object") {
+        try {
+          if (JSON.stringify(oldValue) === JSON.stringify(newValue)) continue;
+        } catch { /* incomparable — treat as changed */ }
+      }
 
       prevValues.set(path, newValue);
 
@@ -345,6 +343,7 @@ export function cleanup(): void {
   activeTraceId = null;
   activeParentId = null;
   activeDepth = 0;
+  activeTraceRootType = null;
   sseElTraces = new WeakMap();
   subscribers.clear();
 }
@@ -388,6 +387,7 @@ export function beginTrace(rootEvent: TimelineEvent): void {
   activeTraceId = tid;
   activeParentId = rootEvent.id;
   activeDepth = 1;
+  activeTraceRootType = rootEvent.type;
   scheduleTraceClose();
 }
 
@@ -420,19 +420,21 @@ function closeTrace(): void {
   activeTraceId = null;
   activeParentId = null;
   activeDepth = 0;
+  activeTraceRootType = null;
 }
 
 /** Resume an existing trace for async SSE correlation.
  *  When an SSE response arrives asynchronously, we reactivate the trace so
  *  downstream signal changes and DOM mutations are grouped correctly. The
  *  trace closes again when the microtask queue drains. */
-function resumeTrace(traceId: number, parentId: number): void {
+function resumeTrace(traceId: number, parentId: number, rootType?: TimelineEventType): void {
   if (activeTraceId !== null && activeTraceId !== traceId) {
     closeTrace();
   }
   activeTraceId = traceId;
   activeParentId = parentId;
   activeDepth = 1;
+  if (rootType) activeTraceRootType = rootType;
   traceCloseScheduled = false; // allow re-scheduling
   scheduleTraceClose();
 }
