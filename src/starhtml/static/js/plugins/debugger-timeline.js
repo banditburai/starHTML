@@ -9,12 +9,56 @@ let activeTraceId = null;
 let activeParentId = null;
 let activeDepth = 0;
 let traceCloseScheduled = false;
+const sseElTraces = /* @__PURE__ */ new WeakMap();
 const subscribers = /* @__PURE__ */ new Set();
 let pendingNotify = false;
 let initialized = false;
+function captureSSELifecycle() {
+  document.addEventListener("datastar-fetch", (e) => {
+    const { type, el, argsRaw } = e.detail;
+    const debugMeta = argsRaw?.["x-debug-seq"] != null ? {
+      seq: Number(argsRaw["x-debug-seq"]),
+      handler: String(argsRaw["x-debug-handler"] ?? ""),
+      route: String(argsRaw["x-debug-route"] ?? "")
+    } : void 0;
+    const payload = {};
+    if (argsRaw) {
+      for (const [k, v] of Object.entries(argsRaw)) {
+        if (!k.startsWith("x-debug-")) payload[k] = v;
+      }
+    }
+    const sseData = {
+      sseType: type,
+      handler: debugMeta?.handler ?? "",
+      route: debugMeta?.route ?? "",
+      seq: debugMeta?.seq ?? 0,
+      payload,
+      elSelector: el ? selectorFor(el) : ""
+    };
+    if (type === "started") {
+      const isNewTrace = activeTraceId === null;
+      const event = emit("sse-lifecycle", sseData, { beginTrace: isNewTrace });
+      if (el) {
+        sseElTraces.set(el, { traceId: event.traceId, startedEventId: event.id });
+      }
+    } else {
+      if (el && activeTraceId === null) {
+        const saved = sseElTraces.get(el);
+        if (saved) {
+          resumeTrace(saved.traceId, saved.startedEventId);
+        }
+      }
+      emit("sse-lifecycle", sseData);
+      if (type === "finished" || type === "error" || type === "retries-failed") {
+        if (el) sseElTraces.delete(el);
+      }
+    }
+  });
+}
 function init() {
   if (initialized) return;
   initialized = true;
+  captureSSELifecycle();
 }
 function cleanup() {
   initialized = false;
@@ -77,6 +121,13 @@ function closeTrace() {
   activeTraceId = null;
   activeParentId = null;
   activeDepth = 0;
+}
+function resumeTrace(traceId, parentId) {
+  activeTraceId = traceId;
+  activeParentId = parentId;
+  activeDepth = 1;
+  traceCloseScheduled = false;
+  scheduleTraceClose();
 }
 function emit(type, data, opts) {
   const isOrphan = activeTraceId === null && !opts?.beginTrace;

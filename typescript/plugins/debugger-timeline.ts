@@ -123,16 +123,79 @@ let activeParentId: number | null = null;
 let activeDepth = 0;
 let traceCloseScheduled = false;
 
+// Async SSE correlation: element → { traceId, startedEventId }
+// When an SSE request starts during a trace, we save the mapping. When async
+// SSE responses arrive later, we resume the original trace.
+const sseElTraces = new WeakMap<HTMLElement, { traceId: number; startedEventId: number }>();
+
 // Subscriber notifications
 const subscribers = new Set<() => void>();
 let pendingNotify = false;
 let initialized = false;
+
+// ─── SSE Lifecycle Capture ────────────────────────────────────────
+
+function captureSSELifecycle(): void {
+  document.addEventListener("datastar-fetch", (e: Event) => {
+    const { type, el, argsRaw } = (e as CustomEvent).detail;
+
+    const debugMeta = argsRaw?.["x-debug-seq"] != null ? {
+      seq: Number(argsRaw["x-debug-seq"]),
+      handler: String(argsRaw["x-debug-handler"] ?? ""),
+      route: String(argsRaw["x-debug-route"] ?? ""),
+    } : undefined;
+
+    // Build payload without x-debug- keys
+    const payload: Record<string, unknown> = {};
+    if (argsRaw) {
+      for (const [k, v] of Object.entries(argsRaw)) {
+        if (!k.startsWith("x-debug-")) payload[k] = v;
+      }
+    }
+
+    const sseData: SseEventData = {
+      sseType: type,
+      handler: debugMeta?.handler ?? "",
+      route: debugMeta?.route ?? "",
+      seq: debugMeta?.seq ?? 0,
+      payload,
+      elSelector: el ? selectorFor(el) : "",
+    };
+
+    if (type === "started") {
+      // SSE request started — extend current trace or start new one
+      const isNewTrace = activeTraceId === null;
+      const event = emit("sse-lifecycle", sseData, { beginTrace: isNewTrace });
+
+      // Save element → trace mapping for async SSE correlation
+      if (el) {
+        sseElTraces.set(el, { traceId: event.traceId, startedEventId: event.id });
+      }
+    } else {
+      // Async SSE event — look up trace from element
+      if (el && activeTraceId === null) {
+        const saved = sseElTraces.get(el);
+        if (saved) {
+          resumeTrace(saved.traceId, saved.startedEventId);
+        }
+      }
+
+      emit("sse-lifecycle", sseData);
+
+      // Clean up on terminal events
+      if (type === "finished" || type === "error" || type === "retries-failed") {
+        if (el) sseElTraces.delete(el);
+      }
+    }
+  });
+}
 
 // ─── Init / Cleanup ──────────────────────────────────────────────
 
 export function init(): void {
   if (initialized) return;
   initialized = true;
+  captureSSELifecycle();
 }
 
 export function cleanup(): void {
@@ -218,6 +281,18 @@ function closeTrace(): void {
   activeTraceId = null;
   activeParentId = null;
   activeDepth = 0;
+}
+
+/** Resume an existing trace for async SSE correlation.
+ *  When an SSE response arrives asynchronously, we reactivate the trace so
+ *  downstream signal changes and DOM mutations are grouped correctly. The
+ *  trace closes again when the microtask queue drains. */
+function resumeTrace(traceId: number, parentId: number): void {
+  activeTraceId = traceId;
+  activeParentId = parentId;
+  activeDepth = 1;
+  traceCloseScheduled = false; // allow re-scheduling
+  scheduleTraceClose();
 }
 
 // ─── Emit Events ──────────────────────────────────────────────────
