@@ -52,3 +52,16 @@ Serves vanilla Datastar from CDN. Shadow DOM components (StarElements) require t
 - **Capture-phase snapshot** (same-event): Registers a capture-phase listener for the same event type. At capture phase, snapshots whether the element is hidden (`display: none`). If it was hidden when the event started, the outside handler suppresses.
 
 **Scope**: The `e.style.display === "none"` check only detects inline styles set by `data-show`. This is an intentional coupling — `data-show` is the primary use case for `outside` modifiers.
+
+## Patch 3: Init Refire Fix
+
+**Problem**: `data-init` fires twice on page load when any Datastar plugin (e.g., `persist`) is registered in a separate `<script type="module">`. Each late-arriving `attribute()` call triggers a full-page rescan via `nn()`, re-executing all already-processed bindings including `data-init`.
+
+**Root cause**: Datastar's `nn` scan function passed a hardcoded filter flag (`!0`) to `_e()`, which told the attribute processor (`xt`) to only process newly-registered plugins. An earlier fix ("scan-timing-fix") removed this flag entirely so that shadow DOM scans would process all plugins — but this also removed the filter for plugin-registration rescans, causing the double-fire.
+
+**Fix**: Made the filter conditional via a 3rd parameter `f` on `nn()`:
+
+- **Plugin registration rescans** (`p()` → `nn(void 0, !0, !0)`): `f=true` → only newly-registered plugins are processed on existing elements.
+- **Shadow DOM / component scans** (`datastar:scan` → `nn(root, !0)`): `f` absent → all plugins are processed (required for new DOM scopes).
+
+This supersedes the earlier "scan-timing-fix" which was never formalized as a patch.

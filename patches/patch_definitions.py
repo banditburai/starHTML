@@ -12,7 +12,7 @@ class PatchDef:
     markers: list[str] = field(default_factory=list)
 
 
-PATCHED_HEADER = "// Datastar v{version} (StarHTML patched: shadow-dom-scan, outside-race-fix)"
+PATCHED_HEADER = "// Datastar v{version} (StarHTML patched: shadow-dom-scan, outside-race-fix, init-refire-fix)"
 
 PATCHES: list[PatchDef] = [
     PatchDef(
@@ -56,6 +56,32 @@ PATCHES: list[PatchDef] = [
         markers=[
             "requestAnimationFrame(()=>{d=!1})",
             'e.style.display==="none"',
+        ],
+    ),
+    PatchDef(
+        name="init-refire-fix",
+        operations=[
+            # nn(): add 3rd param `f` (filter flag) and pass it to _e() calls.
+            # When f is truthy, _e/xt only process newly-registered plugins (via Ze).
+            # When f is undefined (shadow DOM scans), all plugins are processed.
+            # This supersedes the earlier "scan-timing-fix" which bluntly removed
+            # the hardcoded !0 — that broke plugin-registration rescans.
+            (
+                "nn=(e=document.documentElement,t=!0)=>"
+                '{K(e)&&_e([e],!0),_e(e.querySelectorAll("*"),!0),',
+                "nn=(e=document.documentElement,t=!0,f)=>"
+                '{K(e)&&_e([e],f),_e(e.querySelectorAll("*"),f),',
+            ),
+            # p(): pass filter flag so plugin-registration rescans only process
+            # the newly registered plugin, not re-fire data-init on every element.
+            (
+                "He.length=0,nn(),Ze.clear()",
+                "He.length=0,nn(void 0,!0,!0),Ze.clear()",
+            ),
+        ],
+        markers=[
+            "nn=(e=document.documentElement,t=!0,f)=>",
+            "nn(void 0,!0,!0)",
         ],
     ),
 ]
