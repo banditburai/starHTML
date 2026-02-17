@@ -342,9 +342,12 @@ else:
 capture.init();
 
 // Subscribe to new events from capture module
-const unsub = capture.subscribe(() => {
+const unsub = capture.subscribe((ev) => {
     $$event_count = capture.getEventCount();
-    if (!$$is_open) $$unseen_count = $$unseen_count + 1;
+    if (!$$is_open) {
+        const allowed = capture.buildAllowedTypes(activeTypeFilters);
+        if (!allowed || allowed.has(ev.type)) $$unseen_count = $$unseen_count + 1;
+    }
 });
 onCleanup(unsub);
 
@@ -386,7 +389,7 @@ let lastRenderedIds = [];
 let needsFullRender = true;
 let rafPending = false;
 let userAtBottom = true;
-let activeTypeFilters = new Set();
+let activeTypeFilters = new Set(['signals', 'elements', 'script']);
 
 // DOM refs
 const eventListEl = refs('event_list');
@@ -412,16 +415,22 @@ const chipRefs = {
 };
 
 // Build filter set from chip toggle signals
-// scheduleRender() called explicitly because activeTypeFilters is a plain Set, not a signal
+// Guard: only trigger full render if the active set actually changed
+// (Datastar processing data-class:active bindings can re-trigger this effect spuriously)
 effect(() => {
-    activeTypeFilters = new Set();
-    if ($$chip_signals_on) activeTypeFilters.add('signals');
-    if ($$chip_elements_on) activeTypeFilters.add('elements');
-    if ($$chip_script_on) activeTypeFilters.add('script');
-    if ($$chip_lifecycle_on) activeTypeFilters.add('lifecycle');
-    $$expanded_id = -1; // collapse expanded row since filter changed
-    needsFullRender = true;
-    scheduleRender();
+    const newFilters = new Set();
+    if ($$chip_signals_on) newFilters.add('signals');
+    if ($$chip_elements_on) newFilters.add('elements');
+    if ($$chip_script_on) newFilters.add('script');
+    if ($$chip_lifecycle_on) newFilters.add('lifecycle');
+    const changed = newFilters.size !== activeTypeFilters.size ||
+        [...newFilters].some(t => !activeTypeFilters.has(t));
+    activeTypeFilters = newFilters;
+    if (changed) {
+        $$expanded_id = -1;
+        needsFullRender = true;
+        scheduleRender();
+    }
 });
 
 // Clear Events button (needsFullRender + render handled by reactive effects)
@@ -557,15 +566,17 @@ function renderSSETab() {
         for (let i = 0; i < lastRenderedIds.length; i++) {
             if (lastRenderedIds[i] !== filteredIds[i]) { canIncrement = false; break; }
         }
-        if (canIncrement && filteredIds.length > lastRenderedIds.length) {
-            const newEvents = filtered.slice(lastRenderedIds.length);
-            let appendHtml = '';
-            for (const ev of newEvents) appendHtml += capture.buildRowHtml(ev);
-            eventListEl.insertAdjacentHTML('beforeend', appendHtml);
-            lastRenderedIds = filteredIds;
-            needsFullRender = false;
-            if (wasAtBottom && tabContentEl) tabContentEl.scrollTop = tabContentEl.scrollHeight;
-            $$show_jump_btn = !userAtBottom && filtered.length > 0;
+        if (canIncrement) {
+            if (filteredIds.length > lastRenderedIds.length) {
+                const newEvents = filtered.slice(lastRenderedIds.length);
+                let appendHtml = '';
+                for (const ev of newEvents) appendHtml += capture.buildRowHtml(ev);
+                eventListEl.insertAdjacentHTML('beforeend', appendHtml);
+                lastRenderedIds = filteredIds;
+                if (wasAtBottom && tabContentEl) tabContentEl.scrollTop = tabContentEl.scrollHeight;
+                $$show_jump_btn = !userAtBottom && filtered.length > 0;
+            }
+            // Same events, no changes — return without full re-render
             return;
         }
     }
@@ -583,19 +594,26 @@ function renderSSETab() {
 }
 
 // Reactive render trigger — re-render when signals change
+// NOTE: $$expanded_id deliberately excluded — expand/collapse is imperative (click handler)
 effect(() => {
     void $$event_count;
     void $$filter_text;
     void $$visible_since_id;
-    void $$expanded_id;
     if ($$is_open && $$active_tab === 'sse') scheduleRender();
 });
 
 // Force full re-render when filter text or visible_since_id changes
+// Guard against spurious fires from Datastar data-bind processing
+let _lastFilterText = $$filter_text;
+let _lastVisibleSinceId = $$visible_since_id;
 effect(() => {
-    void $$filter_text;
-    void $$visible_since_id;
-    needsFullRender = true;
+    const ft = $$filter_text;
+    const vsid = $$visible_since_id;
+    if (ft !== _lastFilterText || vsid !== _lastVisibleSinceId) {
+        _lastFilterText = ft;
+        _lastVisibleSinceId = vsid;
+        needsFullRender = true;
+    }
 });
 
 // --- Resize + keyboard ---
@@ -649,7 +667,10 @@ onCleanup(() => document.removeEventListener('keydown', onKeydown));
     @element(
         "starhtml-debugger",
         shadow=True,
-        imports={"capture": "/_pkg/starhtml/plugins/debugger-capture.js"},
+        imports={
+            "capture": "/_pkg/starhtml/plugins/debugger-capture.js",
+            "signals": "/_pkg/starhtml/plugins/debugger-signals.js",
+        },
     )
     def StarHTMLDebugger():
         is_open = Local("is_open", False, type_=bool)
@@ -660,8 +681,11 @@ onCleanup(() => document.removeEventListener('keydown', onKeydown));
         visible_since_id = Local("visible_since_id", 0, type_=int)
         expanded_id = Local("expanded_id", -1, type_=int)  # noqa: F841
         event_count = Local("event_count", 0, type_=int)  # noqa: F841
-        chips = {key: Local(f"chip_{key}_on", False, type_=bool) for _, key in CHIP_DEFS}
+        chips = {key: Local(f"chip_{key}_on", key != "lifecycle", type_=bool) for _, key in CHIP_DEFS}
         show_jump_btn = Local("show_jump_btn", False, type_=bool)
+        signal_count = Local("signal_count", 0, type_=int)  # noqa: F841
+        signal_filter = Local("signal_filter", "", type_=str)
+        signal_expanded_path = Local("signal_expanded_path", "", type_=str)  # noqa: F841
 
         return Div(
             Style(DEBUGGER_CSS),
@@ -690,7 +714,11 @@ onCleanup(() => document.removeEventListener('keydown', onKeydown));
                         cls="tab-btn",
                     ),
                     Button(
-                        "Signals",
+                        Span("Signals"),
+                        Span(
+                            data_ref="signal_tab_count",
+                            style="margin-left:4px;color:#9399b2;",
+                        ),
                         data_on_click=active_tab.set("signals"),
                         data_class_active=active_tab == "signals",
                         cls="tab-btn",
@@ -766,9 +794,47 @@ onCleanup(() => document.removeEventListener('keydown', onKeydown));
                     data_show=active_tab == "sse",
                     cls="tab-content",
                 ),
-                # Signals tab placeholder
+                # Signals tab content
                 Div(
-                    Div("Coming in Phase 3", style="color:#6c7086;padding:16px;"),
+                    # Toolbar
+                    Div(
+                        # Filter input
+                        Div(
+                            Input(
+                                type="text",
+                                placeholder="Filter signals...",
+                                data_bind=signal_filter,
+                                style="width:200px;padding-right:20px",
+                            ),
+                            Button(
+                                "\u00d7",
+                                data_show=signal_filter != "",
+                                data_on_click=signal_filter.set(""),
+                                cls="clear-filter-btn",
+                                title="Clear filter",
+                            ),
+                            cls="filter-wrap",
+                        ),
+                        # Signal count
+                        Span(data_ref="signal_count_label", cls="count"),
+                        # Clear Persisted button
+                        Button(
+                            "Clear Persisted",
+                            data_ref="clear_persist_btn",
+                            cls="clear-events-btn",
+                            title="Clear all persisted signal data",
+                        ),
+                        cls="toolbar",
+                    ),
+                    # Signal list container (populated imperatively)
+                    Div(data_ref="signal_list", cls="signal-list"),
+                    # Empty state
+                    Div(
+                        "No signals detected",
+                        data_ref="signal_empty",
+                        style="color:#6c7086;padding:16px;text-align:center;",
+                    ),
+                    data_ref="signal_tab_content",
                     data_show=active_tab == "signals",
                     cls="tab-content",
                 ),
