@@ -40,6 +40,7 @@ dev = [
     "brotli>=1.1.0",
 ]
 
+debug = ["starelements>=0.1.1"]
 demo = ["starlighter", "starelements>=0.1.1", "star-drawing>=0.1.0"]
 
 [build-system]

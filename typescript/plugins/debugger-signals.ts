@@ -1,6 +1,6 @@
 // debugger-signals.ts — Signal tracking data layer for the StarHTML debugger.
 
-import { filtered, getPath } from "datastar";
+import { filtered, getPath, mergePatch } from "datastar";
 
 export interface SignalEntry {
   path: string;
@@ -9,6 +9,7 @@ export interface SignalEntry {
   type: "string" | "number" | "boolean" | "object" | "array";
   source: string;
   namespace: string;
+  tagName: string;
   status: "live" | "stale" | "removed";
   lastChanged: number;
   persistStorage?: "local" | "session";
@@ -175,6 +176,7 @@ function updateOrCreateEntry(path: string, value: unknown): boolean {
     type: detectType(value),
     source: "page",
     namespace: "",
+    tagName: "",
     status: "live",
     lastChanged: Date.now(),
   });
@@ -206,7 +208,8 @@ function detectNamespaces(): void {
 
     for (const [prefix, tag] of nsMap) {
       if (path.startsWith(prefix + "_") || path === prefix) {
-        entry.namespace = tag;
+        entry.namespace = prefix;     // full instance ID: "_star_demo_counter_id0"
+        entry.tagName = tag;          // component tag: "demo-counter"
         if (!entry.source.startsWith("persist:")) {
           entry.source = `component:${tag}`;
         }
@@ -220,12 +223,14 @@ function detectNamespaces(): void {
       const m = path.match(/^(_star_\w+_id\d+)_/);
       if (m) {
         const tag = m[1].replace(/^_star_/, "").replace(/_id\d+$/, "").replace(/_/g, "-");
-        entry.namespace = tag;
+        entry.namespace = m[1];       // full instance prefix
+        entry.tagName = tag;          // derived tag name
         if (!entry.source.startsWith("persist:")) {
           entry.source = `component:${tag}`;
         }
       } else if (!entry.source.startsWith("persist:")) {
         entry.namespace = "";
+        entry.tagName = "";
         entry.source = "page";
       }
     }
@@ -347,13 +352,25 @@ export function stripNamespace(path: string, namespace: string): string {
 
 export function getGroupedEntries(filter: string): SignalGroup[] {
   const filterLower = filter.toLowerCase();
-  const groups = new Map<string, SignalEntry[]>();
 
+  // Build stable instance numbering from ALL live entries (before filtering)
+  const tagInstances = new Map<string, string[]>();
+  for (const entry of entries.values()) {
+    if (entry.tagName && entry.status !== "removed") {
+      let arr = tagInstances.get(entry.tagName);
+      if (!arr) { arr = []; tagInstances.set(entry.tagName, arr); }
+      if (!arr.includes(entry.namespace)) arr.push(entry.namespace);
+    }
+  }
+  for (const arr of tagInstances.values()) arr.sort();
+
+  // Group filtered entries by namespace (instance-unique)
+  const groups = new Map<string, SignalEntry[]>();
   for (const entry of entries.values()) {
     if (entry.status === "removed" && Date.now() - entry.lastChanged > REMOVED_DISPLAY_MS) continue;
 
     if (filterLower) {
-      const displayName = stripNamespace(entry.path, entry.namespace);
+      const displayName = stripNamespace(entry.path, entry.tagName);
       if (!entry.path.toLowerCase().includes(filterLower) &&
           !displayName.toLowerCase().includes(filterLower)) {
         continue;
@@ -376,17 +393,23 @@ export function getGroupedEntries(filter: string): SignalGroup[] {
   for (const ns of sortedKeys) {
     const groupEntries = groups.get(ns)!;
     groupEntries.sort((a, b) => {
-      const aName = stripNamespace(a.path, a.namespace);
-      const bName = stripNamespace(b.path, b.namespace);
+      const aName = stripNamespace(a.path, a.tagName);
+      const bName = stripNamespace(b.path, b.tagName);
       return aName.localeCompare(bName);
     });
 
-    result.push({
-      namespace: ns,
-      displayName: ns === "" ? "Page Signals" : ns,
-      entries: groupEntries,
-      count: groupEntries.length,
-    });
+    let displayName: string;
+    if (ns === "") {
+      displayName = "Page Signals";
+    } else {
+      const tag = groupEntries[0].tagName;
+      const instances = tagInstances.get(tag) || [ns];
+      displayName = instances.length > 1
+        ? `${tag} #${instances.indexOf(ns) + 1}`
+        : tag;
+    }
+
+    result.push({ namespace: ns, displayName, entries: groupEntries, count: groupEntries.length });
   }
 
   return result;
@@ -426,7 +449,7 @@ export function buildGroupHeaderHtml(group: SignalGroup, collapsed: boolean): st
 }
 
 export function buildSignalRowHtml(entry: SignalEntry): string {
-  const displayName = stripNamespace(entry.path, entry.namespace);
+  const displayName = stripNamespace(entry.path, entry.tagName);
   const formattedValue = formatSignalValue(entry.value, entry.type);
   const typeClass = `sv-${entry.type}`;
   const isChanged = Date.now() - entry.lastChanged < CHANGE_FLASH_MS;
@@ -458,22 +481,64 @@ export function buildSignalRowHtml(entry: SignalEntry): string {
 
 export function buildSignalDetailHtml(entry: SignalEntry): string {
   const esc = escapeHtml;
+  const live = entry.status === "live";
   let html = `<div class="signal-detail">`;
-  html += `<div class="sd-row"><span class="sd-label">Path:</span> ${esc(entry.path)}</div>`;
-  html += `<div class="sd-row"><span class="sd-label">Value:</span><pre>${esc(prettyStringify(entry.value))}</pre></div>`;
-  if (entry.previousValue !== null) {
-    html += `<div class="sd-row"><span class="sd-label">Previous:</span><pre>${esc(prettyStringify(entry.previousValue))}</pre></div>`;
+
+  // Value row — editable input for live scalars, pre block for complex/non-live
+  if (live && (entry.type === "string" || entry.type === "number")) {
+    const inputType = entry.type === "number" ? "number" : "text";
+    html += `<div class="sd-row sd-edit-row">` +
+      `<input class="signal-detail-input" type="${inputType}" data-edit-path="${esc(entry.path)}" value="${esc(String(entry.value))}" />` +
+      `</div>`;
+  } else if (live && entry.type === "boolean") {
+    html += `<div class="sd-row sd-edit-row">` +
+      `<button class="signal-toggle-btn" data-edit-path="${esc(entry.path)}">${entry.value ? "true" : "false"}</button>` +
+      `</div>`;
+  } else if (live && entry.type === "array") {
+    html += `<div class="sd-row"><pre>${esc(prettyStringify(entry.value))}</pre></div>`;
+    html += `<div class="sd-row"><button class="signal-edit-obj-btn" data-edit-path="${esc(entry.path)}">Edit JSON</button></div>`;
+  } else {
+    html += `<div class="sd-row"><pre>${esc(prettyStringify(entry.value))}</pre></div>`;
   }
-  html += `<div class="sd-row"><span class="sd-label">Type:</span> ${esc(entry.type)}</div>`;
-  html += `<div class="sd-row"><span class="sd-label">Source:</span> ${esc(entry.source)}</div>`;
-  if (entry.status !== "live") {
-    html += `<div class="sd-row"><span class="sd-label">Status:</span> ${esc(entry.status)}</div>`;
-  }
-  if (entry.persistStorage) {
-    html += `<div class="sd-row"><span class="sd-label">Storage:</span> ${entry.persistStorage}Storage</div>`;
-  }
+
+  // Compact metadata line: path · type · source · storage · status
+  const meta: string[] = [entry.type];
+  if (entry.source !== "page") meta.push(entry.source);
+  if (entry.persistStorage) meta.push(`${entry.persistStorage}Storage`);
+  if (entry.status !== "live") meta.push(entry.status);
+  html += `<div class="sd-row sd-meta">${esc(entry.path)} · ${meta.map(esc).join(" · ")}</div>`;
+
   html += `</div>`;
   return html;
+}
+
+export function patchSignal(path: string, value: unknown, previousValue?: unknown): void {
+  // For objects: detect removed keys and null them out (merge patch semantics)
+  if (previousValue && typeof previousValue === "object" && !Array.isArray(previousValue) &&
+      value && typeof value === "object" && !Array.isArray(value)) {
+    const patchObj = { ...(value as Record<string, unknown>) };
+    for (const k of Object.keys(previousValue as Record<string, unknown>)) {
+      if (!(k in patchObj)) patchObj[k] = null;
+    }
+    mergePatch(dotPathToPatch(path, patchObj));
+    return;
+  }
+  // For arrays: direct replacement (merge patch replaces arrays wholesale)
+  mergePatch(dotPathToPatch(path, value));
+}
+
+function dotPathToPatch(path: string, value: unknown): Record<string, unknown> {
+  const parts = path.split(".");
+  if (parts.length === 1) return { [path]: value };
+  const root: Record<string, unknown> = {};
+  let current = root;
+  for (let i = 0; i < parts.length - 1; i++) {
+    const next: Record<string, unknown> = {};
+    current[parts[i]] = next;
+    current = next;
+  }
+  current[parts[parts.length - 1]] = value;
+  return root;
 }
 
 function escapeHtml(s: string): string {

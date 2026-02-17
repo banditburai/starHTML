@@ -4,6 +4,7 @@ The StarElements component (StarHTMLDebugger) is defined at module level
 but only available when starelements is installed. setup_debugger() handles
 the graceful fallback.
 """
+# ruff: noqa: F841
 
 import sys
 
@@ -388,6 +389,57 @@ else:
     white-space: pre-wrap; word-break: break-word; max-height: 150px;
     overflow-y: auto; scrollbar-width: thin; scrollbar-color: #45475a transparent;
   }
+  .sd-meta { color: #585b70; font-size: 10px; }
+  /* Detail panel input for string/number editing */
+  .signal-detail-input {
+    background: #11111b; border: 1px solid #45475a; color: #cdd6f4;
+    padding: 4px 8px; border-radius: 3px; font-family: inherit; font-size: 12px;
+    min-width: 80px; max-width: 100%; outline: none;
+  }
+  .signal-detail-input:focus { border-color: #89b4fa; }
+  /* Boolean toggle button */
+  .signal-toggle-btn {
+    background: #313244; border: 1px solid #45475a; color: #fab387;
+    padding: 3px 12px; border-radius: 3px; cursor: pointer;
+    font-family: inherit; font-size: 11px; font-weight: 600;
+  }
+  .signal-toggle-btn:hover { background: #45475a; border-color: #89b4fa; }
+  /* Inline edit input (string/number) */
+  .signal-edit-input {
+    background: #313244; border: 1px solid #89b4fa; color: #cdd6f4;
+    padding: 1px 6px; border-radius: 3px; font-family: inherit; font-size: 11px;
+    width: 100%; outline: none;
+  }
+  /* JSON textarea (array editing) */
+  .signal-edit-textarea {
+    background: #11111b; border: 1px solid #45475a; color: #cdd6f4;
+    padding: 6px 8px; border-radius: 3px; font-family: inherit; font-size: 11px;
+    width: 100%; min-height: 80px; resize: vertical; white-space: pre; tab-size: 2;
+  }
+  .signal-edit-textarea:focus { border-color: #89b4fa; outline: none; }
+  /* Editor action buttons */
+  .signal-json-editor { margin-top: 4px; }
+  .signal-edit-actions { display: flex; gap: 6px; margin-top: 4px; align-items: center; }
+  .signal-edit-save {
+    background: #89b4fa; color: #1e1e2e; border: none;
+    padding: 3px 10px; border-radius: 3px; cursor: pointer;
+    font-family: inherit; font-size: 10px; font-weight: 600;
+  }
+  .signal-edit-save:hover { background: #b4d0fb; }
+  .signal-edit-cancel {
+    background: #313244; border: 1px solid #45475a; color: #cdd6f4;
+    padding: 3px 10px; border-radius: 3px; cursor: pointer;
+    font-family: inherit; font-size: 10px;
+  }
+  .signal-edit-cancel:hover { background: #45475a; }
+  .signal-edit-error { font-size: 10px; color: #f38ba8; margin-left: 4px; }
+  /* Edit JSON button in detail panel */
+  .signal-edit-obj-btn {
+    background: #313244; border: 1px solid #45475a; color: #9399b2;
+    padding: 2px 8px; border-radius: 3px; cursor: pointer;
+    font-family: inherit; font-size: 10px;
+  }
+  .signal-edit-obj-btn:hover { background: #45475a; color: #cdd6f4; }
 """
 
     DEBUGGER_SETUP = """
@@ -705,9 +757,14 @@ const clearPersistBtn = refs('clear_persist_btn');
 
 let signalRafPending = false;
 let collapsedGroups = new Set();
+let editingPath = '';
+let editingPending = false;
 
 const signalUnsub = signals.subscribe(() => {
-    $$signal_count = signals.getSignalCount();
+    const totalCount = signals.getSignalCount();
+    $$signal_count = totalCount;
+    if (signalCountLabel) signalCountLabel.textContent = totalCount + ' signal' + (totalCount !== 1 ? 's' : '');
+    if (signalTabCount) signalTabCount.textContent = totalCount > 0 ? '(' + totalCount + ')' : '';
     if ($$is_open && $$active_tab === 'signals') scheduleSignalRender();
 });
 onCleanup(signalUnsub);
@@ -721,13 +778,22 @@ function scheduleSignalRender() {
     });
 }
 
+function finishEditing() {
+    editingPath = '';
+    if (editingPending) { editingPending = false; renderSignalsTab(); }
+}
+
+function checkEntryLive(path) {
+    const entry = signals.getEntries().get(path);
+    return entry && entry.status === 'live';
+}
+
 function renderSignalsTab() {
     if (!signalListEl) return;
+    if (editingPath) { editingPending = true; return; }
     const groups = signals.getGroupedEntries($$signal_filter);
     const totalCount = signals.getSignalCount();
 
-    if (signalCountLabel) signalCountLabel.textContent = totalCount + ' signal' + (totalCount !== 1 ? 's' : '');
-    if (signalTabCount) signalTabCount.textContent = totalCount > 0 ? '(' + totalCount + ')' : '';
     if (signalEmpty) signalEmpty.style.display = totalCount === 0 ? '' : 'none';
 
     let html = '';
@@ -750,6 +816,75 @@ if (signalListEl) {
     signalListEl.addEventListener('click', (e) => {
         const target = e.target;
 
+        // Boolean toggle in detail panel
+        const toggleBtn = target.closest('.signal-toggle-btn');
+        if (toggleBtn) {
+            e.stopPropagation();
+            const path = toggleBtn.dataset.editPath;
+            if (path && checkEntryLive(path)) {
+                const entry = signals.getEntries().get(path);
+                if (entry) signals.patchSignal(path, !entry.value);
+                renderSignalsTab();
+            }
+            return;
+        }
+
+        // Edit JSON button for arrays
+        const editBtn = target.closest('.signal-edit-obj-btn');
+        if (editBtn) {
+            e.stopPropagation();
+            const path = editBtn.dataset.editPath;
+            const entry = signals.getEntries().get(path);
+            if (!entry) return;
+
+            editingPath = path;
+            const json = JSON.stringify(entry.value, null, 2);
+            const editor = document.createElement('div');
+            editor.className = 'signal-json-editor';
+            editor.innerHTML =
+                '<textarea class="signal-edit-textarea"></textarea>' +
+                '<div class="signal-edit-actions">' +
+                '<button class="signal-edit-save">Save</button>' +
+                '<button class="signal-edit-cancel">Cancel</button>' +
+                '<span class="signal-edit-error"></span></div>';
+
+            const textarea = editor.querySelector('textarea');
+            textarea.value = json;
+            editBtn.replaceWith(editor);
+            textarea.focus();
+
+            const saveBtn = editor.querySelector('.signal-edit-save');
+            const cancelBtn = editor.querySelector('.signal-edit-cancel');
+            const errorSpan = editor.querySelector('.signal-edit-error');
+
+            saveBtn.addEventListener('click', () => {
+                if (!checkEntryLive(path)) { finishEditing(); return; }
+                try {
+                    const parsed = JSON.parse(textarea.value);
+                    signals.patchSignal(path, parsed, entry.value);
+                    finishEditing();
+                } catch (err) {
+                    errorSpan.textContent = 'Invalid JSON';
+                }
+            });
+            cancelBtn.addEventListener('click', () => finishEditing());
+
+            textarea.addEventListener('keydown', (ke) => {
+                if (ke.key === 'Escape') { ke.preventDefault(); finishEditing(); }
+                if (ke.key === 'Enter' && (ke.metaKey || ke.ctrlKey)) {
+                    ke.preventDefault(); saveBtn.click();
+                }
+            });
+            textarea.addEventListener('blur', (be) => {
+                if (!editingPath) return;
+                const related = be.relatedTarget;
+                if (related && (related.classList.contains('signal-edit-save') ||
+                        related.classList.contains('signal-edit-cancel'))) return;
+                finishEditing();
+            });
+            return;
+        }
+
         const header = target.closest('.signal-group-header');
         if (header) {
             const ns = header.dataset.ns ?? '';
@@ -767,6 +902,121 @@ if (signalListEl) {
                 renderSignalsTab();
             }
             return;
+        }
+    });
+
+    // Double-click to edit primitives
+    signalListEl.addEventListener('dblclick', (e) => {
+        const row = e.target.closest('.signal-row');
+        if (!row) return;
+        const path = row.dataset.path;
+        if (!path) return;
+        const entry = signals.getEntries().get(path);
+        if (!entry || entry.status !== 'live') return;
+
+        // Force expand (undo click's toggle from the preceding click event)
+        $$signal_expanded_path = path;
+
+        if (entry.type === 'boolean') {
+            signals.patchSignal(path, !entry.value);
+            return;
+        }
+
+        if (entry.type === 'string' || entry.type === 'number') {
+            editingPath = path;
+            const valueSpan = row.querySelector('.signal-value');
+            if (!valueSpan) return;
+
+            const input = document.createElement('input');
+            input.type = entry.type === 'number' ? 'number' : 'text';
+            input.className = 'signal-edit-input';
+            input.value = String(entry.value);
+            valueSpan.textContent = '';
+            valueSpan.appendChild(input);
+            input.focus();
+            input.select();
+
+            const commit = () => {
+                if (!checkEntryLive(path)) { finishEditing(); return; }
+                if (entry.type === 'number') {
+                    const n = Number(input.value);
+                    if (!isNaN(n)) signals.patchSignal(path, n);
+                } else {
+                    signals.patchSignal(path, input.value);
+                }
+                finishEditing();
+            };
+
+            input.addEventListener('keydown', (ke) => {
+                if (ke.key === 'Enter') { ke.preventDefault(); commit(); }
+                if (ke.key === 'Escape') { ke.preventDefault(); finishEditing(); }
+            });
+            input.addEventListener('blur', () => {
+                if (!editingPath) return;
+                finishEditing();
+            });
+        }
+    });
+
+    // Detail-panel input: focus/blur to pause re-renders
+    signalListEl.addEventListener('focusin', (e) => {
+        const input = e.target.closest('.signal-detail-input');
+        if (input) editingPath = input.dataset.editPath || '';
+    });
+    signalListEl.addEventListener('focusout', (e) => {
+        const input = e.target.closest('.signal-detail-input');
+        if (!input) return;
+        const path = input.dataset.editPath;
+        if (path && checkEntryLive(path)) {
+            const entry = signals.getEntries().get(path);
+            if (entry) {
+                if (entry.type === 'number') {
+                    const n = Number(input.value);
+                    if (!isNaN(n)) signals.patchSignal(path, n);
+                } else {
+                    signals.patchSignal(path, input.value);
+                }
+            }
+        }
+        finishEditing();
+    });
+
+    // Detail-panel input: Enter to commit, Escape to collapse
+    signalListEl.addEventListener('keydown', (ke) => {
+        const input = ke.target.closest('.signal-detail-input');
+        if (!input) return;
+        const path = input.dataset.editPath;
+        if (!path) return;
+        if (ke.key === 'Enter') {
+            ke.preventDefault();
+            if (!checkEntryLive(path)) return;
+            const entry = signals.getEntries().get(path);
+            if (!entry) return;
+            if (entry.type === 'number') {
+                const n = Number(input.value);
+                if (!isNaN(n)) signals.patchSignal(path, n);
+            } else {
+                signals.patchSignal(path, input.value);
+            }
+            finishEditing();
+        }
+        if (ke.key === 'Escape') {
+            ke.preventDefault();
+            $$signal_expanded_path = '';
+            finishEditing();
+        }
+    });
+
+    // Detail-panel input: live update for numbers (stepper arrows + typing)
+    signalListEl.addEventListener('input', (e) => {
+        const input = e.target.closest('.signal-detail-input');
+        if (!input) return;
+        const path = input.dataset.editPath;
+        if (!path || !checkEntryLive(path)) return;
+        const entry = signals.getEntries().get(path);
+        if (entry && entry.type === 'number') {
+            const n = Number(input.value);
+            if (!isNaN(n)) signals.patchSignal(path, n);
         }
     });
 }
@@ -803,19 +1053,19 @@ effect(() => {
         },
     )
     def StarHTMLDebugger():
-        is_open = Local("is_open", False, type_=bool)
-        panel_height = Local("panel_height", 300, type_=int)
-        active_tab = Local("active_tab", "sse", type_=str)
-        unseen_count = Local("unseen_count", 0, type_=int)
-        filter_text = Local("filter_text", "", type_=str)
-        visible_since_id = Local("visible_since_id", 0, type_=int)
-        expanded_id = Local("expanded_id", -1, type_=int)  # noqa: F841
-        event_count = Local("event_count", 0, type_=int)  # noqa: F841
-        chips = {key: Local(f"chip_{key}_on", key != "lifecycle", type_=bool) for _, key in CHIP_DEFS}
-        show_jump_btn = Local("show_jump_btn", False, type_=bool)
-        signal_count = Local("signal_count", 0, type_=int)  # noqa: F841
-        signal_filter = Local("signal_filter", "", type_=str)
-        signal_expanded_path = Local("signal_expanded_path", "", type_=str)  # noqa: F841
+        is_open = Local("is_open", False)
+        panel_height = Local("panel_height", 300)
+        active_tab = Local("active_tab", "sse")
+        unseen_count = Local("unseen_count", 0)
+        filter_text = Local("filter_text", "")
+        visible_since_id = Local("visible_since_id", 0)
+        expanded_id = Local("expanded_id", -1)
+        event_count = Local("event_count", 0)
+        chips = {key: Local(f"chip_{key}_on", key != "lifecycle") for _, key in CHIP_DEFS}
+        show_jump_btn = Local("show_jump_btn", False)
+        signal_count = Local("signal_count", 0)
+        signal_filter = Local("signal_filter", "")
+        signal_expanded_path = Local("signal_expanded_path", "")
 
         return Div(
             Style(DEBUGGER_CSS),
