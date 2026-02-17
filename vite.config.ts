@@ -20,6 +20,7 @@ export default defineConfig({
         'motion-svg': './typescript/plugins/motion-svg.ts',
         'debugger-capture': './typescript/plugins/debugger-capture.ts',
         'debugger-signals': './typescript/plugins/debugger-signals.ts',
+        'debugger-timeline': './typescript/plugins/debugger-timeline.ts',
       },
       formats: ['es'],
       fileName: (format, entryName) => `${entryName}.js`
