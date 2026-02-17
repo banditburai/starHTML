@@ -222,27 +222,31 @@ function closeTrace(): void {
 
 // ─── Emit Events ──────────────────────────────────────────────────
 
-/** Emit a timeline event. Assigns trace/parent IDs if a trace is active. */
+/** Emit a timeline event. Assigns trace/parent IDs if a trace is active.
+ *  If beginTrace is set, starts a new causal trace rooted at this event.
+ *  If no trace is active and beginTrace is not set, the event gets an
+ *  isolated traceId (no activeTraceId is set, so subsequent events won't
+ *  be grouped with it unless they also specify beginTrace). */
 export function emit(
   type: TimelineEventType,
   data: TimelineEventData,
   opts?: { beginTrace?: boolean; parentOverride?: number | null },
 ): TimelineEvent {
+  const isOrphan = activeTraceId === null && !opts?.beginTrace;
+  const orphanTraceId = isOrphan ? nextTraceId++ : undefined;
+
   const event: TimelineEvent = {
     id: nextEventId++,
     type,
     ts: performance.now(),
     wallTime: Date.now(),
-    traceId: activeTraceId ?? nextTraceId,
-    parentId: activeParentId,
-    depth: activeDepth,
+    traceId: orphanTraceId ?? activeTraceId ?? nextTraceId,
+    parentId: isOrphan ? null : activeParentId,
+    depth: isOrphan ? 0 : activeDepth,
     data,
   };
 
   if (opts?.beginTrace) {
-    beginTrace(event);
-  } else if (activeTraceId === null) {
-    // No active trace — start a new one implicitly
     beginTrace(event);
   }
 

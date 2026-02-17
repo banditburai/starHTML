@@ -79,19 +79,19 @@ function closeTrace() {
   activeDepth = 0;
 }
 function emit(type, data, opts) {
+  const isOrphan = activeTraceId === null && !opts?.beginTrace;
+  const orphanTraceId = isOrphan ? nextTraceId++ : void 0;
   const event = {
     id: nextEventId++,
     type,
     ts: performance.now(),
     wallTime: Date.now(),
-    traceId: activeTraceId ?? nextTraceId,
-    parentId: activeParentId,
-    depth: activeDepth,
+    traceId: orphanTraceId ?? activeTraceId ?? nextTraceId,
+    parentId: isOrphan ? null : activeParentId,
+    depth: isOrphan ? 0 : activeDepth,
     data
   };
   if (opts?.beginTrace) {
-    beginTrace(event);
-  } else if (activeTraceId === null) {
     beginTrace(event);
   }
   if (opts?.parentOverride !== void 0) {
