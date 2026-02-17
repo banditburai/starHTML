@@ -804,7 +804,7 @@ onCleanup(() => document.removeEventListener('keydown', onKeydown));
                                 type="text",
                                 placeholder="Filter signals...",
                                 data_bind=signal_filter,
-                                style="width:200px;padding-right:20px",
+                                style="width:160px;padding-right:20px",
                             ),
                             Button(
                                 "\u00d7",
