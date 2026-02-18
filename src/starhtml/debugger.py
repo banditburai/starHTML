@@ -441,6 +441,36 @@ else:
     font-family: inherit; font-size: 10px;
   }
   .signal-edit-obj-btn:hover { background: #45475a; color: #cdd6f4; }
+  /* --- Timeline tab --- */
+  .timeline-list { display: flex; flex-direction: column; }
+  .timeline-row {
+    display: flex; align-items: baseline; gap: 8px;
+    padding: 4px 8px; border-bottom: 1px solid #11111b;
+    cursor: pointer; white-space: nowrap;
+  }
+  .timeline-row:hover { background: #2a2b3d; }
+  .timeline-row.expanded { background: #313244; border-bottom-color: transparent; }
+  .tl-time { color: #9399b2; flex-shrink: 0; }
+  .tl-cause { color: #cdd6f4; font-weight: 600; flex-shrink: 0; max-width: 250px; overflow: hidden; text-overflow: ellipsis; }
+  .tl-arrow { color: #585b70; flex-shrink: 0; }
+  .tl-summary { color: #9399b2; overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0; }
+  .tl-duration {
+    color: #9399b2; flex-shrink: 0; font-size: 10px;
+    padding: 1px 6px; background: #313244; border-radius: 3px;
+  }
+  .tl-warn-badge {
+    color: #f9e2af; flex-shrink: 0; font-size: 10px;
+    padding: 1px 6px; background: #3e2e15; border-radius: 3px;
+  }
+  .tl-status-active { border-left: 2px solid #89b4fa; }
+  .tl-status-stale { border-left: 2px solid #f9e2af; opacity: 0.7; }
+  .tl-status-complete { border-left: 2px solid transparent; }
+  .tl-type-icon { flex-shrink: 0; width: 16px; text-align: center; font-size: 10px; }
+  .tl-type-user { color: #a6e3a1; }
+  .tl-type-sse { color: #89b4fa; }
+  .tl-type-signal { color: #f9e2af; }
+  .tl-type-malformed { color: #f38ba8; }
+  .tl-type-other { color: #9399b2; }
 """
 
     DEBUGGER_SETUP = """
@@ -746,6 +776,7 @@ const debuggerSignalNames = [
     'filter_text', 'visible_since_id', 'expanded_id', 'event_count',
     'chip_signals_on', 'chip_elements_on', 'chip_script_on', 'chip_lifecycle_on',
     'show_jump_btn', 'signal_count', 'signal_filter', 'signal_expanded_path',
+    'timeline_count', 'timeline_filter',
 ];
 signals.init(debuggerNs, debuggerSignalNames);
 onCleanup(() => signals.cleanup());
@@ -1036,6 +1067,117 @@ effect(() => {
     void $$signal_expanded_path;
     if ($$is_open && $$active_tab === 'signals') scheduleSignalRender();
 });
+
+// --- Timeline tab ---
+
+timeline.init();
+onCleanup(() => timeline.cleanup());
+
+const timelineListEl = refs('timeline_list');
+const timelineCountLabel = refs('timeline_count_label');
+const timelineTabCount = refs('timeline_tab_count');
+const timelineEmpty = refs('timeline_empty');
+const timelineContentEl = refs('timeline_content');
+
+let timelineRafPending = false;
+let timelineUserAtBottom = true;
+
+if (timelineContentEl) {
+    timelineContentEl.addEventListener('scroll', () => {
+        timelineUserAtBottom = timelineContentEl.scrollTop + timelineContentEl.clientHeight >= timelineContentEl.scrollHeight - 20;
+    });
+}
+
+const timelineUnsub = timeline.subscribe(() => {
+    const count = timeline.getTraceCount();
+    $$timeline_count = count;
+    if (timelineTabCount) timelineTabCount.textContent = count > 0 ? '(' + count + ')' : '';
+    if ($$is_open && $$active_tab === 'timeline') scheduleTimelineRender();
+});
+onCleanup(timelineUnsub);
+
+function scheduleTimelineRender() {
+    if (timelineRafPending) return;
+    timelineRafPending = true;
+    requestAnimationFrame(() => {
+        timelineRafPending = false;
+        if ($$is_open && $$active_tab === 'timeline') renderTimelineTab();
+    });
+}
+
+function traceTypeIcon(event) {
+    switch (event.type) {
+        case 'user-action': return '<span class="tl-type-icon tl-type-user">\\u25CF</span>';
+        case 'sse-lifecycle': return '<span class="tl-type-icon tl-type-sse">\\u25CF</span>';
+        case 'signal-change': return '<span class="tl-type-icon tl-type-signal">\\u25CF</span>';
+        case 'sse-malformed': return '<span class="tl-type-icon tl-type-malformed">\\u25CF</span>';
+        default: return '<span class="tl-type-icon tl-type-other">\\u25CF</span>';
+    }
+}
+
+function escHtml(s) {
+    return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"})[c]);
+}
+
+function buildTraceRowHtml(trace) {
+    const time = timeline.formatTime(trace.rootEvent.wallTime);
+    const cause = escHtml(timeline.describeRootCause(trace.rootEvent));
+    const summary = escHtml(timeline.summarizeTrace(trace));
+    const dur = trace.totalDuration >= 1000
+        ? (trace.totalDuration / 1000).toFixed(1) + 's'
+        : Math.round(trace.totalDuration) + 'ms';
+    const warnBadge = trace.warnings.length > 0
+        ? ' <span class="tl-warn-badge">\\u26A0 ' + trace.warnings.length + '</span>'
+        : '';
+    const statusCls = 'tl-status-' + trace.status;
+
+    return '<div class="timeline-row ' + statusCls + '" data-trace-id="' + trace.traceId + '">'
+        + traceTypeIcon(trace.rootEvent)
+        + '<span class="tl-time">' + time + '</span>'
+        + '<span class="tl-cause">' + cause + '</span>'
+        + '<span class="tl-arrow">\\u2192</span>'
+        + '<span class="tl-summary">' + summary + '</span>'
+        + '<span class="tl-duration">' + dur + '</span>'
+        + warnBadge
+        + '</div>';
+}
+
+function renderTimelineTab() {
+    if (!timelineListEl) return;
+
+    const traces = timeline.getTraces();
+    // getTraces returns most-recent-first; we want oldest-first for the list
+    traces.reverse();
+
+    const filter = $$timeline_filter.toLowerCase();
+    const filtered = filter
+        ? traces.filter(t => {
+            const cause = timeline.describeRootCause(t.rootEvent).toLowerCase();
+            const summary = timeline.summarizeTrace(t).toLowerCase();
+            return cause.includes(filter) || summary.includes(filter);
+        })
+        : traces;
+
+    if (timelineCountLabel) {
+        timelineCountLabel.textContent = filtered.length + ' trace' + (filtered.length !== 1 ? 's' : '');
+    }
+    if (timelineEmpty) {
+        timelineEmpty.style.display = filtered.length === 0 ? '' : 'none';
+    }
+
+    const wasAtBottom = timelineUserAtBottom;
+    let html = '';
+    for (const trace of filtered) html += buildTraceRowHtml(trace);
+    timelineListEl.innerHTML = html;
+
+    if (wasAtBottom && timelineContentEl) timelineContentEl.scrollTop = timelineContentEl.scrollHeight;
+}
+
+effect(() => {
+    void $$timeline_count;
+    void $$timeline_filter;
+    if ($$is_open && $$active_tab === 'timeline') scheduleTimelineRender();
+});
 """
 
     CHIP_DEFS = (
@@ -1051,6 +1193,7 @@ effect(() => {
         imports={
             "capture": "/_pkg/starhtml/plugins/debugger-capture.js",
             "signals": "/_pkg/starhtml/plugins/debugger-signals.js",
+            "timeline": "/_pkg/starhtml/plugins/debugger-timeline.js",
         },
     )
     def StarHTMLDebugger():
@@ -1067,6 +1210,8 @@ effect(() => {
         signal_count = Local("signal_count", 0)
         signal_filter = Local("signal_filter", "")
         signal_expanded_path = Local("signal_expanded_path", "")
+        timeline_count = Local("timeline_count", 0)
+        timeline_filter = Local("timeline_filter", "")
 
         return Div(
             Style(DEBUGGER_CSS),
@@ -1101,7 +1246,11 @@ effect(() => {
                         cls="tab-btn",
                     ),
                     Button(
-                        "Timeline",
+                        Span("Timeline"),
+                        Span(
+                            data_ref="timeline_tab_count",
+                            style="margin-left:4px;color:#9399b2;",
+                        ),
                         data_on_click=active_tab.set("timeline"),
                         data_class_active=active_tab == "timeline",
                         cls="tab-btn",
@@ -1201,9 +1350,35 @@ effect(() => {
                     data_show=active_tab == "signals",
                     cls="tab-content",
                 ),
-                # Timeline tab (placeholder)
+                # Timeline tab
                 Div(
-                    Div("Coming in Phase 3", style="color:#6c7086;padding:16px;"),
+                    Div(
+                        Div(
+                            Input(
+                                type="text",
+                                placeholder="Filter traces...",
+                                data_bind=timeline_filter,
+                                style="width:160px;padding-right:20px",
+                            ),
+                            Button(
+                                "\u00d7",
+                                data_show=timeline_filter != "",
+                                data_on_click=timeline_filter.set(""),
+                                cls="clear-filter-btn",
+                                title="Clear filter",
+                            ),
+                            cls="filter-wrap",
+                        ),
+                        Span(data_ref="timeline_count_label", cls="count"),
+                        cls="toolbar",
+                    ),
+                    Div(data_ref="timeline_list", cls="timeline-list"),
+                    Div(
+                        "No traces captured",
+                        data_ref="timeline_empty",
+                        style="color:#6c7086;padding:16px;text-align:center;",
+                    ),
+                    data_ref="timeline_content",
                     data_show=active_tab == "timeline",
                     cls="tab-content",
                 ),
