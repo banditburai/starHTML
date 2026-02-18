@@ -940,6 +940,221 @@ function buildTraceRowHtml(trace) {
   }[trace.rootEvent.type] ?? "tl-type-other";
   return `<div class="timeline-row ${statusCls}" data-trace-id="${trace.traceId}"><span class="tl-type-icon ${iconCls}">●</span><span class="tl-time">${time}</span><span class="tl-cause">${cause}</span><span class="tl-arrow">→</span><span class="tl-summary">${summary}</span><span class="tl-duration">${dur}</span>` + warnBadge + `</div>`;
 }
+const PHASE_LABELS = {
+  trigger: "Trigger",
+  sse: "SSE",
+  signal: "Signals",
+  dom: "DOM",
+  warning: "Warnings",
+  finished: "Finished"
+};
+function eventPhase(e) {
+  switch (e.type) {
+    case "user-action":
+      return "trigger";
+    case "sse-lifecycle": {
+      const d = e.data;
+      return d.sseType === "finished" || d.sseType === "error" || d.sseType === "retries-failed" ? "finished" : "sse";
+    }
+    case "signal-change":
+      return "signal";
+    case "effect-eval":
+      return "signal";
+    case "dom-mutation":
+      return "dom";
+    case "sse-malformed":
+      return "warning";
+    default:
+      return "sse";
+  }
+}
+function formatEventLine(e, baseTs) {
+  const offset = `+${Math.round(e.ts - baseTs)}ms`;
+  const offsetHtml = `<span class="tl-ev-offset">${offset}</span>`;
+  switch (e.type) {
+    case "user-action": {
+      const d = e.data;
+      return `${offsetHtml} <span class="tl-ev-type tl-type-user">${escapeHtml(d.eventType)}</span> <span class="tl-ev-target">${escapeHtml(d.targetSelector)}</span>` + (d.datastarAction ? ` <span class="tl-ev-action">${escapeHtml(d.datastarAction)}</span>` : "");
+    }
+    case "sse-lifecycle": {
+      const d = e.data;
+      const label = d.sseType === "started" ? "SSE start" : d.sseType;
+      return `${offsetHtml} <span class="tl-ev-type tl-type-sse">${escapeHtml(label)}</span> ` + (d.route ? `<span class="tl-ev-route">${escapeHtml(d.route)}</span> ` : "") + (d.handler ? `<span class="tl-ev-handler">${escapeHtml(d.handler)}</span>` : "");
+    }
+    case "signal-change": {
+      const d = e.data;
+      const oldStr = JSON.stringify(d.oldValue) ?? "undefined";
+      const newStr = JSON.stringify(d.newValue) ?? "undefined";
+      return `${offsetHtml} <span class="tl-ev-type tl-type-signal">${escapeHtml(d.path)}</span> <span class="tl-ev-old">${escapeHtml(oldStr)}</span> → <span class="tl-ev-new">${escapeHtml(newStr)}</span> <span class="tl-ev-source">(${d.source})</span>`;
+    }
+    case "effect-eval": {
+      const d = e.data;
+      return `${offsetHtml} <span class="tl-ev-type tl-type-signal">effect</span> <span class="tl-ev-label">${escapeHtml(d.label || `#${d.effectId}`)}</span> <span class="tl-ev-dur">${d.duration.toFixed(1)}ms</span>`;
+    }
+    case "dom-mutation": {
+      const d = e.data;
+      let detail = escapeHtml(d.targetSelector);
+      if (d.mutationType === "attributes" && d.attributeName) {
+        detail += ` [${escapeHtml(d.attributeName)}]`;
+        if (d.oldValue != null || d.newValue != null) {
+          detail += ` ${escapeHtml(d.oldValue ?? "")} → ${escapeHtml(d.newValue ?? "")}`;
+        }
+      } else if (d.mutationType === "childList") {
+        if (d.addedNodes.length) detail += ` +${d.addedNodes.length}`;
+        if (d.removedNodes.length) detail += ` -${d.removedNodes.length}`;
+      }
+      return `${offsetHtml} <span class="tl-ev-type tl-type-dom">${d.mutationType}</span> ${detail}`;
+    }
+    case "sse-malformed": {
+      const d = e.data;
+      return `${offsetHtml} <span class="tl-ev-type tl-type-malformed">${escapeHtml(d.code)}</span> <span class="tl-ev-msg">${escapeHtml(d.message)}</span>`;
+    }
+    default:
+      return `${offsetHtml} <span class="tl-ev-type">${e.type}</span>`;
+  }
+}
+function summarizeCycles(events) {
+  if (events.length < 8) return null;
+  const signalEvents = events.filter((e) => e.type === "signal-change");
+  if (signalEvents.length < 6) return null;
+  const paths = signalEvents.map((e) => e.data.path);
+  for (const patLen of [2, 3]) {
+    if (paths.length < patLen * 3) continue;
+    const pattern = paths.slice(0, patLen);
+    let repeats = 0;
+    for (let i = 0; i + patLen <= paths.length; i += patLen) {
+      const chunk = paths.slice(i, i + patLen);
+      if (chunk.every((p, j) => p === pattern[j])) repeats++;
+      else break;
+    }
+    if (repeats >= 3) {
+      const cycle = pattern.join(" → ");
+      return {
+        summarized: [`<span class="tl-ev-cycle">${escapeHtml(cycle)} … ${repeats} cycles</span>`],
+        truncated: signalEvents.length - 2
+        // show first + last
+      };
+    }
+  }
+  return null;
+}
+const MAX_DETAIL_EVENTS = 100;
+function buildTraceDetailHtml(traceId) {
+  const events = getTraceEvents(traceId);
+  if (events.length === 0) return '<div class="tl-detail-empty">No events</div>';
+  const baseTs = events[0].ts;
+  const cycles = summarizeCycles(events);
+  let html = '<div class="tl-detail">';
+  let currentPhase = "";
+  let shown = 0;
+  const truncate = events.length > MAX_DETAIL_EVENTS && !cycles;
+  for (let i = 0; i < events.length; i++) {
+    if (truncate && shown >= MAX_DETAIL_EVENTS) break;
+    const e = events[i];
+    const phase = eventPhase(e);
+    if (phase !== currentPhase) {
+      if (currentPhase) html += "</div>";
+      currentPhase = phase;
+      const label = PHASE_LABELS[phase] ?? phase;
+      const phaseCls = `tl-phase-${phase}`;
+      html += `<div class="tl-phase ${phaseCls}"><div class="tl-phase-label">${label}</div>`;
+    }
+    if (cycles && phase === "signal" && shown === 0) {
+      for (const line of cycles.summarized) {
+        html += `<div class="tl-ev-line tl-ev-indent">${line}</div>`;
+      }
+      html += `<div class="tl-ev-line tl-ev-indent">${formatEventLine(events.find((ev) => ev.type === "signal-change"), baseTs)}</div>`;
+      const lastSig = [...events].reverse().find((ev) => ev.type === "signal-change");
+      if (lastSig && lastSig !== events.find((ev) => ev.type === "signal-change")) {
+        html += `<div class="tl-ev-line tl-ev-indent">${formatEventLine(lastSig, baseTs)}</div>`;
+      }
+      while (i + 1 < events.length && eventPhase(events[i + 1]) === "signal") i++;
+      shown += 2;
+      continue;
+    }
+    const indent = e.depth > 0 ? " tl-ev-indent" : "";
+    html += `<div class="tl-ev-line${indent}">${formatEventLine(e, baseTs)}</div>`;
+    shown++;
+  }
+  if (currentPhase) html += "</div>";
+  if (truncate) {
+    html += `<div class="tl-truncated">Showing ${MAX_DETAIL_EVENTS} of ${events.length} events</div>`;
+  }
+  const trace = getTraces().find((t) => t.traceId === traceId);
+  if (trace && trace.warnings.length > 0) {
+    html += '<div class="tl-phase tl-phase-warning"><div class="tl-phase-label">Warnings</div>';
+    for (const w of trace.warnings) {
+      html += `<div class="tl-ev-line tl-ev-warn">⚠ <span class="tl-warn-code">${escapeHtml(w.code)}</span> ${escapeHtml(w.message)}</div>`;
+    }
+    html += "</div>";
+  }
+  html += "</div>";
+  return html;
+}
+function buildFullTraceText(traceId) {
+  const events = getTraceEvents(traceId);
+  if (events.length === 0) return "No events in trace.";
+  const baseTs = events[0].ts;
+  const lines = [];
+  lines.push(`Trace #${traceId} — ${events.length} events`);
+  lines.push(`Root: ${describeRootCause(events[0])}`);
+  lines.push(`Duration: ${events.length > 1 ? Math.round(events[events.length - 1].ts - baseTs) : 0}ms`);
+  lines.push("");
+  for (const e of events) {
+    const offset = `[+${Math.round(e.ts - baseTs)}ms]`;
+    const indent = "  ".repeat(e.depth);
+    let detail = "";
+    switch (e.type) {
+      case "user-action": {
+        const d = e.data;
+        detail = `${d.eventType} ${d.targetSelector}${d.datastarAction ? ` → ${d.datastarAction}` : ""}`;
+        break;
+      }
+      case "sse-lifecycle": {
+        const d = e.data;
+        detail = `SSE ${d.sseType}${d.route ? ` ${d.route}` : ""}${d.handler ? ` (${d.handler})` : ""}`;
+        break;
+      }
+      case "signal-change": {
+        const d = e.data;
+        detail = `signal ${d.path}: ${JSON.stringify(d.oldValue)} → ${JSON.stringify(d.newValue)} (${d.source})`;
+        break;
+      }
+      case "effect-eval": {
+        const d = e.data;
+        detail = `effect ${d.label || `#${d.effectId}`} ${d.duration.toFixed(1)}ms`;
+        break;
+      }
+      case "dom-mutation": {
+        const d = e.data;
+        detail = `DOM ${d.mutationType} ${d.targetSelector}`;
+        if (d.attributeName) detail += ` [${d.attributeName}]`;
+        break;
+      }
+      case "sse-malformed": {
+        const d = e.data;
+        detail = `malformed ${d.code}: ${d.message}`;
+        break;
+      }
+      default:
+        detail = e.type;
+    }
+    lines.push(`${offset} ${indent}${detail}`);
+  }
+  const trace = getTraces().find((t) => t.traceId === traceId);
+  if (trace && trace.warnings.length > 0) {
+    lines.push("");
+    lines.push("Warnings:");
+    for (const w of trace.warnings) {
+      lines.push(`  ⚠ ${w.code}: ${w.message}`);
+    }
+  }
+  return lines.join("\n");
+}
+function buildFullTraceHtml(traceId) {
+  const text = buildFullTraceText(traceId);
+  return `<div class="tl-full-trace"><button class="tl-copy-btn" data-copy-trace="${traceId}">Copy</button><pre class="tl-full-pre">${escapeHtml(text)}</pre></div>`;
+}
 function getFilteredTraces(textFilter, chipFilter) {
   const traces = getTraces();
   traces.reverse();
@@ -965,6 +1180,9 @@ function getFilteredTraces(textFilter, chipFilter) {
 }
 export {
   beginTrace,
+  buildFullTraceHtml,
+  buildFullTraceText,
+  buildTraceDetailHtml,
   buildTraceRowHtml,
   clampValue,
   cleanup,

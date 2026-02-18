@@ -471,6 +471,63 @@ else:
   .tl-type-signal { color: #f9e2af; }
   .tl-type-malformed { color: #f38ba8; }
   .tl-type-other { color: #9399b2; }
+  .tl-type-dom { color: #cba6f7; }
+  /* Expanded row + detail panel */
+  .tl-row-expanded { background: #313244; border-bottom-color: transparent; }
+  .tl-expanded {
+    background: #1e1e2e; border-bottom: 1px solid #11111b;
+    padding: 8px 12px; font-size: 11px;
+  }
+  .tl-detail-empty { color: #6c7086; padding: 8px; }
+  .tl-phase { margin-bottom: 6px; }
+  .tl-phase-label {
+    color: #585b70; font-size: 10px; text-transform: uppercase;
+    letter-spacing: 0.5px; margin-bottom: 2px; padding-left: 2px;
+  }
+  .tl-phase-trigger .tl-phase-label { color: #a6e3a1; }
+  .tl-phase-sse .tl-phase-label { color: #89b4fa; }
+  .tl-phase-signal .tl-phase-label { color: #f9e2af; }
+  .tl-phase-dom .tl-phase-label { color: #cba6f7; }
+  .tl-phase-warning .tl-phase-label { color: #f38ba8; }
+  .tl-phase-finished .tl-phase-label { color: #9399b2; }
+  .tl-ev-line {
+    padding: 1px 4px; line-height: 1.6; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis;
+  }
+  .tl-ev-indent { padding-left: 20px; border-left: 1px solid #313244; margin-left: 6px; }
+  .tl-ev-offset { color: #585b70; display: inline-block; min-width: 52px; text-align: right; margin-right: 6px; }
+  .tl-ev-type { font-weight: 600; }
+  .tl-ev-target, .tl-ev-route { color: #89dceb; }
+  .tl-ev-handler { color: #9399b2; }
+  .tl-ev-action { color: #585b70; font-size: 10px; }
+  .tl-ev-old { color: #f38ba8; text-decoration: line-through; }
+  .tl-ev-new { color: #a6e3a1; }
+  .tl-ev-source { color: #585b70; font-size: 10px; }
+  .tl-ev-label { color: #cdd6f4; }
+  .tl-ev-dur { color: #585b70; font-size: 10px; }
+  .tl-ev-msg { color: #f38ba8; }
+  .tl-ev-cycle { color: #f9e2af; font-style: italic; }
+  .tl-ev-warn { color: #f9e2af; }
+  .tl-warn-code { font-weight: 600; }
+  .tl-truncated { color: #585b70; font-size: 10px; padding: 4px; text-align: center; }
+  /* Full trace dump */
+  .tl-full-trace {
+    position: relative; margin-top: 8px;
+    border-top: 1px solid #313244; padding-top: 8px;
+  }
+  .tl-copy-btn {
+    position: absolute; top: 8px; right: 4px; z-index: 1;
+    background: #313244; color: #cdd6f4; border: 1px solid #45475a;
+    padding: 2px 10px; border-radius: 3px; cursor: pointer; font-size: 10px;
+    font-family: inherit;
+  }
+  .tl-copy-btn:hover { background: #45475a; }
+  .tl-full-pre {
+    background: #11111b; color: #9399b2; padding: 8px;
+    border-radius: 3px; overflow-x: auto; font-size: 10px;
+    line-height: 1.5; max-height: 300px; overflow-y: auto;
+    white-space: pre; margin: 0;
+  }
 """
 
     DEBUGGER_SETUP = """
@@ -1191,14 +1248,55 @@ effect(() => {
     if ($$is_open && $$active_tab === 'timeline') scheduleTimelineRender();
 });
 
-// Click delegation: expand/collapse trace rows
+// Click delegation: expand/collapse trace rows + copy button
 if (timelineListEl) {
     timelineListEl.addEventListener('click', (e) => {
+        // Copy button in full trace view
+        const copyBtn = e.target.closest('.tl-copy-btn');
+        if (copyBtn) {
+            const tid = Number(copyBtn.dataset.copyTrace);
+            if (!isNaN(tid)) {
+                const text = timeline.buildFullTraceText(tid);
+                navigator.clipboard.writeText(text).catch(() => {});
+                copyBtn.textContent = 'Copied!';
+                setTimeout(() => { copyBtn.textContent = 'Copy'; }, 1500);
+            }
+            return;
+        }
+
         const row = e.target.closest('.timeline-row');
         if (!row) return;
         const traceId = Number(row.dataset.traceId);
         if (isNaN(traceId)) return;
-        $$timeline_expanded_id = $$timeline_expanded_id === traceId ? -1 : traceId;
+
+        // Toggle expand/collapse
+        const isExpanded = $$timeline_expanded_id === traceId;
+        $$timeline_expanded_id = isExpanded ? -1 : traceId;
+
+        // Remove any existing detail panel
+        const existing = timelineListEl.querySelector('.tl-expanded');
+        if (existing) existing.remove();
+
+        if (!isExpanded) {
+            // Insert detail panel after the clicked row
+            const detail = document.createElement('div');
+            detail.className = 'tl-expanded';
+            detail.innerHTML = timeline.buildTraceDetailHtml(traceId)
+                + timeline.buildFullTraceHtml(traceId);
+            row.after(detail);
+            row.classList.add('tl-row-expanded');
+        } else {
+            row.classList.remove('tl-row-expanded');
+        }
+
+        // Toggle expanded class on all rows
+        for (const r of timelineListEl.querySelectorAll('.timeline-row')) {
+            if (Number(r.dataset.traceId) === $$timeline_expanded_id) {
+                r.classList.add('tl-row-expanded');
+            } else {
+                r.classList.remove('tl-row-expanded');
+            }
+        }
     });
 }
 
