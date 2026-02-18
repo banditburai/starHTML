@@ -946,7 +946,8 @@ const PHASE_LABELS = {
   signal: "Signals",
   dom: "DOM",
   warning: "Warnings",
-  finished: "Finished"
+  finished: "Finished",
+  other: "Other"
 };
 function eventPhase(e) {
   switch (e.type) {
@@ -965,7 +966,7 @@ function eventPhase(e) {
     case "sse-malformed":
       return "warning";
     default:
-      return "sse";
+      return "other";
   }
 }
 function formatEventLine(e, baseTs) {
@@ -985,7 +986,7 @@ function formatEventLine(e, baseTs) {
       const d = e.data;
       const oldStr = JSON.stringify(d.oldValue) ?? "undefined";
       const newStr = JSON.stringify(d.newValue) ?? "undefined";
-      return `${offsetHtml} <span class="tl-ev-type tl-type-signal">${escapeHtml(d.path)}</span> <span class="tl-ev-old">${escapeHtml(oldStr)}</span> → <span class="tl-ev-new">${escapeHtml(newStr)}</span> <span class="tl-ev-source">(${d.source})</span>`;
+      return `${offsetHtml} <span class="tl-ev-type tl-type-signal">${escapeHtml(d.path)}</span> <span class="tl-ev-old">${escapeHtml(oldStr)}</span> → <span class="tl-ev-new">${escapeHtml(newStr)}</span> <span class="tl-ev-source">(${escapeHtml(d.source)})</span>`;
     }
     case "effect-eval": {
       const d = e.data;
@@ -1003,7 +1004,7 @@ function formatEventLine(e, baseTs) {
         if (d.addedNodes.length) detail += ` +${d.addedNodes.length}`;
         if (d.removedNodes.length) detail += ` -${d.removedNodes.length}`;
       }
-      return `${offsetHtml} <span class="tl-ev-type tl-type-dom">${d.mutationType}</span> ${detail}`;
+      return `${offsetHtml} <span class="tl-ev-type tl-type-dom">${escapeHtml(d.mutationType)}</span> ${detail}`;
     }
     case "sse-malformed": {
       const d = e.data;

@@ -921,6 +921,7 @@ const PHASE_LABELS: Record<string, string> = {
   dom: "DOM",
   warning: "Warnings",
   finished: "Finished",
+  other: "Other",
 };
 
 /** Classify an event into a display phase. */
@@ -936,7 +937,7 @@ function eventPhase(e: TimelineEvent): string {
     case "effect-eval": return "signal";
     case "dom-mutation": return "dom";
     case "sse-malformed": return "warning";
-    default: return "sse";
+    default: return "other";
   }
 }
 
@@ -967,7 +968,7 @@ function formatEventLine(e: TimelineEvent, baseTs: number): string {
         + `<span class="tl-ev-old">${escapeHtml(oldStr)}</span>`
         + ` \u2192 `
         + `<span class="tl-ev-new">${escapeHtml(newStr)}</span>`
-        + ` <span class="tl-ev-source">(${d.source})</span>`;
+        + ` <span class="tl-ev-source">(${escapeHtml(d.source)})</span>`;
     }
     case "effect-eval": {
       const d = e.data as EffectEvalData;
@@ -987,7 +988,7 @@ function formatEventLine(e: TimelineEvent, baseTs: number): string {
         if (d.addedNodes.length) detail += ` +${d.addedNodes.length}`;
         if (d.removedNodes.length) detail += ` -${d.removedNodes.length}`;
       }
-      return `${offsetHtml} <span class="tl-ev-type tl-type-dom">${d.mutationType}</span> ${detail}`;
+      return `${offsetHtml} <span class="tl-ev-type tl-type-dom">${escapeHtml(d.mutationType)}</span> ${detail}`;
     }
     case "sse-malformed": {
       const d = e.data as MalformedSseData;
@@ -999,7 +1000,10 @@ function formatEventLine(e: TimelineEvent, baseTs: number): string {
   }
 }
 
-/** Detect repeated signal ping-pong patterns and summarize them. */
+/** Detect repeated signal ping-pong patterns and summarize them.
+ *  Heuristic: seeds pattern from first N signal events. Cycles that
+ *  don't start at index 0 (e.g., preceded by an init signal) are missed.
+ *  Effect-eval events interleaved with cycles are collapsed in the summary. */
 function summarizeCycles(events: TimelineEvent[]): { summarized: string[]; truncated: number } | null {
   if (events.length < 8) return null;
 

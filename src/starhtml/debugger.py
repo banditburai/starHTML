@@ -1277,6 +1277,15 @@ if (timelineListEl) {
         const existing = timelineListEl.querySelector('.tl-expanded');
         if (existing) existing.remove();
 
+        // Update expanded class on all rows
+        for (const r of timelineListEl.querySelectorAll('.timeline-row')) {
+            if (Number(r.dataset.traceId) === $$timeline_expanded_id) {
+                r.classList.add('tl-row-expanded');
+            } else {
+                r.classList.remove('tl-row-expanded');
+            }
+        }
+
         if (!isExpanded) {
             // Insert detail panel after the clicked row
             const detail = document.createElement('div');
@@ -1284,18 +1293,6 @@ if (timelineListEl) {
             detail.innerHTML = timeline.buildTraceDetailHtml(traceId)
                 + timeline.buildFullTraceHtml(traceId);
             row.after(detail);
-            row.classList.add('tl-row-expanded');
-        } else {
-            row.classList.remove('tl-row-expanded');
-        }
-
-        // Toggle expanded class on all rows
-        for (const r of timelineListEl.querySelectorAll('.timeline-row')) {
-            if (Number(r.dataset.traceId) === $$timeline_expanded_id) {
-                r.classList.add('tl-row-expanded');
-            } else {
-                r.classList.remove('tl-row-expanded');
-            }
         }
     });
 }
