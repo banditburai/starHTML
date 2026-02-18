@@ -694,31 +694,16 @@ function detectHangingRequest(events: TimelineEvent[], out: Warning[]): void {
 /** Two elements events targeting same selector in one trace. */
 function detectSelectorRace(events: TimelineEvent[], out: Warning[]): void {
   const selectorCounts = new Map<string, number>();
-
   for (const e of events) {
     if (e.type !== "sse-lifecycle") continue;
     const d = e.data as SseEventData;
-    if (d.sseType !== "datastar-patch-elements" && d.sseType !== "started") {
-      // Check payload for elements events within SSE
-      if (d.elSelector) {
-        selectorCounts.set(d.elSelector, (selectorCounts.get(d.elSelector) ?? 0) + 1);
-      }
+    if (d.payload?.selector) {
+      const sel = String(d.payload.selector);
+      selectorCounts.set(sel, (selectorCounts.get(sel) ?? 0) + 1);
     }
   }
 
-  // Also check for elements-type SSE events targeting same selector
-  const elementSelectors = new Map<string, number>();
-  for (const e of events) {
-    if (e.type === "sse-lifecycle") {
-      const d = e.data as SseEventData;
-      if (d.payload?.selector) {
-        const sel = String(d.payload.selector);
-        elementSelectors.set(sel, (elementSelectors.get(sel) ?? 0) + 1);
-      }
-    }
-  }
-
-  for (const [sel, count] of elementSelectors) {
+  for (const [sel, count] of selectorCounts) {
     if (count >= 2) {
       out.push({
         code: "SELECTOR_RACE",
@@ -730,12 +715,14 @@ function detectSelectorRace(events: TimelineEvent[], out: Warning[]): void {
 
 /** Elements event that produced zero DOM mutations (within morph window). */
 function detectNoMorphs(events: TimelineEvent[], out: Warning[]): void {
-  // Find elements-type SSE events and check if DOM mutations follow within morph window
+  const now = performance.now();
   for (let i = 0; i < events.length; i++) {
     const e = events[i];
     if (e.type !== "sse-lifecycle") continue;
     const d = e.data as SseEventData;
     if (d.sseType !== "datastar-patch-elements") continue;
+    // Skip events whose morph window hasn't elapsed yet (avoids false-positives on active traces)
+    if (now - e.ts < MORPH_WINDOW_MS) continue;
 
     // Look for DOM mutations within morph window after this event
     let hasMorph = false;
@@ -757,13 +744,11 @@ function detectNoMorphs(events: TimelineEvent[], out: Warning[]): void {
   }
 }
 
-/** Same attribute changed 2+ times within morph window. */
+/** Same attribute changed 2+ times in a single trace (potential visual flash). */
 function detectAttributeFlash(events: TimelineEvent[], out: Warning[]): void {
-  // Group DOM mutation events by morph window
   const domEvents = events.filter(e => e.type === "dom-mutation");
   if (domEvents.length < 2) return;
 
-  // Sliding window: group mutations within MORPH_WINDOW_MS of each other
   const attrChanges = new Map<string, number>(); // "selector[attr]" → count
 
   for (let i = 0; i < domEvents.length; i++) {

@@ -778,23 +778,12 @@ function detectSelectorRace(events, out) {
   for (const e of events) {
     if (e.type !== "sse-lifecycle") continue;
     const d = e.data;
-    if (d.sseType !== "datastar-patch-elements" && d.sseType !== "started") {
-      if (d.elSelector) {
-        selectorCounts.set(d.elSelector, (selectorCounts.get(d.elSelector) ?? 0) + 1);
-      }
+    if (d.payload?.selector) {
+      const sel = String(d.payload.selector);
+      selectorCounts.set(sel, (selectorCounts.get(sel) ?? 0) + 1);
     }
   }
-  const elementSelectors = /* @__PURE__ */ new Map();
-  for (const e of events) {
-    if (e.type === "sse-lifecycle") {
-      const d = e.data;
-      if (d.payload?.selector) {
-        const sel = String(d.payload.selector);
-        elementSelectors.set(sel, (elementSelectors.get(sel) ?? 0) + 1);
-      }
-    }
-  }
-  for (const [sel, count] of elementSelectors) {
+  for (const [sel, count] of selectorCounts) {
     if (count >= 2) {
       out.push({
         code: "SELECTOR_RACE",
@@ -804,11 +793,13 @@ function detectSelectorRace(events, out) {
   }
 }
 function detectNoMorphs(events, out) {
+  const now = performance.now();
   for (let i = 0; i < events.length; i++) {
     const e = events[i];
     if (e.type !== "sse-lifecycle") continue;
     const d = e.data;
     if (d.sseType !== "datastar-patch-elements") continue;
+    if (now - e.ts < MORPH_WINDOW_MS) continue;
     let hasMorph = false;
     for (let j = i + 1; j < events.length; j++) {
       if (events[j].ts - e.ts > MORPH_WINDOW_MS) break;
