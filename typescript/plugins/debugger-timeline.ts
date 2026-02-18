@@ -870,9 +870,10 @@ export function rootTypeCategory(event: TimelineEvent): string {
   }
 }
 
-/** Classify a trace for chip filtering based on root event + warnings. */
+/** Classify a trace for chip filtering based on root event + warnings.
+ *  When no chips are active (empty set), all traces pass — "no filter = show all". */
 export function traceMatchesChips(trace: TraceSummary, activeChips: Set<string>): boolean {
-  if (activeChips.size === 0) return true;
+  if (activeChips.size === 0) return true; // no filter = show all
   const cat = rootTypeCategory(trace.rootEvent);
   if (activeChips.has(cat)) return true;
   if (activeChips.has("warning") && trace.warnings.length > 0) return true;
