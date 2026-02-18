@@ -1253,6 +1253,9 @@ function renderTimelineTab() {
 
     if (wasAtBottom && timelineContentEl) timelineContentEl.scrollTop = timelineContentEl.scrollHeight;
     $$show_tl_jump = !timelineUserAtBottom && filtered.length > 0;
+
+    // Restore range highlighting after full re-render (innerHTML wipes classes)
+    if (rangeStart >= 0) updateRangeHighlight();
 }
 
 // Chip filter change detection (guard against spurious effect re-triggers)
@@ -1381,6 +1384,7 @@ if (timelineListEl) {
 
         // Shift-click: range selection
         if (e.shiftKey) {
+            e.preventDefault(); // prevent text selection
             if (rangeStart < 0) {
                 rangeStart = traceId;
             } else if (rangeEnd < 0) {

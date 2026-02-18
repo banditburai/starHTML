@@ -1221,7 +1221,9 @@ export function getFilteredTraces(
   });
 }
 
-/** Get trace IDs within the last N seconds (by wall time). */
+/** Get trace IDs within the last N seconds (by wall time).
+ *  Returns ALL traces in the window, ignoring text/chip filters.
+ *  This is intentional: time-based export captures full context. */
 export function getTraceIdsInWindow(seconds: number): number[] {
   const cutoff = Date.now() - seconds * 1000;
   const traces = getTraces(); // most recent first
