@@ -939,7 +939,7 @@ function buildTraceRowHtml(trace) {
     "signal-change": "tl-type-signal",
     "sse-malformed": "tl-type-malformed"
   }[trace.rootEvent.type] ?? "tl-type-other";
-  return `<div class="timeline-row ${statusCls}" data-trace-id="${trace.traceId}"><span class="tl-type-icon ${iconCls}">●</span><span class="tl-time">${time}</span><span class="tl-cause">${cause}</span><span class="tl-arrow">→</span><span class="tl-summary">${summary}</span><span class="tl-duration">${dur}</span>` + warnBadge + `</div>`;
+  return `<div class="timeline-row ${statusCls}" data-trace-id="${trace.traceId}"><span class="tl-type-icon ${iconCls}">●</span><span class="tl-time">${time}</span><span class="tl-cause">${cause}</span><span class="tl-arrow">→</span><span class="tl-summary">${summary}</span><span class="tl-duration">${dur}</span>` + warnBadge + `<button class="tl-row-copy" data-copy-single="${trace.traceId}" title="Copy trace">⎘</button></div>`;
 }
 const PHASE_LABELS = {
   trigger: "Trigger",
@@ -1179,6 +1179,21 @@ function getFilteredTraces(textFilter, chipFilter) {
     }
     return cause.includes(filter) || summary.includes(filter);
   });
+}
+function getTraceIdsInWindow(seconds) {
+  const cutoff = Date.now() - seconds * 1e3;
+  const traces = getTraces();
+  const ids = [];
+  for (const t of traces) {
+    if (t.rootEvent.wallTime >= cutoff) ids.push(t.traceId);
+  }
+  return ids;
+}
+function getTraceIdsInRange(startId, endId) {
+  const lo = Math.min(startId, endId);
+  const hi = Math.max(startId, endId);
+  const traces = getTraces();
+  return traces.filter((t) => t.traceId >= lo && t.traceId <= hi).map((t) => t.traceId);
 }
 const SINGLE_TRACE_SIZE_LIMIT = 5 * 1024;
 const MULTI_TRACE_SIZE_LIMIT = 20 * 1024;
@@ -1424,6 +1439,8 @@ export {
   getFilteredTraces,
   getTraceCount,
   getTraceEvents,
+  getTraceIdsInRange,
+  getTraceIdsInWindow,
   getTraces,
   init,
   pushParent,

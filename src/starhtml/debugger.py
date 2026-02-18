@@ -528,6 +528,47 @@ else:
     line-height: 1.5; max-height: 300px; overflow-y: auto;
     white-space: pre; margin: 0;
   }
+  /* Row copy icon */
+  .tl-row-copy {
+    opacity: 0; flex-shrink: 0; background: none; border: none;
+    color: #585b70; cursor: pointer; font-size: 12px; padding: 0 4px;
+    font-family: inherit; transition: opacity 0.15s;
+  }
+  .timeline-row:hover .tl-row-copy { opacity: 1; }
+  .tl-row-copy:hover { color: #cdd6f4; }
+  /* Export dropdown */
+  .tl-export-wrap { position: relative; }
+  .tl-export-menu {
+    display: none; position: absolute; top: 100%; right: 0; z-index: 10;
+    background: #313244; border: 1px solid #45475a; border-radius: 4px;
+    padding: 4px 0; min-width: 120px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  }
+  .tl-export-menu.open { display: block; }
+  .tl-export-opt {
+    display: block; width: 100%; background: none; border: none;
+    color: #cdd6f4; padding: 4px 12px; text-align: left; cursor: pointer;
+    font-family: inherit; font-size: 11px;
+  }
+  .tl-export-opt:hover { background: #45475a; }
+  /* Shift-click range selection */
+  .timeline-row.tl-range-start,
+  .timeline-row.tl-range-end { background: #313244; }
+  .timeline-row.tl-in-range { background: #1e2030; }
+  .tl-range-bar {
+    display: none; padding: 4px 8px; background: #313244;
+    border-bottom: 1px solid #45475a; font-size: 11px; color: #9399b2;
+  }
+  .tl-range-bar.active { display: flex; align-items: center; gap: 8px; }
+  .tl-range-copy {
+    background: #89b4fa; color: #1e1e2e; border: none; border-radius: 3px;
+    padding: 2px 10px; cursor: pointer; font-family: inherit; font-size: 10px;
+  }
+  .tl-range-copy:hover { background: #74c7ec; }
+  .tl-range-clear {
+    background: none; border: none; color: #585b70; cursor: pointer;
+    font-family: inherit; font-size: 10px;
+  }
+  .tl-range-clear:hover { color: #cdd6f4; }
 """
 
     DEBUGGER_SETUP = """
@@ -1248,7 +1289,67 @@ effect(() => {
     if ($$is_open && $$active_tab === 'timeline') scheduleTimelineRender();
 });
 
-// Click delegation: expand/collapse trace rows + copy button
+// --- Clipboard flash helper ---
+function flashCopied(btn, label) {
+    const orig = btn.textContent;
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = label || orig; }, 1500);
+}
+
+function copyText(text) {
+    return navigator.clipboard.writeText(text).catch(() => {});
+}
+
+// --- Shift-click range selection ---
+let rangeStart = -1;
+let rangeEnd = -1;
+
+const rangeBar = refs('tl_range_bar');
+const rangeLabel = refs('tl_range_label');
+const rangeCopyBtn = refs('tl_range_copy');
+const rangeClearBtn = refs('tl_range_clear');
+
+function updateRangeHighlight() {
+    if (!timelineListEl) return;
+    const lo = Math.min(rangeStart, rangeEnd);
+    const hi = Math.max(rangeStart, rangeEnd);
+    const hasRange = rangeStart >= 0 && rangeEnd >= 0;
+    for (const r of timelineListEl.querySelectorAll('.timeline-row')) {
+        const tid = Number(r.dataset.traceId);
+        r.classList.toggle('tl-range-start', tid === rangeStart);
+        r.classList.toggle('tl-range-end', tid === rangeEnd);
+        r.classList.toggle('tl-in-range', hasRange && tid >= lo && tid <= hi && tid !== rangeStart && tid !== rangeEnd);
+    }
+    if (rangeBar) {
+        rangeBar.classList.toggle('active', hasRange);
+        if (hasRange && rangeLabel) {
+            const ids = timeline.getTraceIdsInRange(rangeStart, rangeEnd);
+            rangeLabel.textContent = ids.length + ' trace' + (ids.length !== 1 ? 's' : '') + ' selected';
+        }
+    }
+}
+
+function clearRange() {
+    rangeStart = -1;
+    rangeEnd = -1;
+    updateRangeHighlight();
+}
+
+if (rangeCopyBtn) {
+    rangeCopyBtn.addEventListener('click', () => {
+        if (rangeStart < 0 || rangeEnd < 0) return;
+        const ids = timeline.getTraceIdsInRange(rangeStart, rangeEnd);
+        const md = timeline.formatAllTracesExport(ids);
+        copyText(md);
+        flashCopied(rangeCopyBtn, 'Copy Range');
+    });
+}
+
+if (rangeClearBtn) {
+    rangeClearBtn.addEventListener('click', clearRange);
+}
+
+// --- Click delegation: expand/collapse + single copy + shift-click ---
 if (timelineListEl) {
     timelineListEl.addEventListener('click', (e) => {
         // Copy button in full trace view
@@ -1256,10 +1357,19 @@ if (timelineListEl) {
         if (copyBtn) {
             const tid = Number(copyBtn.dataset.copyTrace);
             if (!isNaN(tid)) {
-                const text = timeline.buildFullTraceText(tid);
-                navigator.clipboard.writeText(text).catch(() => {});
-                copyBtn.textContent = 'Copied!';
-                setTimeout(() => { copyBtn.textContent = 'Copy'; }, 1500);
+                copyText(timeline.buildFullTraceText(tid));
+                flashCopied(copyBtn, 'Copy');
+            }
+            return;
+        }
+
+        // Single-row copy icon
+        const rowCopy = e.target.closest('.tl-row-copy');
+        if (rowCopy) {
+            const tid = Number(rowCopy.dataset.copySingle);
+            if (!isNaN(tid)) {
+                copyText(timeline.formatTraceExport(tid));
+                flashCopied(rowCopy, '\\u2398');
             }
             return;
         }
@@ -1269,7 +1379,24 @@ if (timelineListEl) {
         const traceId = Number(row.dataset.traceId);
         if (isNaN(traceId)) return;
 
-        // Toggle expand/collapse
+        // Shift-click: range selection
+        if (e.shiftKey) {
+            if (rangeStart < 0) {
+                rangeStart = traceId;
+            } else if (rangeEnd < 0) {
+                rangeEnd = traceId;
+            } else {
+                // Reset and start new range
+                rangeStart = traceId;
+                rangeEnd = -1;
+            }
+            updateRangeHighlight();
+            return;
+        }
+
+        // Normal click: toggle expand/collapse (clear range if any)
+        if (rangeStart >= 0) clearRange();
+
         const isExpanded = $$timeline_expanded_id === traceId;
         $$timeline_expanded_id = isExpanded ? -1 : traceId;
 
@@ -1287,13 +1414,57 @@ if (timelineListEl) {
         }
 
         if (!isExpanded) {
-            // Insert detail panel after the clicked row
             const detail = document.createElement('div');
             detail.className = 'tl-expanded';
             detail.innerHTML = timeline.buildTraceDetailHtml(traceId)
                 + timeline.buildFullTraceHtml(traceId);
             row.after(detail);
         }
+    });
+}
+
+// --- Export dropdown ---
+const tlExportBtn = refs('tl_export_btn');
+const tlExportMenu = refs('tl_export_menu');
+
+if (tlExportBtn && tlExportMenu) {
+    tlExportBtn.addEventListener('click', () => {
+        tlExportMenu.classList.toggle('open');
+    });
+    // Close on outside click
+    el.addEventListener('click', (e) => {
+        if (!e.target.closest('.tl-export-wrap')) {
+            tlExportMenu.classList.remove('open');
+        }
+    });
+
+    const exportWindow = (seconds) => {
+        const ids = timeline.getTraceIdsInWindow(seconds);
+        if (ids.length === 0) return;
+        const md = timeline.formatAllTracesExport(ids);
+        copyText(md);
+        flashCopied(tlExportBtn, 'Export \\u25BE');
+        tlExportMenu.classList.remove('open');
+    };
+
+    const exp5 = refs('tl_exp_5s');
+    const exp15 = refs('tl_exp_15s');
+    const exp30 = refs('tl_exp_30s');
+    const exp60 = refs('tl_exp_60s');
+    const expAll = refs('tl_exp_all');
+
+    if (exp5) exp5.addEventListener('click', () => exportWindow(5));
+    if (exp15) exp15.addEventListener('click', () => exportWindow(15));
+    if (exp30) exp30.addEventListener('click', () => exportWindow(30));
+    if (exp60) exp60.addEventListener('click', () => exportWindow(60));
+    if (expAll) expAll.addEventListener('click', () => {
+        const traces = timeline.getFilteredTraces($$timeline_filter, activeTlChips);
+        if (traces.length === 0) return;
+        const ids = traces.map(t => t.traceId);
+        const md = timeline.formatAllTracesExport(ids);
+        copyText(md);
+        flashCopied(tlExportBtn, 'Export \\u25BE');
+        tlExportMenu.classList.remove('open');
     });
 }
 
@@ -1535,7 +1706,32 @@ if (tlJumpBtn) {
                             cls="filter-wrap",
                         ),
                         Span(data_ref="timeline_count_label", cls="count"),
+                        Div(
+                            Button(
+                                "Export \u25BE",
+                                data_ref="tl_export_btn",
+                                cls="clear-events-btn",
+                                title="Export traces as Markdown",
+                            ),
+                            Div(
+                                Button("Last 5s", data_ref="tl_exp_5s", cls="tl-export-opt"),
+                                Button("Last 15s", data_ref="tl_exp_15s", cls="tl-export-opt"),
+                                Button("Last 30s", data_ref="tl_exp_30s", cls="tl-export-opt"),
+                                Button("Last 60s", data_ref="tl_exp_60s", cls="tl-export-opt"),
+                                Button("All Visible", data_ref="tl_exp_all", cls="tl-export-opt"),
+                                data_ref="tl_export_menu",
+                                cls="tl-export-menu",
+                            ),
+                            cls="tl-export-wrap",
+                        ),
                         cls="toolbar",
+                    ),
+                    Div(
+                        Span(data_ref="tl_range_label"),
+                        Button("Copy Range", data_ref="tl_range_copy", cls="tl-range-copy"),
+                        Button("Clear", data_ref="tl_range_clear", cls="tl-range-clear"),
+                        data_ref="tl_range_bar",
+                        cls="tl-range-bar",
                     ),
                     Div(data_ref="timeline_list", cls="timeline-list"),
                     Button(

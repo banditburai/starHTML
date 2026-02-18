@@ -909,6 +909,7 @@ export function buildTraceRowHtml(trace: TraceSummary): string {
     + `<span class="tl-summary">${summary}</span>`
     + `<span class="tl-duration">${dur}</span>`
     + warnBadge
+    + `<button class="tl-row-copy" data-copy-single="${trace.traceId}" title="Copy trace">\u2398</button>`
     + `</div>`;
 }
 
@@ -1218,6 +1219,25 @@ export function getFilteredTraces(
     }
     return cause.includes(filter) || summary.includes(filter);
   });
+}
+
+/** Get trace IDs within the last N seconds (by wall time). */
+export function getTraceIdsInWindow(seconds: number): number[] {
+  const cutoff = Date.now() - seconds * 1000;
+  const traces = getTraces(); // most recent first
+  const ids: number[] = [];
+  for (const t of traces) {
+    if (t.rootEvent.wallTime >= cutoff) ids.push(t.traceId);
+  }
+  return ids;
+}
+
+/** Get trace IDs in a range (inclusive, by traceId). */
+export function getTraceIdsInRange(startId: number, endId: number): number[] {
+  const lo = Math.min(startId, endId);
+  const hi = Math.max(startId, endId);
+  const traces = getTraces(); // most recent first
+  return traces.filter(t => t.traceId >= lo && t.traceId <= hi).map(t => t.traceId);
 }
 
 // ─── Markdown Export ──────────────────────────────────────────────
