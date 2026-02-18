@@ -1223,7 +1223,7 @@ export function getFilteredTraces(
 // ─── Markdown Export ──────────────────────────────────────────────
 
 const SINGLE_TRACE_SIZE_LIMIT = 5 * 1024;
-const MULTI_TRACE_SIZE_LIMIT = 50 * 1024;
+const MULTI_TRACE_SIZE_LIMIT = 20 * 1024;
 const EXPORT_HARD_CAP = 20 * 1024;
 const TRUNCATE_PAYLOAD = 200;
 
@@ -1239,7 +1239,7 @@ function formatLegend(): string {
 function formatSignalSnapshot(): string {
   let entries: Map<string, SignalEntry>;
   try {
-    entries = getSignalEntries();
+    entries = new Map(getSignalEntries());
   } catch {
     return "";
   }
@@ -1353,13 +1353,23 @@ function formatDiagnosticNotes(warnings: Warning[]): string {
 }
 
 /** Apply progressive truncation to keep output within size budget. */
+/** Safely slice text at a line boundary, closing any open code fences. */
+function safeSlice(text: string, limit: number): string {
+  const cut = text.lastIndexOf("\n", limit);
+  const safe = text.slice(0, cut > 0 ? cut : limit);
+  // Check if we're inside an unclosed fenced code block
+  const fenceCount = (safe.match(/^```/gm) || []).length;
+  const needsClose = fenceCount % 2 !== 0;
+  return safe + (needsClose ? "\n```" : "") + "\n\n*(truncated)*";
+}
+
 function truncateExport(text: string, limit: number): string {
   if (text.length <= limit) return text;
 
   // Find the event log section and truncate it
   const logStart = text.indexOf("### Event Log");
   const logEnd = text.indexOf("\n###", logStart + 1);
-  if (logStart === -1) return text.slice(0, limit) + "\n\n*(truncated)*";
+  if (logStart === -1) return safeSlice(text, limit);
 
   const before = text.slice(0, logStart);
   const logSection = text.slice(logStart, logEnd === -1 ? undefined : logEnd);
@@ -1371,7 +1381,7 @@ function truncateExport(text: string, limit: number): string {
   const eventLines = logLines.slice(3, -1); // event lines
   const closingLines = logLines.slice(-1); // "```"
 
-  if (eventLines.length <= 10) return text.slice(0, limit) + "\n\n*(truncated)*";
+  if (eventLines.length <= 10) return safeSlice(text, limit);
 
   // Keep first 5 and last 5 event lines
   const kept = [
@@ -1383,7 +1393,7 @@ function truncateExport(text: string, limit: number): string {
   ];
   const truncated = before + kept.join("\n") + after;
   if (truncated.length <= limit) return truncated;
-  return truncated.slice(0, limit) + "\n\n*(truncated)*";
+  return safeSlice(truncated, limit);
 }
 
 /** Format a single trace as Markdown for LLM context. */
@@ -1485,7 +1495,7 @@ export function formatAllTracesExport(traceIds: number[]): string {
 
   // Hard cap
   if (result.length > EXPORT_HARD_CAP) {
-    result = result.slice(0, EXPORT_HARD_CAP) + "\n\n*(export truncated at 20KB)*";
+    result = safeSlice(result, EXPORT_HARD_CAP);
   }
 
   return result;

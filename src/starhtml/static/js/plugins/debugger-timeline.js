@@ -1181,7 +1181,7 @@ function getFilteredTraces(textFilter, chipFilter) {
   });
 }
 const SINGLE_TRACE_SIZE_LIMIT = 5 * 1024;
-const MULTI_TRACE_SIZE_LIMIT = 50 * 1024;
+const MULTI_TRACE_SIZE_LIMIT = 20 * 1024;
 const EXPORT_HARD_CAP = 20 * 1024;
 const TRUNCATE_PAYLOAD = 200;
 function formatLegend() {
@@ -1193,7 +1193,7 @@ function formatLegend() {
 function formatSignalSnapshot() {
   let entries;
   try {
-    entries = getEntries();
+    entries = new Map(getEntries());
   } catch {
     return "";
   }
@@ -1293,11 +1293,18 @@ function formatDiagnosticNotes(warnings) {
   }
   return lines.join("\n");
 }
+function safeSlice(text, limit) {
+  const cut = text.lastIndexOf("\n", limit);
+  const safe = text.slice(0, cut > 0 ? cut : limit);
+  const fenceCount = (safe.match(/^```/gm) || []).length;
+  const needsClose = fenceCount % 2 !== 0;
+  return safe + (needsClose ? "\n```" : "") + "\n\n*(truncated)*";
+}
 function truncateExport(text, limit) {
   if (text.length <= limit) return text;
   const logStart = text.indexOf("### Event Log");
   const logEnd = text.indexOf("\n###", logStart + 1);
-  if (logStart === -1) return text.slice(0, limit) + "\n\n*(truncated)*";
+  if (logStart === -1) return safeSlice(text, limit);
   const before = text.slice(0, logStart);
   const logSection = text.slice(logStart, logEnd === -1 ? void 0 : logEnd);
   const after = logEnd === -1 ? "" : text.slice(logEnd);
@@ -1305,7 +1312,7 @@ function truncateExport(text, limit) {
   const headerLines = logLines.slice(0, 3);
   const eventLines = logLines.slice(3, -1);
   const closingLines = logLines.slice(-1);
-  if (eventLines.length <= 10) return text.slice(0, limit) + "\n\n*(truncated)*";
+  if (eventLines.length <= 10) return safeSlice(text, limit);
   const kept = [
     ...headerLines,
     ...eventLines.slice(0, 5),
@@ -1315,7 +1322,7 @@ function truncateExport(text, limit) {
   ];
   const truncated = before + kept.join("\n") + after;
   if (truncated.length <= limit) return truncated;
-  return truncated.slice(0, limit) + "\n\n*(truncated)*";
+  return safeSlice(truncated, limit);
 }
 function formatTraceExport(traceId) {
   const events = getTraceEvents(traceId);
@@ -1392,7 +1399,7 @@ Exported at ${formatTime(Date.now())}
   }
   let result = sections.join("\n\n---\n\n");
   if (result.length > EXPORT_HARD_CAP) {
-    result = result.slice(0, EXPORT_HARD_CAP) + "\n\n*(export truncated at 20KB)*";
+    result = safeSlice(result, EXPORT_HARD_CAP);
   }
   return result;
 }
