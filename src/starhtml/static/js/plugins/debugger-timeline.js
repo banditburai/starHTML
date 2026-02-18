@@ -900,23 +900,91 @@ function getActiveTraceId() {
 function getEventCount() {
   return buffer.length;
 }
+const ESCAPE_MAP = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, (c) => ESCAPE_MAP[c]);
+}
+function rootTypeCategory(event) {
+  switch (event.type) {
+    case "user-action":
+      return "user";
+    case "sse-lifecycle":
+      return "sse";
+    case "signal-change":
+      return "signal";
+    case "sse-malformed":
+      return "warning";
+    default:
+      return "other";
+  }
+}
+function traceMatchesChips(trace, activeChips) {
+  if (activeChips.size === 0) return true;
+  const cat = rootTypeCategory(trace.rootEvent);
+  if (activeChips.has(cat)) return true;
+  if (activeChips.has("warning") && trace.warnings.length > 0) return true;
+  return false;
+}
+function buildTraceRowHtml(trace) {
+  const time = formatTime(trace.rootEvent.wallTime);
+  const cause = escapeHtml(describeRootCause(trace.rootEvent));
+  const summary = escapeHtml(summarizeTrace(trace));
+  const dur = trace.totalDuration >= 1e3 ? (trace.totalDuration / 1e3).toFixed(1) + "s" : Math.round(trace.totalDuration) + "ms";
+  const warnBadge = trace.warnings.length > 0 ? ` <span class="tl-warn-badge">⚠ ${trace.warnings.length}</span>` : "";
+  const statusCls = "tl-status-" + trace.status;
+  const iconCls = {
+    "user-action": "tl-type-user",
+    "sse-lifecycle": "tl-type-sse",
+    "signal-change": "tl-type-signal",
+    "sse-malformed": "tl-type-malformed"
+  }[trace.rootEvent.type] ?? "tl-type-other";
+  return `<div class="timeline-row ${statusCls}" data-trace-id="${trace.traceId}"><span class="tl-type-icon ${iconCls}">●</span><span class="tl-time">${time}</span><span class="tl-cause">${cause}</span><span class="tl-arrow">→</span><span class="tl-summary">${summary}</span><span class="tl-duration">${dur}</span>` + warnBadge + `</div>`;
+}
+function getFilteredTraces(textFilter, chipFilter) {
+  const traces = getTraces();
+  traces.reverse();
+  const filter = textFilter.toLowerCase();
+  return traces.filter((t) => {
+    if (!traceMatchesChips(t, chipFilter)) return false;
+    if (!filter) return true;
+    const cause = describeRootCause(t.rootEvent).toLowerCase();
+    const summary = summarizeTrace(t).toLowerCase();
+    const events = getTraceEvents(t.traceId);
+    for (const e of events) {
+      if (e.type === "signal-change") {
+        if (e.data.path.toLowerCase().includes(filter)) return true;
+      }
+      if (e.type === "sse-lifecycle") {
+        const d = e.data;
+        if (d.route.toLowerCase().includes(filter)) return true;
+        if (d.handler.toLowerCase().includes(filter)) return true;
+      }
+    }
+    return cause.includes(filter) || summary.includes(filter);
+  });
+}
 export {
   beginTrace,
+  buildTraceRowHtml,
   clampValue,
   cleanup,
   describeRootCause,
   detectWarnings,
   emit,
+  escapeHtml,
   formatTime,
   getActiveTraceId,
   getEventCount,
   getEvents,
+  getFilteredTraces,
   getTraceCount,
   getTraceEvents,
   getTraces,
   init,
   pushParent,
+  rootTypeCategory,
   selectorFor,
   subscribe,
-  summarizeTrace
+  summarizeTrace,
+  traceMatchesChips
 };

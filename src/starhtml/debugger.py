@@ -776,7 +776,8 @@ const debuggerSignalNames = [
     'filter_text', 'visible_since_id', 'expanded_id', 'event_count',
     'chip_signals_on', 'chip_elements_on', 'chip_script_on', 'chip_lifecycle_on',
     'show_jump_btn', 'signal_count', 'signal_filter', 'signal_expanded_path',
-    'timeline_count', 'timeline_filter',
+    'timeline_count', 'timeline_filter', 'timeline_expanded_id',
+    'tl_chip_user', 'tl_chip_sse', 'tl_chip_signal', 'tl_chip_warning', 'show_tl_jump',
 ];
 signals.init(debuggerNs, debuggerSignalNames);
 onCleanup(() => signals.cleanup());
@@ -1078,9 +1079,13 @@ const timelineCountLabel = refs('timeline_count_label');
 const timelineTabCount = refs('timeline_tab_count');
 const timelineEmpty = refs('timeline_empty');
 const timelineContentEl = refs('timeline_content');
+const tlJumpBtn = refs('tl_jump_btn');
 
 let timelineRafPending = false;
 let timelineUserAtBottom = true;
+let tlNeedsFullRender = false;
+let lastRenderedTraceIds = [];
+let activeTlChips = new Set(['user', 'sse', 'signal', 'warning']);
 
 if (timelineContentEl) {
     timelineContentEl.addEventListener('scroll', () => {
@@ -1105,58 +1110,10 @@ function scheduleTimelineRender() {
     });
 }
 
-function traceTypeIcon(event) {
-    switch (event.type) {
-        case 'user-action': return '<span class="tl-type-icon tl-type-user">\\u25CF</span>';
-        case 'sse-lifecycle': return '<span class="tl-type-icon tl-type-sse">\\u25CF</span>';
-        case 'signal-change': return '<span class="tl-type-icon tl-type-signal">\\u25CF</span>';
-        case 'sse-malformed': return '<span class="tl-type-icon tl-type-malformed">\\u25CF</span>';
-        default: return '<span class="tl-type-icon tl-type-other">\\u25CF</span>';
-    }
-}
-
-function escHtml(s) {
-    return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"})[c]);
-}
-
-function buildTraceRowHtml(trace) {
-    const time = timeline.formatTime(trace.rootEvent.wallTime);
-    const cause = escHtml(timeline.describeRootCause(trace.rootEvent));
-    const summary = escHtml(timeline.summarizeTrace(trace));
-    const dur = trace.totalDuration >= 1000
-        ? (trace.totalDuration / 1000).toFixed(1) + 's'
-        : Math.round(trace.totalDuration) + 'ms';
-    const warnBadge = trace.warnings.length > 0
-        ? ' <span class="tl-warn-badge">\\u26A0 ' + trace.warnings.length + '</span>'
-        : '';
-    const statusCls = 'tl-status-' + trace.status;
-
-    return '<div class="timeline-row ' + statusCls + '" data-trace-id="' + trace.traceId + '">'
-        + traceTypeIcon(trace.rootEvent)
-        + '<span class="tl-time">' + time + '</span>'
-        + '<span class="tl-cause">' + cause + '</span>'
-        + '<span class="tl-arrow">\\u2192</span>'
-        + '<span class="tl-summary">' + summary + '</span>'
-        + '<span class="tl-duration">' + dur + '</span>'
-        + warnBadge
-        + '</div>';
-}
-
 function renderTimelineTab() {
     if (!timelineListEl) return;
 
-    const traces = timeline.getTraces();
-    // getTraces returns most-recent-first; we want oldest-first for the list
-    traces.reverse();
-
-    const filter = $$timeline_filter.toLowerCase();
-    const filtered = filter
-        ? traces.filter(t => {
-            const cause = timeline.describeRootCause(t.rootEvent).toLowerCase();
-            const summary = timeline.summarizeTrace(t).toLowerCase();
-            return cause.includes(filter) || summary.includes(filter);
-        })
-        : traces;
+    const filtered = timeline.getFilteredTraces($$timeline_filter, activeTlChips);
 
     if (timelineCountLabel) {
         timelineCountLabel.textContent = filtered.length + ' trace' + (filtered.length !== 1 ? 's' : '');
@@ -1166,18 +1123,93 @@ function renderTimelineTab() {
     }
 
     const wasAtBottom = timelineUserAtBottom;
+    const filteredIds = filtered.map(t => t.traceId);
+
+    // Incremental append: if existing rows are a prefix, just append new ones
+    if (!tlNeedsFullRender && filteredIds.length >= lastRenderedTraceIds.length) {
+        let canIncrement = true;
+        for (let i = 0; i < lastRenderedTraceIds.length; i++) {
+            if (lastRenderedTraceIds[i] !== filteredIds[i]) { canIncrement = false; break; }
+        }
+        if (canIncrement) {
+            if (filteredIds.length > lastRenderedTraceIds.length) {
+                const newTraces = filtered.slice(lastRenderedTraceIds.length);
+                let appendHtml = '';
+                for (const t of newTraces) appendHtml += timeline.buildTraceRowHtml(t);
+                timelineListEl.insertAdjacentHTML('beforeend', appendHtml);
+                lastRenderedTraceIds = filteredIds;
+                if (wasAtBottom && timelineContentEl) timelineContentEl.scrollTop = timelineContentEl.scrollHeight;
+                $$show_tl_jump = !timelineUserAtBottom && filtered.length > 0;
+            }
+            return;
+        }
+    }
+
+    // Full re-render (filter/chip change or non-prefix change)
+    $$timeline_expanded_id = -1;
     let html = '';
-    for (const trace of filtered) html += buildTraceRowHtml(trace);
+    for (const t of filtered) html += timeline.buildTraceRowHtml(t);
     timelineListEl.innerHTML = html;
+    lastRenderedTraceIds = filteredIds;
+    tlNeedsFullRender = false;
 
     if (wasAtBottom && timelineContentEl) timelineContentEl.scrollTop = timelineContentEl.scrollHeight;
+    $$show_tl_jump = !timelineUserAtBottom && filtered.length > 0;
 }
 
+// Chip filter change detection (guard against spurious effect re-triggers)
+effect(() => {
+    const newChips = new Set();
+    if ($$tl_chip_user) newChips.add('user');
+    if ($$tl_chip_sse) newChips.add('sse');
+    if ($$tl_chip_signal) newChips.add('signal');
+    if ($$tl_chip_warning) newChips.add('warning');
+    const changed = newChips.size !== activeTlChips.size ||
+        [...newChips].some(c => !activeTlChips.has(c));
+    activeTlChips = newChips;
+    if (changed) {
+        $$timeline_expanded_id = -1;
+        tlNeedsFullRender = true;
+        scheduleTimelineRender();
+    }
+});
+
+// Text filter change detection
+let _lastTlFilter = $$timeline_filter;
+effect(() => {
+    const f = $$timeline_filter;
+    if (f !== _lastTlFilter) {
+        _lastTlFilter = f;
+        tlNeedsFullRender = true;
+    }
+});
+
+// Schedule render on signal changes
 effect(() => {
     void $$timeline_count;
     void $$timeline_filter;
     if ($$is_open && $$active_tab === 'timeline') scheduleTimelineRender();
 });
+
+// Click delegation: expand/collapse trace rows
+if (timelineListEl) {
+    timelineListEl.addEventListener('click', (e) => {
+        const row = e.target.closest('.timeline-row');
+        if (!row) return;
+        const traceId = Number(row.dataset.traceId);
+        if (isNaN(traceId)) return;
+        $$timeline_expanded_id = $$timeline_expanded_id === traceId ? -1 : traceId;
+    });
+}
+
+// Jump to latest button
+if (tlJumpBtn) {
+    tlJumpBtn.addEventListener('click', () => {
+        if (timelineContentEl) timelineContentEl.scrollTop = timelineContentEl.scrollHeight;
+        timelineUserAtBottom = true;
+        $$show_tl_jump = false;
+    });
+}
 """
 
     CHIP_DEFS = (
@@ -1212,6 +1244,12 @@ effect(() => {
         signal_expanded_path = Local("signal_expanded_path", "")
         timeline_count = Local("timeline_count", 0)
         timeline_filter = Local("timeline_filter", "")
+        timeline_expanded_id = Local("timeline_expanded_id", -1)
+        tl_chip_user = Local("tl_chip_user", True)
+        tl_chip_sse = Local("tl_chip_sse", True)
+        tl_chip_signal = Local("tl_chip_signal", True)
+        tl_chip_warning = Local("tl_chip_warning", True)
+        show_tl_jump = Local("show_tl_jump", False)
 
         return Div(
             Style(DEBUGGER_CSS),
@@ -1354,6 +1392,38 @@ effect(() => {
                 Div(
                     Div(
                         Div(
+                            Span(
+                                "User",
+                                data_ref="tl_chip_user_el",
+                                data_on_click=tl_chip_user.toggle(),
+                                data_class_active=tl_chip_user,
+                                cls="type-chip chip-elements",
+                            ),
+                            Span(
+                                "SSE",
+                                data_ref="tl_chip_sse_el",
+                                data_on_click=tl_chip_sse.toggle(),
+                                data_class_active=tl_chip_sse,
+                                cls="type-chip chip-signals",
+                            ),
+                            Span(
+                                "Signal",
+                                data_ref="tl_chip_signal_el",
+                                data_on_click=tl_chip_signal.toggle(),
+                                data_class_active=tl_chip_signal,
+                                cls="type-chip chip-lifecycle",
+                            ),
+                            Span(
+                                "Warnings",
+                                data_ref="tl_chip_warning_el",
+                                data_on_click=tl_chip_warning.toggle(),
+                                data_class_active=tl_chip_warning,
+                                cls="type-chip chip-script",
+                            ),
+                            cls="type-chips",
+                        ),
+                        Div(cls="toolbar-sep"),
+                        Div(
                             Input(
                                 type="text",
                                 placeholder="Filter traces...",
@@ -1373,6 +1443,12 @@ effect(() => {
                         cls="toolbar",
                     ),
                     Div(data_ref="timeline_list", cls="timeline-list"),
+                    Button(
+                        "Jump to latest",
+                        data_show=show_tl_jump,
+                        data_ref="tl_jump_btn",
+                        cls="jump-btn",
+                    ),
                     Div(
                         "No traces captured",
                         data_ref="timeline_empty",

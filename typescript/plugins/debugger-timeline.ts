@@ -850,3 +850,92 @@ export function getActiveTraceId(): number | null {
 export function getEventCount(): number {
   return buffer.length;
 }
+
+// ─── Rendering Helpers ────────────────────────────────────────────
+
+const ESCAPE_MAP: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+
+export function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, c => ESCAPE_MAP[c]);
+}
+
+/** Get the root type category for chip filtering. */
+export function rootTypeCategory(event: TimelineEvent): string {
+  switch (event.type) {
+    case "user-action": return "user";
+    case "sse-lifecycle": return "sse";
+    case "signal-change": return "signal";
+    case "sse-malformed": return "warning";
+    default: return "other";
+  }
+}
+
+/** Classify a trace for chip filtering based on root event + warnings. */
+export function traceMatchesChips(trace: TraceSummary, activeChips: Set<string>): boolean {
+  if (activeChips.size === 0) return true;
+  const cat = rootTypeCategory(trace.rootEvent);
+  if (activeChips.has(cat)) return true;
+  if (activeChips.has("warning") && trace.warnings.length > 0) return true;
+  return false;
+}
+
+/** Build a collapsed trace row HTML string. */
+export function buildTraceRowHtml(trace: TraceSummary): string {
+  const time = formatTime(trace.rootEvent.wallTime);
+  const cause = escapeHtml(describeRootCause(trace.rootEvent));
+  const summary = escapeHtml(summarizeTrace(trace));
+  const dur = trace.totalDuration >= 1000
+    ? (trace.totalDuration / 1000).toFixed(1) + "s"
+    : Math.round(trace.totalDuration) + "ms";
+  const warnBadge = trace.warnings.length > 0
+    ? ` <span class="tl-warn-badge">\u26A0 ${trace.warnings.length}</span>`
+    : "";
+  const statusCls = "tl-status-" + trace.status;
+
+  const iconCls = {
+    "user-action": "tl-type-user",
+    "sse-lifecycle": "tl-type-sse",
+    "signal-change": "tl-type-signal",
+    "sse-malformed": "tl-type-malformed",
+  }[trace.rootEvent.type] ?? "tl-type-other";
+
+  return `<div class="timeline-row ${statusCls}" data-trace-id="${trace.traceId}">`
+    + `<span class="tl-type-icon ${iconCls}">\u25CF</span>`
+    + `<span class="tl-time">${time}</span>`
+    + `<span class="tl-cause">${cause}</span>`
+    + `<span class="tl-arrow">\u2192</span>`
+    + `<span class="tl-summary">${summary}</span>`
+    + `<span class="tl-duration">${dur}</span>`
+    + warnBadge
+    + `</div>`;
+}
+
+/** Filter and sort traces for display (oldest first). */
+export function getFilteredTraces(
+  textFilter: string,
+  chipFilter: Set<string>,
+): TraceSummary[] {
+  const traces = getTraces();
+  traces.reverse(); // oldest first
+
+  const filter = textFilter.toLowerCase();
+  return traces.filter(t => {
+    if (!traceMatchesChips(t, chipFilter)) return false;
+    if (!filter) return true;
+    const cause = describeRootCause(t.rootEvent).toLowerCase();
+    const summary = summarizeTrace(t).toLowerCase();
+    // Also search signal paths within the trace
+    const events = getTraceEvents(t.traceId);
+    for (const e of events) {
+      if (e.type === "signal-change") {
+        if ((e.data as SignalChangeData).path.toLowerCase().includes(filter)) return true;
+      }
+      if (e.type === "sse-lifecycle") {
+        const d = e.data as SseEventData;
+        if (d.route.toLowerCase().includes(filter)) return true;
+        if (d.handler.toLowerCase().includes(filter)) return true;
+      }
+    }
+    return cause.includes(filter) || summary.includes(filter);
+  });
+}
