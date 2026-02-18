@@ -1,5 +1,6 @@
 import { getPath } from "datastar";
 import { injectEvent } from "./debugger-capture.js";
+import { getEntries } from "./debugger-signals.js";
 const MAX_BYTES_PER_RESPONSE = 1048576;
 const RAW_TEXT_MAX = 200;
 const DATASTAR_EVENT_TYPES = /* @__PURE__ */ new Set([
@@ -1179,6 +1180,222 @@ function getFilteredTraces(textFilter, chipFilter) {
     return cause.includes(filter) || summary.includes(filter);
   });
 }
+const SINGLE_TRACE_SIZE_LIMIT = 5 * 1024;
+const MULTI_TRACE_SIZE_LIMIT = 50 * 1024;
+const EXPORT_HARD_CAP = 20 * 1024;
+const TRUNCATE_PAYLOAD = 200;
+function formatLegend() {
+  return [
+    "**Legend:** `[signals]` = signal patch, `[elements]` = DOM morph, `[start]`/`[done]` = SSE lifecycle,",
+    "`[click]`/`[input]` = user action, `[effect]` = reactive effect, `[malformed]` = SSE validation error"
+  ].join("\n");
+}
+function formatSignalSnapshot() {
+  let entries;
+  try {
+    entries = getEntries();
+  } catch {
+    return "";
+  }
+  if (entries.size === 0) return "";
+  const lines = ["", "### Signal Snapshot", ""];
+  const namespaces = /* @__PURE__ */ new Map();
+  for (const entry of entries.values()) {
+    if (entry.status === "removed") continue;
+    const ns = entry.namespace || "(global)";
+    let arr = namespaces.get(ns);
+    if (!arr) {
+      arr = [];
+      namespaces.set(ns, arr);
+    }
+    arr.push(entry);
+  }
+  for (const [ns, nsEntries] of namespaces) {
+    lines.push(`**${ns}**`);
+    for (const e of nsEntries) {
+      const val = JSON.stringify(e.value);
+      const valStr = val && val.length > TRUNCATE_PAYLOAD ? val.slice(0, TRUNCATE_PAYLOAD) + "..." : val;
+      lines.push(`- \`${e.path}\` = \`${valStr ?? "undefined"}\` (${e.type}${e.persistStorage ? `, persist:${e.persistStorage}` : ""})`);
+    }
+    lines.push("");
+  }
+  return lines.join("\n");
+}
+function formatEventExport(e, baseTs) {
+  const offset = `[+${Math.round(e.ts - baseTs)}ms]`;
+  const indent = "  ".repeat(e.depth);
+  switch (e.type) {
+    case "user-action": {
+      const d = e.data;
+      return `${offset} ${indent}[${d.eventType}] \`${d.targetSelector}\`${d.datastarAction ? ` → \`${d.datastarAction}\`` : ""}`;
+    }
+    case "sse-lifecycle": {
+      const d = e.data;
+      const tag = d.sseType === "started" ? "[start]" : d.sseType === "finished" || d.sseType === "error" || d.sseType === "retries-failed" ? "[done]" : `[${d.sseType}]`;
+      let payload = "";
+      if (d.payload && Object.keys(d.payload).length > 0) {
+        const raw = JSON.stringify(d.payload);
+        payload = raw.length > TRUNCATE_PAYLOAD ? ` ${raw.slice(0, TRUNCATE_PAYLOAD)}...` : ` ${raw}`;
+      }
+      return `${offset} ${indent}${tag} \`${d.route || d.handler || "SSE"}\`${payload}`;
+    }
+    case "signal-change": {
+      const d = e.data;
+      const oldStr = JSON.stringify(d.oldValue) ?? "undefined";
+      const newStr = JSON.stringify(d.newValue) ?? "undefined";
+      return `${offset} ${indent}[signals] \`${d.path}\`: \`${oldStr}\` → \`${newStr}\` (${d.source})`;
+    }
+    case "effect-eval": {
+      const d = e.data;
+      return `${offset} ${indent}[effect] ${d.label || `#${d.effectId}`} (${d.duration.toFixed(1)}ms)`;
+    }
+    case "dom-mutation": {
+      const d = e.data;
+      let detail = `\`${d.targetSelector}\``;
+      if (d.mutationType === "attributes" && d.attributeName) {
+        detail += ` [${d.attributeName}]`;
+      } else if (d.mutationType === "childList") {
+        if (d.addedNodes.length) detail += ` +${d.addedNodes.length}`;
+        if (d.removedNodes.length) detail += ` -${d.removedNodes.length}`;
+      }
+      return `${offset} ${indent}[elements] ${d.mutationType} ${detail}`;
+    }
+    case "sse-malformed": {
+      const d = e.data;
+      return `${offset} ${indent}[malformed] ${d.code}: ${d.message}`;
+    }
+    default:
+      return `${offset} ${indent}[${e.type}]`;
+  }
+}
+function formatSignalDiff(events) {
+  const firstSeen = /* @__PURE__ */ new Map();
+  const lastSeen = /* @__PURE__ */ new Map();
+  for (const e of events) {
+    if (e.type !== "signal-change") continue;
+    const d = e.data;
+    if (!firstSeen.has(d.path)) firstSeen.set(d.path, d.oldValue);
+    lastSeen.set(d.path, d.newValue);
+  }
+  if (firstSeen.size === 0) return "";
+  const lines = ["", "### Signal Changes", ""];
+  for (const [path, startVal] of firstSeen) {
+    const endVal = lastSeen.get(path);
+    lines.push(`- \`${path}\`: \`${JSON.stringify(startVal)}\` → \`${JSON.stringify(endVal)}\``);
+  }
+  return lines.join("\n");
+}
+function formatDiagnosticNotes(warnings) {
+  if (warnings.length === 0) return "";
+  const lines = ["", "### Diagnostic Notes", ""];
+  for (const w of warnings) {
+    lines.push(`- **${w.code}**: ${w.message}`);
+  }
+  return lines.join("\n");
+}
+function truncateExport(text, limit) {
+  if (text.length <= limit) return text;
+  const logStart = text.indexOf("### Event Log");
+  const logEnd = text.indexOf("\n###", logStart + 1);
+  if (logStart === -1) return text.slice(0, limit) + "\n\n*(truncated)*";
+  const before = text.slice(0, logStart);
+  const logSection = text.slice(logStart, logEnd === -1 ? void 0 : logEnd);
+  const after = logEnd === -1 ? "" : text.slice(logEnd);
+  const logLines = logSection.split("\n");
+  const headerLines = logLines.slice(0, 3);
+  const eventLines = logLines.slice(3, -1);
+  const closingLines = logLines.slice(-1);
+  if (eventLines.length <= 10) return text.slice(0, limit) + "\n\n*(truncated)*";
+  const kept = [
+    ...headerLines,
+    ...eventLines.slice(0, 5),
+    `... (${eventLines.length - 10} events omitted)`,
+    ...eventLines.slice(-5),
+    ...closingLines
+  ];
+  const truncated = before + kept.join("\n") + after;
+  if (truncated.length <= limit) return truncated;
+  return truncated.slice(0, limit) + "\n\n*(truncated)*";
+}
+function formatTraceExport(traceId) {
+  const events = getTraceEvents(traceId);
+  if (events.length === 0) return `## Trace #${traceId}
+
+No events captured.`;
+  const trace = getTraces().find((t) => t.traceId === traceId);
+  const root = events[0];
+  const baseTs = root.ts;
+  const duration = events.length > 1 ? Math.round(events[events.length - 1].ts - baseTs) : 0;
+  const timestamp = formatTime(root.wallTime);
+  const lines = [];
+  lines.push(`## Trace #${traceId}`);
+  lines.push("");
+  lines.push(`- **Root cause:** ${describeRootCause(root)}`);
+  lines.push(`- **Time:** ${timestamp}`);
+  lines.push(`- **Duration:** ${duration}ms`);
+  lines.push(`- **Events:** ${events.length}`);
+  if (trace) {
+    lines.push(`- **Summary:** ${summarizeTrace(trace)}`);
+    if (trace.status !== "complete") lines.push(`- **Status:** ${trace.status}`);
+  }
+  lines.push("");
+  lines.push(formatLegend());
+  lines.push("");
+  lines.push("### Event Log");
+  lines.push("");
+  lines.push("```");
+  for (const e of events) {
+    lines.push(formatEventExport(e, baseTs));
+  }
+  lines.push("```");
+  const diff = formatSignalDiff(events);
+  if (diff) lines.push(diff);
+  if (trace) {
+    const notes = formatDiagnosticNotes(trace.warnings);
+    if (notes) lines.push(notes);
+  }
+  let result = lines.join("\n");
+  if (result.length > SINGLE_TRACE_SIZE_LIMIT) {
+    result = truncateExport(result, SINGLE_TRACE_SIZE_LIMIT);
+  }
+  return result;
+}
+function formatAllTracesExport(traceIds) {
+  const sections = [];
+  let totalSize = 0;
+  const header = `# Timeline Export — ${traceIds.length} trace${traceIds.length !== 1 ? "s" : ""}
+
+Exported at ${formatTime(Date.now())}
+`;
+  sections.push(header);
+  totalSize += header.length;
+  const snapshot = formatSignalSnapshot();
+  if (snapshot) {
+    sections.push(snapshot);
+    totalSize += snapshot.length;
+  }
+  let omitted = 0;
+  for (let i = 0; i < traceIds.length; i++) {
+    const section = formatTraceExport(traceIds[i]);
+    if (totalSize + section.length > MULTI_TRACE_SIZE_LIMIT && sections.length > 2) {
+      omitted = traceIds.length - i;
+      break;
+    }
+    sections.push(section);
+    totalSize += section.length;
+  }
+  if (omitted > 0) {
+    sections.push(`
+---
+
+*${omitted} older trace${omitted !== 1 ? "s" : ""} omitted (size budget exceeded)*`);
+  }
+  let result = sections.join("\n\n---\n\n");
+  if (result.length > EXPORT_HARD_CAP) {
+    result = result.slice(0, EXPORT_HARD_CAP) + "\n\n*(export truncated at 20KB)*";
+  }
+  return result;
+}
 export {
   beginTrace,
   buildFullTraceHtml,
@@ -1191,7 +1408,9 @@ export {
   detectWarnings,
   emit,
   escapeHtml,
+  formatAllTracesExport,
   formatTime,
+  formatTraceExport,
   getActiveTraceId,
   getEventCount,
   getEvents,
