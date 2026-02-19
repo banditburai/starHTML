@@ -3,11 +3,11 @@
 import asyncio
 import os
 import re
-import sys
+import warnings
 from copy import deepcopy
 from functools import partialmethod
 from pathlib import Path as PathlibPath
-from typing import Literal, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 from fastcore.utils import (
     Path,
@@ -23,11 +23,11 @@ from starlette.middleware import Middleware
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.requests import Request
 from starlette.responses import FileResponse, RedirectResponse, Response
-from starlette.routing import Route, WebSocketRoute
+from starlette.routing import Mount, Route, WebSocketRoute
 
-from .realtime import _ws_endp, setup_ws
+from .realtime import _ws_endp, set_debug_context, setup_ws
 from .server import _mk_locfunc, _wrap_call, _wrap_ex, _wrap_req, all_meths, cookie, render_response, serve
-from .starapp import Beforeware, datastar_cdn_url, def_hdrs
+from .starapp import Beforeware, _datastar_cdn_url, def_hdrs
 from .utils import _list, _params, get_key, noop_body, reg_re_param
 
 
@@ -90,14 +90,19 @@ class StarHTML(Starlette):
         htmlkw=None,
         canonical=True,
         static_path=None,
-        datastar: Literal["patched", "cdn"] = "patched",
+        datastar: str = "patched",
         **bodykw,
     ):
         middleware, before, after = map(_list, (middleware, before, after))
         self.title, self.canonical = title, canonical
         hdrs, ftrs = map(listify, (hdrs, ftrs))
 
-        self._datastar_url = datastar_cdn_url() if datastar == "cdn" else "/static/datastar.js"
+        if datastar == "cdn":
+            self._datastar_url = _datastar_cdn_url()
+        elif datastar == "patched" or not datastar:
+            self._datastar_url = "/_pkg/starhtml/datastar.js"
+        else:
+            self._datastar_url = datastar
 
         htmlkw = htmlkw or {}
         if default_hdrs:
@@ -150,14 +155,14 @@ class StarHTML(Starlette):
         )
 
         if self.debug:
-            print("WARNING: StarHTML debug mode is ON. Do not use in production.", file=sys.stderr)
+            warnings.warn("StarHTML debug mode is ON. Do not use in production.", stacklevel=2)
             from .debugger import setup_debugger
             setup_debugger(self)
 
-        if datastar == "patched":
+        if datastar == "patched" or not datastar:
             datastar_path = PathlibPath(__file__).parent / "static" / "datastar.js"
 
-            @self.route("/static/datastar.js")
+            @self.route("/_pkg/starhtml/datastar.js")
             async def serve_datastar():
                 return FileResponse(datastar_path, media_type="application/javascript")
 
@@ -219,12 +224,9 @@ def _endp(self: StarHTML, f, body_wrap):
         req.injects = []
         req.hdrs, req.ftrs, req.htmlkw, req.bodykw = map(deepcopy, (self.hdrs, self.ftrs, self.htmlkw, self.bodykw))
         req.hdrs, req.ftrs = listify(req.hdrs), listify(req.ftrs)
-        # Set debug context so SSE format functions auto-attach metadata.
-        # No reset needed: each ASGI request runs in its own asyncio.Task
-        # which gets an isolated copy of context vars.
+        # No reset needed — each ASGI request gets its own contextvars copy
         if _is_debug:
-            from .realtime import set_debug_context
-            set_debug_context(handler=f.__name__, route=req.url.path)
+            set_debug_context(handler=f.__qualname__, route=req.url.path)
         for b in self.before:
             if not resp:
                 if isinstance(b, Beforeware):
@@ -320,7 +322,7 @@ reg_re_param("static", "|".join(_static_exts))
 
 @patch
 def register_package_static(self: StarHTML, name: str, static_path, prefix: str = None):
-    """Serve a package's static directory (routes inserted first for priority)."""
+    """Serve a package's static directory under /_pkg/{name}/."""
     if name in self._registered_packages:
         return
     self._registered_packages.add(name)
@@ -346,6 +348,18 @@ def register_package_static(self: StarHTML, name: str, static_path, prefix: str 
 
     route = Route(f"{prefix}/{{filename:path}}", serve_package_static, name=f"pkg_{name}_static")
     self.routes.insert(0, route)
+
+
+@patch
+def mount(self: StarHTML, path: str, app):
+    """Mount a child ASGI app, inserting before the catch-all static route."""
+    # The catch-all /{ext:static} route would intercept .js/.css requests meant for mounted apps
+    routes = self.router.routes
+    for i, r in enumerate(routes):
+        if ".{ext:" in getattr(r, "path", ""):
+            routes.insert(i, Mount(path, app))
+            return
+    routes.append(Mount(path, app))
 
 
 @patch

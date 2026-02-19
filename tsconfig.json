@@ -21,7 +21,7 @@
     "forceConsistentCasingInFileNames": true,
     
     "outDir": "./src/starhtml/static/js/plugins",
-    "rootDir": "./typescript/plugins",
+    "rootDir": "./typescript",
     "declaration": false,
     "declarationMap": false,
     "sourceMap": false,
@@ -32,7 +32,9 @@
     }
   },
   "include": [
-    "typescript/plugins/**/*.ts"
+    "typescript/plugins/**/*.ts",
+    "typescript/debugger/**/*.ts",
+    "typescript/datastar.d.ts"
   ],
   "exclude": [
     "node_modules",

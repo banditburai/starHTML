@@ -231,11 +231,27 @@ def home():
             H3("Rapid Updates", cls="text-2xl font-bold mb-6"),
             P("A client-side timer increments every 500ms to test change flash in the debugger.",
               cls="text-gray-500 mb-4"),
-            Button("Reset Timer", data_on_click=ticker.set(0), cls=BTN_OUTLINE + " mb-4"),
+            Div(
+                Button(
+                    "Start",
+                    data_on_click=js("window._tickerInterval || (window._tickerInterval = setInterval(() => { $ticker++ }, 500))"),
+                    cls=f"{BTN} bg-green-600 text-white hover:bg-green-700",
+                ),
+                Button(
+                    "Stop",
+                    data_on_click=js("clearInterval(window._tickerInterval); window._tickerInterval = null"),
+                    cls=BTN_OUTLINE,
+                ),
+                Button(
+                    "Reset",
+                    data_on_click=js("clearInterval(window._tickerInterval); window._tickerInterval = null; $ticker = 0"),
+                    cls=BTN_OUTLINE,
+                ),
+                cls="mb-4 flex flex-wrap gap-2",
+            ),
             Div(
                 Span("Ticker: ", cls="text-gray-500"),
                 Span(data_text=ticker, cls="text-2xl font-black"),
-                data_init=js("setInterval(() => { $ticker++ }, 500)"),
                 cls="p-4 bg-gray-50 border border-gray-200 rounded",
             ),
             cls="mb-12 p-8 bg-white border border-gray-200 rounded",

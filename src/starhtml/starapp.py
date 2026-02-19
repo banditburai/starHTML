@@ -1,7 +1,7 @@
 """StarHTML application factory and configuration utilities"""
 
 from collections.abc import Callable
-from typing import Any, Literal
+from typing import Any
 
 from fastcore.utils import first
 from starlette.requests import HTTPConnection
@@ -53,10 +53,9 @@ def star_app(
     reload_interval: int = 1000,
     static_path: str = ".",
     body_wrap: Callable = None,
-    datastar: Literal["patched", "cdn"] = "patched",
+    datastar: str = "patched",
     **kwargs: Any,
 ):
-    # datastar: "patched" (default, vendored with StarHTML fixes) or "cdn" (vanilla from jsdelivr)
     from .core import noop_body
 
     if body_wrap is None:
@@ -123,16 +122,17 @@ _DATASTAR_CDN_TEMPLATE = "https://cdn.jsdelivr.net/gh/starfederation/datastar@{v
 ICONIFY_VERSION = "2.3.0"
 
 
-def datastar_cdn_url() -> str:
+def _datastar_cdn_url() -> str:
+    # Strip +starhtml build metadata; CDN uses upstream version only
     return _DATASTAR_CDN_TEMPLATE.format(version=DATASTAR_VERSION.split("+")[0])
 
 
-def def_hdrs(datastar_url="/static/datastar.js"):
+def def_hdrs(datastar_url="/_pkg/starhtml/datastar.js"):
     from .tags import Meta, Style
     from .xtend import Script
 
     return [
-        Style(":not(:defined){visibility:hidden}"),
+        Style(":not(:defined){visibility:hidden}"),  # FOUC prevention for custom elements
         Meta(charset="utf-8"),
         Meta(name="viewport", content="width=device-width, initial-scale=1, viewport-fit=cover"),
         Script(src=datastar_url, type="module"),

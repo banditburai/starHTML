@@ -11,7 +11,7 @@ class TestDebugInjection:
     def test_debug_injects_script(self):
         app = StarHTML(debug=True)
         hdrs_html = "".join(str(h) for h in app.hdrs)
-        assert "debugger-capture.js" in hdrs_html
+        assert "capture.js" in hdrs_html
 
     def test_debug_injects_panel_element(self):
         app = StarHTML(debug=True)
@@ -40,7 +40,7 @@ class TestDebugInjection:
         app = StarHTML(debug=True, hdrs=[custom])
         hdrs_html = "".join(str(h) for h in app.hdrs)
         assert "custom" in hdrs_html
-        assert "debugger-capture.js" in hdrs_html
+        assert "capture.js" in hdrs_html
 
     def test_debug_preserves_custom_ftrs(self):
         """Debugger footer appended after user ftrs."""
@@ -56,7 +56,7 @@ class TestDebugInjection:
         with patch.dict(os.environ, {"STARHTML_DEBUG": "1"}):
             app = StarHTML(debug=False)
             hdrs_html = "".join(str(h) for h in app.hdrs)
-            assert "debugger-capture.js" in hdrs_html
+            assert "capture.js" in hdrs_html
 
     def test_graceful_fallback_without_starelements(self):
         """When starelements is missing, debugger prints warning and skips."""
@@ -83,7 +83,7 @@ class TestDebugInjection:
                 app = StarHTML(debug=True)
                 hdrs_html = "".join(str(h) for h in app.hdrs)
                 ftrs_html = "".join(str(h) for h in app.ftrs)
-                assert "debugger-capture.js" not in hdrs_html
+                assert "capture.js" not in hdrs_html
                 assert "starhtml-debugger" not in ftrs_html
         finally:
             sys.modules.update(cached)

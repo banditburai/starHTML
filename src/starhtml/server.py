@@ -482,29 +482,36 @@ class ResponseRenderer:
 
         resp = tuplify(resp)
         if self._is_full_page(resp):
-            return to_xml(resp, indent=fh_cfg.indent)
+            html = to_xml(resp, indent=fh_cfg.indent)
+        else:
+            hdr_tags = "title", "meta", "link", "style", "base", "template"
+            heads, bdy = partition(resp, lambda o: getattr(o, "tag", "") in hdr_tags)
 
-        hdr_tags = "title", "meta", "link", "style", "base", "template"
-        heads, bdy = partition(resp, lambda o: getattr(o, "tag", "") in hdr_tags)
+            from .tags import Body, Head, Html, Link, Title
 
-        from .tags import Body, Head, Html, Link, Title
+            title = [] if any(getattr(o, "tag", "") == "title" for o in heads) else [Title(self.request.app.title)]
+            canonical = (
+                [Link(rel="canonical", href=getattr(self.request, "canonical", self.request.url))]
+                if self.request.app.canonical
+                else []
+            )
 
-        title = [] if any(getattr(o, "tag", "") == "title" for o in heads) else [Title(self.request.app.title)]
-        canonical = (
-            [Link(rel="canonical", href=getattr(self.request, "canonical", self.request.url))]
-            if self.request.app.canonical
-            else []
-        )
+            body_wrap = getattr(self.request, "body_wrap", noop_body)
+            params = inspect.signature(body_wrap).parameters
+            bw_args = (bdy, self.request) if len(params) > 1 else (bdy,)
+            body = Body(body_wrap(*bw_args), *flat_xt(self.request.ftrs), **self.request.bodykw)
 
-        body_wrap = getattr(self.request, "body_wrap", noop_body)
-        params = inspect.signature(body_wrap).parameters
-        bw_args = (bdy, self.request) if len(params) > 1 else (bdy,)
-        body = Body(body_wrap(*bw_args), *flat_xt(self.request.ftrs), **self.request.bodykw)
+            htmlkw = {"lang": "en", **self.request.htmlkw}
+            html_page = Html(Head(*heads, *title, *canonical, *flat_xt(self.request.hdrs)), body, **htmlkw)
 
-        htmlkw = {"lang": "en", **self.request.htmlkw}
-        html_page = Html(Head(*heads, *title, *canonical, *flat_xt(self.request.hdrs)), body, **htmlkw)
+            html = f"<!DOCTYPE html>\n{to_xml(html_page, indent=fh_cfg.indent)}"
 
-        return f"<!DOCTYPE html>\n{to_xml(html_page, indent=fh_cfg.indent)}"
+        # Rewrite /_pkg/ paths for sub-mounted apps so requests route through the Mount chain
+        root_path = self.request.scope.get("root_path", "")
+        if root_path:
+            html = html.replace("/_pkg/", f"{root_path}/_pkg/")
+
+        return html
 
     def _is_ft_response(self, resp):
         """Check if response needs FT processing."""

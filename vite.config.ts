@@ -1,31 +1,46 @@
-import { defineConfig } from 'vite'
+import { defineConfig, Plugin } from 'vite'
+import { copyFileSync, mkdirSync } from 'fs'
+
+function copyDebuggerCss(): Plugin {
+  return {
+    name: 'copy-debugger-css',
+    closeBundle() {
+      mkdirSync('./src/starhtml/static/js/debugger', { recursive: true });
+      copyFileSync('./typescript/debugger/debugger.css', './src/starhtml/static/js/debugger/debugger.css');
+    }
+  };
+}
 
 export default defineConfig({
   build: {
     lib: {
       entry: {
-        'persist': './typescript/plugins/persist.ts',
-        'scroll': './typescript/plugins/scroll.ts',
-        'resize': './typescript/plugins/resize.ts',
-        'drag': './typescript/plugins/drag.ts',
-        'canvas': './typescript/plugins/canvas.ts',
-        'position': './typescript/plugins/position.ts',
-        'throttle': './typescript/plugins/throttle.ts',
-        'smooth-scroll': './typescript/plugins/smooth-scroll.ts',
-        'split': './typescript/plugins/split.ts',
-        'markdown': './typescript/plugins/markdown.ts',
-        'katex': './typescript/plugins/katex.ts',
-        'mermaid': './typescript/plugins/mermaid.ts',
-        'motion': './typescript/plugins/motion.ts',
-        'motion-svg': './typescript/plugins/motion-svg.ts',
-        'debugger-capture': './typescript/plugins/debugger-capture.ts',
-        'debugger-signals': './typescript/plugins/debugger-signals.ts',
-        'debugger-timeline': './typescript/plugins/debugger-timeline.ts',
+        // Plugins
+        'plugins/persist': './typescript/plugins/persist.ts',
+        'plugins/scroll': './typescript/plugins/scroll.ts',
+        'plugins/resize': './typescript/plugins/resize.ts',
+        'plugins/drag': './typescript/plugins/drag.ts',
+        'plugins/canvas': './typescript/plugins/canvas.ts',
+        'plugins/position': './typescript/plugins/position.ts',
+        'plugins/throttle': './typescript/plugins/throttle.ts',
+        'plugins/smooth-scroll': './typescript/plugins/smooth-scroll.ts',
+        'plugins/split': './typescript/plugins/split.ts',
+        'plugins/markdown': './typescript/plugins/markdown.ts',
+        'plugins/katex': './typescript/plugins/katex.ts',
+        'plugins/mermaid': './typescript/plugins/mermaid.ts',
+        'plugins/motion': './typescript/plugins/motion.ts',
+        'plugins/motion-svg': './typescript/plugins/motion-svg.ts',
+        // Debugger
+        'debugger/dom-observer': './typescript/debugger/dom-observer.ts',
+        'debugger/capture': './typescript/debugger/capture.ts',
+        'debugger/signals': './typescript/debugger/signals.ts',
+        'debugger/timeline': './typescript/debugger/timeline.ts',
+        'debugger/setup': './typescript/debugger/setup.ts',
       },
       formats: ['es'],
-      fileName: (format, entryName) => `${entryName}.js`
+      fileName: (_format, entryName) => `${entryName}.js`
     },
-    outDir: './src/starhtml/static/js/plugins',
+    outDir: './src/starhtml/static/js',
     target: 'es2020',
     minify: 'terser',
     terserOptions: {
@@ -80,6 +95,7 @@ export default defineConfig({
     emptyOutDir: true,
     reportCompressedSize: true
   },
+  plugins: [copyDebuggerCss()],
   esbuild: {
     target: 'es2020',
     format: 'esm',
