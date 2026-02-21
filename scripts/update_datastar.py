@@ -12,7 +12,7 @@ STATIC_PATH = ROOT / "src" / "starhtml" / "static" / "datastar.js"
 CDN_URL = "https://cdn.jsdelivr.net/gh/starfederation/datastar@{version}/bundles/datastar.js"
 
 sys.path.insert(0, str(ROOT / "patches"))
-from patch_definitions import PATCHES, apply_all, verify
+from patch_definitions import PATCHES, apply_all, verify  # noqa: E402
 
 
 def get_current_version() -> str:

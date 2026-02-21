@@ -35,7 +35,7 @@ _EXPORT_OPTS = (
 def setup_debugger(app):
     """Register the StarElements debugger, or warn if starelements is missing."""
     try:
-        from starelements import Local, element
+        from starelements import Local, element  # noqa: PLC0415
     except ImportError:
         warnings.warn(
             "starelements not installed — debugger disabled. Install with: uv pip install 'starhtml[debug]'",
@@ -43,8 +43,8 @@ def setup_debugger(app):
         )
         return
 
-    from .tags import Button, Div, Input, Span
-    from .xtend import Style
+    from .tags import Button, Div, Input, Span  # noqa: PLC0415
+    from .xtend import Style  # noqa: PLC0415
 
     debugger_css = (_DEBUGGER_DIR / "debugger.css").read_text()
     debugger_setup = "_setup.setup(el, onCleanup, refs);"

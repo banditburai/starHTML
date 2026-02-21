@@ -13,8 +13,7 @@ class PatchDef:
 
 
 PATCHED_HEADER = (
-    "// Datastar v{version} (StarHTML patched: shadow-dom-scan,"
-    " outside-race-fix, init-refire-fix, persist-aware-init)"
+    "// Datastar v{version} (StarHTML patched: shadow-dom-scan, outside-race-fix, init-refire-fix, persist-aware-init)"
 )
 
 PATCHES: list[PatchDef] = [
@@ -41,8 +40,7 @@ PATCHES: list[PatchDef] = [
             ),
             # Replace simple outside block with race-fix version
             (
-                'if(n.has("outside")){s=document;let c=o;'
-                "o=l=>{e.contains(l?.target)||c(l)}}",
+                'if(n.has("outside")){s=document;let c=o;o=l=>{e.contains(l?.target)||c(l)}}',
                 'if(n.has("outside")){s=document;let c=o,d=!1,'
                 "f=new MutationObserver(()=>{d=!0;"
                 "requestAnimationFrame(()=>{d=!1})});"
@@ -80,10 +78,8 @@ PATCHES: list[PatchDef] = [
             # This supersedes the earlier "scan-timing-fix" which bluntly removed
             # the hardcoded !0 — that broke plugin-registration rescans.
             (
-                "nn=(e=document.documentElement,t=!0)=>"
-                '{K(e)&&_e([e],!0),_e(e.querySelectorAll("*"),!0),',
-                "nn=(e=document.documentElement,t=!0,f)=>"
-                '{K(e)&&_e([e],f),_e(e.querySelectorAll("*"),f),',
+                'nn=(e=document.documentElement,t=!0)=>{K(e)&&_e([e],!0),_e(e.querySelectorAll("*"),!0),',
+                'nn=(e=document.documentElement,t=!0,f)=>{K(e)&&_e([e],f),_e(e.querySelectorAll("*"),f),',
             ),
             # p(): pass filter flag so plugin-registration rescans only process
             # the newly registered plugin, not re-fire data-init on every element.
@@ -109,7 +105,6 @@ PATCHES: list[PatchDef] = [
                 "J=(e,t)=>{if(e!==void 0&&t!==void 0&&xe.push([e,t]),"
                 "!Oe&&xe.length){let n=Me(xe);xe.length=0,"
                 "document.dispatchEvent(new CustomEvent(Z,{detail:n}))}}",
-                #
                 "J=(e,t)=>{if(e!==void 0&&t!==void 0&&xe.push([e,t]),"
                 "!Oe&&xe.length){let n=Me(xe);xe.length=0;"
                 "let _d=_J_src?{signals:n,source:_J_src}:n;"
@@ -127,9 +122,7 @@ PATCHES: list[PatchDef] = [
             # zero FOUC.  Sets _J_src="persist" so the signal-patch event carries
             # definitive source metadata for the debugger.
             (
-                "O=(e,{ifMissing:t}={})=>{M();"
-                'for(let n in e)e[n]==null?t||delete X[n]:vt(e[n],n,X,"",t);x()}',
-                #
+                'O=(e,{ifMissing:t}={})=>{M();for(let n in e)e[n]==null?t||delete X[n]:vt(e[n],n,X,"",t);x()}',
                 "O=(e,{ifMissing:t}={})=>{"
                 "if(t){let _ps=window.__starhtml_pc;"
                 "if(_ps===void 0){_ps={};"
@@ -160,10 +153,7 @@ def apply_patch(content: str, patch: PatchDef) -> str:
     for search, replace in patch.operations:
         count = content.count(search)
         if count != 1:
-            raise ValueError(
-                f"Patch '{patch.name}': expected search string exactly once "
-                f"(found {count}): {search!r}"
-            )
+            raise ValueError(f"Patch '{patch.name}': expected search string exactly once (found {count}): {search!r}")
         content = content.replace(search, replace, 1)
     return content
 
@@ -182,9 +172,5 @@ def apply_all(content: str, version: str) -> str:
 def verify(content: str) -> list[tuple[str, str, bool]]:
     return [
         ("Patch header", "StarHTML patched", "StarHTML patched" in content),
-        *(
-            (f"Patch: {p.name}", m[:50], m in content)
-            for p in PATCHES
-            for m in p.markers
-        ),
+        *((f"Patch: {p.name}", m[:50], m in content) for p in PATCHES for m in p.markers),
     ]

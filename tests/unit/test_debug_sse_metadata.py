@@ -3,7 +3,6 @@
 import re
 
 from starhtml.realtime import (
-    ElementEvent,
     SignalEvent,
     _debug_ctx_var,
     format_element_event,
@@ -58,8 +57,8 @@ class TestSSEDebugMetadata:
         debug_ctx = {"handler": "h", "route": "/r", "seq": 1}
         event = format_sse_event("datastar-patch-signals", ['signals {"x":1}'], debug_ctx=debug_ctx)
         lines = event.strip().split("\n")
-        data_idx = next(i for i, l in enumerate(lines) if l.startswith("data: signals"))
-        debug_idx = next(i for i, l in enumerate(lines) if l.startswith("data: x-debug"))
+        data_idx = next(i for i, line in enumerate(lines) if line.startswith("data: signals"))
+        debug_idx = next(i for i, line in enumerate(lines) if line.startswith("data: x-debug"))
         assert debug_idx > data_idx
 
     def test_element_event_multiline_with_debug(self):
@@ -67,8 +66,8 @@ class TestSSEDebugMetadata:
         debug_ctx = {"handler": "h", "route": "/r", "seq": 1}
         event = format_element_event("<div>\n<p>line1</p>\n<p>line2</p>\n</div>", debug_ctx=debug_ctx)
         lines = event.strip().split("\n")
-        last_elements_idx = max(i for i, l in enumerate(lines) if l.startswith("data: elements"))
-        first_debug_idx = next(i for i, l in enumerate(lines) if l.startswith("data: x-debug"))
+        last_elements_idx = max(i for i, line in enumerate(lines) if line.startswith("data: elements"))
+        first_debug_idx = next(i for i, line in enumerate(lines) if line.startswith("data: x-debug"))
         assert first_debug_idx > last_elements_idx
 
 
