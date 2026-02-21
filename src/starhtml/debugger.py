@@ -236,7 +236,6 @@ def setup_debugger(app):
             ),
         )
 
-    app.register_package_static("starhtml/debugger", _DEBUGGER_DIR)
     app.register(StarHTMLDebugger)
 
     # Must start capture before component mounts to catch early SSE events

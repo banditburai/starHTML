@@ -17,6 +17,7 @@ VERSION = version("starhtml")
 
 app, rt = star_app(
     title="starHTML",
+    middleware=[compression()],
     hdrs=[
         Link(
             rel="icon",

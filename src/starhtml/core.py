@@ -170,8 +170,8 @@ class StarHTML(Starlette):
                 return FileResponse(datastar_path, media_type="application/javascript")
 
         self.register_package_static(
-            name="starhtml/plugins",
-            static_path=PathlibPath(__file__).parent / "static" / "js" / "plugins",
+            name="starhtml",
+            static_path=PathlibPath(__file__).parent / "static" / "js",
         )
 
         if static_path:
