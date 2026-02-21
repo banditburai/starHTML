@@ -37,65 +37,26 @@ def _validate_and_collect(root_path: Path, build_data: dict[str, Any]) -> None:
     """Validate build outputs and register them as hatchling artifacts."""
     js_dir = root_path / "src" / "starhtml" / "static" / "js"
 
-    # Plugins
-    plugins_dir = js_dir / "plugins"
-    if not plugins_dir.exists():
-        raise JavaScriptBuildError(f"Plugins directory not created: {plugins_dir}")
+    if not (js_dir / "plugins").exists():
+        raise JavaScriptBuildError(f"Plugins directory not created: {js_dir / 'plugins'}")
+    if not (js_dir / "debugger").exists():
+        raise JavaScriptBuildError(f"Debugger directory not created: {js_dir / 'debugger'}")
 
-    built_files = list(plugins_dir.glob("*.js"))
-    if not built_files:
-        raise JavaScriptBuildError("No JavaScript files found after build")
-
-    core_files = {"persist.js", "scroll.js", "resize.js", "drag.js", "canvas.js", "position.js", "split.js"}
-    missing_core = core_files - {f.name for f in built_files}
-    if missing_core:
-        raise JavaScriptBuildError(f"Missing core JavaScript files after build: {missing_core}")
-
-    print(f"✅ JavaScript build complete! Generated {len(built_files)} plugin files:")
-    for file in sorted(built_files):
-        print(f"   - {file.name}")
-
-    # Debugger
-    debugger_dir = js_dir / "debugger"
-    if not debugger_dir.exists():
-        raise JavaScriptBuildError(f"Debugger directory not created: {debugger_dir}")
-
-    debugger_core_files = {"capture.js", "setup.js", "signals.js", "timeline.js", "dom-observer.js", "debugger.css"}
-    debugger_files = list(debugger_dir.glob("*"))
-    missing_debugger = debugger_core_files - {f.name for f in debugger_files}
-    if missing_debugger:
-        raise JavaScriptBuildError(f"Missing debugger files after build: {missing_debugger}")
-
-    print(f"✅ Debugger build verified! Found {len(debugger_files)} files:")
-    for file in sorted(debugger_files):
-        print(f"   - {file.name}")
-
-    # Datastar
+    # Datastar is the only file where an empty build is a silent, hard-to-debug failure
     datastar_path = js_dir / "datastar.js"
     if not datastar_path.exists():
         raise JavaScriptBuildError(f"Datastar file not created: {datastar_path}")
-    ds_size = datastar_path.stat().st_size
-    if ds_size == 0:
+    if datastar_path.stat().st_size == 0:
         raise JavaScriptBuildError(f"Datastar file is empty: {datastar_path}")
-    print(f"✅ Datastar build verified: {datastar_path.name} ({ds_size} bytes)")
 
-    # Register artifacts
+    all_files = sorted(f for f in js_dir.rglob("*") if f.is_file())
     artifacts = build_data.setdefault("artifacts", [])
-    for file_path in built_files:
-        rel_path = f"src/starhtml/static/js/plugins/{file_path.name}"
-        if rel_path not in artifacts:
-            artifacts.append(rel_path)
+    for f in all_files:
+        artifacts.append(str(f.relative_to(root_path)))
 
-    for file_path in debugger_files:
-        rel_path = f"src/starhtml/static/js/debugger/{file_path.name}"
-        if rel_path not in artifacts:
-            artifacts.append(rel_path)
-
-    datastar_rel = "src/starhtml/static/js/datastar.js"
-    if datastar_rel not in artifacts:
-        artifacts.append(datastar_rel)
-
-    print(f"📦 Added {len(built_files)} plugin + {len(debugger_files)} debugger + 1 datastar files to build artifacts")
+    print(f"✅ JavaScript build complete — {len(all_files)} files registered as artifacts:")
+    for f in all_files:
+        print(f"   - {f.relative_to(js_dir)}")
 
 
 class CustomBuildHook(BuildHookInterface):

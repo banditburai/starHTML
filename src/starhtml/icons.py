@@ -257,11 +257,13 @@ def Icon(
         w = w or h or "1em"
         h = h or w
 
-    wrapper_style = f"display:inline-block;width:{w};height:{h};flex-shrink:0;vertical-align:middle;line-height:0"
+    base_style = f"display:inline-block;width:{w};height:{h};flex-shrink:0;vertical-align:middle;line-height:0"
+    user_style = kwargs.pop("style", None)
+    wrapper_style = f"{base_style};{user_style}" if user_style else base_style
     wrapper_id = kwargs.pop("id", None)
 
     def _wrap(inner):
-        return Span(inner, style=wrapper_style, cls=cls or None, id=wrapper_id)
+        return Span(inner, style=wrapper_style, cls=cls or None, id=wrapper_id, **kwargs)
 
     if resolver.inline:
         icon_data = resolver.resolve(prefix, name) if name else None
@@ -273,11 +275,11 @@ def Icon(
             )
             if not stable:
                 return NotStr(svg)
-            return _wrap(Span(NotStr(svg), data_icon_sh=True, **kwargs))
+            return _wrap(Span(NotStr(svg), data_icon_sh=True))
 
-        return _wrap(Span(data_icon_sh=True, **kwargs))
+        return _wrap(Span(data_icon_sh=True))
 
-    return _wrap(ft_datastar("iconify-icon", icon=icon, width=w, height=h, **kwargs))
+    return _wrap(ft_datastar("iconify-icon", icon=icon, width=w, height=h))
 
 
 _ICON_RE = re.compile(r"""Icon\(\s*["']([a-zA-Z0-9_-]+):([a-zA-Z0-9_-]+)["']""")
@@ -357,7 +359,7 @@ def _cmd_icons_scan(args) -> int:
         if missing:
             to_fetch[prefix] = missing
 
-    fetch_count = sum(len(n) for n in to_fetch.values())
+    fetch_count = sum(len(names) for names in to_fetch.values())
 
     if not to_fetch:
         print(f"\nAll {total} icon(s) already cached in {cache_dir}")

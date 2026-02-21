@@ -86,9 +86,19 @@ class TestAppRegister:
         app = StarHTML()
         app.register(persist)
 
-        # starhtml/plugins package route exists (created at init or by register)
+        # Root starhtml package route covers plugins, debugger, and chunks
         paths = [r.path for r in app.routes]
-        assert any("starhtml/plugins" in p for p in paths)
+        assert any("/_pkg/starhtml/" in p for p in paths)
+
+    def test_child_path_dedup_no_extra_route(self):
+        """Plugin subdirectory registration is a no-op when root already covers it."""
+        app = StarHTML()
+        route_count = len(app.routes)
+
+        # Root "starhtml" → static/js/ is registered in __init__,
+        # so "starhtml/plugins" → static/js/plugins/ should add no new route.
+        app.register(persist)
+        assert len(app.routes) == route_count
 
 
 class TestRegisterBatchBehavior:

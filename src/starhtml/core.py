@@ -115,7 +115,7 @@ class StarHTML(Starlette):
         self._registered_plugins: list = []
         self._plugin_hdrs: tuple = ()
         self._lifecycle_wired: set[int] = set()
-        self._registered_packages: set[str] = set()
+        self._registered_packages: dict[str, PathlibPath] = {}
         self._registered_items: set[int] = set()
         self._import_map: dict[str, str] = {}
         secret_key = get_key(secret_key, key_fname)
@@ -156,16 +156,17 @@ class StarHTML(Starlette):
             lifespan=lifespan,
         )
 
+        # Single route serves all JS: datastar, plugins, debugger, and shared chunks.
+        self.register_package_static(
+            name="starhtml",
+            static_path=PathlibPath(__file__).parent / "static" / "js",
+        )
+
         if self.debug:
             logger.warning("StarHTML debug mode is ON. Do not use in production.")
             from .debugger import setup_debugger
 
             setup_debugger(self)
-
-        self.register_package_static(
-            name="starhtml",
-            static_path=PathlibPath(__file__).parent / "static" / "js",
-        )
 
         if static_path:
             self.static_route_exts(static_path=static_path)
@@ -318,21 +319,30 @@ reg_re_param("static", "|".join(_static_exts))
 
 @patch
 def register_package_static(self: StarHTML, name: str, static_path, prefix: str = None):
-    """Serve a package's static directory under /_pkg/{name}/."""
+    """Serve a package's static directory under /_pkg/{name}/.
+
+    Skips route creation when the path is already covered by a parent registration
+    (e.g. ``static/js/plugins/`` is a no-op when ``static/js/`` already serves
+    subdirectories via its ``{filename:path}`` pattern).
+    """
     if name in self._registered_packages:
         return
-    self._registered_packages.add(name)
     static_path = PathlibPath(static_path)
+    resolved = static_path.resolve()
+    covered = any(resolved.is_relative_to(r) for r in self._registered_packages.values())
+    self._registered_packages[name] = resolved
+    if covered:
+        return
+
     prefix = prefix or f"/_pkg/{name}"
 
     async def serve_package_static(request):
         filename = request.path_params.get("filename", "")
         file_path = static_path / filename
 
-        # Prevent path traversal attacks
         try:
             file_path = file_path.resolve()
-            if not str(file_path).startswith(str(static_path.resolve())):
+            if not file_path.is_relative_to(resolved):
                 return Response("Forbidden", status_code=403)
         except (ValueError, OSError):
             return Response("Bad Request", status_code=400)
