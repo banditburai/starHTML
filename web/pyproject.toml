@@ -11,6 +11,3 @@ dependencies = [
     "httpx",
     "starlette",
 ]
-
-[tool.uv.sources]
-starhtml = { path = "..", editable = true }
