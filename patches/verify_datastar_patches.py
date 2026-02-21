@@ -4,7 +4,7 @@
 import sys
 from pathlib import Path
 
-DATASTAR_PATH = Path(__file__).resolve().parent.parent / "src" / "starhtml" / "static" / "datastar.js"
+DATASTAR_PATH = Path(__file__).resolve().parent.parent / "src" / "starhtml" / "static" / "js" / "datastar.js"
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from patch_definitions import verify  # noqa: E402

@@ -618,6 +618,16 @@ git add .starhtml/icons/
 
 The scan uses a regex to find literal `Icon("prefix:name")` calls in your `.py` files and batch-fetches any missing icons from the Iconify API (one request per prefix). Re-running skips already-cached icons. Dynamically constructed icon names (e.g., `Icon(f"{prefix}:home")` or `Icon(variable)`) are not detected — register these manually with `resolver.register()`.
 
+Common non-production directories (`tests/`, `.venv/`, `__pycache__/`, `node_modules/`, `build/`, `dist/`, etc.) are excluded by default so test fixtures and third-party code don't trigger unnecessary fetches.
+
+```bash
+# Add extra exclude patterns (glob syntax, repeatable)
+starhtml icons scan --exclude "*/fixtures/*.py" --exclude "demos/*"
+
+# Disable default excludes to scan everything
+starhtml icons scan --no-default-excludes
+```
+
 **Development** requires no setup — icons are fetched from the API on first use and cached automatically.
 
 #### Custom Icons

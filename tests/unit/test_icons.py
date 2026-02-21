@@ -519,6 +519,77 @@ SomeOtherFunc("lucide:home")
         result = main([])
         assert result == 0
 
+    def test_default_excludes_skip_tests_dir(self, tmp_path):
+        from starhtml.icons import _scan_icons_regex
+
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "app.py").write_text('Icon("lucide:home")')
+        tests = tmp_path / "tests"
+        tests.mkdir()
+        (tests / "test_app.py").write_text('Icon("fake:icon")')
+        found = _scan_icons_regex([tmp_path])
+        assert found == {"lucide": {"home"}}
+
+    def test_default_excludes_skip_venv(self, tmp_path):
+        from starhtml.icons import _scan_icons_regex
+
+        (tmp_path / "app.py").write_text('Icon("lucide:home")')
+        venv = tmp_path / ".venv" / "lib"
+        venv.mkdir(parents=True)
+        (venv / "some_pkg.py").write_text('Icon("mdi:alert")')
+        found = _scan_icons_regex([tmp_path])
+        assert found == {"lucide": {"home"}}
+
+    def test_no_default_excludes_scans_tests(self, tmp_path):
+        from starhtml.icons import _scan_icons_regex
+
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "app.py").write_text('Icon("lucide:home")')
+        tests = tmp_path / "tests"
+        tests.mkdir()
+        (tests / "test_app.py").write_text('Icon("mdi:alert")')
+        found = _scan_icons_regex([tmp_path], exclude_dirs=frozenset())
+        assert found == {"lucide": {"home"}, "mdi": {"alert"}}
+
+    def test_exclude_pattern_filters_files(self, tmp_path):
+        from starhtml.icons import _scan_icons_regex
+
+        (tmp_path / "app.py").write_text('Icon("lucide:home")')
+        (tmp_path / "scratch.py").write_text('Icon("mdi:alert")')
+        found = _scan_icons_regex([tmp_path], exclude_dirs=frozenset(), exclude_patterns=["*/scratch.py"])
+        assert found == {"lucide": {"home"}}
+
+    def test_exclude_pattern_additive_with_defaults(self, tmp_path):
+        from starhtml.icons import _DEFAULT_EXCLUDE_DIRS, _scan_icons_regex
+
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "app.py").write_text('Icon("lucide:home")')
+        (src / "demo.py").write_text('Icon("mdi:alert")')
+        tests = tmp_path / "tests"
+        tests.mkdir()
+        (tests / "test_app.py").write_text('Icon("fake:icon")')
+        found = _scan_icons_regex([tmp_path], exclude_dirs=_DEFAULT_EXCLUDE_DIRS, exclude_patterns=["*/demo.py"])
+        assert found == {"lucide": {"home"}}
+
+    def test_cli_no_default_excludes_flag(self):
+        from starhtml.icons import main
+
+        # Verify the flag parses without error
+        args = main(["icons", "scan", "--no-default-excludes", "/nonexistent"])
+        # Returns 0 because no .py files found
+        assert args == 0
+
+    def test_single_file_path_respects_exclude_pattern(self, tmp_path):
+        from starhtml.icons import _scan_icons_regex
+
+        f = tmp_path / "scratch.py"
+        f.write_text('Icon("lucide:home")')
+        found = _scan_icons_regex([f], exclude_dirs=frozenset(), exclude_patterns=[str(f)])
+        assert found == {}
+
 
 class TestIconEdgeCases:
     def test_no_colon_in_icon_name_cdn_mode(self):
@@ -607,3 +678,110 @@ class TestIconEdgeCases:
         html = to_xml(icon)
         assert 'data-show="$visible"' in html
         assert "iconify-icon" in html
+
+
+class TestIconDualModeStructure:
+    """Inline SVG and CDN modes must place kwargs on the inner element,
+    keeping the outer span as a stable sizing wrapper."""
+
+    @pytest.fixture(autouse=True)
+    def _setup(self):
+        from starhtml.icons import resolver
+
+        resolver.register("lucide", "home", IconData(body="<path/>"))
+        yield
+        resolver.inline = False
+        resolver._memory.clear()
+
+    def test_inline_has_inner_span_with_data_icon_inner(self):
+        from starhtml.icons import resolver
+
+        resolver.inline = True
+        html = str(Icon("lucide:home"))
+        assert "data-icon-sh" in html
+
+    def test_inline_kwargs_on_inner_not_outer(self):
+        from fastcore.xml import to_xml
+
+        from starhtml.icons import resolver
+
+        resolver.inline = True
+        html = to_xml(Icon("lucide:home", style="transform:rotate(0deg)"))
+        # style="transform:..." should be on the inner span, not the outer
+        # Outer span should have the sizing style
+        assert "display:inline-block" in html
+        assert "transform:rotate(0deg)" in html
+
+    def test_inline_outer_span_keeps_sizing(self):
+        from fastcore.xml import to_xml
+
+        from starhtml.icons import resolver
+
+        resolver.inline = True
+        html = to_xml(Icon("lucide:home", cls="text-green-500", style="opacity:0.5"))
+        # Outer span has sizing and cls
+        assert "display:inline-block" in html
+        assert "text-green-500" in html
+        # User style on inner, not clobbering sizing
+        assert "opacity:0.5" in html
+
+    def test_cdn_kwargs_on_iconify_not_outer(self):
+        from fastcore.xml import to_xml
+
+        from starhtml.icons import resolver
+
+        resolver.inline = False
+        html = to_xml(Icon("lucide:home", style="transform:rotate(0deg)"))
+        assert "iconify-icon" in html
+        assert "display:inline-block" in html
+        assert "transform:rotate(0deg)" in html
+
+    def test_inline_fallback_has_inner_span(self):
+        from starhtml.icons import resolver
+
+        resolver.inline = True
+        # Use a prefix:name that won't resolve (no disk, mock API failure)
+        with patch("httpx.get", side_effect=Exception("no network")):
+            html = str(Icon("nonexistent:icon"))
+        assert "data-icon-sh" in html
+
+    def test_inline_id_goes_to_outer_span(self):
+        from fastcore.xml import to_xml
+
+        from starhtml.icons import resolver
+
+        resolver.inline = True
+        html = to_xml(Icon("lucide:home", id="my-icon"))
+        assert 'id="my-icon"' in html
+
+
+class TestIconInlineCss:
+    @patch("starhtml.starapp._app_factory")
+    def test_inline_mode_includes_icon_css(self, mock_factory):
+        from starhtml.starapp import star_app
+
+        mock_app = MagicMock()
+        mock_app.route = MagicMock()
+        mock_app.static_route_exts = MagicMock()
+        mock_factory.return_value = mock_app
+
+        star_app(inline_icons=True)
+
+        call_kwargs = mock_factory.call_args[1]
+        hdrs_html = [str(h) for h in call_kwargs["hdrs"]]
+        assert any("data-icon-sh" in h for h in hdrs_html)
+        assert not any("iconify-icon" in h for h in hdrs_html)
+
+        from starhtml.icons import resolver
+
+        resolver.inline = False
+
+    def test_icon_inline_css_content(self):
+        from starhtml.starapp import icon_inline_css
+
+        html = str(icon_inline_css())
+        assert "[data-icon-sh]" in html
+        assert "display:block" in html
+        assert "width:100%" in html
+        assert "height:100%" in html
+        assert "!important" in html

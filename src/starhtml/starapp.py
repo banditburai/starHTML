@@ -16,6 +16,7 @@ __all__ = [
     "def_hdrs",
     "theme_script",
     "iconify_script",
+    "icon_inline_css",
     "compression",
     "Beforeware",
     "MiddlewareBase",
@@ -71,8 +72,7 @@ def star_app(
         resolver.preload_from_disk()
 
     h = tuple(hdrs or ())
-    if not resolver.inline:
-        h = (iconify_script(),) + h
+    h = (icon_inline_css() if resolver.inline else iconify_script(),) + h
 
     app = _app_factory(
         hdrs=h,
@@ -183,6 +183,13 @@ def iconify_script(version=None):
         src=f"https://cdn.jsdelivr.net/npm/iconify-icon@{version or ICONIFY_VERSION}/dist/iconify-icon.min.js",
         type="module",
     )
+
+
+def icon_inline_css():
+    "Sizing rules for inline SVG icon wrappers."
+    from .xtend import Style
+
+    return Style("[data-icon-sh]{display:block!important;width:100%!important;height:100%!important}")
 
 
 def compression(minimum_size=500, gzip=True, brotli=True, zstd=True, **kwargs):

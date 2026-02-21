@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
+from collections import defaultdict
 from dataclasses import dataclass
+from fnmatch import fnmatch
 from pathlib import Path
 
 from fastcore.xml import FT, NotStr
@@ -257,6 +260,9 @@ def Icon(
     wrapper_style = f"display:inline-block;width:{w};height:{h};flex-shrink:0;vertical-align:middle;line-height:0"
     wrapper_id = kwargs.pop("id", None)
 
+    def _wrap(inner):
+        return Span(inner, style=wrapper_style, cls=cls or None, id=wrapper_id)
+
     if resolver.inline:
         icon_data = resolver.resolve(prefix, name) if name else None
 
@@ -267,41 +273,71 @@ def Icon(
             )
             if not stable:
                 return NotStr(svg)
-            return Span(NotStr(svg), style=wrapper_style, cls=cls or None, id=wrapper_id, **kwargs)
+            return _wrap(Span(NotStr(svg), data_icon_sh=True, **kwargs))
 
-        return Span(style=wrapper_style, cls=cls or None, id=wrapper_id, **kwargs)
+        return _wrap(Span(data_icon_sh=True, **kwargs))
 
-    return Span(
-        ft_datastar("iconify-icon", icon=icon, width=w, height=h, **kwargs),
-        style=wrapper_style,
-        cls=cls or None,
-        id=wrapper_id,
-    )
+    return _wrap(ft_datastar("iconify-icon", icon=icon, width=w, height=h, **kwargs))
 
-
-# --- CLI: `starhtml icons scan` ---
 
 _ICON_RE = re.compile(r"""Icon\(\s*["']([a-zA-Z0-9_-]+):([a-zA-Z0-9_-]+)["']""")
 
+_DEFAULT_EXCLUDE_DIRS = frozenset(
+    {
+        "test",
+        "tests",
+        "__pycache__",
+        ".git",
+        ".venv",
+        "venv",
+        "node_modules",
+        ".tox",
+        ".nox",
+        ".mypy_cache",
+        ".pytest_cache",
+        "build",
+        "dist",
+    }
+)
 
-def _scan_icons_regex(paths: list[Path]) -> dict[str, set[str]]:
-    found: dict[str, set[str]] = {}
+
+def _scan_file(path: Path, found: defaultdict[str, set[str]]) -> None:
+    try:
+        text = path.read_text()
+    except OSError:
+        return
+    for prefix, name in _ICON_RE.findall(text):
+        found[prefix].add(name)
+
+
+def _scan_icons_regex(
+    paths: list[Path],
+    exclude_dirs: frozenset[str] = _DEFAULT_EXCLUDE_DIRS,
+    exclude_patterns: list[str] | None = None,
+) -> dict[str, set[str]]:
+    found: defaultdict[str, set[str]] = defaultdict(set)
+    excluded = (
+        (lambda p: any(fnmatch(str(p), pat) for pat in exclude_patterns)) if exclude_patterns else lambda _: False
+    )
     for path in paths:
-        py_files = path.rglob("*.py") if path.is_dir() else [path]
-        for py_file in py_files:
-            try:
-                text = py_file.read_text()
-            except OSError:
-                continue
-            for match in _ICON_RE.finditer(text):
-                prefix, name = match.groups()
-                found.setdefault(prefix, set()).add(name)
-    return found
+        if path.is_file():
+            if not excluded(path):
+                _scan_file(path, found)
+            continue
+        for dirpath, dirnames, filenames in os.walk(path):
+            dirnames[:] = [d for d in dirnames if d not in exclude_dirs]
+            for fname in filenames:
+                if fname.endswith(".py"):
+                    fpath = Path(dirpath, fname)
+                    if not excluded(fpath):
+                        _scan_file(fpath, found)
+    return dict(found)
 
 
 def _cmd_icons_scan(args) -> int:
     scan_paths = [Path(p) for p in args.paths] if args.paths else [Path(".")]
-    found = _scan_icons_regex(scan_paths)
+    exclude_dirs = frozenset() if args.no_default_excludes else _DEFAULT_EXCLUDE_DIRS
+    found = _scan_icons_regex(scan_paths, exclude_dirs, args.exclude)
 
     if not found:
         print("No Icon() calls found.")
@@ -313,32 +349,29 @@ def _cmd_icons_scan(args) -> int:
         print(f"  {prefix}: {', '.join(sorted(names))}")
 
     cache_dir = _project_cache_dir()
-    already_cached = 0
     to_fetch: dict[str, list[str]] = {}
-
     for prefix, names in found.items():
         resolver.preload(prefix)
-        bucket = resolver._memory.get(prefix, {})
-        missing = [n for n in sorted(names) if n not in bucket]
-        already_cached += len(names) - len(missing)
+        cached = resolver._memory.get(prefix, {})
+        missing = sorted(names - cached.keys())
         if missing:
             to_fetch[prefix] = missing
+
+    fetch_count = sum(len(n) for n in to_fetch.values())
 
     if not to_fetch:
         print(f"\nAll {total} icon(s) already cached in {cache_dir}")
         return 0
 
-    fetch_count = sum(len(names) for names in to_fetch.values())
-    print(f"\nAlready cached: {already_cached}, fetching: {fetch_count}")
+    print(f"\nAlready cached: {total - fetch_count}, fetching: {fetch_count}")
 
     failures = 0
     for prefix, names in to_fetch.items():
-        print(f"  Fetching {prefix}: {', '.join(names)} ...", end=" ")
         results = resolver.batch_fetch(prefix, names)
-        ok = sum(1 for v in results.values() if v is not None)
-        fail = len(results) - ok
-        failures += fail
-        print(f"{'ok' if fail == 0 else f'{ok} ok, {fail} failed'}")
+        failed = sum(1 for v in results.values() if v is None)
+        failures += failed
+        status = "ok" if failed == 0 else f"{len(results) - failed} ok, {failed} failed"
+        print(f"  {prefix}: {', '.join(names)} ... {status}")
 
     print(f"\nDone. Cache: {cache_dir}")
     if failures:
@@ -358,6 +391,12 @@ def main(argv: list[str] | None = None) -> int:
 
     scan_parser = icons_sub.add_parser("scan", help="Scan .py files and pre-cache icons")
     scan_parser.add_argument("paths", nargs="*", help="Paths to scan (default: current directory)")
+    scan_parser.add_argument(
+        "--exclude", action="append", metavar="PATTERN", help="Glob pattern to exclude (repeatable)"
+    )
+    scan_parser.add_argument(
+        "--no-default-excludes", action="store_true", help="Disable built-in excludes (tests, .venv, etc.)"
+    )
 
     args = parser.parse_args(argv)
 

@@ -9,6 +9,9 @@ on:
       - 'package.json'
       - 'bun.lock'
       - 'scripts/build.ts'
+      - 'scripts/build_datastar.py'
+      - 'patches/datastar-upstream.js'
+      - 'patches/patch_definitions.py'
   pull_request:
     branches: [ main ]
     paths:
@@ -17,6 +20,9 @@ on:
       - 'package.json'
       - 'bun.lock'
       - 'scripts/build.ts'
+      - 'scripts/build_datastar.py'
+      - 'patches/datastar-upstream.js'
+      - 'patches/patch_definitions.py'
 
 jobs:
   validate:
@@ -24,6 +30,11 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
 
     - name: Setup Bun
       uses: oven-sh/setup-bun@v1
@@ -58,3 +69,14 @@ jobs:
         find src/starhtml/static/js/plugins -name "*.js" -exec echo "  {}" \;
         echo "Built debugger files:"
         find src/starhtml/static/js/debugger -type f \( -name "*.js" -o -name "*.css" \) -exec echo "  {}" \;
+
+        # Verify datastar.js
+        if [ ! -f "src/starhtml/static/js/datastar.js" ]; then
+          echo "❌ datastar.js not found in build output"
+          exit 1
+        fi
+        size=$(stat -c%s "src/starhtml/static/js/datastar.js")
+        echo "✅ datastar.js ($size bytes)"
+
+    - name: Verify datastar patches
+      run: python patches/verify_datastar_patches.py

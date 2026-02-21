@@ -162,13 +162,6 @@ class StarHTML(Starlette):
 
             setup_debugger(self)
 
-        if datastar == "patched" or not datastar:
-            datastar_path = PathlibPath(__file__).parent / "static" / "datastar.js"
-
-            @self.route("/_pkg/starhtml/datastar.js")
-            async def serve_datastar():
-                return FileResponse(datastar_path, media_type="application/javascript")
-
         self.register_package_static(
             name="starhtml/plugins",
             static_path=PathlibPath(__file__).parent / "static" / "js" / "plugins",

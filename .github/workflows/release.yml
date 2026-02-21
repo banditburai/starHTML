@@ -25,11 +25,16 @@ jobs:
       with:
         fetch-depth: 0
     
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
     - name: Setup Bun
       uses: oven-sh/setup-bun@v1
       with:
         bun-version: latest
-    
+
     - name: Cache dependencies
       uses: actions/cache@v4
       with:
@@ -112,6 +117,19 @@ jobs:
           fi
         done
 
+        # Check datastar.js exists
+        datastar_file="src/starhtml/static/js/datastar.js"
+        if [ ! -f "$datastar_file" ]; then
+          echo "❌ datastar.js not found: $datastar_file"
+          exit 1
+        fi
+        size=$(stat -c%s "$datastar_file")
+        echo "✅ datastar.js ($size bytes)"
+        if [ "$size" -eq 0 ]; then
+          echo "❌ Empty file: $datastar_file"
+          exit 1
+        fi
+
         echo "🎉 All JavaScript assets validated!"
     
     - name: Install uv
@@ -147,7 +165,14 @@ jobs:
           echo "❌ JavaScript plugins missing from package"
           exit 1
         fi
-        
+
+        if python -m zipfile -l dist/*.whl | grep -q "static/js/datastar.js"; then
+          echo "✅ datastar.js included in package"
+        else
+          echo "❌ datastar.js missing from package"
+          exit 1
+        fi
+
         echo "✅ Package validation complete"
     
     - name: Upload build artifacts
