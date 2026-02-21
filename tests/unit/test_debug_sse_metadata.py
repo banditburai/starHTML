@@ -3,16 +3,16 @@
 import re
 
 from starhtml.realtime import (
-    format_signal_event,
-    format_element_event,
-    format_sse_event,
-    set_debug_context,
-    get_debug_context,
-    _debug_ctx_var,
-    process_sse_item,
-    format_event,
-    SignalEvent,
     ElementEvent,
+    SignalEvent,
+    _debug_ctx_var,
+    format_element_event,
+    format_event,
+    format_signal_event,
+    format_sse_event,
+    get_debug_context,
+    process_sse_item,
+    set_debug_context,
 )
 
 
@@ -42,12 +42,12 @@ class TestSSEDebugMetadata:
         assert re.search(r"data: x-debug-ts \d+", event)
 
     def test_format_sse_event_no_debug(self):
-        event = format_sse_event("datastar-patch-signals", ["signals {\"x\":1}"])
+        event = format_sse_event("datastar-patch-signals", ['signals {"x":1}'])
         assert "x-debug" not in event
 
     def test_format_sse_event_with_debug(self):
         debug_ctx = {"handler": "test_handler", "route": "/test", "seq": 42}
-        event = format_sse_event("datastar-patch-signals", ["signals {\"x\":1}"], debug_ctx=debug_ctx)
+        event = format_sse_event("datastar-patch-signals", ['signals {"x":1}'], debug_ctx=debug_ctx)
         assert "data: x-debug-seq 42" in event
         assert "data: x-debug-handler test_handler" in event
         assert "data: x-debug-route /test" in event
@@ -56,7 +56,7 @@ class TestSSEDebugMetadata:
     def test_debug_metadata_order(self):
         """Debug metadata lines come after regular data lines."""
         debug_ctx = {"handler": "h", "route": "/r", "seq": 1}
-        event = format_sse_event("datastar-patch-signals", ["signals {\"x\":1}"], debug_ctx=debug_ctx)
+        event = format_sse_event("datastar-patch-signals", ['signals {"x":1}'], debug_ctx=debug_ctx)
         lines = event.strip().split("\n")
         data_idx = next(i for i, l in enumerate(lines) if l.startswith("data: signals"))
         debug_idx = next(i for i, l in enumerate(lines) if l.startswith("data: x-debug"))

@@ -38,8 +38,7 @@ def setup_debugger(app):
         from starelements import Local, element
     except ImportError:
         warnings.warn(
-            "starelements not installed — debugger disabled. "
-            "Install with: uv pip install 'starhtml[debug]'",
+            "starelements not installed — debugger disabled. Install with: uv pip install 'starhtml[debug]'",
             stacklevel=2,
         )
         return
@@ -54,25 +53,33 @@ def setup_debugger(app):
     def _filter_input(signal, placeholder="Filter..."):
         return Div(
             Input(
-                type="text", placeholder=placeholder, data_bind=signal,
+                type="text",
+                placeholder=placeholder,
+                data_bind=signal,
                 style="width:160px;padding-right:20px",
             ),
             Button(
-                "\u00d7", data_show=signal != "", data_on_click=signal.set(""),
-                cls="clear-filter-btn", title="Clear filter",
+                "\u00d7",
+                data_show=signal != "",
+                data_on_click=signal.set(""),
+                cls="clear-filter-btn",
+                title="Clear filter",
             ),
             cls="filter-wrap",
         )
 
     def _type_chips(defs, chip_signals):
         return Div(
-            *[Span(
-                label,
-                data_ref=f"chip_{key}",
-                data_on_click=chip_signals[key].toggle(),
-                data_class_active=chip_signals[key],
-                cls=f"type-chip chip-{key}",
-            ) for label, key in defs],
+            *[
+                Span(
+                    label,
+                    data_ref=f"chip_{key}",
+                    data_on_click=chip_signals[key].toggle(),
+                    data_class_active=chip_signals[key],
+                    cls=f"type-chip chip-{key}",
+                )
+                for label, key in defs
+            ],
             cls="type-chips",
         )
 
@@ -115,7 +122,9 @@ def setup_debugger(app):
                 _type_chips(_CHIP_DEFS, chips),
                 Div(cls="toolbar-sep"),
                 _filter_input(filter_text),
-                Button("Clear Events", data_ref="clear_events_btn", cls="clear-events-btn", title="Clear visible events"),
+                Button(
+                    "Clear Events", data_ref="clear_events_btn", cls="clear-events-btn", title="Clear visible events"
+                ),
                 Button("Copy All", data_ref="copy_all_btn", title="Copy all visible events for LLM context"),
                 Span(data_ref="error_count_badge", cls="error-count-badge", style="display:none"),
                 Span(data_ref="event_count_label", cls="count"),
@@ -133,7 +142,12 @@ def setup_debugger(app):
             Div(
                 _filter_input(signal_filter, "Filter signals..."),
                 Span(data_ref="signal_count_label", cls="count"),
-                Button("Clear Persisted", data_ref="clear_persist_btn", cls="clear-events-btn", title="Clear all persisted signal data"),
+                Button(
+                    "Clear Persisted",
+                    data_ref="clear_persist_btn",
+                    cls="clear-events-btn",
+                    title="Clear all persisted signal data",
+                ),
                 cls="toolbar",
             ),
             Div(data_ref="signal_list", cls="signal-list"),
@@ -150,7 +164,12 @@ def setup_debugger(app):
                 _filter_input(timeline_filter, "Filter traces..."),
                 Span(data_ref="timeline_count_label", cls="count"),
                 Div(
-                    Button("Export \u25be", data_ref="tl_export_btn", cls="clear-events-btn", title="Export traces as Markdown"),
+                    Button(
+                        "Export \u25be",
+                        data_ref="tl_export_btn",
+                        cls="clear-events-btn",
+                        title="Export traces as Markdown",
+                    ),
                     Div(
                         *[Button(label, data_ref=ref, cls="tl-export-opt") for label, ref in _EXPORT_OPTS],
                         data_ref="tl_export_menu",

@@ -1,5 +1,6 @@
 """StarHTML application factory and configuration utilities"""
 
+import os
 from collections.abc import Callable
 from typing import Any
 
@@ -54,13 +55,24 @@ def star_app(
     static_path: str = ".",
     body_wrap: Callable = None,
     datastar: str = "patched",
+    inline_icons: bool = False,
     **kwargs: Any,
 ):
     from .core import noop_body
+    from .icons import resolver
 
     if body_wrap is None:
         body_wrap = noop_body
+
+    # Env var overrides parameter so deployment config wins
+    env_val = os.environ.get("STARHTML_INLINE_ICONS")
+    resolver.inline = env_val.lower() in ("1", "true", "yes") if env_val is not None else inline_icons
+    if resolver.inline:
+        resolver.preload_from_disk()
+
     h = tuple(hdrs or ())
+    if not resolver.inline:
+        h = (iconify_script(),) + h
 
     app = _app_factory(
         hdrs=h,
@@ -164,18 +176,17 @@ def theme_script(
 
 
 def iconify_script(version=None):
-    """Iconify web component script. Required if using Icon() component."""
+    """Iconify CDN web component (auto-included by star_app in CDN mode)."""
     from .xtend import Script
 
-    ver = version or ICONIFY_VERSION
     return Script(
-        src=f"https://cdn.jsdelivr.net/npm/iconify-icon@{ver}/dist/iconify-icon.min.js",
+        src=f"https://cdn.jsdelivr.net/npm/iconify-icon@{version or ICONIFY_VERSION}/dist/iconify-icon.min.js",
         type="module",
     )
 
 
 def compression(minimum_size=500, gzip=True, brotli=True, zstd=True, **kwargs):
-    """Compression middleware helper. Wraps starlette-compress for response compression."""
+    """Compression middleware with sensible defaults."""
     from starlette.middleware import Middleware
     from starlette_compress import CompressMiddleware
 
@@ -228,7 +239,6 @@ def _app_factory(*args, **kwargs):
     kwargs.pop("reload_attempts", None)
     kwargs.pop("reload_interval", None)
 
-    # Unpack bodykw for StarHTML's **bodykw signature
     if bodykw := kwargs.pop("bodykw", None):
         kwargs.update(bodykw)
 

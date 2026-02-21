@@ -20,21 +20,7 @@ except ImportError:
 
 
 from .html import ft_datastar, ft_html
-from .tags import Div, Iframe, Input, Label, Link, Meta, Span
-
-_TW_SIZES = {
-    "3": "0.75rem",
-    "3.5": "0.875rem",
-    "4": "1rem",
-    "5": "1.25rem",
-    "6": "1.5rem",
-    "7": "1.75rem",
-    "8": "2rem",
-    "9": "2.25rem",
-    "10": "2.5rem",
-    "11": "2.75rem",
-    "12": "3rem",
-}
+from .tags import Div, Iframe, Input, Label, Link, Meta
 
 __all__ = [
     "A",
@@ -51,9 +37,10 @@ __all__ = [
     "jsd",
     "Socials",
     "Favicon",
+    "GoogleFont",
+    "JsonLd",
     "YouTubeEmbed",
     "Nbsp",
-    "Icon",
     "loose_format",
     "double_braces",
     "undouble_braces",
@@ -188,67 +175,6 @@ def Nbsp() -> Safe:
     return Safe("&nbsp;")
 
 
-def Icon(
-    icon: str,
-    *,
-    size: int | str | None = None,
-    width: int | str | None = None,
-    height: int | str | None = None,
-    cls: str = "",
-    stable: bool = True,
-    **kwargs,
-) -> FT:
-    "Iconify icon with CLS prevention; supports size param, width/height, or Tailwind size classes"
-    if not stable:
-        return ft_datastar("iconify-icon", icon=icon, **kwargs)
-
-    def _to_size(val):
-        if isinstance(val, int):
-            return f"{val}px"
-        return f"{int(val)}px" if isinstance(val, str) and val.isdigit() else val
-
-    def _extract_tw_size(cls_str):
-        if not cls_str:
-            return None, None
-        w = h = None
-        for match in re.finditer(r"\b(size|w|h)-(\d+(?:\.\d+)?|\[[^\]]+\])", cls_str):
-            prop, val = match.groups()
-            css_val = (
-                val[1:-1]
-                if val.startswith("[")
-                else _TW_SIZES.get(val, f"{float(val) * 0.25}rem" if val.replace(".", "").isdigit() else None)
-            )
-            if css_val:
-                if prop == "size":
-                    w = h = css_val
-                elif prop == "w":
-                    w = css_val
-                elif prop == "h":
-                    h = css_val
-        return w, h
-
-    if size is not None:
-        w = h = _to_size(size)
-    elif width is not None or height is not None:
-        w = _to_size(width) if width else None
-        h = _to_size(height) if height else None
-        w = w or h
-        h = h or w
-    else:
-        w, h = _extract_tw_size(cls)
-        w = w or h or "1em"
-        h = h or w
-
-    wrapper_style = f"display:inline-block;width:{w};height:{h};flex-shrink:0;vertical-align:middle;line-height:0"
-    wrapper_id = kwargs.pop("id", None)
-    return Span(
-        ft_datastar("iconify-icon", icon=icon, width=w, height=h, **kwargs),
-        style=wrapper_style,
-        cls=cls or None,
-        id=wrapper_id,
-    )
-
-
 def Socials(
     title: str,
     site_name: str,
@@ -260,8 +186,9 @@ def Socials(
     twitter_site: str | None = None,
     creator: str | None = None,
     card: str = "summary",
+    canonical: bool = True,
 ) -> tuple[FT, ...]:
-    "OG and Twitter social card headers"
+    "OG and Twitter social card headers, plus meta description and canonical link"
     if not url:
         url = site_name
     if not url.startswith("http"):
@@ -269,6 +196,7 @@ def Socials(
     if not image.startswith("http"):
         image = f"{url}{image}"
     res = [
+        Meta(name="description", content=description),
         Meta(property="og:image", content=image),
         Meta(property="og:site_name", content=site_name),
         Meta(property="og:image:type", content="image/png"),
@@ -283,6 +211,8 @@ def Socials(
         Meta(name="twitter:title", content=title),
         Meta(name="twitter:description", content=description),
     ]
+    if canonical:
+        res.insert(1, Link(rel="canonical", href=url))
     if twitter_site is not None:
         res.append(Meta(name="twitter:site", content=twitter_site))
     if creator is not None:
@@ -296,6 +226,21 @@ def Favicon(light_icon: str, dark_icon: str) -> tuple[FT, FT]:
         Link(rel="icon", type="image/x-ico", href=light_icon, media="(prefers-color-scheme: light)"),
         Link(rel="icon", type="image/x-ico", href=dark_icon, media="(prefers-color-scheme: dark)"),
     )
+
+
+def GoogleFont(*families: str, display: str = "swap") -> tuple[FT, ...]:
+    "Preconnect and stylesheet headers for Google Fonts"
+    params = "&".join(f"family={f.replace(' ', '+')}" for f in families)
+    return (
+        Link(rel="preconnect", href="https://fonts.googleapis.com"),
+        Link(rel="preconnect", href="https://fonts.gstatic.com", crossorigin=True),
+        Link(rel="stylesheet", href=f"https://fonts.googleapis.com/css2?{params}&display={display}"),
+    )
+
+
+def JsonLd(data: dict) -> FT:
+    "A JSON-LD script tag from a Python dict"
+    return ft_html("script", NotStr(dumps(data)), type="application/ld+json")
 
 
 def YouTubeEmbed(

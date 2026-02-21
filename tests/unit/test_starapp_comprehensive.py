@@ -67,10 +67,11 @@ class TestStarApp:
         custom_hdrs = ["header1", "header2"]
         star_app(hdrs=custom_hdrs)
 
-        # Should convert list to tuple and pass to _app_factory
+        # Should convert list to tuple and pass to _app_factory (iconify_script() auto-prepended in CDN mode)
         mock_app_factory.assert_called_once()
         call_kwargs = mock_app_factory.call_args[1]
-        assert call_kwargs["hdrs"] == tuple(custom_hdrs)
+        assert "header1" in call_kwargs["hdrs"]
+        assert "header2" in call_kwargs["hdrs"]
 
     @patch("starhtml.starapp._app_factory")
     def test_star_app_with_body_wrap(self, mock_app_factory):
@@ -454,8 +455,9 @@ class TestEdgeCases:
 
         star_app(hdrs=[])
 
+        # In CDN mode (default), iconify_script() is auto-prepended
         call_kwargs = mock_app_factory.call_args[1]
-        assert call_kwargs["hdrs"] == ()
+        assert isinstance(call_kwargs["hdrs"], tuple)
 
     @patch("starhtml.starapp._app_factory")
     def test_star_app_none_body_wrap(self, mock_app_factory):
@@ -509,7 +511,7 @@ class TestRealWorldScenarios:
         mock_app.static_route_exts.assert_called_once_with(static_path="/assets")
 
         call_kwargs = mock_app_factory.call_args[1]
-        assert call_kwargs["hdrs"] == tuple(custom_hdrs)
+        assert "X-Custom: header" in call_kwargs["hdrs"]
         assert call_kwargs["ftrs"] == custom_ftrs
         assert call_kwargs["debug"] is True
 

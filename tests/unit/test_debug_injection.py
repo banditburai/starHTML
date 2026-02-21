@@ -36,6 +36,7 @@ class TestDebugInjection:
     def test_debug_preserves_custom_hdrs(self):
         """Debugger elements are appended, not replacing user hdrs."""
         from starhtml.xtend import Script
+
         custom = Script("console.log('custom')")
         app = StarHTML(debug=True, hdrs=[custom])
         hdrs_html = "".join(str(h) for h in app.hdrs)
@@ -45,6 +46,7 @@ class TestDebugInjection:
     def test_debug_preserves_custom_ftrs(self):
         """Debugger footer appended after user ftrs."""
         from fastcore.xml import NotStr
+
         custom = NotStr('<div id="my-footer">hi</div>')
         app = StarHTML(debug=True, ftrs=[custom])
         ftrs_html = "".join(str(h) for h in app.ftrs)
@@ -61,14 +63,11 @@ class TestDebugInjection:
     def test_graceful_fallback_without_starelements(self):
         """When starelements is missing, debugger prints warning and skips."""
         import importlib
+
         import starhtml.debugger as dbg_mod
 
         # Evict cached starelements so the import is re-attempted on reload
-        cached = {
-            k: sys.modules.pop(k)
-            for k in list(sys.modules)
-            if k.startswith("starelements")
-        }
+        cached = {k: sys.modules.pop(k) for k in list(sys.modules) if k.startswith("starelements")}
         try:
             real_import = importlib.__import__
 

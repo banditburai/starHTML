@@ -73,11 +73,12 @@ declare module "https://cdn.jsdelivr.net/npm/@floating-ui/dom@1/+esm" {
     options?: AutoUpdateOptions
   ): () => void;
 
-  export function offset(
-    value?: number | { mainAxis?: number; crossAxis?: number }
-  ): Middleware;
+  export function offset(value?: number | { mainAxis?: number; crossAxis?: number }): Middleware;
 
-  export function flip(options?: { padding?: number; fallbackPlacements?: Placement[] }): Middleware;
+  export function flip(options?: {
+    padding?: number;
+    fallbackPlacements?: Placement[];
+  }): Middleware;
 
   export function shift(options?: { padding?: number; limiter?: any }): Middleware;
 

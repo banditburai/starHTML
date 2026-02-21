@@ -261,7 +261,6 @@ app, rt = star_app(
     title="Hero Section - StarHTML Documentation (Dev Mode)",
     hdrs=[
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
-        iconify_script(),
     ],
 )
 

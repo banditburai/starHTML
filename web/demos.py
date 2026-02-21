@@ -28,7 +28,6 @@ app, rt = star_app(
             href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">⭐</text></svg>',
         ),
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
-        iconify_script(),
         StarlighterStyles("github-light") if StarlighterStyles else None,
         Script("""
             document.addEventListener('DOMContentLoaded', () => {
@@ -678,7 +677,11 @@ def demo_navigation_controls(prev_demo, next_demo):
 def demo_navigation_bar(demo, view_mode, split_loaded, support_open, prev_demo, next_demo, base_url):
     return Nav(
         Div(
-            Div(demo_breadcrumbs(demo, base_url), demo_view_buttons(view_mode, split_loaded), cls="flex items-end gap-1.5"),
+            Div(
+                demo_breadcrumbs(demo, base_url),
+                demo_view_buttons(view_mode, split_loaded),
+                cls="flex items-end gap-1.5",
+            ),
             Div(
                 support_dropdown(support_open),
                 demo_navigation_controls(prev_demo, next_demo),

@@ -14,15 +14,17 @@ from pathlib import Path
 import pytest
 from fastcore.xml import Safe
 
+from starhtml.icons import Icon
 from starhtml.xtend import (
     AX,
     A,
     CheckboxX,
     Favicon,
     Form,
+    GoogleFont,
     Group,
     Hidden,
-    Icon,
+    JsonLd,
     Nbsp,
     Script,
     ScriptX,
@@ -523,6 +525,86 @@ class TestIconComponent:
         assert "vertical-align:middle" in html
 
 
+class TestIconInlineMode:
+    """Test Icon component in inline SVG mode."""
+
+    @pytest.fixture(autouse=True)
+    def _setup_inline(self):
+        from starhtml.icons import IconData, resolver
+
+        resolver.inline = True
+        resolver.register("lucide", "home", IconData(body='<path d="M3 10L12 3l9 7v11H3z"/>'))
+        resolver.register("fa-solid", "house", IconData(body='<path d="M575 255"/>', width=576, height=512))
+        yield
+        resolver.inline = False
+        resolver._memory.clear()
+
+    def test_inline_svg_rendered(self):
+        icon = Icon("lucide:home")
+        html = str(icon)
+        assert "<svg" in html
+        assert "iconify-icon" not in html
+        assert 'viewBox="0 0 24 24"' in html
+        assert '<path d="M3 10L12 3l9 7v11H3z"/>' in html
+
+    def test_inline_wrapper_span(self):
+        icon = Icon("lucide:home", cls="text-blue-500")
+        html = str(icon)
+        assert "<span" in html
+        assert 'class="text-blue-500"' in html
+        assert "inline-block" in html
+        assert "flex-shrink:0" in html
+        assert "vertical-align:middle" in html
+
+    def test_inline_stable_false_bare_svg(self):
+        icon = Icon("lucide:home", stable=False)
+        html = str(icon)
+        assert "<svg" in html
+        assert "<span" not in html
+
+    def test_inline_kwargs_on_wrapper(self):
+        from fastcore.xml import to_xml
+
+        icon = Icon("lucide:home", size=20, data_show="$visible", id="my-icon")
+        html = to_xml(icon)
+        assert 'data-show="$visible"' in html
+        assert 'id="my-icon"' in html
+
+    def test_inline_sizing_parity(self):
+        icon = Icon("lucide:home", size=32)
+        html = str(icon)
+        assert "width:32px" in html
+        assert "height:32px" in html
+
+    def test_inline_tailwind_size(self):
+        icon = Icon("lucide:home", cls="size-6")
+        html = str(icon)
+        assert "1.5rem" in html
+
+    def test_inline_custom_dimensions(self):
+        icon = Icon("fa-solid:house")
+        html = str(icon)
+        assert 'viewBox="0 0 576 512"' in html
+
+    def test_inline_not_found_placeholder(self):
+        icon = Icon("lucide:nonexistent")
+        html = str(icon)
+        assert "<span" in html
+        assert "<svg" not in html
+        assert "inline-block" in html
+
+    def test_inline_fill_current_color(self):
+        icon = Icon("lucide:home")
+        html = str(icon)
+        assert 'fill="currentColor"' in html
+
+    def test_inline_svg_100_percent_size(self):
+        icon = Icon("lucide:home")
+        html = str(icon)
+        assert 'width="100%"' in html
+        assert 'height="100%"' in html
+
+
 class TestSEOComponents:
     """Test SEO and social media components."""
 
@@ -542,6 +624,8 @@ class TestSEOComponents:
         assert 'property="og:description" content="Test description"' in html
         assert 'property="og:site_name" content="Test Site"' in html
         assert 'name="twitter:title" content="Test Page"' in html
+        assert 'name="description" content="Test description"' in html
+        assert 'rel="canonical"' in html
 
     def test_socials_with_url(self):
         """Test Socials with custom URL."""
@@ -552,6 +636,17 @@ class TestSEOComponents:
         html = "\n".join(str(tag) for tag in socials)
         assert 'property="og:url" content="https://custom.com"' in html
         assert "https://custom.com/image.png" in html  # Image should be absolute
+        assert 'rel="canonical" href="https://custom.com"' in html
+
+    def test_socials_canonical_disabled(self):
+        """Test Socials with canonical=False omits the canonical link."""
+        socials = Socials(
+            title="Test", site_name="example.com", description="Test", image="/image.png", canonical=False
+        )
+
+        html = "\n".join(str(tag) for tag in socials)
+        assert 'rel="canonical"' not in html
+        assert 'name="description" content="Test"' in html
 
     def test_socials_url_normalization(self):
         """Test Socials URL normalization."""
@@ -605,6 +700,58 @@ class TestSEOComponents:
         assert 'media="(prefers-color-scheme: light)"' in light_html
         assert 'href="/dark.ico"' in dark_html
         assert 'media="(prefers-color-scheme: dark)"' in dark_html
+
+    def test_google_font_single(self):
+        """Test GoogleFont with a single font family."""
+        tags = GoogleFont("Manrope:wght@400;500;600;700;800")
+        assert isinstance(tags, tuple)
+        assert len(tags) == 3
+
+        html = "\n".join(tag.__html__() for tag in tags)
+        assert 'rel="preconnect" href="https://fonts.googleapis.com"' in html
+        assert 'rel="preconnect" href="https://fonts.gstatic.com"' in html
+        assert "crossorigin" in html
+        assert "fonts.googleapis.com/css2" in html
+        assert "Manrope" in html
+        assert "display=swap" in html
+
+    def test_google_font_multiple(self):
+        """Test GoogleFont with multiple font families."""
+        tags = GoogleFont("Inter:wght@400;700", "Fira Code:wght@400")
+        html = "\n".join(tag.__html__() for tag in tags)
+        assert "family=Inter" in html
+        assert "family=Fira+Code" in html
+
+    def test_google_font_custom_display(self):
+        """Test GoogleFont with custom display strategy."""
+        tags = GoogleFont("Roboto", display="optional")
+        html = "\n".join(tag.__html__() for tag in tags)
+        assert "display=optional" in html
+
+    def test_jsonld_basic(self):
+        """Test JsonLd generates a valid script tag with JSON content."""
+        data = {"@context": "https://schema.org", "@type": "WebSite", "name": "Test"}
+        tag = JsonLd(data)
+        html = tag.__html__()
+        assert 'type="application/ld+json"' in html
+        assert "<script" in html
+        assert '"@context": "https://schema.org"' in html
+        assert '"@type": "WebSite"' in html
+        assert '"name": "Test"' in html
+
+    def test_jsonld_nested(self):
+        """Test JsonLd with nested structures."""
+        data = {
+            "@context": "https://schema.org",
+            "@type": "SoftwareApplication",
+            "offers": [{"@type": "Offer", "price": "0"}],
+            "publisher": {"@type": "Organization", "name": "Acme"},
+        }
+        tag = JsonLd(data)
+        html = tag.__html__()
+        assert '"@type": "SoftwareApplication"' in html
+        assert '"@type": "Offer"' in html
+        assert '"@type": "Organization"' in html
 
     def test_youtube_embed_basic(self):
         """Test basic YouTube embed."""

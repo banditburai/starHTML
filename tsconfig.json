@@ -5,31 +5,16 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "isolatedModules": true,
-    "noEmit": false,
-    "jsx": "preserve",
-    
+    "noEmit": true,
+
     "strict": true,
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
     "noFallthroughCasesInSwitch": true,
     "noImplicitReturns": true,
     "exactOptionalPropertyTypes": true,
-    
-    "skipLibCheck": true,
-    "allowSyntheticDefaultImports": true,
-    "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true,
-    
-    "outDir": "./src/starhtml/static/js/plugins",
-    "rootDir": "./typescript",
-    "declaration": false,
-    "declarationMap": false,
-    "sourceMap": false,
 
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["./src/*"]
-    }
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true
   },
   "include": [
     "typescript/plugins/**/*.ts",
@@ -41,7 +26,6 @@
     "dist",
     "**/*.test.ts",
     "**/*.spec.ts",
-    "typescript/plugins/types.ts",
-    "typescript/plugins/position_backup.ts"
+    "typescript/plugins/types.ts"
   ]
 }

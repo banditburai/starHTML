@@ -1,9 +1,11 @@
 """The `StarHTML` subclass of `Starlette`"""
 
 import asyncio
+import logging
 import os
 import re
-import warnings
+
+logger = logging.getLogger(__name__)
 from copy import deepcopy
 from functools import partialmethod
 from pathlib import Path as PathlibPath
@@ -155,8 +157,9 @@ class StarHTML(Starlette):
         )
 
         if self.debug:
-            warnings.warn("StarHTML debug mode is ON. Do not use in production.", stacklevel=2)
+            logger.warning("StarHTML debug mode is ON. Do not use in production.")
             from .debugger import setup_debugger
+
             setup_debugger(self)
 
         if datastar == "patched" or not datastar:

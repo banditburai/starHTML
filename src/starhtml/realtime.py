@@ -205,9 +205,7 @@ class DebugContext(TypedDict):
 # Set by _endp() in core.py when debug=True. SSE format functions
 # auto-read it so handler code never needs to pass debug_ctx manually.
 
-_debug_ctx_var: contextvars.ContextVar[DebugContext | None] = contextvars.ContextVar(
-    "starhtml_debug_ctx", default=None
-)
+_debug_ctx_var: contextvars.ContextVar[DebugContext | None] = contextvars.ContextVar("starhtml_debug_ctx", default=None)
 _debug_seq = itertools.count(1)
 
 
@@ -265,12 +263,14 @@ def format_sse_event(
     parts.extend([f"data: {line}" for line in data_lines])
 
     if debug_ctx:
-        parts.extend([
-            f"data: x-debug-seq {debug_ctx['seq']}",
-            f"data: x-debug-ts {int(time.time() * 1000)}",
-            f"data: x-debug-handler {debug_ctx['handler']}",
-            f"data: x-debug-route {debug_ctx['route']}",
-        ])
+        parts.extend(
+            [
+                f"data: x-debug-seq {debug_ctx['seq']}",
+                f"data: x-debug-ts {int(time.time() * 1000)}",
+                f"data: x-debug-handler {debug_ctx['handler']}",
+                f"data: x-debug-route {debug_ctx['route']}",
+            ]
+        )
 
     return "\n".join(parts) + "\n\n"
 

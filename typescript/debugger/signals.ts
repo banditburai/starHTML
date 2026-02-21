@@ -10,7 +10,7 @@ export interface SignalEntry {
   tagName: string;
   status: "live" | "stale" | "removed";
   lastChanged: number;
-  persistStorage?: "local" | "session";
+  persistStorage?: "local" | "session" | undefined;
 }
 
 export interface SignalGroup {
@@ -107,7 +107,7 @@ export function clearPersistedData(): void {
   }
 
   // Force next page load to re-read DOM defaults instead of cached persist values
-  (window as Record<string, unknown>).__starhtml_pc = undefined;
+  (window as unknown as Record<string, unknown>).__starhtml_pc = undefined;
 
   // DOM attributes are the only source of truth for original default values
   if (persistedPaths.size > 0) {

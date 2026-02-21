@@ -5,6 +5,7 @@ and diverse signal types for the Signals tab."""
 import time
 
 from starelements import Local, element
+
 from starhtml import *
 from starhtml.plugins import persist
 
@@ -17,7 +18,6 @@ app, rt = star_app(
         Style("""
             body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; -webkit-font-smoothing: antialiased; }
         """),
-        iconify_script(),
     ],
 )
 
@@ -68,65 +68,75 @@ def home():
         (tags := Signal("tags", ["alpha", "beta"])),
         Signal("meta", {"version": "1.0", "env": "dev"}),
         (ticker := Signal("ticker", 0)),
-
         # -- Header --
         Div(
             H1("30", cls="text-8xl font-black text-gray-200 leading-none"),
             H1("Debugger", cls="text-5xl md:text-6xl font-bold mt-2"),
-            P("Open the debug panel with Ctrl/Cmd+Shift+. or click the tab at the bottom-right.",
-              cls="text-lg text-gray-500 mt-4"),
+            P(
+                "Open the debug panel with Ctrl/Cmd+Shift+. or click the tab at the bottom-right.",
+                cls="text-lg text-gray-500 mt-4",
+            ),
             cls="mb-16",
         ),
-
         # -- Reactive Expressions --
         Div(
             H3("Reactive Expressions", cls="text-2xl font-bold mb-6"),
-            P("Signals drive visual changes through match(), .one_of(), .clamp(), and collect().",
-              cls="text-gray-500 mb-6"),
-
+            P(
+                "Signals drive visual changes through match(), .one_of(), .clamp(), and collect().",
+                cls="text-gray-500 mb-6",
+            ),
             # Accent color picker — match() maps value to Tailwind classes
             Div(
                 Span("Accent:", cls="text-gray-500 text-sm font-medium"),
-                *[Button(
-                    color.capitalize(),
-                    data_on_click=accent.set(color),
-                    data_attr_class=collect([
-                        (True, "px-3 py-1 text-sm font-medium rounded transition-colors"),
-                        (accent == color, f"bg-{color}-600 text-white"),
-                        (accent != color, "bg-gray-100 text-gray-600 hover:bg-gray-200"),
-                    ]),
-                ) for color in ("blue", "green", "red", "amber")],
+                *[
+                    Button(
+                        color.capitalize(),
+                        data_on_click=accent.set(color),
+                        data_attr_class=collect(
+                            [
+                                (True, "px-3 py-1 text-sm font-medium rounded transition-colors"),
+                                (accent == color, f"bg-{color}-600 text-white"),
+                                (accent != color, "bg-gray-100 text-gray-600 hover:bg-gray-200"),
+                            ]
+                        ),
+                    )
+                    for color in ("blue", "green", "red", "amber")
+                ],
                 cls="flex items-center gap-2 mb-4",
             ),
-
             # Size selector — .one_of() guards the value
             Div(
                 Span("Size:", cls="text-gray-500 text-sm font-medium"),
-                *[Button(
-                    s.capitalize(),
-                    data_on_click=size.set(s),
-                    data_attr_class=(size.one_of("small", "medium", "large") == s).if_(
-                        "px-3 py-1 text-sm font-medium rounded bg-black text-white",
-                        "px-3 py-1 text-sm font-medium rounded bg-gray-100 text-gray-600 hover:bg-gray-200",
-                    ),
-                ) for s in ("small", "medium", "large")],
+                *[
+                    Button(
+                        s.capitalize(),
+                        data_on_click=size.set(s),
+                        data_attr_class=(size.one_of("small", "medium", "large") == s).if_(
+                            "px-3 py-1 text-sm font-medium rounded bg-black text-white",
+                            "px-3 py-1 text-sm font-medium rounded bg-gray-100 text-gray-600 hover:bg-gray-200",
+                        ),
+                    )
+                    for s in ("small", "medium", "large")
+                ],
                 cls="flex items-center gap-2 mb-6",
             ),
-
             # Preview box — driven by accent + size signals
             Div(
                 Span(
                     data_text="Hello, " + accent.one_of("blue", "green", "red", "amber") + " world!",
                     cls="font-semibold",
                 ),
-                data_attr_class=collect([
-                    (True, "p-6 rounded border-2 transition-all"),
-                    (accent == "blue", "border-blue-400 bg-blue-50 text-blue-900"),
-                    (accent == "green", "border-green-400 bg-green-50 text-green-900"),
-                    (accent == "red", "border-red-400 bg-red-50 text-red-900"),
-                    (accent == "amber", "border-amber-400 bg-amber-50 text-amber-900"),
-                ]),
-                data_attr_style=match(size,
+                data_attr_class=collect(
+                    [
+                        (True, "p-6 rounded border-2 transition-all"),
+                        (accent == "blue", "border-blue-400 bg-blue-50 text-blue-900"),
+                        (accent == "green", "border-green-400 bg-green-50 text-green-900"),
+                        (accent == "red", "border-red-400 bg-red-50 text-red-900"),
+                        (accent == "amber", "border-amber-400 bg-amber-50 text-amber-900"),
+                    ]
+                ),
+                data_attr_style=match(
+                    size,
                     small="font-size: 0.875rem",
                     medium="font-size: 1.125rem",
                     large="font-size: 1.5rem",
@@ -135,12 +145,10 @@ def home():
             ),
             cls="mb-12 p-8 bg-white border border-gray-200 rounded",
         ),
-
         # -- Counter with SSE + clamp --
         Div(
             H3("Signal Updates", cls="text-2xl font-bold mb-6"),
-            P("Count is persisted to localStorage via the persist plugin.",
-              cls="text-gray-500 mb-6"),
+            P("Count is persisted to localStorage via the persist plugin.", cls="text-gray-500 mb-6"),
             Div(
                 Button(
                     Icon("material-symbols:add", cls="mr-2"),
@@ -165,16 +173,13 @@ def home():
             Div(data_persist=count, style="display:none"),
             cls="mb-12 p-8 bg-white border border-gray-200 rounded",
         ),
-
         # -- Component Signals --
         Div(
             H3("Component Signals", cls="text-2xl font-bold mb-6"),
-            P("Each counter is a StarElements component with its own namespaced signals.",
-              cls="text-gray-500 mb-6"),
+            P("Each counter is a StarElements component with its own namespaced signals.", cls="text-gray-500 mb-6"),
             Div(DemoCounter(), DemoCounter(), cls="flex gap-6"),
             cls="mb-12 p-8 bg-white border border-gray-200 rounded",
         ),
-
         # -- DOM Mutations --
         Div(
             H3("DOM Mutations", cls="text-2xl font-bold mb-6"),
@@ -196,12 +201,10 @@ def home():
             Div(id="dynamic-content", cls="min-h-[100px] p-4 bg-gray-50 border border-gray-200 rounded space-y-2"),
             cls="mb-12 p-8 bg-white border border-gray-200 rounded",
         ),
-
         # -- Malformed SSE --
         Div(
             H3("Malformed SSE", cls="text-2xl font-bold mb-6"),
-            P("Test the SSE validator by triggering intentionally malformed responses.",
-              cls="text-gray-500 mb-6"),
+            P("Test the SSE validator by triggering intentionally malformed responses.", cls="text-gray-500 mb-6"),
             Div(
                 Button(
                     Icon("material-symbols:warning", cls="mr-2"),
@@ -225,16 +228,19 @@ def home():
             ),
             cls="mb-12 p-8 bg-white border border-gray-200 rounded",
         ),
-
         # -- Rapid Signal Changes --
         Div(
             H3("Rapid Updates", cls="text-2xl font-bold mb-6"),
-            P("A client-side timer increments every 500ms to test change flash in the debugger.",
-              cls="text-gray-500 mb-4"),
+            P(
+                "A client-side timer increments every 500ms to test change flash in the debugger.",
+                cls="text-gray-500 mb-4",
+            ),
             Div(
                 Button(
                     "Start",
-                    data_on_click=js("window._tickerInterval || (window._tickerInterval = setInterval(() => { $ticker++ }, 500))"),
+                    data_on_click=js(
+                        "window._tickerInterval || (window._tickerInterval = setInterval(() => { $ticker++ }, 500))"
+                    ),
                     cls=f"{BTN} bg-green-600 text-white hover:bg-green-700",
                 ),
                 Button(
@@ -244,7 +250,9 @@ def home():
                 ),
                 Button(
                     "Reset",
-                    data_on_click=js("clearInterval(window._tickerInterval); window._tickerInterval = null; $ticker = 0"),
+                    data_on_click=js(
+                        "clearInterval(window._tickerInterval); window._tickerInterval = null; $ticker = 0"
+                    ),
                     cls=BTN_OUTLINE,
                 ),
                 cls="mb-4 flex flex-wrap gap-2",
@@ -300,35 +308,30 @@ def update_attr(req):
 
 def _malformed_stream(raw_sse: str):
     """Return a StreamingResponse with raw SSE text (for malformed SSE testing)."""
+
     async def generate():
         yield raw_sse.encode()
+
     return StreamingResponse(generate(), media_type="text/event-stream")
 
 
 @rt("/malformed-json")
 def malformed_json(req):
-    return _malformed_stream(
-        "event: datastar-patch-signals\n"
-        "data: signals {not valid json\n"
-        "\n"
-    )
+    return _malformed_stream("event: datastar-patch-signals\ndata: signals {not valid json\n\n")
 
 
 @rt("/malformed-no-type")
 def malformed_no_type(req):
-    return _malformed_stream(
-        "data: signals {\"count\": 1}\n"
-        "\n"
-    )
+    return _malformed_stream('data: signals {"count": 1}\n\n')
 
 
 @rt("/malformed-merged")
 def malformed_merged(req):
     return _malformed_stream(
         "event: datastar-patch-signals\n"
-        "data: signals {\"count\": 1}\n"
+        'data: signals {"count": 1}\n'
         "event: datastar-patch-signals\n"
-        "data: signals {\"count\": 2}\n"
+        'data: signals {"count": 2}\n'
         "\n"
     )
 

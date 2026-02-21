@@ -68,6 +68,7 @@ PATCHES: list[PatchDef] = [
         markers=[
             "requestAnimationFrame(()=>{d=!1})",
             'e.style.display==="none"',
+            'once")};let a=L(t,n,"kebab"),b;if(n.has("outside")',
         ],
     ),
     PatchDef(

@@ -36,7 +36,7 @@ jobs:
         path: |
           ~/.bun/install/cache
           node_modules
-        key: ${{ runner.os }}-bun-${{ hashFiles('package.json', 'bun.lockb') }}
+        key: ${{ runner.os }}-bun-${{ hashFiles('package.json', 'bun.lock') }}
         restore-keys: |
           ${{ runner.os }}-bun-
     
@@ -84,6 +84,30 @@ jobs:
         for plugin in "${core_plugins[@]}"; do
           if [ ! -f "$plugins_dir/$plugin" ]; then
             echo "❌ Missing core plugin: $plugin"
+            exit 1
+          fi
+        done
+
+        # Check debugger directory exists and has files
+        debugger_dir="src/starhtml/static/js/debugger"
+        if [ ! -d "$debugger_dir" ]; then
+          echo "❌ Debugger directory missing: $debugger_dir"
+          exit 1
+        fi
+
+        debugger_count=$(find "$debugger_dir" -type f \( -name "*.js" -o -name "*.css" \) | wc -l)
+        echo "📁 Found $debugger_count debugger files:"
+
+        core_debugger=("capture.js" "setup.js" "signals.js" "timeline.js" "dom-observer.js" "debugger.css")
+        for file in "${core_debugger[@]}"; do
+          if [ ! -f "$debugger_dir/$file" ]; then
+            echo "❌ Missing debugger file: $file"
+            exit 1
+          fi
+          size=$(stat -c%s "$debugger_dir/$file")
+          echo "✅ $file ($size bytes)"
+          if [ "$size" -eq 0 ]; then
+            echo "❌ Empty file: $debugger_dir/$file"
             exit 1
           fi
         done

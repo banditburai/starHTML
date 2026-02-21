@@ -17,8 +17,6 @@ from hatchling.builders.hooks.plugin.interface import BuildHookInterface
 class JavaScriptBuildError(Exception):
     """Raised when JavaScript build fails."""
 
-    pass
-
 
 def run_command(cmd: list[str], cwd: Path | None = None) -> None:
     """Run a command and raise JavaScriptBuildError if it fails."""
@@ -66,7 +64,7 @@ class CustomBuildHook(BuildHookInterface):
         # Check if bun is available
         try:
             run_command(["bun", "--version"], cwd=root_path)
-        except (subprocess.CalledProcessError, FileNotFoundError):
+        except (JavaScriptBuildError, FileNotFoundError):
             print("❌ bun is not available - JavaScript build will be skipped")
             print("   This is expected in some CI environments where JS is pre-built")
             return
@@ -101,6 +99,22 @@ class CustomBuildHook(BuildHookInterface):
         for file in sorted(built_files):
             print(f"   - {file.name}")
 
+        # Verify debugger build outputs exist
+        debugger_dir = root_path / "src" / "starhtml" / "static" / "js" / "debugger"
+        if not debugger_dir.exists():
+            raise JavaScriptBuildError(f"Debugger directory not created: {debugger_dir}")
+
+        debugger_core_files = {"capture.js", "setup.js", "signals.js", "timeline.js", "dom-observer.js", "debugger.css"}
+        debugger_files = list(debugger_dir.glob("*"))
+        debugger_file_names = {f.name for f in debugger_files}
+        missing_debugger = debugger_core_files - debugger_file_names
+        if missing_debugger:
+            raise JavaScriptBuildError(f"Missing debugger files after build: {missing_debugger}")
+
+        print(f"✅ Debugger build verified! Found {len(debugger_files)} files:")
+        for file in sorted(debugger_files):
+            print(f"   - {file.name}")
+
         # Add all generated files to build artifacts so hatchling includes them
         artifacts = build_data.setdefault("artifacts", [])
         for file_path in built_files:
@@ -108,4 +122,9 @@ class CustomBuildHook(BuildHookInterface):
             if rel_path not in artifacts:
                 artifacts.append(rel_path)
 
-        print(f"📦 Added {len(built_files)} JavaScript plugins to build artifacts")
+        for file_path in debugger_files:
+            rel_path = f"src/starhtml/static/js/debugger/{file_path.name}"
+            if rel_path not in artifacts:
+                artifacts.append(rel_path)
+
+        print(f"📦 Added {len(built_files)} plugin + {len(debugger_files)} debugger files to build artifacts")

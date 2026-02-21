@@ -1,7 +1,6 @@
 """Tests for the debug flag infrastructure."""
 
 import os
-from io import StringIO
 from unittest.mock import patch
 
 from starhtml.core import StarHTML
@@ -37,17 +36,19 @@ class TestDebugFlag:
             app = StarHTML(debug=False)
             assert app.debug is True
 
-    def test_debug_stderr_warning(self):
-        captured = StringIO()
-        with patch("sys.stderr", captured):
-            StarHTML(debug=True)
-        assert "debug mode is ON" in captured.getvalue()
+    def test_debug_stderr_warning(self, caplog):
+        import logging
 
-    def test_no_debug_no_warning(self):
-        captured = StringIO()
-        with patch("sys.stderr", captured):
+        with caplog.at_level(logging.WARNING, logger="starhtml.core"):
+            StarHTML(debug=True)
+        assert any("debug mode is ON" in msg for msg in caplog.messages)
+
+    def test_no_debug_no_warning(self, caplog):
+        import logging
+
+        with caplog.at_level(logging.WARNING, logger="starhtml.core"):
             StarHTML(debug=False)
-        assert "debug mode" not in captured.getvalue()
+        assert not any("debug mode" in msg for msg in caplog.messages)
 
     def test_debug_env_case_insensitive(self):
         """STARHTML_DEBUG=TRUE (uppercase) should work."""

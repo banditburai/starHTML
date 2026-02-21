@@ -236,7 +236,7 @@ def html2ft(html, attr1st=False):
 
 @patch
 def __str__(self: "FT") -> str:
-    return self.id if self.id else to_xml(self, indent=False)
+    return to_xml(self, indent=False)
 
 
 @patch
