@@ -33,6 +33,71 @@ def run_command(cmd: list[str], cwd: Path | None = None) -> None:
         raise JavaScriptBuildError(f"Failed to run {' '.join(cmd)}") from e
 
 
+def _validate_and_collect(root_path: Path, build_data: dict[str, Any]) -> None:
+    """Validate build outputs and register them as hatchling artifacts."""
+    js_dir = root_path / "src" / "starhtml" / "static" / "js"
+
+    # Plugins
+    plugins_dir = js_dir / "plugins"
+    if not plugins_dir.exists():
+        raise JavaScriptBuildError(f"Plugins directory not created: {plugins_dir}")
+
+    built_files = list(plugins_dir.glob("*.js"))
+    if not built_files:
+        raise JavaScriptBuildError("No JavaScript files found after build")
+
+    core_files = {"persist.js", "scroll.js", "resize.js", "drag.js", "canvas.js", "position.js", "split.js"}
+    missing_core = core_files - {f.name for f in built_files}
+    if missing_core:
+        raise JavaScriptBuildError(f"Missing core JavaScript files after build: {missing_core}")
+
+    print(f"✅ JavaScript build complete! Generated {len(built_files)} plugin files:")
+    for file in sorted(built_files):
+        print(f"   - {file.name}")
+
+    # Debugger
+    debugger_dir = js_dir / "debugger"
+    if not debugger_dir.exists():
+        raise JavaScriptBuildError(f"Debugger directory not created: {debugger_dir}")
+
+    debugger_core_files = {"capture.js", "setup.js", "signals.js", "timeline.js", "dom-observer.js", "debugger.css"}
+    debugger_files = list(debugger_dir.glob("*"))
+    missing_debugger = debugger_core_files - {f.name for f in debugger_files}
+    if missing_debugger:
+        raise JavaScriptBuildError(f"Missing debugger files after build: {missing_debugger}")
+
+    print(f"✅ Debugger build verified! Found {len(debugger_files)} files:")
+    for file in sorted(debugger_files):
+        print(f"   - {file.name}")
+
+    # Datastar
+    datastar_path = js_dir / "datastar.js"
+    if not datastar_path.exists():
+        raise JavaScriptBuildError(f"Datastar file not created: {datastar_path}")
+    ds_size = datastar_path.stat().st_size
+    if ds_size == 0:
+        raise JavaScriptBuildError(f"Datastar file is empty: {datastar_path}")
+    print(f"✅ Datastar build verified: {datastar_path.name} ({ds_size} bytes)")
+
+    # Register artifacts
+    artifacts = build_data.setdefault("artifacts", [])
+    for file_path in built_files:
+        rel_path = f"src/starhtml/static/js/plugins/{file_path.name}"
+        if rel_path not in artifacts:
+            artifacts.append(rel_path)
+
+    for file_path in debugger_files:
+        rel_path = f"src/starhtml/static/js/debugger/{file_path.name}"
+        if rel_path not in artifacts:
+            artifacts.append(rel_path)
+
+    datastar_rel = "src/starhtml/static/js/datastar.js"
+    if datastar_rel not in artifacts:
+        artifacts.append(datastar_rel)
+
+    print(f"📦 Added {len(built_files)} plugin + {len(debugger_files)} debugger + 1 datastar files to build artifacts")
+
+
 class CustomBuildHook(BuildHookInterface):
     """Build hook that builds JavaScript from TypeScript during packaging."""
 
@@ -52,7 +117,6 @@ class CustomBuildHook(BuildHookInterface):
 
         print("🔨 Building JavaScript plugins from TypeScript...")
 
-        # Check if we're in the right directory
         if not (root_path / "typescript").exists():
             print("⚠️  No typescript directory found, skipping JavaScript build")
             return
@@ -61,7 +125,6 @@ class CustomBuildHook(BuildHookInterface):
             print("⚠️  No package.json found, skipping JavaScript build")
             return
 
-        # Check if bun is available
         try:
             run_command(["bun", "--version"], cwd=root_path)
         except (JavaScriptBuildError, FileNotFoundError):
@@ -69,62 +132,11 @@ class CustomBuildHook(BuildHookInterface):
             print("   This is expected in some CI environments where JS is pre-built")
             return
 
-        # Install dependencies if node_modules doesn't exist
         if not (root_path / "node_modules").exists():
             print("📦 Installing JavaScript dependencies...")
             run_command(["bun", "install", "--frozen-lockfile"], cwd=root_path)
 
-        # Build JavaScript from TypeScript
         print("🏗️  Building JavaScript plugins...")
         run_command(["bun", "run", "build"], cwd=root_path)
 
-        # Verify the build outputs exist
-        plugins_dir = root_path / "src" / "starhtml" / "static" / "js" / "plugins"
-        if not plugins_dir.exists():
-            raise JavaScriptBuildError(f"Plugins directory not created: {plugins_dir}")
-
-        # Dynamically discover all built .js files instead of hardcoding
-        built_files = list(plugins_dir.glob("*.js"))
-        if not built_files:
-            raise JavaScriptBuildError("No JavaScript files found after build")
-
-        # Check that at least the core files exist
-        core_files = {"persist.js", "scroll.js", "resize.js", "drag.js", "canvas.js", "position.js", "split.js"}
-        built_file_names = {f.name for f in built_files}
-        missing_core = core_files - built_file_names
-        if missing_core:
-            raise JavaScriptBuildError(f"Missing core JavaScript files after build: {missing_core}")
-
-        print(f"✅ JavaScript build complete! Generated {len(built_files)} plugin files:")
-        for file in sorted(built_files):
-            print(f"   - {file.name}")
-
-        # Verify debugger build outputs exist
-        debugger_dir = root_path / "src" / "starhtml" / "static" / "js" / "debugger"
-        if not debugger_dir.exists():
-            raise JavaScriptBuildError(f"Debugger directory not created: {debugger_dir}")
-
-        debugger_core_files = {"capture.js", "setup.js", "signals.js", "timeline.js", "dom-observer.js", "debugger.css"}
-        debugger_files = list(debugger_dir.glob("*"))
-        debugger_file_names = {f.name for f in debugger_files}
-        missing_debugger = debugger_core_files - debugger_file_names
-        if missing_debugger:
-            raise JavaScriptBuildError(f"Missing debugger files after build: {missing_debugger}")
-
-        print(f"✅ Debugger build verified! Found {len(debugger_files)} files:")
-        for file in sorted(debugger_files):
-            print(f"   - {file.name}")
-
-        # Add all generated files to build artifacts so hatchling includes them
-        artifacts = build_data.setdefault("artifacts", [])
-        for file_path in built_files:
-            rel_path = f"src/starhtml/static/js/plugins/{file_path.name}"
-            if rel_path not in artifacts:
-                artifacts.append(rel_path)
-
-        for file_path in debugger_files:
-            rel_path = f"src/starhtml/static/js/debugger/{file_path.name}"
-            if rel_path not in artifacts:
-                artifacts.append(rel_path)
-
-        print(f"📦 Added {len(built_files)} plugin + {len(debugger_files)} debugger files to build artifacts")
+        _validate_and_collect(root_path, build_data)

@@ -1,23 +1,33 @@
 # Datastar Vendored Patches
 
-Vendored file: `src/starhtml/static/datastar.js`
-Version tracked in `DATASTAR_VERSION` (`starapp.py`), with `+starhtml` build metadata suffix to distinguish from vanilla.
+Vanilla source: `patches/datastar-upstream.js` (committed)
+Patched output: `src/starhtml/static/js/datastar.js` (gitignored, built by `bun run build`)
+Version tracked in `DATASTAR_VERSION` (`starapp.py`), with `+starhtml` build metadata suffix.
+
+## Build Pipeline
+
+`bun run build` calls `scripts/build_datastar.py` which:
+1. Reads `patches/datastar-upstream.js`
+2. Applies all patches from `patches/patch_definitions.py`
+3. Verifies all patch markers
+4. Writes to `src/starhtml/static/js/datastar.js`
+
+The patched file is served alongside plugins and debugger JS via the general `/_pkg/starhtml/{filename}` route.
 
 ## Updating Datastar
 
-Patches are applied automatically:
-
 ```
 python scripts/update_datastar.py 1.0.0-RC.8
+bun run build
 ```
 
 (The `v` prefix is optional — `v1.0.0-RC.8` also works.)
 
-This downloads vanilla Datastar from CDN, applies all patches, verifies markers, and updates `DATASTAR_VERSION`.
+This downloads vanilla Datastar from CDN, dry-runs all patches to verify they apply, saves the vanilla source to `patches/datastar-upstream.js`, and updates `DATASTAR_VERSION`.
 
-If a patch fails (Datastar internals changed), the script saves `src/starhtml/static/datastar.vanilla.js` for diffing. Fix the search strings in `patches/patch_definitions.py`.
+If a patch fails (Datastar internals changed), the script saves `patches/datastar-upstream.vanilla.js` for diffing. Fix the search strings in `patches/patch_definitions.py`.
 
-To verify patches on the current file:
+To verify patches on the current built file:
 
 ```
 python patches/verify_datastar_patches.py

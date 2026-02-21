@@ -2,6 +2,16 @@ import { cpSync, rmSync } from "fs";
 
 rmSync("src/starhtml/static/js", { recursive: true, force: true });
 
+// Build patched datastar.js from vanilla upstream source
+const proc = Bun.spawnSync(["python3", "scripts/build_datastar.py"], {
+  stdout: "inherit",
+  stderr: "inherit",
+});
+if (proc.exitCode !== 0) {
+  console.error("Datastar build failed");
+  process.exit(1);
+}
+
 const result = await Bun.build({
   entrypoints: [
     // Plugins (14)

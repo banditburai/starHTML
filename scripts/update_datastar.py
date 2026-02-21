@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Update vendored datastar.js: download from CDN, apply patches, verify."""
+"""Update vanilla Datastar upstream source: download from CDN, dry-run patches, update version.
+
+After running this, run `bun run build` to apply patches and produce static/js/datastar.js.
+"""
 
 import re
 import sys
@@ -8,7 +11,7 @@ from urllib.request import urlopen
 
 ROOT = Path(__file__).resolve().parent.parent
 STARAPP_PATH = ROOT / "src" / "starhtml" / "starapp.py"
-STATIC_PATH = ROOT / "src" / "starhtml" / "static" / "datastar.js"
+UPSTREAM_PATH = ROOT / "patches" / "datastar-upstream.js"
 CDN_URL = "https://cdn.jsdelivr.net/gh/starfederation/datastar@{version}/bundles/datastar.js"
 
 sys.path.insert(0, str(ROOT / "patches"))
@@ -53,14 +56,15 @@ def main() -> int:
     vanilla = download_datastar(new_version)
     print(f"Downloaded {len(vanilla)} bytes")
 
+    # Dry-run: verify patches can be applied to the new version
     try:
         patched = apply_all(vanilla, new_version)
-        print(f"Applied {len(PATCHES)} patches ({len(patched)} bytes)")
+        print(f"Dry-run: applied {len(PATCHES)} patches ({len(patched)} bytes)")
     except ValueError as e:
         print(f"\nERROR: {e}")
         print("\nThe Datastar internals may have changed.")
         print("Fix the search strings in patches/patch_definitions.py")
-        vanilla_path = STATIC_PATH.with_suffix(".vanilla.js")
+        vanilla_path = UPSTREAM_PATH.with_suffix(".vanilla.js")
         vanilla_path.write_text(vanilla)
         print(f"Vanilla file saved to: {vanilla_path}")
         return 1
@@ -75,9 +79,11 @@ def main() -> int:
         print("\nERROR: Verification failed after patching!")
         return 1
 
-    STATIC_PATH.write_text(patched)
+    # Save vanilla (unpatched) source — patches applied at build time
+    UPSTREAM_PATH.write_text(vanilla)
     update_version_constant(new_version)
-    print(f"\nSuccessfully updated to {new_version} with all patches applied.")
+    print(f"\nUpdated upstream to {new_version}: {UPSTREAM_PATH}")
+    print("Run `bun run build` to apply patches.")
     return 0
 
 
