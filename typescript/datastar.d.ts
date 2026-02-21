@@ -24,4 +24,13 @@ declare module "datastar" {
     name: string;
     apply: (ctx: unknown, ...args: unknown[]) => void | Promise<void>;
   }): void;
+
+  /** Enumerate all signals matching include/exclude regex filters. Returns a nested object with zero reactive dependencies. */
+  export function filtered(opts?: { include?: RegExp; exclude?: RegExp }): Record<string, unknown>;
+
+  /** Start peeking — signal reads won't create reactive dependencies. */
+  export function startPeeking(): void;
+
+  /** Stop peeking — restore normal dependency tracking. */
+  export function stopPeeking(): void;
 }

@@ -4,23 +4,16 @@
   "description": "StarHTML JavaScript plugins",
   "type": "module",
   "scripts": {
-    "build": "echo 'Building JavaScript plugins...' && vite build && echo '✅ Build complete!'",
-    "dev": "vite build --watch",
+    "build": "bun run scripts/build.ts",
+    "dev": "bun --watch run scripts/build.ts",
     "lint": "biome lint typescript/",
     "format": "biome format typescript/ --write",
     "check": "biome check typescript/",
     "postinstall": "bun run build"
   },
-  "dependencies": {
+  "devDependencies": {
     "@biomejs/biome": "^1.8.0",
     "@floating-ui/dom": "^1.7.4",
-    "typescript": "^5.3.0",
-    "vite": "^5.0.0"
-  },
-  "engines": {
-    "node": ">=18"
-  },
-  "devDependencies": {
-    "terser": "^5.43.1"
+    "typescript": "^5.3.0"
   }
 }

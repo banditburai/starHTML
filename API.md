@@ -34,9 +34,11 @@ data_on_submit=post("/api/save")           # HTTP request
 
 # 4. Signal operations
 counter.add(1)                             # → $counter++
-counter.set(0)                             # → $counter = 0  
+counter.set(0)                             # → $counter = 0
 is_visible.toggle()                        # → $is_visible = !$is_visible
 name.upper().contains("ADMIN")             # → $name.toUpperCase().includes("ADMIN")
+count.default(0)                           # → ($count ?? 0)
+theme.one_of("light", "dark")             # → ["light","dark"].includes($theme) ? $theme : "light"
 
 # 5. Logical expressions
 all(name, email, age)                      # All truthy → !!$name && !!$email && !!$age
@@ -120,6 +122,25 @@ counter.set(10)              # Set value
 counter.add(1)               # Increment/add
 counter.toggle()             # Boolean toggle
 name.upper()                 # String methods
+```
+
+#### Value Guards
+
+```python
+# Nullish fallback — safe default when signal may be undefined
+count.default(0)                        # → ($count ?? 0)
+user.email.default("")                  # → ($user.email ?? "")
+count.default(0).clamp(0, 99)           # Chains with other expressions
+
+# Enum guard — constrain to allowed values, fallback to first (or explicit default)
+theme.one_of("light", "dark")           # → (["light","dark"].includes($theme) ? $theme : "light")
+theme.one_of("light", "dark", "auto", default="light")
+
+# Practical: guard a display value
+data_text=status.one_of("draft", "review", "published")
+
+# Guard before match — ensure theme is valid, then map to classes
+data_attr_class=match(theme.one_of("light", "dark"), light="bg-white", dark="bg-gray-900")
 ```
 
 ## Essential Reactivity
@@ -495,6 +516,130 @@ def Modal(content, **kwargs):
         cls="modal",
         **kwargs
     )
+```
+
+### Icon Component
+
+StarHTML provides an `Icon()` component with two rendering modes: **CDN mode** (default) uses the Iconify web component, while **inline mode** renders server-side SVGs for zero JavaScript, zero layout shift, and offline support.
+
+#### Basic Usage
+
+```python
+from starhtml import *
+
+# Icons use "prefix:name" format from any Iconify-compatible set
+Icon("lucide:home")                    # Lucide icon
+Icon("mdi:account")                    # Material Design
+Icon("ph:star")                        # Phosphor
+Icon("tabler:settings")               # Tabler
+```
+
+#### Sizing
+
+```python
+# Explicit size (applied to both width and height)
+Icon("lucide:home", size=24)           # 24px
+Icon("lucide:home", size="1.5rem")     # 1.5rem
+
+# Separate width/height
+Icon("lucide:home", width=32, height=24)
+
+# Tailwind size classes (extracted automatically)
+Icon("lucide:home", cls="size-6")      # 1.5rem from Tailwind mapping
+Icon("lucide:home", cls="w-8 h-8")    # 2rem
+Icon("lucide:home", cls="size-[2rem]") # Arbitrary value
+
+# No size specified → defaults to 1em (inherits from font size)
+Icon("lucide:home")
+```
+
+#### Color & Styling
+
+```python
+# Colors inherit via currentColor — use text-* classes
+Icon("lucide:heart", cls="text-red-500 size-6")
+Icon("lucide:star", cls="text-amber-400 size-5")
+
+# Spacing classes work on the wrapper span
+Icon("lucide:home", cls="mr-2")
+
+# In buttons
+Button(
+    Icon("lucide:download", cls="size-4 mr-2"),
+    "Download",
+    cls="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded",
+)
+```
+
+#### Inline SVG Mode
+
+By default, icons use the Iconify CDN web component. For production, enable inline SVGs:
+
+```python
+# Option 1: In code
+app, rt = star_app(inline_icons=True)
+
+# Option 2: Environment variable (overrides code setting)
+# STARHTML_INLINE_ICONS=1  (accepts: 1, true, yes — case-insensitive)
+```
+
+**CDN mode** (default): Renders `<iconify-icon>` web components. Requires JavaScript; icons are fetched client-side on first load. Good for development.
+
+**Inline mode**: Renders `<svg>` elements directly in HTML. Zero JavaScript, zero layout shift, works offline. Better for production.
+
+#### How Caching Works
+
+No extra setup needed — just use `Icon()` normally. Icons are resolved through a 2-tier cache with an API fallback:
+
+| Layer | Source | When |
+|-------|--------|------|
+| Memory | In-process dict | After first access |
+| Disk | `<project_root>/.starhtml/icons/{prefix}.json` | Memory miss |
+| API (fallback) | `api.iconify.design` | Disk miss in dev — fetched once, then cached to disk |
+
+The project root is detected by walking up from CWD looking for `pyproject.toml` (same heuristic as uv/ruff/pytest). Icons are cached to `<project_root>/.starhtml/icons/`.
+
+When `inline_icons=True`, all cached icons are preloaded into memory at startup — no disk I/O on first request.
+
+#### Production Workflow
+
+This follows the same pattern as Astro, Nuxt, and other frameworks: **scan at build time, serve from local cache at runtime.** No runtime API calls in production.
+
+```bash
+# In CI/CD or before deploy: scan source and pre-cache all icons
+starhtml icons scan web/ src/
+
+# Commit the cache or bake into Docker image
+git add .starhtml/icons/
+
+# In production: inline_icons=True loads from disk cache at startup
+# Zero API calls, zero external dependencies
+```
+
+The scan uses a regex to find literal `Icon("prefix:name")` calls in your `.py` files and batch-fetches any missing icons from the Iconify API (one request per prefix). Re-running skips already-cached icons. Dynamically constructed icon names (e.g., `Icon(f"{prefix}:home")` or `Icon(variable)`) are not detected — register these manually with `resolver.register()`.
+
+**Development** requires no setup — icons are fetched from the API on first use and cached automatically.
+
+#### Custom Icons
+
+```python
+from starhtml.icons import resolver, IconData
+
+# Register a custom SVG icon (e.g. your own logo)
+resolver.register("custom", "logo", IconData(body='<path d="M..."/>', width=24, height=24))
+Icon("custom:logo")  # Works like any other icon
+```
+
+#### CLS Prevention
+
+The `Icon()` wrapper `<span>` reserves space with `display:inline-block`, `flex-shrink:0`, `vertical-align:middle`, `line-height:0`, and explicit width/height. This prevents layout shift whether using CDN or inline mode.
+
+```python
+# stable=True (default) — wrapper span with reserved space
+Icon("lucide:home")
+
+# stable=False — bare <iconify-icon> (CDN) or raw <svg> (inline), no wrapper span
+Icon("lucide:home", stable=False)
 ```
 
 ### Handler System

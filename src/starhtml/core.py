@@ -1,7 +1,11 @@
 """The `StarHTML` subclass of `Starlette`"""
 
 import asyncio
+import logging
+import os
 import re
+
+logger = logging.getLogger(__name__)
 from copy import deepcopy
 from functools import partialmethod
 from pathlib import Path as PathlibPath
@@ -21,11 +25,11 @@ from starlette.middleware import Middleware
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.requests import Request
 from starlette.responses import FileResponse, RedirectResponse, Response
-from starlette.routing import Route, WebSocketRoute
+from starlette.routing import Mount, Route, WebSocketRoute
 
-from .realtime import _ws_endp, setup_ws
+from .realtime import _ws_endp, set_debug_context, setup_ws
 from .server import _mk_locfunc, _wrap_call, _wrap_ex, _wrap_req, all_meths, cookie, render_response, serve
-from .starapp import Beforeware, def_hdrs
+from .starapp import Beforeware, _datastar_cdn_url, def_hdrs
 from .utils import _list, _params, get_key, noop_body, reg_re_param
 
 
@@ -88,15 +92,23 @@ class StarHTML(Starlette):
         htmlkw=None,
         canonical=True,
         static_path=None,
+        datastar: str = "patched",
         **bodykw,
     ):
         middleware, before, after = map(_list, (middleware, before, after))
         self.title, self.canonical = title, canonical
         hdrs, ftrs = map(listify, (hdrs, ftrs))
 
+        if datastar == "cdn":
+            self._datastar_url = _datastar_cdn_url()
+        elif datastar == "patched" or not datastar:
+            self._datastar_url = "/_pkg/starhtml/datastar.js"
+        else:
+            self._datastar_url = datastar
+
         htmlkw = htmlkw or {}
         if default_hdrs:
-            hdrs = def_hdrs() + hdrs
+            hdrs = def_hdrs(datastar_url=self._datastar_url) + hdrs
         on_startup, on_shutdown = listify(on_startup) or None, listify(on_shutdown) or None
         self.lifespan, self.hdrs, self.ftrs = lifespan, hdrs, ftrs
         self.body_wrap, self.before, self.after, self.htmlkw, self.bodykw = body_wrap, before, after, htmlkw, bodykw
@@ -130,6 +142,10 @@ class StarHTML(Starlette):
         excs = {
             k: _wrap_ex(v, k, hdrs, ftrs, htmlkw, bodykw, body_wrap=body_wrap) for k, v in exception_handlers.items()
         }
+        env_debug = os.environ.get("STARHTML_DEBUG")
+        if env_debug is not None:
+            debug = env_debug.lower() in ("1", "true", "yes")
+
         super().__init__(
             debug,
             routes,
@@ -140,14 +156,19 @@ class StarHTML(Starlette):
             lifespan=lifespan,
         )
 
-        # Serve bundled Datastar v1.0.0-RC.7 (external vendored dependency)
-        datastar_path = PathlibPath(__file__).parent / "static" / "datastar.js"
+        if self.debug:
+            logger.warning("StarHTML debug mode is ON. Do not use in production.")
+            from .debugger import setup_debugger
 
-        @self.route("/static/datastar.js")
-        async def serve_datastar():
-            return FileResponse(datastar_path, media_type="application/javascript")
+            setup_debugger(self)
 
-        # Register framework plugins (served at /_pkg/starhtml/plugins/)
+        if datastar == "patched" or not datastar:
+            datastar_path = PathlibPath(__file__).parent / "static" / "datastar.js"
+
+            @self.route("/_pkg/starhtml/datastar.js")
+            async def serve_datastar():
+                return FileResponse(datastar_path, media_type="application/javascript")
+
         self.register_package_static(
             name="starhtml/plugins",
             static_path=PathlibPath(__file__).parent / "static" / "js" / "plugins",
@@ -199,12 +220,16 @@ class StarHTML(Starlette):
 def _endp(self: StarHTML, f, body_wrap):
     """Create a Starlette-compatible endpoint from a StarHTML route function"""
     sig = signature_ex(f, True)
+    _is_debug = self.debug
 
     async def _f(req):
         resp = None
         req.injects = []
         req.hdrs, req.ftrs, req.htmlkw, req.bodykw = map(deepcopy, (self.hdrs, self.ftrs, self.htmlkw, self.bodykw))
         req.hdrs, req.ftrs = listify(req.hdrs), listify(req.ftrs)
+        # No reset needed — each ASGI request gets its own contextvars copy
+        if _is_debug:
+            set_debug_context(handler=f.__qualname__, route=req.url.path)
         for b in self.before:
             if not resp:
                 if isinstance(b, Beforeware):
@@ -300,7 +325,7 @@ reg_re_param("static", "|".join(_static_exts))
 
 @patch
 def register_package_static(self: StarHTML, name: str, static_path, prefix: str = None):
-    """Serve a package's static directory (routes inserted first for priority)."""
+    """Serve a package's static directory under /_pkg/{name}/."""
     if name in self._registered_packages:
         return
     self._registered_packages.add(name)
@@ -326,6 +351,18 @@ def register_package_static(self: StarHTML, name: str, static_path, prefix: str 
 
     route = Route(f"{prefix}/{{filename:path}}", serve_package_static, name=f"pkg_{name}_static")
     self.routes.insert(0, route)
+
+
+@patch
+def mount(self: StarHTML, path: str, app):
+    """Mount a child ASGI app, inserting before the catch-all static route."""
+    # The catch-all /{ext:static} route would intercept .js/.css requests meant for mounted apps
+    routes = self.router.routes
+    for i, r in enumerate(routes):
+        if ".{ext:" in getattr(r, "path", ""):
+            routes.insert(i, Mount(path, app))
+            return
+    routes.append(Mount(path, app))
 
 
 @patch
@@ -421,7 +458,7 @@ def register(self: StarHTML, *items, prefix: str | None = None):
     self.hdrs = [
         h for h in self.hdrs if not _is_import_map(h) and not (getattr(h, "src", None) or "").endswith("datastar.js")
     ]
-    merged = {"imports": {"datastar": "/static/datastar.js", **self._import_map}}
+    merged = {"imports": {"datastar": self._datastar_url, **self._import_map}}
     self.hdrs.insert(0, Script(json.dumps(merged), type="importmap"))
 
     # Wire lifecycle handlers

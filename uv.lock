@@ -1098,7 +1098,7 @@ wheels = [
 
 [[package]]
 name = "starhtml"
-version = "0.5.4"
+version = "0.5.5"
 source = { editable = "." }
 dependencies = [
     { name = "beautifulsoup4" },
@@ -1116,6 +1116,9 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+debug = [
+    { name = "starelements" },
+]
 demo = [
     { name = "star-drawing" },
     { name = "starelements" },
@@ -1171,13 +1174,14 @@ requires-dist = [
     { name = "rjsmin", specifier = ">=1.2.4" },
     { name = "ruff", marker = "extra == 'dev'" },
     { name = "star-drawing", marker = "extra == 'demo'", specifier = ">=0.1.0" },
+    { name = "starelements", marker = "extra == 'debug'", specifier = ">=0.1.1" },
     { name = "starelements", marker = "extra == 'demo'", specifier = ">=0.1.1" },
     { name = "starlette" },
     { name = "starlette-compress", specifier = ">=1.0.0" },
     { name = "starlighter", marker = "extra == 'demo'" },
     { name = "uvicorn", extras = ["standard"] },
 ]
-provides-extras = ["test", "dev", "demo"]
+provides-extras = ["test", "dev", "debug", "demo"]
 
 [package.metadata.requires-dev]
 dev = [

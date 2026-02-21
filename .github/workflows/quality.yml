@@ -22,9 +22,17 @@ jobs:
     - name: Set up Python ${{ matrix.python-version }}
       run: uv python install ${{ matrix.python-version }}
       
-    - name: Install dependencies
+    - name: Install Python dependencies
       run: uv sync --all-extras
-        
+
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@v1
+      with:
+        bun-version: latest
+
+    - name: Build JavaScript assets
+      run: bun install --frozen-lockfile && bun run build
+
     - name: Lint with ruff
       run: |
         uv run ruff check

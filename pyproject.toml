@@ -21,6 +21,9 @@ dependencies = [
     "fastlite",
 ]
 
+[project.scripts]
+starhtml = "starhtml.icons:main"
+
 [project.optional-dependencies]
 test = [
     "pytest",
@@ -40,6 +43,7 @@ dev = [
     "brotli>=1.1.0",
 ]
 
+debug = ["starelements>=0.1.1"]
 demo = ["starlighter", "starelements>=0.1.1", "star-drawing>=0.1.0"]
 
 [build-system]
@@ -146,6 +150,7 @@ ignore = [
 "scripts/*.py" = ["PLR2004"]  # Allow magic values in utility scripts
 "src/starhtml/svg.py" = ["N802", "N803", "N806"]  # Allow capitalized function names for SVG elements
 "src/starhtml/js.py" = ["N802"]  # Allow capitalized function names for JS components
+"src/starhtml/icons.py" = ["PLC0415", "PLR2004", "N802", "PLW0603"]  # Allow lazy imports, magic values, capitalized Icon function, and global _project_root
 "src/starhtml/plugins.py" = ["PLC0415"]  # Allow lazy imports to avoid circular dependencies
 "src/starhtml/datastar.py" = ["B904", "PLR2004", "PLR0911", "PLR0915", "PLC0415", "PLW1641"]  # Allow datastar patterns, multiple returns, many statements, lazy imports, and ABC without __hash__
 "src/starhtml/handlers.py" = ["PLC0415"]  # Allow lazy imports for optional dependencies

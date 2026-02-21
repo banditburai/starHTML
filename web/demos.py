@@ -9,8 +9,6 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from starlette.routing import Mount
-
 from starhtml import *
 from starhtml.plugins import position, split
 
@@ -30,7 +28,6 @@ app, rt = star_app(
             href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">⭐</text></svg>',
         ),
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
-        iconify_script(),
         StarlighterStyles("github-light") if StarlighterStyles else None,
         Script("""
             document.addEventListener('DOMContentLoaded', () => {
@@ -196,7 +193,8 @@ class Demo:
         prefix = "/demos" if os.environ.get("STARHTML_DEMOS_MOUNTED") else ""
         return f"{prefix}/view/{self.id}/"
 
-    def load_as_mount(self) -> Mount | None:
+    def load_app(self) -> tuple[str, object] | None:
+        """Load demo module, return (mount_path, child_app) or None."""
         try:
             module_name = f"demo_{self.id.replace('-', '_')}"
             spec = importlib.util.spec_from_file_location(module_name, self.file_path)
@@ -204,11 +202,9 @@ class Demo:
             spec.loader.exec_module(module)
 
             if hasattr(module, "app"):
-                mount_path = f"/demo/{self.id}"
-                return Mount(mount_path, app=module.app)
-            else:
-                print(f"Demo {self.id} doesn't have an 'app' attribute")
-                return None
+                return f"/demo/{self.id}", module.app
+            print(f"Demo {self.id} doesn't have an 'app' attribute")
+            return None
         except Exception as e:
             import traceback
 
@@ -421,6 +417,13 @@ DEMOS = [
         "29_drawing_canvas.py",
         "Patterns",
     ),
+    Demo(
+        "30-debugger",
+        "Debugger Panel",
+        "Built-in debug panel with SSE capture, signal inspector, and timeline",
+        "30_debugger_demo.py",
+        "Patterns",
+    ),
 ]
 
 
@@ -603,7 +606,7 @@ def demo_breadcrumbs(demo, base_url):
     )
 
 
-def demo_view_buttons(view_mode):
+def demo_view_buttons(view_mode, split_loaded):
     return Div(
         Button(
             Icon("tabler:devices", width="18", height="18"),
@@ -617,7 +620,7 @@ def demo_view_buttons(view_mode):
         ),
         Button(
             Icon("tabler:layout-columns", width="18", height="18"),
-            data_on_click=view_mode.set("split"),
+            data_on_click=[view_mode.set("split"), split_loaded.set(True)],
             cls="p-1.5 rounded-md hover:bg-gray-100/80 transition-all",
             data_attr_class=(view_mode == "split").if_(
                 "p-1.5 rounded-md text-black hover:bg-gray-100/80 transition-all",
@@ -671,10 +674,14 @@ def demo_navigation_controls(prev_demo, next_demo):
     )
 
 
-def demo_navigation_bar(demo, view_mode, support_open, prev_demo, next_demo, base_url):
+def demo_navigation_bar(demo, view_mode, split_loaded, support_open, prev_demo, next_demo, base_url):
     return Nav(
         Div(
-            Div(demo_breadcrumbs(demo, base_url), demo_view_buttons(view_mode), cls="flex items-end gap-1.5"),
+            Div(
+                demo_breadcrumbs(demo, base_url),
+                demo_view_buttons(view_mode, split_loaded),
+                cls="flex items-end gap-1.5",
+            ),
             Div(
                 support_dropdown(support_open),
                 demo_navigation_controls(prev_demo, next_demo),
@@ -686,7 +693,7 @@ def demo_navigation_bar(demo, view_mode, support_open, prev_demo, next_demo, bas
     )
 
 
-def demo_content_views(demo, view_mode):
+def demo_content_views(demo, view_mode, split_loaded):
     return Div(
         Iframe(
             src=demo.route_path,
@@ -702,7 +709,9 @@ def demo_content_views(demo, view_mode):
         Div(
             Div(
                 Iframe(
-                    src=demo.route_path, translate="no", cls="panel left w-full h-full border-0 bg-white notranslate"
+                    translate="no",
+                    data_attr_src=split_loaded.if_(demo.route_path, "about:blank"),
+                    cls="panel left w-full h-full border-0 bg-white notranslate",
                 ),
                 Div(data_split="demo_split:horizontal:50,50"),
                 Div(Div(id=f"split-code-{demo.id}", cls="h-full overflow-auto p-4"), cls="panel right"),
@@ -747,14 +756,16 @@ def demo_with_nav(req, demo_id: str):
 
     signal_id = demo.id.replace("-", "_")
     view_mode = Signal(f"view_{signal_id}", "demo")
+    split_loaded = Signal(f"split_loaded_{signal_id}", False)
     support_open = Signal(f"support_{signal_id}", False)
 
     return Div(
         view_mode,
+        split_loaded,
         support_open,
-        demo_navigation_bar(demo, view_mode, support_open, prev_demo, next_demo, base_url),
+        demo_navigation_bar(demo, view_mode, split_loaded, support_open, prev_demo, next_demo, base_url),
         Div(cls="h-16"),
-        demo_content_views(demo, view_mode),
+        demo_content_views(demo, view_mode, split_loaded),
         Div(
             data_show=support_open,
             data_on_click=support_open.set(False),
@@ -772,9 +783,10 @@ def setup_demos():
 
     mounted_count = 0
     for demo in DEMOS:
-        mount = demo.load_as_mount()
-        if mount:
-            app.router.routes.append(mount)
+        result = demo.load_app()
+        if result:
+            path, child_app = result
+            app.mount(path, child_app)
             mounted_count += 1
 
     print(f"🎯 Successfully mounted {mounted_count}/{len(DEMOS)} demos")

@@ -300,7 +300,6 @@ app, rt = star_app(
     htmlkw={"lang": "en"},
     hdrs=[
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
-        iconify_script(),
     ],
 )
 

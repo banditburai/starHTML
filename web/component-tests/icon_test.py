@@ -48,7 +48,6 @@ app, rt = star_app(
                 display: inline-block;
             }
         """),
-        iconify_script(),
     ],
 )
 

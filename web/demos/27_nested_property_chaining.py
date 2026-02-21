@@ -14,7 +14,6 @@ app, rt = star_app(
         Style(
             """body{background:white;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;-webkit-font-smoothing:antialiased}.code-example{background:#1e293b;color:#e2e8f0;border-radius:6px;padding:16px;font-family:'Monaco','Menlo',monospace;font-size:14px;margin:12px 0;white-space:pre;overflow-x:auto}.code-bad{background:#fef2f2;border:1px solid #fecaca;color:#991b1b}.code-good{background:#f0fdf4;border:1px solid #bbf7d0;color:#166534}.property-display{background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:12px;margin:8px 0;font-family:monospace;display:flex;justify-content:space-between;align-items:center}.status-badge{padding:4px 8px;border-radius:4px;font-size:12px;font-weight:600}.status-enabled{background:#dcfce7;color:#166534}.status-disabled{background:#fee2e2;color:#991b1b}.theme-dark{background:#374151;color:#f3f4f6}.theme-light{background:#f3f4f6;color:#374151}"""
         ),
-        iconify_script(),
     ],
 )
 

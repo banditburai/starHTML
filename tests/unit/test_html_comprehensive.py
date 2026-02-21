@@ -362,17 +362,17 @@ class TestFtPatches:
     """Test FT class patches for string operations."""
 
     def test_ft_str_with_id(self):
-        """Test FT __str__ patch when element has ID."""
+        """Test FT __str__ returns HTML even when element has ID."""
         element = ft_html("div", "content", id="test-id")
         result = str(element)
-        # Should return the ID when element has one
-        assert result == "test-id"
+        assert "<div" in result
+        assert "content" in result
+        assert 'id="test-id"' in result
 
     def test_ft_str_without_id(self):
-        """Test FT __str__ patch when element has no ID."""
+        """Test FT __str__ returns HTML when element has no ID."""
         element = ft_html("div", "content")
         result = str(element)
-        # Should return XML representation when no ID
         assert "<div" in result
         assert "content" in result
 
@@ -380,13 +380,15 @@ class TestFtPatches:
         """Test FT __radd__ patch (right addition)."""
         element = ft_html("span", "text", id="span-id")
         result = "prefix" + str(element)  # type: ignore
-        assert result == "prefixspan-id"
+        assert "prefix<span" in result
+        assert "text" in result
 
     def test_ft_add(self):
         """Test FT __add__ patch (left addition)."""
         element = ft_html("span", "text", id="span-id")
         result = str(element) + "suffix"  # type: ignore
-        assert result == "span-idsuffix"
+        assert "<span" in result
+        assert "suffix" in result
 
     def test_ft_string_concatenation_complex(self):
         """Test complex string concatenation scenarios."""
@@ -395,11 +397,19 @@ class TestFtPatches:
 
         # Element + Element (both have IDs)
         result = str(element1) + str(element2)  # type: ignore
-        assert result == "div1span2"
+        assert "<div" in result
+        assert "<span" in result
 
         # String + Element + String
         result = "start-" + str(element1) + "-end"  # type: ignore
-        assert result == "start-div1-end"
+        assert "start-<div" in result
+        assert "-end" in result
+
+    def test_ft_id_accessed_via_attribute(self):
+        """Test that element IDs are accessed via .id attribute, not str()."""
+        element = ft_html("div", "content", id="target")
+        assert element.id == "target"
+        assert f"#{element.id}" == "#target"
 
 
 class TestConfiguration:

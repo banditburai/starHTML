@@ -17,7 +17,6 @@ app, rt = star_app(
         Style(
             """body{background:#fff;color:#000;margin:0;padding:0;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}::selection{background:#000;color:#fff}"""
         ),
-        iconify_script(),
     ],
 )
 

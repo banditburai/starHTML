@@ -676,7 +676,6 @@ app, rt = star_app(
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
         StarlighterStyles("github-light"),
         Style("body { background: white; font-family: system-ui, sans-serif; }"),
-        iconify_script(),
     ],
 )
 

@@ -14,7 +14,6 @@ app, rt = star_app(
             body { background: white; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; -webkit-font-smoothing: antialiased; }
             @keyframes slideIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
         """),
-        iconify_script(),
     ],
 )
 

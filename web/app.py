@@ -5,8 +5,6 @@ import os
 from importlib.metadata import version
 from pathlib import Path
 
-from starlette.routing import Mount
-
 from demos import app as demos_app
 from demos import setup_demos
 from sections import SECTIONS
@@ -26,7 +24,6 @@ app, rt = star_app(
         ),
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
         Script(src="https://cdn.jsdelivr.net/npm/motion@11.11.13/dist/motion.js"),
-        iconify_script(),
         Style("""
             * {
                 box-sizing: border-box;
@@ -360,18 +357,7 @@ for section in SECTIONS:
 
 os.environ["STARHTML_DEMOS_MOUNTED"] = "1"
 setup_demos()
-app.router.routes.append(Mount("/demos", demos_app))
-
-# Serve starelements/star-drawing static files on the top-level app so
-# sub-mounted demos' absolute /_pkg/ references resolve correctly.
-try:
-    from star_drawing import DrawingCanvas as _DrawingCanvas
-    from starelements import get_static_path as _se_static
-
-    app.register_package_static("starelements", _se_static())
-    app.register_package_static("star-drawing", _DrawingCanvas.get_static_path())
-except ImportError:
-    pass
+app.mount("/demos", demos_app)
 
 if __name__ == "__main__":
     serve(port=5009)

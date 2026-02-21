@@ -970,7 +970,6 @@ app, rt = star_app(
     title="Type Safety - StarHTML Philosophy (Dev Mode)",
     hdrs=[
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
-        iconify_script(),
     ],
 )
 

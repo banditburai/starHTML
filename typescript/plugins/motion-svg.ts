@@ -258,7 +258,7 @@ function getCurrentAttributeValue(el: SVGElement, attr: string): number {
 }
 
 function setAttributeValue(el: SVGElement, attr: string, value: number): void {
-  const v = (NON_NEGATIVE_ATTRS.has(attr) && value < 0) ? 0 : value;
+  const v = NON_NEGATIVE_ATTRS.has(attr) && value < 0 ? 0 : value;
   if (attr === "stroke-dasharray") {
     const current = el.getAttribute(attr) || "0";
     const parts = current.split(/[\s,]+/);

@@ -14,7 +14,6 @@ app, rt = star_app(
         Style(
             """body{background:#fff;color:#000;margin:0;padding:0;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}::selection{background:#000;color:#fff}.canvas-viewport{width:100%;height:500px;border:1px solid #e5e7eb;border-top:0;border-radius:0 0 0.5rem 0.5rem;overflow:hidden;position:relative;cursor:grab;background:#fafafa}.canvas-viewport:active{cursor:grabbing}.canvas-container{position:relative;width:100%;height:100%;transform-origin:0 0;z-index:1}.canvas-item{position:absolute;padding:0.5rem 1rem;background:#3b82f6;color:white;border-radius:6px;font-size:0.9rem;font-weight:500;box-shadow:0 2px 4px rgba(0,0,0,0.1);user-select:none;transform:translate(-50%, -50%)}"""
         ),
-        iconify_script(),
     ],
 )
 

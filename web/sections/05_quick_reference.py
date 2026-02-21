@@ -74,7 +74,6 @@ app, rt = star_app(
     title="Quick Reference - StarHTML Documentation (Dev Mode)",
     hdrs=[
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
-        iconify_script(),
         Style("""
             body {
                 background: white;
