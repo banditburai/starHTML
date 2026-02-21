@@ -117,6 +117,7 @@ class TestDebugContextAutoRead:
         token = set_debug_context(handler="sse_handler", route="/sse/test")
         try:
             result = process_sse_item("signals", {"payload": {"count": 1}, "options": {}})
+            assert result is not None
             assert "x-debug-handler sse_handler" in result
         finally:
             _debug_ctx_var.reset(token)
