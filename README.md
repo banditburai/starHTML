@@ -1,8 +1,8 @@
 <div align="center">
 
-<a href="https://starhtml.com"><img src="https://starhtml.com/static/images/og/starhtml.jpg" alt="StarHTML — Python Web Framework" width="100%"></a>
+<a href="https://starhtml.com"><img src="web/static/images/og/starhtml.jpg" alt="StarHTML — Python Web Framework" width="100%"></a>
 
-<a href="https://ui.starhtml.com"><img src="https://ui.starhtml.com/static/images/og/starui.jpg" alt="StarUI — Python Component Library" width="100%"></a>
+<a href="https://ui.starhtml.com"><img src="web/static/images/og/starui.jpg" alt="StarUI — Python Component Library" width="100%"></a>
 
 ![PyPI Version](https://img.shields.io/pypi/v/starhtml?style=for-the-badge)
 ![License](https://img.shields.io/github/license/banditburai/starhtml?style=for-the-badge)
