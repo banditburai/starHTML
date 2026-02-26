@@ -257,13 +257,13 @@ def Icon(
         w = w or h or "1em"
         h = h or w
 
-    base_style = f"display:inline-block;width:{w};height:{h};flex-shrink:0;vertical-align:middle;line-height:0"
+    base_style = f"width:{w};height:{h};flex-shrink:0;vertical-align:middle;line-height:0"
     user_style = kwargs.pop("style", None)
     wrapper_style = f"{base_style};{user_style}" if user_style else base_style
     wrapper_id = kwargs.pop("id", None)
 
     def _wrap(inner):
-        return Span(inner, style=wrapper_style, cls=cls or None, id=wrapper_id, **kwargs)
+        return Span(inner, style=wrapper_style, cls=cls or None, id=wrapper_id, data_icon_sh=True, **kwargs)
 
     if resolver.inline:
         icon_data = resolver.resolve(prefix, name) if name else None
@@ -275,9 +275,9 @@ def Icon(
             )
             if not stable:
                 return NotStr(svg)
-            return _wrap(Span(NotStr(svg), data_icon_sh=True))
+            return _wrap(Span(NotStr(svg), style="display:block;width:100%;height:100%"))
 
-        return _wrap(Span(data_icon_sh=True))
+        return _wrap(Span(style="display:block;width:100%;height:100%"))
 
     return _wrap(ft_datastar("iconify-icon", icon=icon, width=w, height=h))
 

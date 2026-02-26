@@ -39,6 +39,27 @@ fh_cfg = AttrDict(
     indent=True,  # Whether to indent HTML/XML output
 )
 
+# Fastcore's ft() lowercases all attribute names; SVG requires camelCase for these.
+# https://html.spec.whatwg.org/multipage/parsing.html#adjust-svg-attributes
+# fmt: off
+_SVG_ATTR_FIXUP = {v.lower(): v for v in [
+    "attributeName", "attributeType", "baseFrequency", "baseProfile", "calcMode",
+    "clipPathUnits", "contentScriptType", "contentStyleType", "diffuseConstant",
+    "edgeMode", "externalResourcesRequired", "filterRes", "filterUnits", "glyphRef",
+    "gradientTransform", "gradientUnits", "kernelMatrix", "kernelUnitLength",
+    "keyPoints", "keySplines", "keyTimes", "lengthAdjust", "limitingConeAngle",
+    "markerHeight", "markerUnits", "markerWidth", "maskContentUnits", "maskUnits",
+    "numOctaves", "pathLength", "patternContentUnits", "patternTransform",
+    "patternUnits", "pointsAtX", "pointsAtY", "pointsAtZ", "preserveAlpha",
+    "preserveAspectRatio", "primitiveUnits", "refX", "refY", "repeatCount",
+    "repeatDur", "requiredExtensions", "requiredFeatures", "specularConstant",
+    "specularExponent", "spreadMethod", "startOffset", "stdDeviation", "stitchTiles",
+    "surfaceScale", "systemLanguage", "tableValues", "targetX", "targetY",
+    "textLength", "viewBox", "viewTarget", "xChannelSelector", "yChannelSelector",
+    "zoomAndPan",
+]}
+# fmt: on
+
 # ============================================================================
 # Core HTML Element Creation
 # ============================================================================
@@ -57,6 +78,7 @@ def ft_html(
     **kwargs: Any,
 ) -> FT:
     "Create a basic HTML element using fastcore's ft system"
+    orig_tag = tag
     ds, c = partition(c, risinstance(dict))
     for d in ds:
         kwargs = {**kwargs, **d}
@@ -73,9 +95,10 @@ def ft_html(
     kwargs["id"] = id.id if isinstance(id, FT) else id
     kwargs["cls"], kwargs["title"], kwargs["style"] = cls, title, style
     tag, c, kw = ft(tag, *c, attrmap=attrmap, valmap=valmap, **kwargs).list
-    if fh_cfg["auto_name"] and tag in named and id and "name" not in kw:
+    kw = {_SVG_ATTR_FIXUP.get(k, k): v for k, v in kw.items()}
+    if fh_cfg["auto_name"] and orig_tag.lower() in named and id and "name" not in kw:
         kw["name"] = kw["id"]
-    return ft_cls(tag, c, kw, void_=tag in voids)
+    return ft_cls(orig_tag, c, kw, void_=orig_tag.lower() in voids)
 
 
 def _apply_slot_attrs_to_children(parent, slot_attrs):

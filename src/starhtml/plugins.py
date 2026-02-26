@@ -842,37 +842,11 @@ mermaid = Plugin(
     critical_css="[data-mermaid]:not(:has(svg)){visibility:hidden;position:absolute;pointer-events:none}",
 )
 
+# fmt: off
 __all__ = [
-    # Core
-    "Plugin",
-    "PluginInstance",
-    "plugins_hdrs",
-    # Motion animation helpers
-    "enter",
-    "exit_",
-    "hover",
-    "tap",
-    "press",
-    "in_view",
-    "scroll_link",
-    "resize_anim",
-    "visibility",
-    "motion_remove",
-    "motion_replace",
-    # SVG motion animation helper
-    "track",
-    # Plugins
-    "canvas",
-    "clipboard",
-    "drag",
-    "katex",
-    "markdown",
-    "mermaid",
-    "motion",
-    "motion_svg",
-    "persist",
-    "position",
-    "resize",
-    "scroll",
-    "split",
+    "Plugin", "PluginInstance", "plugins_hdrs", "enter", "exit_", "hover", "tap",
+    "press", "in_view", "scroll_link", "resize_anim", "visibility", "motion_remove",
+    "motion_replace", "track", "canvas", "clipboard", "drag", "katex", "markdown",
+    "mermaid", "motion", "motion_svg", "persist", "position", "resize", "scroll", "split",
 ]
+# fmt: on

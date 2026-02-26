@@ -903,6 +903,7 @@ def process_datastar_kwargs(kwargs: dict) -> tuple[dict, set[Signal]]:
     """Transform Python kwargs to Datastar data-* attributes and collect signals."""
     processed: dict[str, Any] = {}
     signals_found: set[Signal] = set()
+    hide_for_fouc = False
 
     def collect(expr: Any) -> None:
         _collect_signals(expr, signals_found)
@@ -946,13 +947,12 @@ def process_datastar_kwargs(kwargs: dict) -> tuple[dict, set[Signal]]:
                     processed["data-class"] = NotStr(js_str)
                 else:
                     processed[normalized_key] = NotStr(js_str)
-                    # Auto-inject style for FOUC prevention when data_show is initially false
-                    if key == "data_show" and "style" not in kwargs:
+                    if key == "data_show":
                         try:
                             if not _try_evaluate_initial(expr):
-                                processed["style"] = "display: none"
+                                hide_for_fouc = True
                         except ValueError:
-                            pass  # Can't evaluate (raw JS, etc.) - user handles manually
+                            pass  # Can't evaluate — raw JS, user handles FOUC manually
             case _JSLiteral() | _JSRaw() as val:
                 processed[normalized_key] = NotStr(_to_js(val))
             case _ if hasattr(value, "__data_attrs__"):
@@ -970,50 +970,20 @@ def process_datastar_kwargs(kwargs: dict) -> tuple[dict, set[Signal]]:
                 else:
                     processed[key] = value
 
+    if hide_for_fouc:
+        existing = processed.get("style", "")
+        processed["style"] = f"{existing}; display:none" if existing else "display:none"
+
     _apply_additive_class_behavior(processed)
     return processed, signals_found
 
 
+# fmt: off
 __all__ = [
-    "Signal",
-    "Expr",
-    "js",
-    "expr",
-    "f_",
-    "regex",
-    "match",
-    "switch",
-    "collect",
-    "seq",
-    "all_",
-    "any_",
-    "post",
-    "get",
-    "put",
-    "patch",
-    "delete",
-    "set_timeout",
-    "clear_timeout",
-    "reset_timeout",
-    "scroll_to",
-    # Custom events
-    "emit",
-    # JS globals
-    "console",
-    "Math",
-    "JSON",
-    "Object",
-    "Array",
-    "Date",
-    "Number",
-    "String",
-    "Boolean",
-    "evt",
-    "el",
-    "document",
-    "window",
-    "process_datastar_kwargs",
-    "to_js_value",
-    # Plugin registration
-    "register_on_plugin",
+    "Signal", "Expr", "js", "expr", "f_", "regex", "match", "switch", "collect", "seq",
+    "all_", "any_", "post", "get", "put", "patch", "delete", "set_timeout",
+    "clear_timeout", "reset_timeout", "scroll_to", "emit", "console", "Math", "JSON",
+    "Object", "Array", "Date", "Number", "String", "Boolean", "evt", "el", "document",
+    "window", "process_datastar_kwargs", "to_js_value", "register_on_plugin",
 ]
+# fmt: on

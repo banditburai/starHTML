@@ -513,10 +513,10 @@ class TestIconComponent:
         assert 'class="text-red-500 hover:text-blue-500"' in html
 
     def test_icon_inline_block_display(self):
-        """Test Icon wrapper uses inline-block for inline flow."""
+        """Test Icon wrapper has data-icon-sh (display:inline-block is in CSS via def_hdrs)."""
         icon = Icon("lucide:home")
         html = str(icon)
-        assert "inline-block" in html
+        assert "data-icon-sh" in html
 
     def test_icon_vertical_align_middle(self):
         """Test Icon aligns with text via vertical-align:middle."""
@@ -552,7 +552,7 @@ class TestIconInlineMode:
         html = str(icon)
         assert "<span" in html
         assert 'class="text-blue-500"' in html
-        assert "inline-block" in html
+        assert "data-icon-sh" in html
         assert "flex-shrink:0" in html
         assert "vertical-align:middle" in html
 
@@ -591,7 +591,7 @@ class TestIconInlineMode:
         html = str(icon)
         assert "<span" in html
         assert "<svg" not in html
-        assert "inline-block" in html
+        assert "data-icon-sh" in html
 
     def test_inline_fill_current_color(self):
         icon = Icon("lucide:home")
