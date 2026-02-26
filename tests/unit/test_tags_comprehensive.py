@@ -109,18 +109,18 @@ class TestSVGComponents:
     def test_svg_with_viewbox_auto_generation(self):
         """Test Svg with automatic viewBox generation."""
         svg = Svg(width=200, height=150)
-        assert svg.attrs["viewbox"] == "0 0 200 150"  # Note: lowercase 'viewbox'
+        assert svg.attrs["viewBox"] == "0 0 200 150"
 
         # Test with w/h shorthand
         svg2 = Svg(w=300, h=200)
         assert svg2.attrs["width"] == 300
         assert svg2.attrs["height"] == 200
-        assert svg2.attrs["viewbox"] == "0 0 300 200"
+        assert svg2.attrs["viewBox"] == "0 0 300 200"
 
     def test_svg_with_explicit_viewbox(self):
         """Test Svg with explicit viewBox."""
         svg = Svg(width=100, height=100, viewBox="0 0 50 50")
-        assert svg.attrs["viewbox"] == "0 0 50 50"  # Explicit viewBox should not be overridden
+        assert svg.attrs["viewBox"] == "0 0 50 50"  # Explicit viewBox should not be overridden
 
     def test_rect_element(self):
         """Test Rect SVG element."""
@@ -512,16 +512,16 @@ class TestTagFactoryFunction:
         circle_factory = _create_tag_factory("Circle", is_svg=True)
         circle_element = circle_factory(r=25)
 
-        assert circle_element.tag == "circle"  # camelCase converted to lowercase
+        assert circle_element.tag == "circle"
         assert circle_element.attrs["r"] == 25
         assert circle_factory.__name__ == "Circle"
         assert "SVG" in (circle_factory.__doc__ or "")
 
     def test_svg_camelcase_conversion(self):
-        """Test SVG camelCase to lowercase conversion."""
+        """Test SVG camelCase tag preservation."""
         custom_factory = _create_tag_factory("CustomElement", is_svg=True)
         element = custom_factory()
-        assert element.tag == "customelement"  # All lowercase
+        assert element.tag == "customElement"  # SVG preserves camelCase
 
         # Test single letter tag
         x_factory = _create_tag_factory("X", is_svg=True)
@@ -552,7 +552,7 @@ class TestDynamicTagGeneration:
         custom_factory = __getattr__("CustomTag")
         element = custom_factory("content", id="custom")
 
-        assert element.tag == "customtag"  # All lowercase
+        assert element.tag == "CustomTag"  # Case preserved
         assert element.children == ("content",)
         assert element.attrs["id"] == "custom"
 
@@ -561,7 +561,7 @@ class TestDynamicTagGeneration:
         factory = __getattr__("MyElement")
         element = factory("content", target_id="target")
 
-        assert element.tag == "myelement"  # All lowercase
+        assert element.tag == "MyElement"  # Case preserved
         assert element.attrs.get("target-id") == "target"  # Converted to kebab-case
 
     def test_dynamic_tag_with_hyphens(self):
@@ -569,7 +569,7 @@ class TestDynamicTagGeneration:
         factory = __getattr__("Custom_Element")
         element = factory("content")
 
-        assert element.tag == "custom-element"  # All lowercase with hyphens
+        assert element.tag == "Custom-Element"  # Underscores to hyphens, case preserved
 
     def test_getattr_rejects_private_attributes(self):
         """Test that __getattr__ rejects private attributes."""
@@ -719,7 +719,7 @@ class TestRealWorldUsage:
         )
 
         assert checkmark.tag == "svg"
-        assert checkmark.attrs["viewbox"] == "0 0 24 24"  # Note: lowercase 'viewbox'
+        assert checkmark.attrs["viewBox"] == "0 0 24 24"
 
         path = checkmark.children[0]
         assert path.tag == "path"

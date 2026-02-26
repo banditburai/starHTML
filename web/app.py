@@ -7,6 +7,7 @@ from pathlib import Path
 
 from demos import app as demos_app
 from demos import setup_demos
+from head import hdrs
 from sections import SECTIONS
 from sections import sections as s
 from shared import get_source_code, support_dropdown
@@ -16,122 +17,11 @@ from starhtml.plugins import clipboard, position, scroll, split
 VERSION = version("starhtml")
 
 app, rt = star_app(
-    title="starHTML",
+    title="StarHTML — Python-First Hypermedia Framework",
     middleware=[compression()],
-    hdrs=[
-        Link(
-            rel="icon",
-            href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">⭐</text></svg>',
-        ),
-        Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),
-        Script(src="https://cdn.jsdelivr.net/npm/motion@11.11.13/dist/motion.js"),
-        Style("""
-            * {
-                box-sizing: border-box;
-            }
-            
-            /* Split handler variables */
-            :root {
-                --split-handle-size: 8px;
-                --split-handle-color: rgba(0, 0, 0, 0.15);
-                --split-handle-hover-color: rgba(0, 123, 255, 0.3);
-                --split-handle-active-color: rgba(0, 123, 255, 0.5);
-            }
-            
-            body, html {
-                margin: 0;
-                padding: 0;
-                width: 100%;
-                overflow-x: hidden;
-            }
-            
-            .docs-section {
-                min-height: 100vh;
-                scroll-margin-top: 80px;
-            }
-            
-            .docs-nav-item {
-                transition: all 0.3s ease;
-                border-left: 3px solid transparent;
-            }
-            
-            .docs-nav-item.active {
-                border-left-color: #000;
-                background: rgba(0, 0, 0, 0.05);
-            }
-            
-            .code-example {
-                background: #1a1a1a;
-                border-radius: 12px;
-                overflow: hidden;
-                transition: transform 0.3s ease;
-            }
-            
-            .code-example:hover {
-                transform: translateY(-2px);
-            }
-            
-            .mini-demo {
-                background: white;
-                border: 2px solid #f3f4f6;
-                border-radius: 16px;
-                transition: all 0.3s ease;
-            }
-            
-            .mini-demo:hover {
-                border-color: #d1d5db;
-                box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
-            }
-            
-            .scroll-progress-container {
-                position: fixed;
-                top: 60px;
-                left: 0;
-                width: 100%;
-                height: 10px;
-                background: rgba(0, 0, 0, 0.1);
-                z-index: 40;
-            }
-            
-            .scroll-progress-fill {
-                height: 100%;
-                background-color: #fbbf24;
-                transition: width 0.1s ease;
-                width: 0%;
-                animation: rainbow-bg 8s ease-in-out infinite;
-            }
-            
-            .fade-in-up {
-                opacity: 1;
-                transform: translateY(0);
-                transition: all 0.8s ease;
-            }
-            
-            .navigation-unselectable {
-                user-select: none;
-                -webkit-user-select: none;
-                -moz-user-select: none;
-                -ms-user-select: none;
-            }
-            
-            #markdown-content-container {
-                user-select: text;
-                -webkit-user-select: text;
-                -moz-user-select: text;
-                -ms-user-select: text;
-            }
-            
-            @media (max-width: 640px) {
-                .desktop-only { display: none !important; }
-                .mobile-only { display: flex !important; }
-            }
-            @media (min-width: 641px) {
-                .desktop-only { display: flex !important; }
-                .mobile-only { display: none !important; }
-            }
-            
-        """),
-    ],
+    hdrs=hdrs,
+    static_path=str(Path(__file__).parent),
+    canonical=False,
     htmlkw={"lang": "en"},
 )
 
@@ -343,6 +233,22 @@ def load_explicit_tab(req):
 def load_composable_tab(req):
     yield elements(s.composable_section(), "#tab-composable", "inner")
     yield signals({"loaded_tabs": ["composable"]}, merge="append")
+
+
+@rt("/sitemap.xml")
+async def sitemap(req):
+    from starlette.responses import Response as StarletteResponse
+
+    urls = [
+        "https://starhtml.com/",
+        "https://starhtml.com/demos/",
+    ]
+    xml = '<?xml version="1.0" encoding="UTF-8"?>\n'
+    xml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+    for url in urls:
+        xml += f"  <url><loc>{url}</loc></url>\n"
+    xml += "</urlset>"
+    return StarletteResponse(content=xml, media_type="application/xml")
 
 
 app.route("/api/source-code/{filename:path}")(get_source_code)

@@ -693,23 +693,23 @@ class TestIconDualModeStructure:
         resolver.inline = False
         resolver._memory.clear()
 
-    def test_inline_has_inner_span_with_data_icon_inner(self):
+    def test_inline_wrapper_has_data_icon_sh(self):
         from starhtml.icons import resolver
 
         resolver.inline = True
         html = str(Icon("lucide:home"))
         assert "data-icon-sh" in html
 
-    def test_inline_kwargs_on_inner_not_outer(self):
+    def test_inline_user_style_merged_into_wrapper(self):
         from fastcore.xml import to_xml
 
         from starhtml.icons import resolver
 
         resolver.inline = True
         html = to_xml(Icon("lucide:home", style="transform:rotate(0deg)"))
-        # style="transform:..." should be on the inner span, not the outer
-        # Outer span should have the sizing style
-        assert "display:inline-block" in html
+        # User style is merged into wrapper alongside sizing styles
+        # display:inline-block is now in CSS via def_hdrs, not inline
+        assert "display:inline-block" not in html
         assert "transform:rotate(0deg)" in html
 
     def test_inline_outer_span_keeps_sizing(self):
@@ -719,13 +719,14 @@ class TestIconDualModeStructure:
 
         resolver.inline = True
         html = to_xml(Icon("lucide:home", cls="text-green-500", style="opacity:0.5"))
-        # Outer span has sizing and cls
-        assert "display:inline-block" in html
+        # Outer span has sizing, cls, and data-icon-sh; display:inline-block is in CSS
+        assert "display:inline-block" not in html
+        assert "data-icon-sh" in html
         assert "text-green-500" in html
         # User style on inner, not clobbering sizing
         assert "opacity:0.5" in html
 
-    def test_cdn_kwargs_on_iconify_not_outer(self):
+    def test_cdn_user_style_merged_into_wrapper(self):
         from fastcore.xml import to_xml
 
         from starhtml.icons import resolver
@@ -733,10 +734,11 @@ class TestIconDualModeStructure:
         resolver.inline = False
         html = to_xml(Icon("lucide:home", style="transform:rotate(0deg)"))
         assert "iconify-icon" in html
-        assert "display:inline-block" in html
+        # display:inline-block is now in CSS via def_hdrs, not inline
+        assert "display:inline-block" not in html
         assert "transform:rotate(0deg)" in html
 
-    def test_inline_fallback_has_inner_span(self):
+    def test_inline_fallback_wrapper_has_data_icon_sh(self):
         from starhtml.icons import resolver
 
         resolver.inline = True
@@ -754,10 +756,18 @@ class TestIconDualModeStructure:
         html = to_xml(Icon("lucide:home", id="my-icon"))
         assert 'id="my-icon"' in html
 
+    def test_cdn_wrapper_has_data_icon_sh(self):
+        from starhtml.icons import resolver
+
+        resolver.inline = False
+        html = str(Icon("lucide:home"))
+        assert "data-icon-sh" in html
+        assert "iconify-icon" in html
+
 
 class TestIconInlineCss:
     @patch("starhtml.starapp._app_factory")
-    def test_inline_mode_includes_icon_css(self, mock_factory):
+    def test_inline_mode_no_iconify_script(self, mock_factory):
         from starhtml.starapp import star_app
 
         mock_app = MagicMock()
@@ -769,19 +779,8 @@ class TestIconInlineCss:
 
         call_kwargs = mock_factory.call_args[1]
         hdrs_html = [str(h) for h in call_kwargs["hdrs"]]
-        assert any("data-icon-sh" in h for h in hdrs_html)
         assert not any("iconify-icon" in h for h in hdrs_html)
 
         from starhtml.icons import resolver
 
         resolver.inline = False
-
-    def test_icon_inline_css_content(self):
-        from starhtml.starapp import icon_inline_css
-
-        html = str(icon_inline_css())
-        assert "[data-icon-sh]" in html
-        assert "display:block" in html
-        assert "width:100%" in html
-        assert "height:100%" in html
-        assert "!important" in html

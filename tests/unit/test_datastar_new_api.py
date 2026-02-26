@@ -72,6 +72,24 @@ class TestCoreAttributes:
         # Note: js() now minifies, so spaces are removed
         assert 'data-show="$count>0"' in html
 
+    def test_data_show_fouc_prevention(self):
+        """FOUC prevention: initially-false data_show injects display:none."""
+        sig = Signal("vis", False)
+        html = str(Div("x", data_show=sig))
+        assert 'style="display:none"' in html
+
+    def test_data_show_fouc_merges_with_existing_style(self):
+        """FOUC prevention appends display:none to existing inline style."""
+        sig = Signal("vis", False)
+        html = str(Div("x", data_show=sig, style="color:red"))
+        assert "color:red; display:none" in html
+
+    def test_data_show_fouc_skipped_when_initially_true(self):
+        """No display:none injected when signal is initially true."""
+        sig = Signal("vis", True)
+        html = str(Div("x", data_show=sig))
+        assert "display:none" not in html
+
     def test_data_text(self):
         html = str(Div("x", data_text="Hello"))
         assert 'data-text="Hello"' in html
