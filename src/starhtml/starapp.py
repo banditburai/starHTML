@@ -72,7 +72,10 @@ def star_app(
 
     h = tuple(hdrs or ())
     if not resolver.inline:
-        h = (iconify_script(),) + h
+        h = (
+            iconify_script(),
+            _iconify_fill_setup(),
+        ) + h
 
     app = _app_factory(
         hdrs=h,
@@ -145,7 +148,10 @@ def def_hdrs(datastar_url="/_pkg/starhtml/datastar.js"):
 
     return [
         # FOUC prevention: hide custom elements until registered; size icon wrappers
-        Style(":not(:defined){visibility:hidden} [data-icon-sh]{display:inline-block}"),
+        Style(
+            ":not(:defined){visibility:hidden} [data-icon-sh]{display:inline-block}"
+            " [data-icon-sh].icon-fill :is(path,circle,rect,polygon,ellipse,line,polyline,g){fill:currentColor}"
+        ),
         Meta(charset="utf-8"),
         Meta(name="viewport", content="width=device-width, initial-scale=1, viewport-fit=cover"),
         Script(src=datastar_url, type="module"),
@@ -183,6 +189,28 @@ def iconify_script(version=None):
     return Script(
         src=f"https://cdn.jsdelivr.net/npm/iconify-icon@{version or ICONIFY_VERSION}/dist/iconify-icon.min.js",
         type="module",
+    )
+
+
+_ICON_FILL_SHADOW_CSS = ":host(.icon-fill) :is(path,circle,rect,polygon,ellipse,line,polyline,g){fill:currentColor}"
+
+
+def _iconify_fill_setup():
+    """Inject icon-fill CSS into iconify-icon open shadow DOMs via adoptedStyleSheets."""
+    from .xtend import Script
+
+    return Script(
+        "{"
+        f'const s=new CSSStyleSheet();s.replaceSync("{_ICON_FILL_SHADOW_CSS}");'
+        "const a=e=>{const r=e.shadowRoot;"
+        "if(r&&!r.adoptedStyleSheets.includes(s))r.adoptedStyleSheets=[...r.adoptedStyleSheets,s]};"
+        "customElements.whenDefined('iconify-icon').then(()=>{"
+        "document.querySelectorAll('iconify-icon').forEach(a);"
+        "new MutationObserver(ms=>{for(const m of ms)for(const n of m.addedNodes)"
+        "if(n.nodeType===1){if(n.localName==='iconify-icon')a(n);"
+        "n.querySelectorAll&&n.querySelectorAll('iconify-icon').forEach(a)}"
+        "}).observe(document.documentElement,{childList:true,subtree:true})"
+        "})}"
     )
 
 

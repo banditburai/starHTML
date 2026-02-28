@@ -308,6 +308,77 @@ def home():
             ),
             cls="test-section",
         ),
+        # Test 10: Fill parameter
+        Div(
+            H2("Test 10: Fill Parameter", cls="text-2xl font-bold text-black mb-4"),
+            P(
+                'Override fill="none" on SVG paths to make outlined icons appear filled. '
+                "Works in both CDN and inline SVG modes.",
+                cls="text-gray-600 mb-4",
+            ),
+            Div(
+                Div(
+                    Div(Icon("lucide:heart", size="1.5rem", cls="text-red-500"), cls="icon-border"),
+                    Span("Default (outlined)", cls="text-gray-500 mx-2"),
+                    Div(Icon("lucide:heart", size="1.5rem", cls="text-red-500", fill=True), cls="icon-border"),
+                    Span("fill=True (filled)", cls="text-gray-700 mx-2"),
+                ),
+                Pre('Icon("lucide:heart", cls="text-red-500", fill=True)', cls="code-sample mt-2"),
+                cls="test-row",
+            ),
+            Div(
+                Div(
+                    Div(Icon("lucide:star", size="1.5rem", cls="text-amber-500"), cls="icon-border"),
+                    Span("Default", cls="text-gray-500 mx-2"),
+                    Div(Icon("lucide:star", size="1.5rem", cls="text-amber-500", fill=True), cls="icon-border"),
+                    Span("fill=True", cls="text-gray-700 mx-2"),
+                ),
+                Pre('Icon("lucide:star", cls="text-amber-500", fill=True)', cls="code-sample mt-2"),
+                cls="test-row",
+            ),
+            Div(
+                Div(
+                    Div(Icon("lucide:bookmark", size="1.5rem", cls="text-blue-500"), cls="icon-border"),
+                    Span("Default", cls="text-gray-500 mx-2"),
+                    Div(Icon("lucide:bookmark", size="1.5rem", cls="text-blue-500", fill=True), cls="icon-border"),
+                    Span("fill=True", cls="text-gray-700 mx-2"),
+                ),
+                Pre('Icon("lucide:bookmark", cls="text-blue-500", fill=True)', cls="code-sample mt-2"),
+                cls="test-row",
+            ),
+            Div(
+                Div(
+                    Div(Icon("lucide:circle", size="1.5rem", cls="text-green-500"), cls="icon-border"),
+                    Span("Default", cls="text-gray-500 mx-2"),
+                    Div(Icon("lucide:circle", size="1.5rem", cls="text-green-500", fill=True), cls="icon-border"),
+                    Span("fill=True", cls="text-gray-700 mx-2"),
+                ),
+                Pre('Icon("lucide:circle", cls="text-green-500", fill=True)', cls="code-sample mt-2"),
+                cls="test-row",
+            ),
+            cls="test-section",
+        ),
+        # Test 11: Reactive fill toggle
+        Div(
+            H2("Test 11: Reactive Fill (Datastar Signal)", cls="text-2xl font-bold text-black mb-4"),
+            P("Toggle fill state with a signal expression", cls="text-gray-600 mb-4"),
+            (is_filled := Signal("is_filled", False)),
+            Div(
+                Div(
+                    Button(
+                        "Toggle Fill",
+                        data_on_click=is_filled.toggle(),
+                        cls="px-4 py-2 bg-black text-white font-medium hover:bg-gray-800 transition-colors rounded mr-4",
+                    ),
+                    Icon("lucide:heart", size="2rem", cls="text-red-500", fill=is_filled),
+                    Icon("lucide:star", size="2rem", cls="text-amber-500 ml-2", fill=is_filled),
+                    Icon("lucide:bookmark", size="2rem", cls="text-blue-500 ml-2", fill=is_filled),
+                ),
+                Pre('Icon("lucide:heart", cls="text-red-500", fill=is_filled)', cls="code-sample mt-2"),
+                cls="test-row",
+            ),
+            cls="test-section",
+        ),
         cls="max-w-4xl mx-auto px-6 py-12",
     )
 

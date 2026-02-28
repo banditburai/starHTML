@@ -233,6 +233,7 @@ def Icon(
     width: int | str | None = None,
     height: int | str | None = None,
     cls: str = "",
+    fill: bool | str = False,
     stable: bool = True,
     **kwargs,
 ) -> FT:
@@ -266,6 +267,11 @@ def Icon(
         return Span(inner, style=wrapper_style, cls=cls or None, id=wrapper_id, data_icon_sh=True, **kwargs)
 
     if resolver.inline:
+        if fill is True:
+            cls = f"{cls} icon-fill".strip()
+        elif fill:
+            kwargs["data_class_icon_fill"] = fill
+
         icon_data = resolver.resolve(prefix, name) if name else None
 
         if icon_data is not None:
@@ -279,28 +285,23 @@ def Icon(
 
         return _wrap(Span(style="display:block;width:100%;height:100%"))
 
-    return _wrap(ft_datastar("iconify-icon", icon=icon, width=w, height=h))
+    icon_kw = {}
+    if fill is True:
+        icon_kw["cls"] = "icon-fill"
+    elif fill:
+        icon_kw["data_class_icon_fill"] = fill
+
+    return _wrap(ft_datastar("iconify-icon", icon=icon, width=w, height=h, **icon_kw))
 
 
 _ICON_RE = re.compile(r"""Icon\(\s*["']([a-zA-Z0-9_-]+):([a-zA-Z0-9_-]+)["']""")
 
-_DEFAULT_EXCLUDE_DIRS = frozenset(
-    {
-        "test",
-        "tests",
-        "__pycache__",
-        ".git",
-        ".venv",
-        "venv",
-        "node_modules",
-        ".tox",
-        ".nox",
-        ".mypy_cache",
-        ".pytest_cache",
-        "build",
-        "dist",
-    }
-)
+# fmt: off
+_DEFAULT_EXCLUDE_DIRS = frozenset({
+    "test", "tests", "__pycache__", ".git", ".venv", "venv",
+    "node_modules", ".tox", ".nox", ".mypy_cache", ".pytest_cache", "build", "dist",
+})
+# fmt: on
 
 
 def _scan_file(path: Path, found: defaultdict[str, set[str]]) -> None:

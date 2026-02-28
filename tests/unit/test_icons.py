@@ -591,6 +591,88 @@ SomeOtherFunc("lucide:home")
         assert found == {}
 
 
+class TestIconFill:
+    """Fill parameter targets different elements per mode:
+    - Inline: class/binding on wrapper <span> (light DOM CSS)
+    - CDN: class/binding on <iconify-icon> (shadow DOM :host() selector)
+    """
+
+    def test_fill_false_no_icon_fill_class(self):
+        html = str(Icon("lucide:home"))
+        assert "icon-fill" not in html
+
+    # -- CDN mode (default) --
+
+    def test_cdn_fill_true_on_iconify_element(self):
+        from fastcore.xml import to_xml
+
+        html = to_xml(Icon("lucide:home", fill=True))
+        assert 'iconify-icon icon="lucide:home"' in html
+        assert "icon-fill" in html
+
+    def test_cdn_fill_signal_on_iconify_element(self):
+        from fastcore.xml import to_xml
+
+        html = to_xml(Icon("lucide:home", fill="$bookmarked"))
+        assert 'data-class:icon-fill="$bookmarked"' in html
+        assert "iconify-icon" in html
+
+    def test_cdn_fill_true_with_existing_cls(self):
+        html = str(Icon("lucide:home", fill=True, cls="text-red-500"))
+        assert "icon-fill" in html
+        assert "text-red-500" in html
+
+    # -- Inline mode --
+
+    def test_inline_fill_true_on_wrapper_span(self):
+        from fastcore.xml import to_xml
+
+        from starhtml.icons import resolver
+
+        resolver.inline = True
+        resolver.register("lucide", "home", IconData(body="<path/>"))
+        try:
+            html = to_xml(Icon("lucide:home", fill=True))
+            assert "icon-fill" in html
+            assert "data-icon-sh" in html
+        finally:
+            resolver.inline = False
+            resolver._memory.clear()
+
+    def test_inline_fill_signal_on_wrapper_span(self):
+        from fastcore.xml import to_xml
+
+        from starhtml.icons import resolver
+
+        resolver.inline = True
+        resolver.register("lucide", "home", IconData(body="<path/>"))
+        try:
+            html = to_xml(Icon("lucide:home", fill="$bookmarked"))
+            assert 'data-class:icon-fill="$bookmarked"' in html
+            assert "data-icon-sh" in html
+        finally:
+            resolver.inline = False
+            resolver._memory.clear()
+
+    # -- CSS rules --
+
+    def test_light_dom_css_rule_in_def_hdrs(self):
+        from starhtml.starapp import def_hdrs
+
+        hdrs = def_hdrs()
+        style_html = str(hdrs[0])
+        assert "[data-icon-sh].icon-fill" in style_html
+        assert "fill:currentColor" in style_html
+
+    def test_shadow_dom_css_setup_script(self):
+        from starhtml.starapp import _iconify_fill_setup
+
+        html = str(_iconify_fill_setup())
+        assert "adoptedStyleSheets" in html
+        assert ":host(.icon-fill)" in html
+        assert "fill:currentColor" in html
+
+
 class TestIconEdgeCases:
     def test_no_colon_in_icon_name_cdn_mode(self):
         from starhtml.icons import resolver
