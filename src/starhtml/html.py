@@ -136,7 +136,14 @@ def ft_datastar(tag: str, *c: Any, **kwargs: Any) -> FT:
 
     new_children, collected_signals, defined_signals = [], set(), []
 
-    for child in c:
+    def _flatten(items):
+        for item in items:
+            if isinstance(item, list | tuple):
+                yield from _flatten(item)
+            else:
+                yield item
+
+    for child in _flatten(c):
         match child:
             case ds.Signal():
                 defined_signals.append(child)
