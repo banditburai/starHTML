@@ -176,6 +176,31 @@ class TestFtDatastar:
         for attr in expected_attrs:
             assert attr in element.attrs
 
+    def test_list_children_flattened(self):
+        items = [ft_datastar("li", "a"), ft_datastar("li", "b")]
+        element = ft_datastar("ul", items)
+        assert len(element.children) == 2
+        assert element.children[0].tag == "li"
+        assert element.children[1].tag == "li"
+
+    def test_nested_list_children_flattened(self):
+        element = ft_datastar("div", ["a", ["b", "c"]])
+        assert element.children == ("a", "b", "c")
+
+    def test_signal_list_children_flattened(self):
+        from starhtml.datastar import Signal
+
+        s1 = Signal("count", 0)
+        s2 = Signal("name", "test")
+        element = ft_datastar("div", [s1, s2], "text")
+        # Signals in a list should be extracted into attrs, not left as children
+        assert any(k.startswith("data-signals") for k in element.attrs)
+        assert element.children == ("text",)
+
+    def test_tuple_children_flattened(self):
+        element = ft_datastar("div", ("a", "b"), "c")
+        assert element.children == ("a", "b", "c")
+
 
 class TestHtml2ft:
     """Test html2ft HTML to FT conversion function."""

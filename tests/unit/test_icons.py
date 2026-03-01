@@ -866,3 +866,61 @@ class TestIconInlineCss:
         from starhtml.icons import resolver
 
         resolver.inline = False
+
+
+class TestCLIScanFresh:
+    def test_fresh_deletes_cache_before_scan(self, tmp_path):
+        from starhtml.icons import main
+
+        # Set up a cache with an icon NOT in the code
+        cache_dir = tmp_path / ".starhtml" / "icons"
+        cache_dir.mkdir(parents=True)
+        (cache_dir / "mdi.json").write_text(
+            json.dumps(
+                {
+                    "prefix": "mdi",
+                    "width": 24,
+                    "height": 24,
+                    "icons": {"account": {"body": "<path/>"}},
+                }
+            )
+        )
+
+        # Create a .py file with a different icon
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "app.py").write_text('Icon("lucide:star")')
+        (tmp_path / "pyproject.toml").write_text("[project]\n")
+
+        import starhtml.icons as mod
+
+        mod._project_root = tmp_path
+
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = LUCIDE_JSON
+        mock_resp.raise_for_status = MagicMock()
+
+        with patch("httpx.get", return_value=mock_resp):
+            result = main(["icons", "scan", "--fresh", str(src)])
+
+        assert result == 0
+        # Old mdi cache should be gone (directory was wiped)
+        assert not (cache_dir / "mdi.json").exists()
+        # New lucide cache should exist
+        assert (cache_dir / "lucide.json").exists()
+
+    def test_fresh_no_existing_cache(self, tmp_path):
+        from starhtml.icons import main
+
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "app.py").write_text("# no icons here")
+        (tmp_path / "pyproject.toml").write_text("[project]\n")
+
+        import starhtml.icons as mod
+
+        mod._project_root = tmp_path
+
+        # Should not error even though cache dir doesn't exist
+        result = main(["icons", "scan", "--fresh", str(src)])
+        assert result == 0

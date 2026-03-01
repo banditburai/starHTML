@@ -338,6 +338,19 @@ def _scan_icons_regex(
 
 
 def _cmd_icons_scan(args) -> int:
+    if args.fresh:
+        cache_dir = _project_cache_dir()
+        if cache_dir.is_dir():
+            import shutil
+
+            try:
+                shutil.rmtree(cache_dir)
+            except OSError as exc:
+                log.warning("Failed to clear icon cache %s: %s", cache_dir, exc)
+                return 1
+            print(f"Cleared icon cache: {cache_dir}")
+        resolver._memory.clear()
+
     scan_paths = [Path(p) for p in args.paths] if args.paths else [Path(".")]
     exclude_dirs = frozenset() if args.no_default_excludes else _DEFAULT_EXCLUDE_DIRS
     found = _scan_icons_regex(scan_paths, exclude_dirs, args.exclude)
@@ -400,6 +413,7 @@ def main(argv: list[str] | None = None) -> int:
     scan_parser.add_argument(
         "--no-default-excludes", action="store_true", help="Disable built-in excludes (tests, .venv, etc.)"
     )
+    scan_parser.add_argument("--fresh", action="store_true", help="Delete cache before scanning")
 
     args = parser.parse_args(argv)
 
