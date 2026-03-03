@@ -336,7 +336,7 @@ class Assignment(Expr):
         self._target, self._value = target, _ensure_expr(value)
 
     def to_js(self) -> str:
-        return f"{self._target.to_js()} = {self._value.to_js()}"
+        return f"({self._target.to_js()} = {self._value.to_js()})"
 
 
 class MethodCall(Expr):
