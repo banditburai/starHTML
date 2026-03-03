@@ -77,7 +77,7 @@ class TestChainedPropertyAccess:
         """Assignment.set() should still work (not conflict with .value property)"""
         sig = Signal("test", 0)
         result = sig.set(5)
-        assert result.to_js() == "$test = 5"
+        assert result.to_js() == "($test = 5)"
 
     def test_property_access_chaining(self):
         """obj.prop.value should work"""
@@ -111,7 +111,7 @@ class TestNoRegressions:
         """Signal.set() should still work"""
         sig = Signal("count", 0)
         result = sig.set(10)
-        assert result.to_js() == "$count = 10"
+        assert result.to_js() == "($count = 10)"
 
     def test_binary_ops_still_work(self):
         """Binary operations should still work"""
@@ -184,6 +184,59 @@ class TestEdgeCases:
 
         obj = Signal("obj", {})
         assert obj.data.prop.to_js() == "$obj.data.prop"
+
+
+class TestAssignmentParenthesization:
+    """Assignment.to_js() must wrap in parens for safe composability with && and ||."""
+
+    def test_standalone_assignment(self):
+        """Standalone assignment gets parens (harmless)."""
+        sig = Signal("x", 0)
+        assert sig.set(5).to_js() == "($x = 5)"
+
+    def test_assignment_in_logical_and(self):
+        """Assignment on right side of && must be parenthesized."""
+        loading = Signal("loading", 1)
+        tick = Signal("tick", 0)
+        expr = (tick >= 15) & loading.set(0)
+        result = expr.to_js()
+        # Must NOT produce: (($tick >= 15) && $loading = 0)
+        # which JS parses as: (($tick >= 15) && $loading) = 0  → SyntaxError
+        assert result == "(($tick >= 15) && ($loading = 0))"
+
+    def test_assignment_in_logical_or(self):
+        """Assignment on right side of || must be parenthesized."""
+        fallback = Signal("fallback", "")
+        primary = Signal("primary", "")
+        expr = (primary == "") | fallback.set("default")
+        result = expr.to_js()
+        assert result == '(($primary === "") || ($fallback = "default"))'
+
+    def test_assignment_in_seq(self):
+        """Assignment inside seq() — parens are harmless."""
+        from starhtml.datastar import seq
+
+        a = Signal("a", 0)
+        b = Signal("b", 0)
+        result = seq(a.set(1), b.set(2)).to_js()
+        assert result == "(($a = 1), ($b = 2))"
+
+    def test_assignment_with_add(self):
+        """Signal.add() also produces Assignment — should be parenthesized."""
+        count = Signal("count", 0)
+        result = count.add(5).to_js()
+        assert result == "($count = ($count + 5))"
+
+    def test_nested_condition_with_assignment(self):
+        """Real-world pattern: condition & assignment in interval handler."""
+        loading = Signal("loading", 1)
+        tick = Signal("tick", 0)
+        from starhtml.datastar import seq
+
+        expr = seq(tick.add(1), (tick >= 15) & loading.set(0))
+        result = expr.to_js()
+        assert "($loading = 0)" in result
+        assert "&&" in result
 
 
 def run_tests():
