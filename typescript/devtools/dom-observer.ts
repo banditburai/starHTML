@@ -1,4 +1,4 @@
-export const DEBUGGER_TAG = "STARHTML-DEBUGGER";
+export const DEVTOOLS_TAG = "STARHTML-DEVTOOLS";
 
 type RecordConsumer = (records: MutationRecord[]) => void;
 
@@ -49,14 +49,14 @@ export function subscribeTimeline(fn: RecordConsumer): () => void {
   };
 }
 
-export function isDebuggerMutation(r: MutationRecord): boolean {
-  if (r.target instanceof Element && r.target.tagName === DEBUGGER_TAG) return true;
+export function isDevtoolsMutation(r: MutationRecord): boolean {
+  if (r.target instanceof Element && r.target.tagName === DEVTOOLS_TAG) return true;
   if (r.type === "childList") {
     for (const node of r.addedNodes) {
-      if (node instanceof Element && node.tagName === DEBUGGER_TAG) return true;
+      if (node instanceof Element && node.tagName === DEVTOOLS_TAG) return true;
     }
     for (const node of r.removedNodes) {
-      if (node instanceof Element && node.tagName === DEBUGGER_TAG) return true;
+      if (node instanceof Element && node.tagName === DEVTOOLS_TAG) return true;
     }
   }
   return false;

@@ -1,4 +1,4 @@
-// timeline.ts — Causality-chain timeline for the StarHTML debugger.
+// timeline.ts — Causality-chain timeline for the StarHTML devtools.
 // Captures user actions, SSE events, signal changes, and DOM mutations as
 // a ring buffer of TimelineEvents grouped into causal traces.
 
@@ -16,13 +16,13 @@ import {
   selectorPath,
   stripDebugKeys,
 } from "./capture";
-import { DEBUGGER_TAG, isDebuggerMutation, subscribeTimeline } from "./dom-observer";
+import { DEVTOOLS_TAG, isDevtoolsMutation, subscribeTimeline } from "./dom-observer";
 import {
   type SignalEntry,
   flattenPaths,
   getEntries as getSignalEntries,
   getGroupedEntries as getSignalGroups,
-  isDebuggerSignal,
+  isDevtoolsSignal,
   stripNamespace,
   valuesEqual,
 } from "./signals";
@@ -210,12 +210,12 @@ function captureSSELifecycle(): void {
 const USER_ACTION_EVENTS = ["click", "input", "submit", "keydown"] as const;
 let userActionListeners: Array<{ type: string; fn: (e: Event) => void }> = [];
 
-function isInsideDebugger(el: Element): boolean {
-  if (el.closest("starhtml-debugger")) return true;
-  // Walk up shadow roots in case of nested shadow DOM inside the debugger
+function isInsideDevtools(el: Element): boolean {
+  if (el.closest("starhtml-devtools")) return true;
+  // Walk up shadow roots in case of nested shadow DOM inside the devtools
   let root = el.getRootNode();
   while (root instanceof ShadowRoot) {
-    if (root.host.tagName === DEBUGGER_TAG) return true;
+    if (root.host.tagName === DEVTOOLS_TAG) return true;
     root = root.host.getRootNode();
   }
   return false;
@@ -226,7 +226,7 @@ function captureUserActions(): void {
     const fn = (e: Event) => {
       const target = e.target;
       if (!(target instanceof Element)) return;
-      if (isInsideDebugger(target)) return;
+      if (isInsideDevtools(target)) return;
 
       // For non-click events, only capture if target has a data-on-* attribute
       if (eventType !== "click") {
@@ -296,7 +296,7 @@ function captureSignalChanges(): void {
     else if (activeTraceRootType === "user-action") baseSource = "user";
 
     for (const path of paths) {
-      if (isDebuggerSignal(path)) continue;
+      if (isDevtoolsSignal(path)) continue;
 
       let newValue: unknown;
       try {
@@ -335,7 +335,7 @@ function captureSignalChanges(): void {
   document.addEventListener("datastar-signal-patch", signalPatchListener);
 }
 
-// ─── DOM Mutation Capture (via shared debugger-dom-observer) ──────
+// ─── DOM Mutation Capture (via shared devtools-dom-observer) ──────
 
 let unsubDomObserver: (() => void) | null = null;
 
@@ -366,7 +366,7 @@ function handleMutationRecords(records: MutationRecord[]): void {
   if (activeTraceId === null) return;
 
   for (const r of records) {
-    if (isDebuggerMutation(r)) continue;
+    if (isDevtoolsMutation(r)) continue;
 
     const target = r.target instanceof Element ? r.target : r.target.parentElement;
     const targetSelector = target ? selectorPath(target) : "#text";

@@ -39,8 +39,8 @@ def _validate_and_collect(root_path: Path, build_data: dict[str, Any]) -> None:
 
     if not (js_dir / "plugins").exists():
         raise JavaScriptBuildError(f"Plugins directory not created: {js_dir / 'plugins'}")
-    if not (js_dir / "debugger").exists():
-        raise JavaScriptBuildError(f"Debugger directory not created: {js_dir / 'debugger'}")
+    if not (js_dir / "devtools").exists():
+        raise JavaScriptBuildError(f"DevTools directory not created: {js_dir / 'devtools'}")
 
     # Datastar is the only file where an empty build is a silent, hard-to-debug failure
     datastar_path = js_dir / "datastar.js"

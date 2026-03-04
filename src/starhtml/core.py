@@ -27,7 +27,7 @@ from starlette.requests import Request
 from starlette.responses import FileResponse, RedirectResponse, Response
 from starlette.routing import Mount, Route, WebSocketRoute
 
-from .realtime import _ws_endp, set_debug_context, setup_ws
+from .realtime import _ws_endp, set_devtools_context, setup_ws
 from .server import _mk_locfunc, _wrap_call, _wrap_ex, _wrap_req, all_meths, cookie, render_response, serve
 from .starapp import Beforeware, _datastar_cdn_url, def_hdrs
 from .utils import _list, _params, get_key, noop_body, reg_re_param
@@ -67,6 +67,7 @@ class StarHTML(Starlette):
     def __init__(
         self,
         debug=False,
+        devtools=False,
         routes=None,
         middleware=None,
         title: str = "StarHTML page",
@@ -146,6 +147,11 @@ class StarHTML(Starlette):
         if env_debug is not None:
             debug = env_debug.lower() in ("1", "true", "yes")
 
+        env_devtools = os.environ.get("STARHTML_DEVTOOLS")
+        if env_devtools is not None:
+            devtools = env_devtools.lower() in ("1", "true", "yes")
+        self._devtools = devtools
+
         super().__init__(
             debug,
             routes,
@@ -156,7 +162,7 @@ class StarHTML(Starlette):
             lifespan=lifespan,
         )
 
-        # Single route serves all JS: datastar, plugins, debugger, and shared chunks.
+        # Single route serves all JS: datastar, plugins, devtools, and shared chunks.
         self.register_package_static(
             name="starhtml",
             static_path=PathlibPath(__file__).parent / "static" / "js",
@@ -164,9 +170,11 @@ class StarHTML(Starlette):
 
         if self.debug:
             logger.warning("StarHTML debug mode is ON. Do not use in production.")
-            from .debugger import setup_debugger
 
-            setup_debugger(self)
+        if self._devtools:
+            from .devtools import setup_devtools
+
+            setup_devtools(self)
 
         if static_path:
             self.static_route_exts(static_path=static_path)
@@ -214,7 +222,7 @@ class StarHTML(Starlette):
 def _endp(self: StarHTML, f, body_wrap):
     """Create a Starlette-compatible endpoint from a StarHTML route function"""
     sig = signature_ex(f, True)
-    _is_debug = self.debug
+    _has_devtools = self._devtools
 
     async def _f(req):
         resp = None
@@ -222,8 +230,8 @@ def _endp(self: StarHTML, f, body_wrap):
         req.hdrs, req.ftrs, req.htmlkw, req.bodykw = map(deepcopy, (self.hdrs, self.ftrs, self.htmlkw, self.bodykw))
         req.hdrs, req.ftrs = listify(req.hdrs), listify(req.ftrs)
         # No reset needed — each ASGI request gets its own contextvars copy
-        if _is_debug:
-            set_debug_context(handler=f.__qualname__, route=req.url.path)
+        if _has_devtools:
+            set_devtools_context(handler=f.__qualname__, route=req.url.path)
         for b in self.before:
             if not resp:
                 if isinstance(b, Beforeware):

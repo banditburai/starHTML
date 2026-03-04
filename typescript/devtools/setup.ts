@@ -53,11 +53,11 @@ export function setup(
   onCleanup(unsub);
 
   try {
-    const storedOpen = sessionStorage.getItem("starhtml-debug-open");
+    const storedOpen = sessionStorage.getItem("starhtml-devtools-open");
     if (storedOpen === "true") $set("is_open", true);
-    const storedHeight = Number(sessionStorage.getItem("starhtml-debug-height"));
+    const storedHeight = Number(sessionStorage.getItem("starhtml-devtools-height"));
     if (storedHeight > 0) $set("panel_height", storedHeight);
-    const storedTab = sessionStorage.getItem("starhtml-debug-tab");
+    const storedTab = sessionStorage.getItem("starhtml-devtools-tab");
     if (storedTab) $set("active_tab", storedTab);
   } catch {
     // sessionStorage may be blocked in sandboxed/private contexts
@@ -75,9 +75,9 @@ export function setup(
       }
     });
   };
-  persistEffect("is_open", "starhtml-debug-open");
-  persistEffect("panel_height", "starhtml-debug-height");
-  persistEffect("active_tab", "starhtml-debug-tab");
+  persistEffect("is_open", "starhtml-devtools-open");
+  persistEffect("panel_height", "starhtml-devtools-height");
+  persistEffect("active_tab", "starhtml-devtools-tab");
 
   let _lastIsOpen: unknown;
   effect(() => {
@@ -381,19 +381,19 @@ export function setup(
 
   // --- Signals tab ---
 
-  const debuggerNs = el._namespace;
-  // Derive bare signal names so the filter excludes debugger's own signals
-  let debuggerSignalNames: string[] = [];
+  const devtoolsNs = el._namespace;
+  // Derive bare signal names so the filter excludes devtools' own signals
+  let devtoolsSignalNames: string[] = [];
   try {
     const parsed = JSON.parse(el.getAttribute("data-signals") || "{}");
-    const prefix = `${debuggerNs}_`;
-    debuggerSignalNames = Object.keys(parsed).map((k) =>
+    const prefix = `${devtoolsNs}_`;
+    devtoolsSignalNames = Object.keys(parsed).map((k) =>
       k.startsWith(prefix) ? k.slice(prefix.length) : k
     );
   } catch {
     // non-critical — signals exclusion will fall back to prefix-only filtering
   }
-  signals.init(debuggerNs, debuggerSignalNames, () => $("is_open") as boolean);
+  signals.init(devtoolsNs, devtoolsSignalNames, () => $("is_open") as boolean);
   onCleanup(signals.cleanup);
 
   const signalListEl = refs("signal_list");

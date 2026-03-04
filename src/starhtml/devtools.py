@@ -1,4 +1,4 @@
-"""StarHTML Debugger — auto-injected when debug=True."""
+"""StarHTML DevTools — auto-injected when devtools=True."""
 # ruff: noqa: F841  (Local vars are consumed by StarElements $$ proxy in Script)
 
 import warnings
@@ -7,7 +7,7 @@ from pathlib import Path
 from .html import ft_html
 from .xtend import Script
 
-_DEBUGGER_DIR = Path(__file__).parent / "static" / "js" / "debugger"
+_DEVTOOLS_DIR = Path(__file__).parent / "static" / "js" / "devtools"
 
 _CHIP_DEFS = (
     ("Signals", "signals"),
@@ -32,13 +32,13 @@ _EXPORT_OPTS = (
 )
 
 
-def setup_debugger(app):
-    """Register the StarElements debugger, or warn if starelements is missing."""
+def setup_devtools(app):
+    """Register the StarElements devtools, or warn if starelements is missing."""
     try:
         from starelements import Local, element  # noqa: PLC0415
     except ImportError:
         warnings.warn(
-            "starelements not installed — debugger disabled. Install with: uv pip install 'starhtml[debug]'",
+            "starelements not installed — devtools disabled. Install with: uv pip install 'starhtml[debug]'",
             stacklevel=2,
         )
         return
@@ -46,8 +46,8 @@ def setup_debugger(app):
     from .tags import Button, Div, Input, Span  # noqa: PLC0415
     from .xtend import Style  # noqa: PLC0415
 
-    debugger_css = (_DEBUGGER_DIR / "debugger.css").read_text()
-    debugger_setup = "_setup.setup(el, onCleanup, refs);"
+    devtools_css = (_DEVTOOLS_DIR / "devtools.css").read_text()
+    devtools_setup = "_setup.setup(el, onCleanup, refs);"
     empty_style = "color:#6c7086;padding:16px;text-align:center;"
 
     def _filter_input(signal, placeholder="Filter..."):
@@ -85,14 +85,14 @@ def setup_debugger(app):
 
     def _tab_toggle(is_open, unseen_count):
         return Div(
-            "StarHTML Debug",
+            "StarHTML DevTools",
             Span(
                 data_show=unseen_count > 0,
                 data_text=unseen_count,
                 cls="badge",
             ),
             data_on_click=is_open.toggle(),
-            cls="debugger-tab",
+            cls="devtools-tab",
         )
 
     def _tab_bar(active_tab):
@@ -195,11 +195,11 @@ def setup_debugger(app):
         )
 
     @element(
-        "starhtml-debugger",
+        "starhtml-devtools",
         shadow=True,
-        imports={"_setup": "/_pkg/starhtml/debugger/setup.js"},
+        imports={"_setup": "/_pkg/starhtml/devtools/setup.js"},
     )
-    def StarHTMLDebugger():
+    def StarHTMLDevtools():
         is_open = Local("is_open", False)
         panel_height = Local("panel_height", 300)
         active_tab = Local("active_tab", "sse")
@@ -220,8 +220,8 @@ def setup_debugger(app):
         show_tl_jump = Local("show_tl_jump", False)
 
         return Div(
-            Style(debugger_css),
-            Script(debugger_setup),
+            Style(devtools_css),
+            Script(devtools_setup),
             _tab_toggle(is_open, unseen_count),
             Div(
                 Div(data_ref="resize_handle", cls="resize-handle"),
@@ -232,17 +232,17 @@ def setup_debugger(app):
                 data_ref="panel",
                 data_show=is_open,
                 data_style_height=panel_height + "px",
-                cls="debugger-panel",
+                cls="devtools-panel",
             ),
         )
 
-    app.register(StarHTMLDebugger)
+    app.register(StarHTMLDevtools)
 
     # Must start capture before component mounts to catch early SSE events
     app.hdrs.append(
         Script(
-            "import {init} from '/_pkg/starhtml/debugger/capture.js'; init();",
+            "import {init} from '/_pkg/starhtml/devtools/capture.js'; init();",
             type="module",
         )
     )
-    app.ftrs.append(ft_html("starhtml-debugger"))
+    app.ftrs.append(ft_html("starhtml-devtools"))

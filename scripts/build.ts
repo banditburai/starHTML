@@ -29,12 +29,12 @@ const result = await Bun.build({
     "typescript/plugins/mermaid.ts",
     "typescript/plugins/motion.ts",
     "typescript/plugins/motion-svg.ts",
-    // Debugger (5)
-    "typescript/debugger/dom-observer.ts",
-    "typescript/debugger/capture.ts",
-    "typescript/debugger/signals.ts",
-    "typescript/debugger/timeline.ts",
-    "typescript/debugger/setup.ts",
+    // DevTools (5)
+    "typescript/devtools/dom-observer.ts",
+    "typescript/devtools/capture.ts",
+    "typescript/devtools/signals.ts",
+    "typescript/devtools/timeline.ts",
+    "typescript/devtools/setup.ts",
   ],
   outdir: "src/starhtml/static/js",
   root: "typescript",
@@ -59,10 +59,10 @@ if (!result.success) {
   process.exit(1);
 }
 
-// Copy debugger CSS (not a JS module, just needs to be alongside the debugger JS)
+// Copy devtools CSS (not a JS module, just needs to be alongside the devtools JS)
 cpSync(
-  "typescript/debugger/debugger.css",
-  "src/starhtml/static/js/debugger/debugger.css",
+  "typescript/devtools/devtools.css",
+  "src/starhtml/static/js/devtools/devtools.css",
 );
 
 console.log(`Built ${result.outputs.length} files`);

@@ -32,6 +32,7 @@ def star_app(
     middleware: tuple = None,
     live: bool = False,
     debug: bool = False,
+    devtools: bool = False,
     routes: tuple = None,
     exception_handlers: dict = None,
     on_startup: Callable = None,
@@ -84,6 +85,7 @@ def star_app(
         middleware=middleware,
         live=live,
         debug=debug,
+        devtools=devtools,
         routes=routes,
         exception_handlers=exception_handlers,
         on_startup=on_startup,
@@ -260,13 +262,15 @@ def _app_factory(*args, **kwargs):
     from .core import StarHTML
 
     live = kwargs.pop("live", False)
+    devtools = kwargs.pop("devtools", False)
 
     if live:
-        kwargs.setdefault("debug", True)  # Live reload needs debug for proper error display
+        kwargs["devtools"] = devtools
         return StarHTMLWithLiveReload(*args, **kwargs)
 
     kwargs.pop("reload_attempts", None)
     kwargs.pop("reload_interval", None)
+    kwargs["devtools"] = devtools
 
     if bodykw := kwargs.pop("bodykw", None):
         kwargs.update(bodykw)

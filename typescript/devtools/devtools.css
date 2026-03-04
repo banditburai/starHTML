@@ -1,5 +1,5 @@
-/* StarHTML Debugger — shadow DOM styles for <starhtml-debugger>.
-   Loaded at module-import time by debugger.py, injected into shadow root. */
+/* StarHTML DevTools — shadow DOM styles for <starhtml-devtools>.
+   Loaded at module-import time by devtools.py, injected into shadow root. */
 
 /* ─── Host + Reset ─────────────────────────────────────────────── */
 :host {
@@ -16,7 +16,7 @@
 :host, :host * { box-sizing: border-box; }
 
 /* ─── Tab toggle (always visible) ──────────────────────────────── */
-.debugger-tab {
+.devtools-tab {
   position: absolute;
   bottom: 100%;
   right: 20px;
@@ -30,7 +30,7 @@
   border: 1px solid #45475a;
   border-bottom: none;
 }
-.debugger-tab .badge {
+.devtools-tab .badge {
   background: #f38ba8;
   color: #1e1e2e;
   border-radius: 8px;
@@ -40,7 +40,7 @@
 }
 
 /* ─── Panel chrome ─────────────────────────────────────────────── */
-.debugger-panel {
+.devtools-panel {
   background: #1e1e2e;
   color: #cdd6f4;
   border-top: 2px solid #89b4fa;

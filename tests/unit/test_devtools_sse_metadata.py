@@ -4,14 +4,14 @@ import re
 
 from starhtml.realtime import (
     SignalEvent,
-    _debug_ctx_var,
+    _devtools_ctx_var,
     format_element_event,
     format_event,
     format_signal_event,
     format_sse_event,
-    get_debug_context,
+    get_devtools_context,
     process_sse_item,
-    set_debug_context,
+    set_devtools_context,
 )
 
 
@@ -71,38 +71,38 @@ class TestSSEDebugMetadata:
         assert first_debug_idx > last_elements_idx
 
 
-class TestDebugContextAutoRead:
+class TestDevtoolsContextAutoRead:
     """Tests for context var auto-read in format functions."""
 
     def test_format_signal_event_reads_from_context_var(self):
-        """format_signal_event auto-reads debug context when not explicitly passed."""
-        token = set_debug_context(handler="my_handler", route="/my/route")
+        """format_signal_event auto-reads devtools context when not explicitly passed."""
+        token = set_devtools_context(handler="my_handler", route="/my/route")
         try:
             event = format_signal_event({"x": 1})
             assert "x-debug-handler my_handler" in event
             assert "x-debug-route /my/route" in event
         finally:
-            _debug_ctx_var.reset(token)
+            _devtools_ctx_var.reset(token)
 
     def test_format_element_event_reads_from_context_var(self):
-        """format_element_event auto-reads debug context when not explicitly passed."""
-        token = set_debug_context(handler="render_page", route="/page")
+        """format_element_event auto-reads devtools context when not explicitly passed."""
+        token = set_devtools_context(handler="render_page", route="/page")
         try:
             event = format_element_event("<div>test</div>")
             assert "x-debug-handler render_page" in event
             assert "x-debug-route /page" in event
         finally:
-            _debug_ctx_var.reset(token)
+            _devtools_ctx_var.reset(token)
 
     def test_no_context_var_means_no_debug(self):
         """Without context var set, no debug metadata appears."""
-        assert get_debug_context() is None
+        assert get_devtools_context() is None
         event = format_signal_event({"x": 1})
         assert "x-debug" not in event
 
     def test_explicit_debug_ctx_overrides_context_var(self):
         """Explicit debug_ctx parameter takes precedence over context var."""
-        token = set_debug_context(handler="contextvar_handler", route="/cv")
+        token = set_devtools_context(handler="contextvar_handler", route="/cv")
         try:
             explicit = {"handler": "explicit_handler", "route": "/explicit", "seq": 99}
             event = format_signal_event({"x": 1}, debug_ctx=explicit)
@@ -110,23 +110,23 @@ class TestDebugContextAutoRead:
             assert "x-debug-route /explicit" in event
             assert "contextvar_handler" not in event
         finally:
-            _debug_ctx_var.reset(token)
+            _devtools_ctx_var.reset(token)
 
     def test_process_sse_item_gets_debug_via_auto_read(self):
         """process_sse_item delegates to format functions which auto-read context."""
-        token = set_debug_context(handler="sse_handler", route="/sse/test")
+        token = set_devtools_context(handler="sse_handler", route="/sse/test")
         try:
             result = process_sse_item("signals", {"payload": {"count": 1}, "options": {}})
             assert result is not None
             assert "x-debug-handler sse_handler" in result
         finally:
-            _debug_ctx_var.reset(token)
+            _devtools_ctx_var.reset(token)
 
     def test_format_event_gets_debug_via_auto_read(self):
         """format_event delegates to format functions which auto-read context."""
-        token = set_debug_context(handler="event_handler", route="/events")
+        token = set_devtools_context(handler="event_handler", route="/events")
         try:
             result = format_event(SignalEvent(signals={"x": 1}))
             assert "x-debug-handler event_handler" in result
         finally:
-            _debug_ctx_var.reset(token)
+            _devtools_ctx_var.reset(token)
