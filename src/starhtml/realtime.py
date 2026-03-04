@@ -46,9 +46,9 @@ __all__ = [
     "ScriptEvent",
     "SSEEvent",
     "format_event",
-    "DebugContext",
-    "set_debug_context",
-    "get_debug_context",
+    "DevtoolsContext",
+    "set_devtools_context",
+    "get_devtools_context",
     "RELAY_QUEUE_SIZE",
     "SSE_KEEPALIVE_TIMEOUT",
 ]
@@ -193,31 +193,36 @@ NEWLINE_REGEX = re.compile(r"\r\n|\r|\n")
 SELECTOR_VALIDATION_REGEX = re.compile(r"^[#\.\[\]_\w:*=\-\'\"]+$")
 
 
-class DebugContext(TypedDict):
-    """Debug metadata attached to SSE events when debug=True."""
+class DevtoolsContext(TypedDict):
+    """Debug metadata attached to SSE events when devtools=True."""
 
     seq: int
     handler: str
     route: str
 
 
-# ─── Debug context propagation ────────────────────────────────────
-# Set by _endp() in core.py when debug=True. SSE format functions
+# Keep old name as alias for backward compatibility in wire format
+DebugContext = DevtoolsContext
+
+# ─── Devtools context propagation ─────────────────────────────────
+# Set by _endp() in core.py when devtools=True. SSE format functions
 # auto-read it so handler code never needs to pass debug_ctx manually.
 
-_debug_ctx_var: contextvars.ContextVar[DebugContext | None] = contextvars.ContextVar("starhtml_debug_ctx", default=None)
-_debug_seq = itertools.count(1)
+_devtools_ctx_var: contextvars.ContextVar[DevtoolsContext | None] = contextvars.ContextVar(
+    "starhtml_devtools_ctx", default=None
+)
+_devtools_seq = itertools.count(1)
 
 
-def set_debug_context(handler: str, route: str) -> contextvars.Token:
-    """Set debug context for the current request. Returns token for reset."""
-    ctx: DebugContext = {"seq": next(_debug_seq), "handler": handler, "route": route}
-    return _debug_ctx_var.set(ctx)
+def set_devtools_context(handler: str, route: str) -> contextvars.Token:
+    """Set devtools context for the current request. Returns token for reset."""
+    ctx: DevtoolsContext = {"seq": next(_devtools_seq), "handler": handler, "route": route}
+    return _devtools_ctx_var.set(ctx)
 
 
-def get_debug_context() -> DebugContext | None:
-    """Get debug context for the current request, if set."""
-    return _debug_ctx_var.get()
+def get_devtools_context() -> DevtoolsContext | None:
+    """Get devtools context for the current request, if set."""
+    return _devtools_ctx_var.get()
 
 
 try:
@@ -240,7 +245,7 @@ def format_sse_event(
     data_lines: list[str],
     event_id: str | None = None,
     retry: int = RETRY_DURATION,
-    debug_ctx: DebugContext | None = None,
+    debug_ctx: DevtoolsContext | None = None,
 ) -> str:
     """Format an SSE event according to Datastar specification.
 
@@ -292,11 +297,11 @@ def split_multiline_html(html: str) -> list[str]:
 def format_signal_event(
     signals_dict: dict[str, Any],
     only_if_missing: bool = False,
-    debug_ctx: DebugContext | None = None,
+    debug_ctx: DevtoolsContext | None = None,
 ) -> str:
     """Format a signals event for Datastar using JSON Merge Patch semantics (RFC 7386)."""
     if debug_ctx is None:
-        debug_ctx = get_debug_context()
+        debug_ctx = get_devtools_context()
     data_lines = []
 
     if only_if_missing:
@@ -317,14 +322,14 @@ def format_element_event(
     mode: SSEMode = DEFAULT_MODE,
     use_view_transition: bool = False,
     preserve_whitespace: bool | None = None,
-    debug_ctx: DebugContext | None = None,
+    debug_ctx: DevtoolsContext | None = None,
 ) -> str:
     """Format an element/fragment event for Datastar.
 
     preserve_whitespace: None=auto-detect (<pre>/<textarea>), True=keep empty lines, False=strip.
     """
     if debug_ctx is None:
-        debug_ctx = get_debug_context()
+        debug_ctx = get_devtools_context()
     if mode not in VALID_MODES:
         raise ValueError(f"Invalid mode '{mode}'. Must be one of: {', '.join(sorted(VALID_MODES))}")
 

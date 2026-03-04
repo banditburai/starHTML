@@ -64,11 +64,11 @@ jobs:
       run: |
         echo "✅ TypeScript validation and build test completed"
         ls -la src/starhtml/static/js/plugins/
-        ls -la src/starhtml/static/js/debugger/
+        ls -la src/starhtml/static/js/devtools/
         echo "Built plugin files:"
         find src/starhtml/static/js/plugins -name "*.js" -exec echo "  {}" \;
-        echo "Built debugger files:"
-        find src/starhtml/static/js/debugger -type f \( -name "*.js" -o -name "*.css" \) -exec echo "  {}" \;
+        echo "Built devtools files:"
+        find src/starhtml/static/js/devtools -type f \( -name "*.js" -o -name "*.css" \) -exec echo "  {}" \;
 
         # Verify datastar.js
         if [ ! -f "src/starhtml/static/js/datastar.js" ]; then

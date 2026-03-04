@@ -27,9 +27,9 @@ const REMOVED_DISPLAY_MS = 4000;
 const MAX_DISPLAY_STRING = 40;
 
 const entries: Map<string, SignalEntry> = new Map();
-let debuggerPrefix = "";
+let devtoolsPrefix = "";
 let excludeRe: RegExp | undefined;
-let debuggerSignalNames: Set<string> = new Set();
+let devtoolsSignalNames: Set<string> = new Set();
 let pollInterval: ReturnType<typeof setInterval> | null = null;
 const subscribers = new Set<() => void>();
 let pendingNotify = false;
@@ -43,9 +43,9 @@ export function init(
 ): void {
   if (initialized) return;
   initialized = true;
-  debuggerPrefix = excludePrefix;
+  devtoolsPrefix = excludePrefix;
   excludeRe = excludePrefix ? new RegExp(`^${escapeRegex(excludePrefix)}`) : undefined;
-  debuggerSignalNames = new Set(excludeNames ?? []);
+  devtoolsSignalNames = new Set(excludeNames ?? []);
   if (visibilityFn) isVisible = visibilityFn;
   document.addEventListener("datastar-signal-patch", onSignalPatch as EventListener);
   structuralPoll();
@@ -60,9 +60,9 @@ export function cleanup(): void {
   }
   entries.clear();
   subscribers.clear();
-  debuggerPrefix = "";
+  devtoolsPrefix = "";
   excludeRe = undefined;
-  debuggerSignalNames = new Set();
+  devtoolsSignalNames = new Set();
   pendingNotify = false;
   isVisible = null;
   initialized = false;
@@ -131,8 +131,8 @@ export function clearPersistedData(): void {
   notifySubscribers();
 }
 
-export function isDebuggerSignal(path: string): boolean {
-  return (!!debuggerPrefix && path.startsWith(debuggerPrefix)) || debuggerSignalNames.has(path);
+export function isDevtoolsSignal(path: string): boolean {
+  return (!!devtoolsPrefix && path.startsWith(devtoolsPrefix)) || devtoolsSignalNames.has(path);
 }
 
 function onSignalPatch(e: CustomEvent): void {
@@ -143,7 +143,7 @@ function onSignalPatch(e: CustomEvent): void {
   let changed = false;
 
   for (const path of paths) {
-    if (isDebuggerSignal(path)) continue;
+    if (isDevtoolsSignal(path)) continue;
     try {
       const value = getPath(path);
       if (updateOrCreateEntry(path, value)) changed = true;
@@ -168,7 +168,7 @@ function structuralPoll(): void {
   const seenPaths = new Set<string>();
 
   for (const [path, value] of allSignals) {
-    if (isDebuggerSignal(path)) continue;
+    if (isDevtoolsSignal(path)) continue;
     seenPaths.add(path);
     const entry = entries.get(path);
     if (!entry) {
@@ -238,7 +238,7 @@ function detectNamespaces(): void {
   try {
     for (const el of document.querySelectorAll("[data-star-id]")) {
       const id = el.getAttribute("data-star-id");
-      if (id && !(debuggerPrefix && id.startsWith(debuggerPrefix))) {
+      if (id && !(devtoolsPrefix && id.startsWith(devtoolsPrefix))) {
         nsMap.set(id, el.tagName.toLowerCase());
       }
     }

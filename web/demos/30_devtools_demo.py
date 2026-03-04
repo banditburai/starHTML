@@ -1,5 +1,5 @@
 # ruff: noqa: F841
-"""StarHTML Debugger Demo - exercises the debug panel with SSE events, DOM morphs,
+"""StarHTML DevTools Demo - exercises the devtools panel with SSE events, DOM morphs,
 and diverse signal types for the Signals tab."""
 
 import time
@@ -10,8 +10,8 @@ from starhtml import *
 from starhtml.plugins import persist
 
 app, rt = star_app(
-    debug=True,
-    title="Debugger Demo",
+    devtools=True,
+    title="DevTools Demo",
     htmlkw={"lang": "en"},
     hdrs=[
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),

@@ -1,4 +1,4 @@
-import { drainRecords, isDebuggerMutation, subscribeCapture } from "./dom-observer";
+import { drainRecords, isDevtoolsMutation, subscribeCapture } from "./dom-observer";
 
 export interface DatastarFetchDetail {
   type: string;
@@ -160,7 +160,7 @@ function handleMutationRecords(records: MutationRecord[]): void {
   if (!morphWindow) return;
   for (const r of records) {
     if (morphWindow.records.length >= MAX_MORPH_RECORDS) break;
-    if (isDebuggerMutation(r)) continue;
+    if (isDevtoolsMutation(r)) continue;
     morphWindow.records.push(r);
   }
 }
@@ -619,7 +619,7 @@ export function formatSingleEventForExport(ev: DebugSSEEvent): string {
 }
 
 export function formatAllEventsForExport(filteredEvents: DebugSSEEvent[]): string {
-  const header = `=== StarHTML Debug Events (${filteredEvents.length} events) ===`;
+  const header = `=== StarHTML DevTools Events (${filteredEvents.length} events) ===`;
   return `${header}\n\n${filteredEvents.map(formatSingleEventForExport).join("\n")}`;
 }
 
@@ -629,7 +629,7 @@ export function init(): void {
   if (initialized) return;
   initialized = true;
   captureSSEEvents();
-  console.log("[starhtml-debugger] initialized");
+  console.log("[starhtml-devtools] initialized");
 }
 
 export function cleanup(): void {

@@ -93,26 +93,26 @@ jobs:
           fi
         done
 
-        # Check debugger directory exists and has files
-        debugger_dir="src/starhtml/static/js/debugger"
-        if [ ! -d "$debugger_dir" ]; then
-          echo "❌ Debugger directory missing: $debugger_dir"
+        # Check devtools directory exists and has files
+        devtools_dir="src/starhtml/static/js/devtools"
+        if [ ! -d "$devtools_dir" ]; then
+          echo "❌ DevTools directory missing: $devtools_dir"
           exit 1
         fi
 
-        debugger_count=$(find "$debugger_dir" -type f \( -name "*.js" -o -name "*.css" \) | wc -l)
-        echo "📁 Found $debugger_count debugger files:"
+        devtools_count=$(find "$devtools_dir" -type f \( -name "*.js" -o -name "*.css" \) | wc -l)
+        echo "📁 Found $devtools_count devtools files:"
 
-        core_debugger=("capture.js" "setup.js" "signals.js" "timeline.js" "dom-observer.js" "debugger.css")
-        for file in "${core_debugger[@]}"; do
-          if [ ! -f "$debugger_dir/$file" ]; then
-            echo "❌ Missing debugger file: $file"
+        core_devtools=("capture.js" "setup.js" "signals.js" "timeline.js" "dom-observer.js" "devtools.css")
+        for file in "${core_devtools[@]}"; do
+          if [ ! -f "$devtools_dir/$file" ]; then
+            echo "❌ Missing devtools file: $file"
             exit 1
           fi
-          size=$(stat -c%s "$debugger_dir/$file")
+          size=$(stat -c%s "$devtools_dir/$file")
           echo "✅ $file ($size bytes)"
           if [ "$size" -eq 0 ]; then
-            echo "❌ Empty file: $debugger_dir/$file"
+            echo "❌ Empty file: $devtools_dir/$file"
             exit 1
           fi
         done

@@ -65,3 +65,36 @@ class TestDebugFlag:
             assert app.debug is True
             app2 = StarHTML(debug=False)
             assert app2.debug is False
+
+
+class TestDevtoolsFlag:
+    def test_devtools_default_false(self):
+        app = StarHTML()
+        assert app._devtools is False
+
+    def test_devtools_explicit_true(self):
+        app = StarHTML(devtools=True)
+        assert app._devtools is True
+
+    def test_devtools_env_override_on(self):
+        """STARHTML_DEVTOOLS=1 forces devtools on."""
+        with patch.dict(os.environ, {"STARHTML_DEVTOOLS": "1"}):
+            app = StarHTML(devtools=False)
+            assert app._devtools is True
+
+    def test_devtools_env_override_off(self):
+        """STARHTML_DEVTOOLS=0 forces devtools off."""
+        with patch.dict(os.environ, {"STARHTML_DEVTOOLS": "0"}):
+            app = StarHTML(devtools=True)
+            assert app._devtools is False
+
+    def test_debug_true_does_not_set_devtools(self):
+        """debug=True alone does NOT enable devtools (clean break)."""
+        app = StarHTML(debug=True)
+        assert app._devtools is False
+
+    def test_devtools_env_case_insensitive(self):
+        for val in ("TRUE", "True", "YES", "Yes", "true", "yes"):
+            with patch.dict(os.environ, {"STARHTML_DEVTOOLS": val}):
+                app = StarHTML(devtools=False)
+                assert app._devtools is True, f"Failed for STARHTML_DEVTOOLS={val}"
