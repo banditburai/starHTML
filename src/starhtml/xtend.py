@@ -187,7 +187,7 @@ def Socials(
     creator: str | None = None,
     card: str = "summary",
     canonical: bool = True,
-) -> tuple[FT, ...]:
+) -> FT:
     "OG and Twitter social card headers, plus meta description and canonical link"
     if not url:
         url = site_name
@@ -195,7 +195,7 @@ def Socials(
         url = f"https://{url}"
     if not image.startswith("http"):
         image = f"{url}{image}"
-    res = [
+    res: list[FT] = [
         Meta(name="description", content=description),
         Meta(property="og:image", content=image),
         Meta(property="og:site_name", content=site_name),
@@ -217,21 +217,21 @@ def Socials(
         res.append(Meta(name="twitter:site", content=twitter_site))
     if creator is not None:
         res.append(Meta(name="twitter:creator", content=creator))
-    return tuple(res)
+    return Group(*res)
 
 
-def Favicon(light_icon: str, dark_icon: str) -> tuple[FT, FT]:
+def Favicon(light_icon: str, dark_icon: str) -> FT:
     "Light and dark favicon headers"
-    return (
+    return Group(
         Link(rel="icon", type="image/x-ico", href=light_icon, media="(prefers-color-scheme: light)"),
         Link(rel="icon", type="image/x-ico", href=dark_icon, media="(prefers-color-scheme: dark)"),
     )
 
 
-def GoogleFont(*families: str, display: str = "swap") -> tuple[FT, ...]:
+def GoogleFont(*families: str, display: str = "swap") -> FT:
     "Preconnect and stylesheet headers for Google Fonts"
     params = "&".join(f"family={f.replace(' ', '+')}" for f in families)
-    return (
+    return Group(
         Link(rel="preconnect", href="https://fonts.googleapis.com"),
         Link(rel="preconnect", href="https://fonts.gstatic.com", crossorigin=True),
         Link(rel="stylesheet", href=f"https://fonts.googleapis.com/css2?{params}&display={display}"),

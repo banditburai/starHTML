@@ -40,7 +40,10 @@ import json
 from inspect import iscoroutinefunction
 
 from fastcore.utils import AttrDict, Path, first, listify, partition
-from fastcore.xml import FT, NotStr, to_xml
+from fastcore.xml import FT as FT
+from fastcore.xml import NotStr as NotStr
+from fastcore.xml import Safe as Safe
+from fastcore.xml import to_xml as to_xml
 from starlette.applications import Starlette
 from starlette.authentication import requires
 from starlette.background import BackgroundTask, BackgroundTasks

@@ -12,7 +12,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
-from fastcore.xml import Safe
+from fastcore.xml import FT, Safe
 
 from starhtml.icons import Icon
 from starhtml.xtend import (
@@ -612,9 +612,8 @@ class TestSEOComponents:
         """Test basic Socials generation."""
         socials = Socials(title="Test Page", site_name="Test Site", description="Test description", image="/image.png")
 
-        # Should return tuple of meta tags
-        assert isinstance(socials, tuple)
-        assert len(socials) >= 10  # Should have multiple meta tags
+        assert isinstance(socials, FT)
+        assert len(socials.children) >= 10
 
         # Convert to HTML and check content
         html_parts = [str(tag) for tag in socials]
@@ -690,8 +689,8 @@ class TestSEOComponents:
         """Test Favicon with light and dark icons."""
         favicons = Favicon("/light.ico", "/dark.ico")
 
-        assert isinstance(favicons, tuple)
-        assert len(favicons) == 2
+        assert isinstance(favicons, FT)
+        assert len(favicons.children) == 2
 
         light_html = str(favicons[0])
         dark_html = str(favicons[1])
@@ -704,8 +703,8 @@ class TestSEOComponents:
     def test_google_font_single(self):
         """Test GoogleFont with a single font family."""
         tags = GoogleFont("Manrope:wght@400;500;600;700;800")
-        assert isinstance(tags, tuple)
-        assert len(tags) == 3
+        assert isinstance(tags, FT)
+        assert len(tags.children) == 3
 
         html = "\n".join(tag.__html__() for tag in tags)
         assert 'rel="preconnect" href="https://fonts.googleapis.com"' in html
