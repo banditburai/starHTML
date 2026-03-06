@@ -1083,6 +1083,35 @@ class TestMissingCoverage:
 
         os.unlink(fname)
 
+    def test_get_key_from_env_var(self):
+        """Test get_key reads from STARHTML_SECRET_KEY env var."""
+        import os
+        import tempfile
+
+        fname = tempfile.mktemp()
+        env_key = "env-secret-key-456"
+        os.environ["STARHTML_SECRET_KEY"] = env_key
+        try:
+            result = get_key(fname=fname)
+            assert result == env_key
+            # Verify no file was created
+            assert not os.path.exists(fname)
+        finally:
+            del os.environ["STARHTML_SECRET_KEY"]
+            if os.path.exists(fname):
+                os.unlink(fname)
+
+    def test_get_key_explicit_overrides_env(self):
+        """Test explicit key takes priority over env var."""
+        import os
+
+        os.environ["STARHTML_SECRET_KEY"] = "env-key"
+        try:
+            result = get_key(key="explicit-key")
+            assert result == "explicit-key"
+        finally:
+            del os.environ["STARHTML_SECRET_KEY"]
+
     def test_get_key_generate_new(self):
         """Test get_key generating a new key."""
         import os
