@@ -1065,21 +1065,21 @@ class TestMissingCoverage:
         assert snake2hyphens("simple") == "Simple"
 
     def test_get_key_with_existing_key(self):
-        """Test get_key when providing a key to write."""
+        """Test get_key returns provided key without writing to file."""
         import os
         import tempfile
 
         with tempfile.NamedTemporaryFile(delete=False) as f:
             fname = f.name
 
-        # Test writing a key
+        # Test returning a key directly
         test_key = "my-secret-key-123"
         result = get_key(key=test_key, fname=fname)
         assert result == test_key
 
-        # Verify it was written
+        # Verify it was NOT written to file
         with open(fname) as f:
-            assert f.read() == test_key
+            assert f.read() == ""
 
         os.unlink(fname)
 

@@ -1,6 +1,7 @@
 """Utility functions for StarHTML framework."""
 
 import re
+import secrets
 import types
 from base64 import b64encode
 from dataclasses import dataclass
@@ -347,18 +348,15 @@ def snake2hyphens(s: str):
 
 def get_key(key=None, fname=".sesskey"):
     "Get or create a session key"
+    if key:
+        return key
     from pathlib import Path
 
     fpath = Path(fname)
-    if key:
-        fpath.write_text(key)
-    elif fpath.exists():
-        key = fpath.read_text().strip()
-    else:
-        import secrets
-
-        key = secrets.token_urlsafe(32)
-        fpath.write_text(key)
+    if fpath.exists():
+        return fpath.read_text().strip()
+    key = secrets.token_urlsafe(32)
+    fpath.write_text(key)
     return key
 
 
