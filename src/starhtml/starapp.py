@@ -5,6 +5,7 @@ from collections.abc import Callable
 from typing import Any
 
 from fastcore.utils import first
+from starlette.middleware.sessions import SessionMiddleware
 from starlette.requests import HTTPConnection
 
 from .realtime import StarHTMLWithLiveReload
@@ -29,6 +30,7 @@ def star_app(
     ftrs: tuple = None,
     tbls: dict = None,
     before: tuple = None,
+    after: tuple = None,
     middleware: tuple = None,
     live: bool = False,
     debug: bool = False,
@@ -49,6 +51,7 @@ def star_app(
     same_site: str = "lax",
     sess_https_only: bool = False,
     sess_domain: str = None,
+    sess_cls=SessionMiddleware,
     htmlkw: dict = None,
     bodykw: dict = None,
     reload_attempts: int = 1,
@@ -82,6 +85,7 @@ def star_app(
         hdrs=h,
         ftrs=ftrs,
         before=before,
+        after=after,
         middleware=middleware,
         live=live,
         debug=debug,
@@ -100,6 +104,7 @@ def star_app(
         sess_path=sess_path,
         same_site=same_site,
         sess_https_only=sess_https_only,
+        sess_cls=sess_cls,
         sess_domain=sess_domain,
         key_fname=key_fname,
         htmlkw=htmlkw,

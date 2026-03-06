@@ -348,10 +348,11 @@ def snake2hyphens(s: str):
 
 def get_key(key=None, fname=".sesskey"):
     "Get or create a session key"
-    if key:
-        return key
+    import os
     from pathlib import Path
 
+    if key := key or os.environ.get("STARHTML_SECRET_KEY"):
+        return key
     fpath = Path(fname)
     if fpath.exists():
         return fpath.read_text().strip()

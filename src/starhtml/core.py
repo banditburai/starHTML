@@ -119,9 +119,8 @@ class StarHTML(Starlette):
         self._registered_packages: dict[str, PathlibPath] = {}
         self._registered_items: set[int] = set()
         self._import_map: dict[str, str] = {}
-        secret_key = get_key(secret_key, key_fname)
-
         if sess_cls:
+            secret_key = get_key(secret_key, key_fname)
             sess = Middleware(
                 sess_cls,
                 secret_key=secret_key,
