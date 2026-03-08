@@ -84,6 +84,7 @@ def PopoverContent(*children, cls="", side="bottom", align="center", offset=None
             data_ref=f"{signal}Content",
             data_position=(f"{signal}-trigger", dict(**position_mods)),
             popover="auto",
+            data_popover_animate="",
             id=f"{signal}-content",
             role="dialog",
             tabindex="-1",
@@ -127,7 +128,7 @@ app, rt = star_app(
                     #ffff00 20px
                 );
             }
-            
+
             /* Counter display */
             #flash-counter {
                 position: fixed;
@@ -140,13 +141,28 @@ app, rt = star_app(
                 font-family: monospace;
                 z-index: 10000;
             }
-            
+
             .test-section {
                 margin-bottom: 3rem;
                 padding: 1.5rem;
                 background: #f3f4f6;
                 border-radius: 0.5rem;
             }
+
+            /* DRAMATIC values for visual testing — entrance/exit should be very obvious */
+            [data-popover-animate]{
+                --_dur-in:600ms;--_dur-out:400ms;
+                transform-origin:var(--popover-origin, center);
+                transition:opacity var(--_dur-out) ease-out,scale var(--_dur-out) ease-out,
+                           display var(--_dur-out) allow-discrete,overlay var(--_dur-out) allow-discrete;
+            }
+            [data-popover-animate]:popover-open{
+                transition-duration:var(--_dur-in);
+                transition-timing-function:cubic-bezier(0.16,1,0.3,1);
+            }
+            [data-popover-animate]:not(:popover-open){opacity:0;scale:0.7}
+            [data-popover-animate]:popover-open{@starting-style{opacity:0;scale:0.7}}
+            @media(prefers-reduced-motion:reduce){[data-popover-animate]{transition-duration:0ms!important}}
         """),
     ],
 )
@@ -168,6 +184,28 @@ def home():
         P(
             "Comprehensive testing of position.ts functionality including opacity, container parameter, and scroll behavior",
             cls="text-center text-gray-600 pb-8",
+        ),
+        # DIAGNOSTIC: Plain popover with animation CSS but NO position handler
+        Div(
+            H2("DIAGNOSTIC: No Position Handler", cls="text-xl font-semibold mb-4 text-red-600"),
+            P(
+                "This popover has data-popover-animate but NO data-position. Should animate if CSS works.",
+                cls="text-gray-600 mb-4",
+            ),
+            Button(
+                "Toggle Plain Popover",
+                popovertarget="diag-pop",
+                cls="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700",
+            ),
+            Div(
+                H3("Plain Animated Popover", cls="font-bold mb-2"),
+                P("If THIS animates but the ones below don't, the position handler JS is killing the transition."),
+                data_popover_animate="",
+                popover="auto",
+                id="diag-pop",
+                cls="z-50 w-72 rounded-md border bg-white p-4 shadow-md",
+            ),
+            cls="test-section border-2 border-red-500",
         ),
         # Test 1: Basic popover with bright background
         Div(
