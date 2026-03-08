@@ -149,13 +149,12 @@ async function computeFloatingPosition(
   if (config.autoSize) {
     middleware.push(
       size({
-        apply: ({ availableWidth, availableHeight, elements }) => {
+        padding: 10,
+        apply: ({ availableWidth, availableHeight, elements }) =>
           Object.assign(elements.floating.style, {
             maxWidth: `${availableWidth}px`,
             maxHeight: `${availableHeight}px`,
-          });
-        },
-        padding: 10,
+          }),
       })
     );
   }
@@ -183,9 +182,7 @@ const shouldUpdatePosition = (current: Position, last: Position, threshold = 2):
 const extract = (value: unknown): string => {
   if (typeof value === "string") return value;
   if (value instanceof Set) {
-    const arr = Array.from(value);
-    if (arr.length === 0) return "true";
-    return String(arr[0]) || "";
+    return value.size === 0 ? "true" : String([...value][0]) || "";
   }
   return "";
 };
@@ -201,11 +198,8 @@ const extractPlacement = (value: unknown): Placement => {
 const boolMod = (mods: Map<string, unknown>, name: string, defaultVal: boolean): boolean =>
   mods.has(name) ? extract(mods.get(name)) !== "false" : defaultVal;
 
-function getPositionArgNames(signal = "position"): string[] {
-  return [
-    `${signal}_x`, `${signal}_y`, `${signal}_placement`,
-    `${signal}_visible`, `${signal}_is_positioning`,
-  ];
+function getPositionArgNames(signal = "position") {
+  return [`${signal}_x`, `${signal}_y`, `${signal}_placement`, `${signal}_visible`, `${signal}_is_positioning`];
 }
 
 function getGlobalConfig(): {
@@ -261,22 +255,23 @@ const positionAttributePlugin: AttributePlugin = {
     let showTimer: number | null = null;
     let settlementTimer: number | null = null;
     let domHistory: Array<{ x: number; y: number; timestamp: number }> = [];
-    let isLocked = false;
     let lockUntil = 0;
 
     const isPopover = el.hasAttribute("popover");
     const hasAnimateCSS = el.hasAttribute("data-popover-animate");
     const hasDataShow = el.hasAttribute("data-show");
-    const cfgDefaults = getGlobalConfig().defaults || {};
+    const d = getGlobalConfig().defaults;
     const resolvedDefaults: Required<PositionDefaults> = {
-      padding: Number(cfgDefaults.padding ?? DEFAULTS.padding),
-      verticalGapPx: Number(cfgDefaults.verticalGapPx ?? DEFAULTS.verticalGapPx),
-      horizontalOverlapPx: Number(cfgDefaults.horizontalOverlapPx ?? DEFAULTS.horizontalOverlapPx),
+      padding: Number(d?.padding ?? DEFAULTS.padding),
+      verticalGapPx: Number(d?.verticalGapPx ?? DEFAULTS.verticalGapPx),
+      horizontalOverlapPx: Number(d?.horizontalOverlapPx ?? DEFAULTS.horizontalOverlapPx),
     };
     const exitDurationMs = hasAnimateCSS
       ? Number.parseFloat(getComputedStyle(el).getPropertyValue("--_dur-out")) || 100
       : 0;
     let closeGuard = 0;
+    const effStrategy: Strategy =
+      (hasDataShow || isPopover || isCursorMode) && !mods.has("strategy") ? "fixed" : config.strategy;
 
     const prepareHiddenState = () => {
       if (isPopover) {
@@ -306,14 +301,12 @@ const positionAttributePlugin: AttributePlugin = {
         const recent = domHistory.slice(-4);
         const positions = new Set(recent.map((p) => `${p.x},${p.y}`));
         if (positions.size === 2 && now - recent[0].timestamp < 300) {
-          isLocked = true;
           lockUntil = now + 2000;
           return true;
         }
       }
 
-      if (now > lockUntil) isLocked = false;
-      return isLocked;
+      return now < lockUntil;
     };
 
     const setPositioning = (state: "true" | "false") => {
@@ -343,10 +336,6 @@ const positionAttributePlugin: AttributePlugin = {
       }
 
       try {
-        const effStrategy: Strategy =
-          (hasDataShow || isPopover || isCursorMode) && !mods.has("strategy")
-            ? "fixed"
-            : config.strategy;
         const result = await computeFloatingPosition(
           reference,
           el,
@@ -433,7 +422,6 @@ const positionAttributePlugin: AttributePlugin = {
       showTimer = settlementTimer = null;
 
       domHistory = [];
-      isLocked = false;
       lockUntil = 0;
       el.removeAttribute("data-positioning");
 
@@ -451,7 +439,7 @@ const positionAttributePlugin: AttributePlugin = {
 
     const handleManualUpdate: EventListener = () => {
       if (!cleanup) start();
-      requestAnimationFrame(() => updatePosition());
+      requestAnimationFrame(updatePosition);
     };
     el.addEventListener("position-update", handleManualUpdate);
 
@@ -493,6 +481,9 @@ const positionAttributePlugin: AttributePlugin = {
       const handleToggle = (e: Event) => {
         const { newState } = e as ToggleEvent;
         if (newState === "open") {
+          // Remove visibility:hidden synchronously — toggle fires before first paint,
+          // so @starting-style { opacity: 0 } provides anti-flash from here on.
+          if (hasAnimateCSS) el.style.removeProperty("visibility");
           const isNested = el.parentElement?.closest("[popover]:popover-open") !== null;
           const startFn = () => el.matches(":popover-open") && start();
           if (isNested) setTimeout(startFn, 20);

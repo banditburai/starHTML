@@ -149,19 +149,19 @@ app, rt = star_app(
                 border-radius: 0.5rem;
             }
 
-            /* Popover entrance/exit animation via @starting-style + allow-discrete */
+            /* DRAMATIC values for visual testing — entrance/exit should be very obvious */
             [data-popover-animate]{
-                --_dur-in:150ms;--_dur-out:100ms;
+                --_dur-in:600ms;--_dur-out:400ms;
                 transform-origin:var(--popover-origin, center);
-                transition:opacity var(--_dur-out) ease,scale var(--_dur-out) ease,
+                transition:opacity var(--_dur-out) ease-out,scale var(--_dur-out) ease-out,
                            display var(--_dur-out) allow-discrete,overlay var(--_dur-out) allow-discrete;
             }
             [data-popover-animate]:popover-open{
                 transition-duration:var(--_dur-in);
                 transition-timing-function:cubic-bezier(0.16,1,0.3,1);
             }
-            [data-popover-animate]:not(:popover-open){opacity:0;scale:0.95}
-            [data-popover-animate]:popover-open{@starting-style{opacity:0;scale:0.95}}
+            [data-popover-animate]:not(:popover-open){opacity:0;scale:0.7}
+            [data-popover-animate]:popover-open{@starting-style{opacity:0;scale:0.7}}
             @media(prefers-reduced-motion:reduce){[data-popover-animate]{transition-duration:0ms!important}}
         """),
     ],
@@ -188,9 +188,15 @@ def home():
         # DIAGNOSTIC: Plain popover with animation CSS but NO position handler
         Div(
             H2("DIAGNOSTIC: No Position Handler", cls="text-xl font-semibold mb-4 text-red-600"),
-            P("This popover has data-popover-animate but NO data-position. Should animate if CSS works.", cls="text-gray-600 mb-4"),
-            Button("Toggle Plain Popover", popovertarget="diag-pop",
-                   cls="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"),
+            P(
+                "This popover has data-popover-animate but NO data-position. Should animate if CSS works.",
+                cls="text-gray-600 mb-4",
+            ),
+            Button(
+                "Toggle Plain Popover",
+                popovertarget="diag-pop",
+                cls="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700",
+            ),
             Div(
                 H3("Plain Animated Popover", cls="font-bold mb-2"),
                 P("If THIS animates but the ones below don't, the position handler JS is killing the transition."),
