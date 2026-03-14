@@ -1098,7 +1098,7 @@ wheels = [
 
 [[package]]
 name = "starhtml"
-version = "0.5.17"
+version = "0.5.19"
 source = { editable = "." }
 dependencies = [
     { name = "beautifulsoup4" },

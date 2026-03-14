@@ -6,10 +6,11 @@ import os
 import re
 
 logger = logging.getLogger(__name__)
+from collections.abc import Callable
 from copy import deepcopy
 from functools import partialmethod
 from pathlib import Path as PathlibPath
-from typing import Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 from fastcore.utils import (
     Path,
@@ -191,6 +192,15 @@ class StarHTML(Starlette):
         ]
         self.router.routes.append(route)
 
+    if TYPE_CHECKING:
+
+        def register(self, *items: Any, prefix: str | None = None) -> None: ...
+        def register_package(
+            self, name: str, static_path: Any = None, hdrs: Any = None, prefix: str | None = None
+        ) -> None: ...
+        def register_package_static(self, name: str, static_path: Any, prefix: str | None = None) -> None: ...
+        def static_route_exts(self, static_path: str = ".") -> None: ...
+
     async def handle_request(
         self,
         method: str,
@@ -305,10 +315,17 @@ def _add_route(self: StarHTML, func, path, methods, name, include_in_schema, bod
 
 
 @patch
-def route(self: StarHTML, path: str = None, methods=None, name=None, include_in_schema=True, body_wrap=None):
+def route(
+    self: StarHTML,
+    path: str | Callable[..., Any] | None = None,
+    methods: list[str] | str | None = None,
+    name: str | None = None,
+    include_in_schema: bool = True,
+    body_wrap: Callable[..., Any] | None = None,
+) -> Callable[..., Any]:
     """Add a route at `path`"""
 
-    def f(func):
+    def f(func: Callable[..., Any]) -> Callable[..., Any]:
         return self._add_route(func, path, methods, name=name, include_in_schema=include_in_schema, body_wrap=body_wrap)  # type: ignore[attr-defined]
 
     return f(path) if callable(path) else f
