@@ -2,13 +2,18 @@
 
 import os
 from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from fastcore.utils import first
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.requests import HTTPConnection
 
 from .realtime import StarHTMLWithLiveReload
+
+if TYPE_CHECKING:
+    from .core import StarHTML
+
+RouteDecorator = Callable[[Callable[..., Any]], Callable[..., Any]]
 
 __all__ = [
     "star_app",
@@ -20,7 +25,21 @@ __all__ = [
     "compression",
     "Beforeware",
     "MiddlewareBase",
+    "RouteDecorator",
 ]
+
+
+class Beforeware:
+    def __init__(self, f: Callable[..., Any], skip: list[str] | None = None) -> None:
+        self.f, self.skip = f, skip or []
+
+
+class MiddlewareBase:
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] not in ["http", "websocket"]:
+            await self._app(scope, receive, send)
+            return
+        return HTTPConnection(scope)
 
 
 def star_app(
@@ -29,7 +48,7 @@ def star_app(
     hdrs: tuple = None,
     ftrs: tuple = None,
     tbls: dict = None,
-    before: tuple = None,
+    before: Beforeware | tuple[Any, ...] | None = None,
     after: tuple = None,
     middleware: tuple = None,
     live: bool = False,
@@ -61,7 +80,7 @@ def star_app(
     datastar: str = "patched",
     inline_icons: bool = False,
     **kwargs: Any,
-):
+) -> tuple["StarHTML", Callable[..., RouteDecorator]]:
     from .core import noop_body
     from .icons import resolver
 
@@ -234,19 +253,6 @@ def compression(minimum_size=500, gzip=True, brotli=True, zstd=True, **kwargs):
         zstd=zstd,
         **kwargs,
     )
-
-
-class Beforeware:
-    def __init__(self, f, skip=None):
-        self.f, self.skip = f, skip or []
-
-
-class MiddlewareBase:
-    async def __call__(self, scope, receive, send) -> None:
-        if scope["type"] not in ["http", "websocket"]:
-            await self._app(scope, receive, send)
-            return
-        return HTTPConnection(scope)
 
 
 def _get_tbl(dt: Any, nm: str, schema: dict):
