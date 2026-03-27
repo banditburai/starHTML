@@ -28,16 +28,14 @@ from starhtml import (
     Thead,
     Tr,
 )
+from starhtml.datastar import Signal
+from starhtml.forms import fill_dataclass, find_inputs, min_length
 from starhtml.tags import (
     Circle,
     Rect,
     transformd,
 )
-from starhtml.utils import (
-    File,
-    fill_dataclass,
-    find_inputs,
-)
+from starhtml.utils import File
 
 
 class TestElementBehavior:
@@ -373,3 +371,32 @@ class TestErrorConditionsAndEdgeCases:
         # Unicode should be preserved
         assert "测试" in xml_output
         assert "🚀" in xml_output
+
+
+class TestDictPositionalArgs:
+    """Dict positional args are merged as attrs, processed through datastar pipeline."""
+
+    def test_dict_merged_as_attrs(self):
+        inp = Input({"data_bind": Signal("name", "")}, type="text")
+        assert inp.get("data-bind") == "name"
+
+    def test_explicit_kwargs_win_over_dict(self):
+        inp = Input({"data_bind": Signal("name", "")}, data_bind=Signal("other", ""))
+        assert inp.get("data-bind") == "other"
+
+    def test_dict_not_in_children(self):
+        div = Div({"data_show": Signal("visible", True)}, "Hello")
+        assert all(not isinstance(c, dict) for c in div.children)
+
+    def test_multiple_dicts_merged(self):
+        sig = Signal("x", "")
+        inp = Input({"data_bind": sig}, {"id": "my-input"}, type="text")
+        assert inp.get("data-bind") == "x"
+        assert inp.get("id") == "my-input"
+
+    def test_validate_dict_pattern(self):
+        sig = Signal("name", "")
+        v = sig.validate(min_length, 2)
+        inp = Input(v, type="text", id="name")
+        assert inp.get("data-bind") == "name"
+        assert inp.get("id") == "name"

@@ -18,8 +18,8 @@ from starlette.responses import FileResponse
 from starlette.testclient import TestClient
 
 from starhtml import star_app
+from starhtml.forms import form2dict, parse_form
 from starhtml.server import JSONResponse
-from starhtml.utils import form2dict, parse_form
 
 
 class TestFileUpload:

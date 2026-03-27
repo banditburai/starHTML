@@ -147,9 +147,15 @@ def ft_datastar(tag: str, *c: Any, **kwargs: Any) -> FT:
         match child:
             case ds.Signal():
                 defined_signals.append(child)
+                # Auto-include .err for validated signals (has _validation_expr from .validate())
+                if "_validation_expr" in child.__dict__:
+                    defined_signals.append(child.err)
                 if computed_attr := child.get_computed_attr():
                     attr_name, attr_value = computed_attr
                     kwargs[attr_name] = attr_value
+            case dict():
+                for k, v in child.items():
+                    kwargs.setdefault(k, v)
             case _:
                 new_children.append(child)
                 if signals := getattr(child, "__signals_found", None):

@@ -418,10 +418,10 @@ DEMOS = [
         "Patterns",
     ),
     Demo(
-        "30-debugger",
-        "Debugger Panel",
+        "30-devtools",
+        "Dev Tools Panel",
         "Built-in debug panel with SSE capture, signal inspector, and timeline",
-        "30_debugger_demo.py",
+        "30_devtools_demo.py",
         "Patterns",
     ),
 ]

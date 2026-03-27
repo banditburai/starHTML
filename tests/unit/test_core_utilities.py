@@ -16,6 +16,7 @@ from datetime import datetime
 import pytest
 from starlette.applications import Starlette
 
+from starhtml.forms import _formitem
 from starhtml.realtime import EventStream
 from starhtml.server import (
     Client,
@@ -26,7 +27,6 @@ from starhtml.server import (
 from starhtml.utils import (
     HttpHeader,
     _fix_anno,
-    _formitem,
     _mk_list,
     decode_uri,
     flat_tuple,
