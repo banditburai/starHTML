@@ -8,7 +8,7 @@ from starlette.datastructures import FormData
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
 
-from .datastar import Signal, _JSRaw, any_, post, regex, scroll_to, seq, switch, to_js_value
+from .datastar import Expr, Signal, _JSRaw, any_, post, regex, scroll_to, seq, switch, to_js_value
 
 __all__ = [
     "required",
@@ -33,12 +33,12 @@ __all__ = [
 _EMAIL_RE = r"[^\s@]+@[^\s@]+\.[^\s@]+"
 
 
-def required(signal, label="This field"):
+def required(signal: Signal, label: str = "This field") -> Expr:
     "Error message when empty, empty string when valid."
     return (~signal).if_(f"{label} is required")
 
 
-def email(signal, *, re=_EMAIL_RE):
+def email(signal: Signal, *, re: str = _EMAIL_RE) -> Expr:
     "Email validation: required + regex."
     return switch(
         [
@@ -48,7 +48,7 @@ def email(signal, *, re=_EMAIL_RE):
     )
 
 
-def min_length(signal, n, label="This field"):
+def min_length(signal: Signal, n: int, label: str = "This field") -> Expr:
     "Required + minimum length."
     return switch(
         [
@@ -58,12 +58,12 @@ def min_length(signal, n, label="This field"):
     )
 
 
-def max_length(signal, n):
+def max_length(signal: Signal, n: int) -> Expr:
     "Maximum length (does not check required)."
     return (signal.length > n).if_(f"Must be at most {n} characters")
 
 
-def pattern(signal, pat, message, *, optional=False):
+def pattern(signal: Signal, pat: str, message: str, *, optional: bool = False) -> Expr:
     "Regex pattern validation. Set optional=True to skip when empty."
     if optional:
         return (signal & ~regex(pat).test(signal)).if_(message)
@@ -75,7 +75,7 @@ def pattern(signal, pat, message, *, optional=False):
     )
 
 
-def matches(signal, other, message="Fields must match", *, label="This field"):
+def matches(signal: Signal, other: Signal, message: str = "Fields must match", *, label: str = "This field") -> Expr:
     "Must match another field (e.g., password confirmation)."
     return switch(
         [
@@ -85,32 +85,51 @@ def matches(signal, other, message="Fields must match", *, label="This field"):
     )
 
 
-def checked(signal, message="This field is required"):
+def checked(signal: Signal, message: str = "This field is required") -> Expr:
     "Checkbox must be checked."
     return (~signal).if_(message)
 
 
-class FormAttrs(dict):
+class FormAttrs(dict[str, Any]):
     "Spreadable form attrs with .submitting, .submitted, and .error signals."
 
-    def __init__(self, data, *, submitting, submitted, error):
+    def __init__(
+        self,
+        data: dict[str, Any],
+        *,
+        submitting: Signal,
+        submitted: Signal | None,
+        error: Signal | list[Signal] | None,
+    ) -> None:
         super().__init__(data)
         self.submitting, self.submitted, self.error = submitting, submitted, error
 
 
-def _unwrap(s):
-    "Accept a Signal or a Field element (FT with .signal attr)."
-    return s.signal if isinstance(getattr(s, "signal", None), Signal) else s
+def _unwrap(s: Signal | FT) -> Signal:
+    if isinstance(s, Signal):
+        return s
+    sig = getattr(s, "signal", None)
+    if isinstance(sig, Signal):
+        return sig
+    raise TypeError(f"Expected Signal or FT with .signal attr, got {type(s).__name__}")
 
 
-def _validate_signals(signals):
+def _validate_signals(signals: tuple[Signal | FT, ...]) -> dict[Signal, Expr]:
     sigs = [_unwrap(s) for s in signals]
     if bad := next((s for s in sigs if "_validation_expr" not in s.__dict__), None):
         raise ValueError(f"Signal {bad._name!r} has no validation — call .validate() first")
     return {s.err: s.__dict__["_validation_expr"] for s in sigs}
 
 
-def form_submit(endpoint, *signals, name=None, submitting=None, submitted=None, error=None, focus_first_error=True):
+def form_submit(
+    endpoint: str,
+    *signals: Signal | FT,
+    name: str | None = None,
+    submitting: Signal | None = None,
+    submitted: Signal | None = None,
+    error: Signal | list[Signal] | None = None,
+    focus_first_error: bool = True,
+) -> FormAttrs:
     "Datastar attrs for form submission. Auto-creates submitting/submitted/error signals from name=."
     orig = (submitting, submitted, error)
     pfx = name.replace("-", "_") if name else None
@@ -131,14 +150,15 @@ def form_submit(endpoint, *signals, name=None, submitting=None, submitted=None, 
         actions.append((~can_submit).then(scroll_to("[aria-invalid]", focus=True)))
 
     attrs = dict(data_on_submit=(actions, {"prevent": True}), action=endpoint, method="post", novalidate=True)
-    # Only declare signals auto-created here, not ones passed in by caller
-    auto = [s for s, o in zip((submitting, submitted, error), orig, strict=False) if s is not o and s is not None]
-    if auto:
-        attrs["data_signals"] = auto
+    auto_created = [
+        s for s, o in zip((submitting, submitted, error), orig, strict=False) if s is not o and s is not None
+    ]
+    if auto_created:
+        attrs["data_signals"] = auto_created
     return FormAttrs(attrs, submitting=submitting, submitted=submitted, error=error)
 
 
-def form_validate_on_click(*signals, focus_first_error=True):
+def form_validate_on_click(*signals: Signal | FT, focus_first_error: bool = True) -> dict[str, Any]:
     "Datastar attrs for a submit button that validates before native POST."
     fields = _validate_signals(signals)
     actions = [err.set(val) for err, val in fields.items()]
@@ -147,7 +167,7 @@ def form_validate_on_click(*signals, focus_first_error=True):
     return dict(data_on_click=actions)
 
 
-def form_reset(*signals, **extras):
+def form_reset(*signals: Signal | FT, **extras: Any) -> _JSRaw:
     "Reset signals to initial values; auto-clears .err for validated signals."
     sigs = [_unwrap(s) for s in signals]
     resets = [s.set(s._initial) for s in sigs]
@@ -156,8 +176,8 @@ def form_reset(*signals, **extras):
     return seq(*resets)
 
 
-async def parse_form(req: Request) -> FormData | dict:
-    "Starlette errors on empty multipart forms, so this checks for that situation"
+async def parse_form(req: Request) -> FormData | dict[str, Any]:
+    "Works around Starlette crashing on empty multipart bodies."
     ctype = req.headers.get("Content-Type", "")
     if ctype == "application/json":
         return await req.json()
@@ -174,15 +194,14 @@ async def parse_form(req: Request) -> FormData | dict:
     return await req.form()
 
 
-def form2dict(form: FormData) -> dict:
-    "Convert starlette form data to a dict"
+def form2dict(form: FormData) -> dict[str, Any]:
     if isinstance(form, dict):
         return form
     return {k: _formitem(form, k) for k in form}
 
 
-def fill_form(form, obj):
-    "Fills named items in `form` using attributes in `obj`"
+def fill_form(form: FT, obj: Any) -> FT:
+    "Fills named items in `form` using attributes in `obj`."
     if is_dataclass(obj):
         obj = asdict(obj)
     elif not isinstance(obj, dict):
@@ -190,15 +209,14 @@ def fill_form(form, obj):
     return _fill_item(form, obj)
 
 
-def fill_dataclass(src, dest):
-    "Modifies dataclass in-place and returns it"
+def fill_dataclass(src: Any, dest: Any) -> Any:
+    "Modifies dataclass in-place and returns it."
     for nm, val in asdict(src).items():
         setattr(dest, nm, val)
     return dest
 
 
-def find_inputs(e, tags="input", **kw):
-    "Recursively find all elements in `e` with `tags` and attrs matching `kw`"
+def find_inputs(e: FT | list | tuple, tags: str | list[str] = "input", **kw: Any) -> list[FT]:
     if not isinstance(e, list | tuple | FT):
         return []
     inputs = []
@@ -213,16 +231,14 @@ def find_inputs(e, tags="input", **kw):
     return inputs
 
 
-def _formitem(form, k):
-    "Return single item `k` from `form` if len 1, otherwise return list"
+def _formitem(form: FormData | dict[str, Any], k: str) -> Any:
     if isinstance(form, dict):
         return form.get(k)
     o = form.getlist(k)
     return o[0] if len(o) == 1 else o if o else None
 
 
-def _fill_item(item, obj: dict[str, Any]):
-    "Fill a single form item with data from obj"
+def _fill_item(item: Any, obj: dict[str, Any]) -> Any:
     if not isinstance(item, FT):
         return item
     tag, cs, attr = item.list
