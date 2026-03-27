@@ -362,7 +362,7 @@ def format_element_event(
     return format_sse_event("datastar-patch-elements", data_lines, debug_ctx=debug_ctx)
 
 
-def signals(only_if_missing: bool = False, **kwargs) -> tuple[str, dict[str, Any]]:
+def signals(*, only_if_missing: bool = False, **kwargs: Any) -> tuple[str, dict[str, Any]]:
     """Create a signals SSE item for the @sse decorator."""
     return ("signals", {"payload": kwargs, "options": {"only_if_missing": only_if_missing}})
 
