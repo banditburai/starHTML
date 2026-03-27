@@ -26,16 +26,23 @@ from fastcore.xml import FT
 from starlette.datastructures import FormData, UploadFile
 from starlette.exceptions import HTTPException
 
+from starhtml.forms import (
+    _fill_item,
+    _formitem,
+    fill_dataclass,
+    fill_form,
+    find_inputs,
+    form2dict,
+    parse_form,
+)
 from starhtml.utils import (
     File,
     HttpHeader,
     _add_ids,
     _annotations,
     _camel_to_kebab,
-    _fill_item,
     _fix_anno,
     _form_arg,
-    _formitem,
     _from_body,
     _is_body,
     _list,
@@ -43,15 +50,10 @@ from starhtml.utils import (
     _url_for,
     decode_uri,
     empty,
-    fill_dataclass,
-    fill_form,
-    find_inputs,
     flat_tuple,
     flat_xt,
-    form2dict,
     get_key,
     noop_body,
-    parse_form,
     qp,
     reg_re_param,
     snake2hyphens,

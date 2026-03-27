@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import date
 from inspect import Parameter, get_annotations
 from types import UnionType
-from typing import Any, Union, get_args, get_origin
+from typing import Union, get_args, get_origin
 from urllib.parse import parse_qs, quote, unquote, urlencode
 from uuid import uuid4
 
@@ -25,9 +25,9 @@ from fastcore.utils import (
     str2int,
 )
 from fastcore.xml import FT
-from starlette.datastructures import FormData, UploadFile
-from starlette.exceptions import HTTPException
-from starlette.requests import Request
+from starlette.datastructures import UploadFile
+
+from .forms import form2dict, parse_form
 
 __all__ = [
     "qp",
@@ -35,12 +35,6 @@ __all__ = [
     "uri",
     "reg_re_param",
     "File",
-    "fill_form",
-    "fill_dataclass",
-    "find_inputs",
-    "form2dict",
-    "parse_form",
-    "clear_form_signals",
     "unqid",
     "parsed_date",
     "snake2hyphens",
@@ -113,100 +107,12 @@ def _url_for(req, t):
     return f"{req.url_path_for(t, **kw)}{m}{q}"
 
 
-# ============================================================================
-# Form and Request Processing
-# ============================================================================
-
-
-async def parse_form(req: Request) -> FormData:
-    "Starlette errors on empty multipart forms, so this checks for that situation"
-    ctype = req.headers.get("Content-Type", "")
-    if ctype == "application/json":
-        return await req.json()
-    if not ctype.startswith("multipart/form-data"):
-        return await req.form()
-    try:
-        boundary = ctype.split("boundary=")[1].strip()
-    except IndexError as e:
-        raise HTTPException(400, "Invalid form-data: no boundary") from e
-    min_len = len(boundary) + 6
-    clen = int(req.headers.get("Content-Length", "0"))
-    if clen <= min_len:
-        return FormData()
-    return await req.form()
-
-
-def form2dict(form: FormData) -> dict:
-    "Convert starlette form data to a dict"
-    if isinstance(form, dict):
-        return form
-    return {k: _formitem(form, k) for k in form}
-
-
-def fill_form(form, obj):
-    "Fills named items in `form` using attributes in `obj`"
-    from dataclasses import asdict, is_dataclass
-
-    if is_dataclass(obj):
-        obj = asdict(obj)
-    elif not isinstance(obj, dict):
-        obj = obj.__dict__
-    return _fill_item(form, obj)
-
-
-def fill_dataclass(src, dest):
-    "Modifies dataclass in-place and returns it"
-    from dataclasses import asdict
-
-    for nm, val in asdict(src).items():
-        setattr(dest, nm, val)
-    return dest
-
-
-def find_inputs(e, tags="input", **kw):
-    "Recursively find all elements in `e` with `tags` and attrs matching `kw`"
-    from fastcore.xml import FT
-
-    if not isinstance(e, list | tuple | FT):
-        return []
-    inputs = []
-    if isinstance(tags, str):
-        tags = [tags]
-    elif tags is None:
-        tags = []
-    cs = e
-    if isinstance(e, FT):
-        tag, cs, attr = e.list
-        if tag in tags and kw.items() <= attr.items():
-            inputs.append(e)
-    for o in cs:
-        inputs += find_inputs(o, tags, **kw)
-    return inputs
-
-
-def clear_form_signals(*signals, **values):
-    """Clear form signals to empty strings or specific values."""
-    from starhtml.datastar import Signal, _JSRaw, to_js_value
-
-    return [sig.set("") if isinstance(sig, Signal) else _JSRaw(f"${sig} = ''") for sig in signals] + [
-        _JSRaw(f"${name} = {to_js_value(val)}") for name, val in values.items()
-    ]
-
-
 def File(fname: str):
     "Use the unescaped text in file `fname` directly"
     from fastcore.utils import Path
     from fastcore.xml import NotStr
 
     return NotStr(Path(fname).read_text())
-
-
-def _formitem(form, k):
-    "Return single item `k` from `form` if len 1, otherwise return list"
-    if isinstance(form, dict):
-        return form.get(k)
-    o = form.getlist(k)
-    return o[0] if len(o) == 1 else o if o else None
 
 
 async def _from_body(req, p):
@@ -219,51 +125,6 @@ async def _from_body(req, p):
         data = {**data, **dict(req.query_params)}
     cargs = {k: _form_arg(k, v, d) for k, v in data.items() if not d or k in d}
     return anno(**cargs)
-
-
-def _fill_item(item, obj: dict[str, Any]):
-    "Fill a single form item with data from obj"
-
-    from fastcore.xml import FT
-
-    if not isinstance(item, FT):
-        return item
-    tag, cs, attr = item.list
-    if isinstance(cs, tuple):
-        cs = tuple(_fill_item(o, obj) for o in cs)
-    name = attr.get("name", None)
-    val = None if name is None else obj.get(name, None)
-    if val is not None and "skip" not in attr:
-        if tag == "input":
-            if attr.get("type", "") == "checkbox":
-                if isinstance(val, list):
-                    if attr["value"] in val:
-                        attr["checked"] = "1"
-                    else:
-                        attr.pop("checked", "")
-                elif val:
-                    attr["checked"] = "1"
-                else:
-                    attr.pop("checked", "")
-            elif attr.get("type", "") == "radio":
-                if val and val == attr["value"]:
-                    attr["checked"] = "1"
-                else:
-                    attr.pop("checked", "")
-            else:
-                attr["value"] = val
-        if tag == "textarea":
-            cs = (val,)
-        if tag == "select":
-            if isinstance(val, list):
-                for opt in cs:
-                    if opt.tag == "option" and opt.get("value") in val:
-                        opt.selected = "1"
-            else:
-                option = next((o for o in cs if o.tag == "option" and o.get("value") == val), None)
-                if option:
-                    option.selected = "1"
-    return FT(tag, cs, attr, void_=item.void_)
 
 
 # ============================================================================

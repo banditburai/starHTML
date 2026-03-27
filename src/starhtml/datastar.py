@@ -481,9 +481,33 @@ class Signal(Expr):
     def is_same_as(self, other: "Signal") -> bool:
         return isinstance(other, Signal) and self._name == other._name and self._namespace == other._namespace
 
+    @property
+    def err(self) -> "Signal":
+        if "_err_cache" not in self.__dict__:
+            self.__dict__["_err_cache"] = Signal(
+                f"{self._name}_err", "", _ref_only=self._ref_only, namespace=self._namespace
+            )
+        return self.__dict__["_err_cache"]
+
+    def validate(self, rule, *args, event="input", **kwargs) -> dict:
+        "Validate-on-blur, re-validate-on-input."
+        validation = rule(self, *args, **kwargs) if callable(rule) and not isinstance(rule, Expr) else rule
+        self._validation_expr = validation
+        err = self.err
+        attrs = {
+            "data_bind": self,
+            "data_on_blur": err.set(validation),
+            f"data_on_{event}": err.then(err.set(validation)),  # re-validate only when already invalid
+            "data_class_error": err,
+            "data_attr_aria_invalid": err.if_(True, False),
+        }
+        # Used by StarUI Field component
+        processed, _ = process_datastar_kwargs(attrs)
+        self._validate_html = {k: v for k, v in processed.items() if not k.startswith("data-signals")}
+        return attrs
+
     def __getattr__(self, key: str) -> PropertyAccess:
-        # Dunder methods must raise AttributeError to avoid infinite recursion
-        if key.startswith("_") and key.endswith("_"):
+        if key.startswith("_") and key.endswith("_"):  # dunder → avoid infinite recursion
             raise AttributeError(f"Signal has no attribute {key!r}")
         return PropertyAccess(self, key)
 
@@ -721,14 +745,15 @@ def scroll_to(
     )
     check = "" if force else "if(r.top<0||r.bottom>innerHeight)"
     on_done = "else _e.focus()" if focus else ""
-    # Cancel previous scroll animation to prevent jitter from competing calls
+    focus_else = "else{_e.focus()}" if focus and not force else ""
+    # Defer to next frame so reactive DOM updates (e.g. aria-invalid) are flushed first
     return _JSRaw(
-        f"{{const _e={target_js};if(_e){{const r=_e.getBoundingClientRect();"
+        f"requestAnimationFrame(function(){{const _e={target_js};if(_e){{const r=_e.getBoundingClientRect();"
         f"{check}{{if(window._sRaf)cancelAnimationFrame(window._sRaf);"
         f"const s=scrollY,y=s+r.top-{offset},d={duration},t0=performance.now();"
         f"window._sRaf=requestAnimationFrame(function f(t){{const p=Math.min((t-t0)/d,1);"
         f"scrollTo(0,s+(y-s)*p*(2-p));"
-        f"if(p<1)window._sRaf=requestAnimationFrame(f){on_done}}})}}}}}}"
+        f"if(p<1){{window._sRaf=requestAnimationFrame(f)}}{on_done}}})}}{focus_else}}}}})"
     )
 
 
