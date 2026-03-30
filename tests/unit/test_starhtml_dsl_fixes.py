@@ -239,6 +239,100 @@ class TestAssignmentParenthesization:
         assert "&&" in result
 
 
+class TestFTAttrGuard:
+    """Expr/Signal raise AttributeError for FT protocol attrs (tag, children, attrs, void_)."""
+
+    def test_signal_tag_raises(self):
+        sig = Signal("x", 0)
+        with pytest.raises(AttributeError, match="not an FT element"):
+            sig.tag  # noqa: B018
+
+    def test_signal_children_raises(self):
+        sig = Signal("x", 0)
+        with pytest.raises(AttributeError, match="not an FT element"):
+            sig.children  # noqa: B018
+
+    def test_signal_attrs_raises(self):
+        sig = Signal("x", 0)
+        with pytest.raises(AttributeError, match="not an FT element"):
+            sig.attrs  # noqa: B018
+
+    def test_signal_void_raises(self):
+        sig = Signal("x", 0)
+        with pytest.raises(AttributeError, match="not an FT element"):
+            sig.void_  # noqa: B018
+
+    def test_expr_tag_raises(self):
+        expr = js("console.log()")
+        with pytest.raises(AttributeError, match="not an FT element"):
+            expr.tag  # noqa: B018
+
+    def test_getattr_fallback_returns_default(self):
+        """getattr(signal, 'tag', '') returns '' instead of PropertyAccess."""
+        sig = Signal("x", 0)
+        assert getattr(sig, "tag", "") == ""
+
+    def test_normal_property_access_unaffected(self):
+        """Non-FT attributes still return PropertyAccess."""
+        sig = Signal("x", 0)
+        result = sig.name
+        assert isinstance(result, PropertyAccess)
+        assert result.to_js() == "$x.name"
+
+
+class TestSignalInTopLevelTuple:
+    """Signal in a route return tuple must not break full-page wrapping."""
+
+    @pytest.mark.asyncio
+    async def test_signal_in_tuple_produces_full_page(self):
+        from starhtml import Div, Title
+        from starhtml.core import StarHTML
+
+        app = StarHTML()
+
+        @app.get("/")
+        def home():
+            return Title("Test"), Signal("sidebar", False), Div("Hello")
+
+        resp = await app.handle_request("GET", "/")
+        body = resp.body.decode()
+        assert "<!DOCTYPE html>" in body
+        assert "<html" in body
+        assert "Hello" in body
+
+    @pytest.mark.asyncio
+    async def test_signal_in_tuple_becomes_data_signals(self):
+        from starhtml import Div, Title
+        from starhtml.core import StarHTML
+
+        app = StarHTML()
+
+        @app.get("/")
+        def home():
+            return Title("Test"), Signal("count", 42), Div("Content")
+
+        resp = await app.handle_request("GET", "/")
+        body = resp.body.decode()
+        assert "data-signals" in body
+        assert "count" in body
+
+    @pytest.mark.asyncio
+    async def test_multiple_signals_in_tuple(self):
+        from starhtml import Div
+        from starhtml.core import StarHTML
+
+        app = StarHTML()
+
+        @app.get("/")
+        def home():
+            return Signal("a", 1), Signal("b", 2), Div("Body")
+
+        resp = await app.handle_request("GET", "/")
+        body = resp.body.decode()
+        assert "<!DOCTYPE html>" in body
+        assert "data-signals" in body
+
+
 def run_tests():
     """Helper to run all tests"""
     pytest.main([__file__, "-v"])

@@ -74,6 +74,13 @@ __all__ = [
 all_meths = "get post put delete patch head trace options".split()
 _iter_typs = (tuple, list, map, filter, range, types.GeneratorType)
 _IS_WASM = sys.platform == "emscripten"  # Pyodide/WASM environment
+
+
+def _ft_tag(o: Any) -> str:
+    """FT tag name, or '' for non-FT objects (e.g. Signals)."""
+    return o.tag if isinstance(o, FT) else ""
+
+
 _verbs = dict(
     get="data-on-click",
     post="data-on-submit",
@@ -485,21 +492,24 @@ class ResponseRenderer:
             html = to_xml(resp, indent=fh_cfg.indent)
         else:
             hdr_tags = "title", "meta", "link", "style", "base", "template"
-            heads, bdy = partition(resp, lambda o: getattr(o, "tag", "") in hdr_tags)
+            heads, bdy = partition(resp, lambda o: _ft_tag(o) in hdr_tags)
 
             from .tags import Body, Head, Html, Link, Title
 
-            title = [] if any(getattr(o, "tag", "") == "title" for o in heads) else [Title(self.request.app.title)]
+            title = [] if any(_ft_tag(o) == "title" for o in heads) else [Title(self.request.app.title)]
             canonical = (
                 [Link(rel="canonical", href=getattr(self.request, "canonical", self.request.url))]
                 if self.request.app.canonical
                 else []
             )
 
+            from .datastar import Signal as _Signal
+
+            signals, bdy = partition(bdy, risinstance(_Signal))
             body_wrap = getattr(self.request, "body_wrap", noop_body)
             params = inspect.signature(body_wrap).parameters
             bw_args = (bdy, self.request) if len(params) > 1 else (bdy,)
-            body = Body(body_wrap(*bw_args), *flat_xt(self.request.ftrs), **self.request.bodykw)
+            body = Body(*signals, body_wrap(*bw_args), *flat_xt(self.request.ftrs), **self.request.bodykw)
 
             htmlkw = {"lang": "en", **self.request.htmlkw}
             html_page = Html(Head(*heads, *title, *canonical, *flat_xt(self.request.hdrs)), body, **htmlkw)
@@ -521,7 +531,7 @@ class ResponseRenderer:
         """Check if response is already a full HTML page."""
         if not resp:
             return False
-        return any(getattr(o, "tag", "") == "html" for o in resp)
+        return any(_ft_tag(o) == "html" for o in resp)
 
 
 def render_response(
