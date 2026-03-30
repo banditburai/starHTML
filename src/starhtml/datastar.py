@@ -25,6 +25,9 @@ except ImportError:
         return x
 
 
+_FT_ATTRS = frozenset({"tag", "children", "attrs", "void_"})
+
+
 class Expr(ABC):
     """Base class for objects that compile to JavaScript with operator overloading."""
 
@@ -40,9 +43,10 @@ class Expr(ABC):
         return item in self.to_js()
 
     def __getattr__(self, key: str) -> "PropertyAccess":
-        # Dunder methods must raise AttributeError to avoid infinite recursion
         if key.startswith("_") and key.endswith("_"):
             raise AttributeError(f"{type(self).__name__} has no attribute {key!r}")
+        if key in _FT_ATTRS:
+            raise AttributeError(f"{type(self).__name__} is not an FT element (no {key!r})")
         return PropertyAccess(self, key)
 
     def __getitem__(self, index: Any) -> "IndexAccess":
@@ -507,8 +511,10 @@ class Signal(Expr):
         return attrs
 
     def __getattr__(self, key: str) -> PropertyAccess:
-        if key.startswith("_") and key.endswith("_"):  # dunder → avoid infinite recursion
+        if key.startswith("_") and key.endswith("_"):
             raise AttributeError(f"Signal has no attribute {key!r}")
+        if key in _FT_ATTRS:
+            raise AttributeError(f"Signal is not an FT element (no {key!r})")
         return PropertyAccess(self, key)
 
 
