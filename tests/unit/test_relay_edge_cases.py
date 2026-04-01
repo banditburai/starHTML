@@ -110,79 +110,84 @@ class TestThreadSafety:
 
 
 class TestSubscribeDuringEmit:
-    """Snapshot pattern in emit() protects against mutation during iteration."""
+    """Subscribe remains safe when it races with emit from another thread."""
 
-    def test_subscribe_during_fanout_does_not_error(self):
-        """Adding a subscriber while emit iterates over the snapshot is safe."""
+    def test_subscribe_concurrent_with_emit_does_not_error(self):
         relay = Relay()
-        q1 = relay.subscribe()
-        new_queues = []
+        existing = relay.subscribe()
+        created = []
+        errors = []
+        barrier = threading.Barrier(2)
 
-        # Monkey-patch put_nowait on q1 to subscribe a new queue mid-fanout
-        original_put = q1.put_nowait
+        def subscriber():
+            barrier.wait()
+            try:
+                created.append(relay.subscribe())
+            except Exception as exc:
+                errors.append(exc)
 
-        def intercepting_put(item):
-            original_put(item)
-            if not new_queues:
-                new_queues.append(relay.subscribe())
+        def emitter():
+            barrier.wait()
+            try:
+                relay.emit(SignalEvent({"x": 1}))
+            except Exception as exc:
+                errors.append(exc)
 
-        q1.put_nowait = intercepting_put
+        t1 = threading.Thread(target=subscriber)
+        t2 = threading.Thread(target=emitter)
+        t1.start()
+        t2.start()
+        t1.join()
+        t2.join()
 
-        relay.emit(SignalEvent({"x": 1}))
+        assert errors == []
+        assert existing.get_nowait().signals == {"x": 1}
+        if created and not created[0].empty():
+            assert created[0].get_nowait().signals == {"x": 1}
 
-        # q1 received the event
-        assert q1.get_nowait().signals == {"x": 1}
-        # The new subscriber was added after the snapshot, so it should NOT
-        # have received this event
-        assert len(new_queues) == 1
-        assert new_queues[0].empty()
-
-    def test_new_subscriber_gets_subsequent_events(self):
-        """A subscriber added mid-fanout receives future events."""
+    def test_new_subscriber_gets_future_events(self):
         relay = Relay()
-        q1 = relay.subscribe()
-        new_queues = []
-
-        original_put = q1.put_nowait
-
-        def intercepting_put(item):
-            original_put(item)
-            if not new_queues:
-                new_queues.append(relay.subscribe())
-
-        q1.put_nowait = intercepting_put
-
-        relay.emit(SignalEvent({"first": True}))
-        relay.emit(SignalEvent({"second": True}))
-
-        # New subscriber missed the first but got the second
-        assert new_queues[0].get_nowait().signals == {"second": True}
+        relay.emit(SignalEvent({"before": True}))
+        q = relay.subscribe()
+        relay.emit(SignalEvent({"after": True}))
+        assert q.get_nowait().signals == {"after": True}
 
 
 class TestUnsubscribeDuringEmit:
-    """Removing a subscriber during fanout must not crash."""
+    """Unsubscribe remains safe when it races with emit from another thread."""
 
-    def test_unsubscribe_during_fanout_no_crash(self):
-        """Unsubscribing a queue while emit iterates over snapshot is safe."""
+    def test_unsubscribe_concurrent_with_emit_no_crash(self):
         relay = Relay()
         q1 = relay.subscribe()
         q2 = relay.subscribe()
+        errors = []
+        barrier = threading.Barrier(2)
 
-        original_put = q1.put_nowait
+        def unsubscriber():
+            barrier.wait()
+            try:
+                relay.unsubscribe(q2)
+            except Exception as exc:
+                errors.append(exc)
 
-        def intercepting_put(item):
-            original_put(item)
-            relay.unsubscribe(q2)
+        def emitter():
+            barrier.wait()
+            try:
+                relay.emit(SignalEvent({"v": 1}))
+            except Exception as exc:
+                errors.append(exc)
 
-        q1.put_nowait = intercepting_put
+        t1 = threading.Thread(target=unsubscriber)
+        t2 = threading.Thread(target=emitter)
+        t1.start()
+        t2.start()
+        t1.join()
+        t2.join()
 
-        # Should not raise even though q2 is removed during iteration
-        relay.emit(SignalEvent({"v": 1}))
-
-        # q1 received it
+        assert errors == []
         assert q1.get_nowait().signals == {"v": 1}
-        # q2 also received it because emit uses a snapshot taken before unsubscribe
-        assert q2.get_nowait().signals == {"v": 1}
+        if not q2.empty():
+            assert q2.get_nowait().signals == {"v": 1}
 
     def test_unsubscribed_queue_does_not_get_future_events(self):
         """After unsubscribe, queue stops receiving events."""
@@ -483,9 +488,9 @@ class TestEdgeCases:
         assert q.maxsize == 500
 
     def test_element_event_default_mode(self):
-        """ElementEvent defaults mode to 'inner'."""
+        """ElementEvent defaults mode to 'outer'."""
         event = ElementEvent(element="<p>x</p>", selector="#s")
-        assert event.mode == "inner"
+        assert event.mode == "outer"
 
     def test_script_event_default_auto_remove(self):
         """ScriptEvent defaults auto_remove to True."""

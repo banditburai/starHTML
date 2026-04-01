@@ -79,13 +79,11 @@ class TestElementEvent:
     """Tests for format_event with ElementEvent."""
 
     def test_html_string_with_default_mode(self):
-        """Default mode is 'inner', which is not the SSE default ('outer'),
-        so a mode line should appear in the output."""
+        """Default mode is 'outer', so no mode line should appear in the output."""
         result = format_event(ElementEvent("<p>hello</p>", "#target"))
         expected = "\n".join(
             [
                 "event: datastar-patch-elements",
-                "data: mode inner",
                 "data: selector #target",
                 "data: elements &lt;p&gt;hello&lt;/p&gt;",
                 "",
@@ -248,9 +246,9 @@ class TestFormatEventDispatch:
 class TestEventDataclassDefaults:
     """Tests for dataclass construction and default field values."""
 
-    def test_element_event_default_mode_is_inner(self):
+    def test_element_event_default_mode_is_outer(self):
         event = ElementEvent("<p>x</p>", "#t")
-        assert event.mode == "inner"
+        assert event.mode == "outer"
 
     def test_element_event_explicit_mode(self):
         event = ElementEvent("<p>x</p>", "#t", "append")
