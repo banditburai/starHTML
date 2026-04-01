@@ -156,7 +156,7 @@ class TestConvenienceMethods:
         assert isinstance(event, ElementEvent)
         assert event.element == "<div>hi</div>"
         assert event.selector == "#foo"
-        assert event.mode == "inner"
+        assert event.mode == "outer"
 
     def test_emit_element_with_explicit_mode(self):
         relay = Relay()

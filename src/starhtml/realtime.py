@@ -7,11 +7,11 @@ import itertools
 import logging
 import re
 import time
-from collections.abc import AsyncGenerator, Callable, Generator
+from collections.abc import AsyncGenerator, AsyncIterator, Callable, Generator
 from dataclasses import dataclass
 from functools import partial, wraps
 from threading import Lock
-from typing import Any, Literal, Protocol, TypedDict, runtime_checkable
+from typing import Any, Literal, TypedDict
 from warnings import warn
 
 from fastcore.utils import dict2obj, noop
@@ -50,7 +50,9 @@ __all__ = [
     "set_devtools_context",
     "get_devtools_context",
     "RELAY_QUEUE_SIZE",
+    "RELAY_SHUTDOWN",
     "SSE_KEEPALIVE_TIMEOUT",
+    "SSE_KEEPALIVE",
 ]
 
 
@@ -454,26 +456,29 @@ def process_sse_item(item_type: str, payload: Any) -> str | None:
             raise ValueError(f"Unknown SSE item type: {item_type}")
 
 
-@runtime_checkable
-class SSEItem(Protocol):
-    """Protocol for SSE items."""
-
-    def __getitem__(self, index: int) -> Any: ...
-    def __len__(self) -> int: ...
-
-
 async def stream_sse_items(generator: Generator | AsyncGenerator) -> AsyncGenerator[str, None]:
-    """Stream SSE items from a generator (sync or async) with type checking."""
-    if inspect.isasyncgen(generator):
-        async for item in generator:
-            if isinstance(item, tuple) and len(item) == 2:
-                if result := process_sse_item(item[0], item[1]):
-                    yield result
-    else:
-        for item in generator:
-            if isinstance(item, tuple) and len(item) == 2:
-                if result := process_sse_item(item[0], item[1]):
-                    yield result
+    """Stream SSE items from a generator and always close the wrapped generator."""
+    is_async = inspect.isasyncgen(generator)
+    try:
+        if is_async:
+            async for item in generator:
+                if isinstance(item, str):
+                    yield item
+                elif isinstance(item, tuple) and len(item) == 2:
+                    if result := process_sse_item(item[0], item[1]):
+                        yield result
+        else:
+            for item in generator:
+                if isinstance(item, str):
+                    yield item
+                elif isinstance(item, tuple) and len(item) == 2:
+                    if result := process_sse_item(item[0], item[1]):
+                        yield result
+    finally:
+        if is_async:
+            await generator.aclose()
+        elif inspect.isgenerator(generator):
+            generator.close()
 
 
 def sse(handler: Callable) -> Callable:
@@ -506,6 +511,7 @@ logger = logging.getLogger(__name__)
 
 RELAY_QUEUE_SIZE = 500
 SSE_KEEPALIVE_TIMEOUT = 15.0
+SSE_KEEPALIVE = ": keepalive\n\n"
 
 
 @dataclass(slots=True)
@@ -515,9 +521,9 @@ class SignalEvent:
 
 @dataclass(slots=True)
 class ElementEvent:
-    element: Any  # FT object or HTML string
+    element: Any
     selector: str
-    mode: SSEMode = "inner"
+    mode: SSEMode = DEFAULT_MODE
 
 
 @dataclass(slots=True)
@@ -544,24 +550,38 @@ def format_event(event: SSEEvent) -> str:
             raise TypeError(f"Unknown event type: {type(event)}")
 
 
-class Relay:
-    """In-process pub/sub for SSE events. Thread-safe publish, async subscribe."""
+class _Shutdown:
+    __slots__ = ()
 
-    __slots__ = ("_lock", "_subscribers", "_maxsize")
+    def __repr__(self) -> str:
+        return "RELAY_SHUTDOWN"
+
+
+RELAY_SHUTDOWN = _Shutdown()
+type RelayItem = SSEEvent | _Shutdown
+
+
+class Relay:
+    """In-process pub/sub for SSE events with explicit shutdown."""
+
+    __slots__ = ("_lock", "_subscribers", "_maxsize", "_closed")
 
     def __init__(self, maxsize: int = RELAY_QUEUE_SIZE) -> None:
         self._lock = Lock()
-        self._subscribers: list[asyncio.Queue[SSEEvent]] = []
+        self._subscribers: list[asyncio.Queue[RelayItem]] = []
         self._maxsize = maxsize
+        self._closed = False
 
-    def subscribe(self) -> asyncio.Queue[SSEEvent]:
-        q = asyncio.Queue[SSEEvent](maxsize=self._maxsize)
+    def subscribe(self) -> asyncio.Queue[RelayItem]:
+        q = asyncio.Queue[RelayItem](maxsize=self._maxsize)
         with self._lock:
+            if self._closed:
+                raise RuntimeError("Cannot subscribe to a shut-down Relay")
             self._subscribers.append(q)
         logger.debug("Client subscribed (%d total)", len(self._subscribers))
         return q
 
-    def unsubscribe(self, q: asyncio.Queue[SSEEvent]) -> None:
+    def unsubscribe(self, q: asyncio.Queue[RelayItem]) -> None:
         with self._lock:
             try:
                 self._subscribers.remove(q)
@@ -569,20 +589,92 @@ class Relay:
                 pass
         logger.debug("Client unsubscribed (%d remaining)", len(self._subscribers))
 
+    def _deliver_shutdown(self, q: asyncio.Queue[RelayItem]) -> None:
+        try:
+            q.put_nowait(RELAY_SHUTDOWN)
+        except asyncio.QueueFull:
+            try:
+                q.get_nowait()
+            except asyncio.QueueEmpty:
+                pass
+            try:
+                q.put_nowait(RELAY_SHUTDOWN)
+            except asyncio.QueueFull:
+                logger.warning("Could not deliver shutdown sentinel to subscriber")
+
     def emit(self, event: SSEEvent) -> None:
         with self._lock:
+            if self._closed:
+                return
+            for q in self._subscribers:
+                try:
+                    q.put_nowait(event)
+                except asyncio.QueueFull:
+                    logger.warning("Subscriber queue full, dropping event")
+
+    def shutdown(self) -> None:
+        """Close the relay and unblock all subscribers."""
+        with self._lock:
+            if self._closed:
+                return
+            self._closed = True
             subscribers = list(self._subscribers)
+            self._subscribers.clear()
         for q in subscribers:
-            try:
-                q.put_nowait(event)
-            except asyncio.QueueFull:
-                logger.warning("Subscriber queue full, dropping event")
+            self._deliver_shutdown(q)
+        logger.debug("Relay shut down (%d subscribers notified)", len(subscribers))
+
+    def install(self, app) -> None:
+        """Call shutdown on app shutdown."""
+        app.add_event_handler("shutdown", self.shutdown)
+
+    async def stream(self, *, shutdown: asyncio.Event | None = None) -> AsyncIterator[Any]:
+        """Yield SSE items until shutdown, cancellation, or disconnect."""
+        q = self.subscribe()
+        shutdown_task: asyncio.Task | None = None
+        try:
+            if shutdown is not None:
+
+                async def _watch_shutdown():
+                    await shutdown.wait()
+                    self._deliver_shutdown(q)
+
+                shutdown_task = asyncio.create_task(_watch_shutdown())
+
+            while True:
+                try:
+                    event = await asyncio.wait_for(q.get(), timeout=SSE_KEEPALIVE_TIMEOUT)
+                except TimeoutError:
+                    yield SSE_KEEPALIVE
+                    continue
+                if event is RELAY_SHUTDOWN:
+                    break
+                if isinstance(event, SignalEvent):
+                    yield signals(**event.signals)
+                elif isinstance(event, ElementEvent):
+                    yield elements(event.element, event.selector, event.mode)
+                elif isinstance(event, ScriptEvent):
+                    yield execute_script(event.script, auto_remove=event.auto_remove)
+                else:
+                    logger.warning("Relay.stream(): unknown event type %s, skipping", type(event).__name__)
+        except (asyncio.CancelledError, GeneratorExit):
+            pass
+        finally:
+            if shutdown_task and not shutdown_task.done():
+                shutdown_task.cancel()
+            self.unsubscribe(q)
+
+    async def __aenter__(self) -> "Relay":
+        return self
+
+    async def __aexit__(self, *exc: Any) -> None:
+        self.shutdown()
 
     def emit_signals(self, signals: dict[str, Any]) -> None:
         if signals:
             self.emit(SignalEvent(signals))
 
-    def emit_element(self, element: Any, selector: str, mode: SSEMode = "inner") -> None:
+    def emit_element(self, element: Any, selector: str, mode: SSEMode = DEFAULT_MODE) -> None:
         self.emit(ElementEvent(element, selector, mode))
 
     def emit_script(self, script: str, auto_remove: bool = True) -> None:
