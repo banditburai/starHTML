@@ -462,14 +462,15 @@ class TestRealServerBehavior:
 
     def test_middleware_integration(self):
         """Test that server works with middleware."""
-        app, rt = star_app()
+        from starlette.middleware import Middleware
+        from starlette.middleware.base import BaseHTTPMiddleware
 
-        # Add custom middleware
-        @app.middleware("http")
         async def add_custom_header(request, call_next):
             response = await call_next(request)
             response.headers["X-Custom-Middleware"] = "active"
             return response
+
+        app, rt = star_app(middleware=[Middleware(BaseHTTPMiddleware, dispatch=add_custom_header)])
 
         @rt("/middleware-test")
         def middleware_test():

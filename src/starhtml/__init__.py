@@ -67,7 +67,6 @@ from starlette.responses import (
 from starlette.responses import JSONResponse as JSONResponseOrig
 from starlette.routing import Mount, Route, WebSocketRoute
 from starlette.staticfiles import StaticFiles
-from starlette.templating import Jinja2Templates
 from starlette.testclient import TestClient
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 from starlette.websockets import WebSocket, WebSocketDisconnect, WebSocketState

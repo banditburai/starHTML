@@ -1,11 +1,8 @@
-"""Todo List MVC - Bold & Improved with working Datastar patterns"""
-
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 
 from starhtml import *
 from starhtml.plugins import persist
 
-# Bold app configuration
 app, rt = star_app(
     title="✨ Todo List",
     htmlkw={"lang": "en"},
@@ -19,24 +16,14 @@ app, rt = star_app(
 
 app.register(persist())
 
-# ============================================================================
-#  Todo Data Model
-# ============================================================================
-
 
 @dataclass
 class Todo:
-    """Todo item with serialization support."""
-
     id: int
     text: str
     completed: bool = False
 
-    def to_dict(self):
-        return asdict(self)
 
-
-# In-memory storage (in production, use a database)
 todos_store: list[Todo] = [
     Todo(1, "Learn Datastar patterns", False),
     Todo(2, "Build a clean todo app", False),
@@ -44,13 +31,8 @@ todos_store: list[Todo] = [
 ]
 next_id = 4
 
-# ============================================================================
-#  Components
-# ============================================================================
-
 
 def render_todo_item(todo: Todo, active_filter: Signal):
-    """Render a single todo item with bold styling."""
     is_completed = expr(todo.completed)
 
     show_condition = (
@@ -60,7 +42,6 @@ def render_todo_item(todo: Todo, active_filter: Signal):
     )
 
     return Div(
-        # Checkbox button
         Button(
             Icon(
                 "mdi:checkbox-marked" if todo.completed else "mdi:checkbox-blank-outline",
@@ -69,21 +50,18 @@ def render_todo_item(todo: Todo, active_filter: Signal):
             data_on_click=post(f"todos/{todo.id}/toggle"),
             cls="checkbox-button p-3 rounded-xl transition-all",
         ),
-        # Todo text - bold contenteditable
         Div(
             todo.text,
-            data_on_blur=post(f"todos/{todo.id}/edit", text="evt.target.innerText.trim()"),
+            data_on_blur=post(f"todos/{todo.id}/edit", payload={"text": js("evt.target.innerText.trim()")}),
             contenteditable="true",
             style="white-space: pre-wrap;",
             cls="todo-text flex-1 px-4 py-3 rounded-xl cursor-text font-semibold text-gray-800 hover:bg-gray-50",
         ),
-        # Delete button
         Button(
             Icon("lucide:trash-2", cls="icon-sm"),
             data_on_click=delete(f"todos/{todo.id}"),
             cls="delete-btn p-3 rounded-xl transition-all",
         ),
-        # Container attributes with visibility
         cls="todo-item slide-in flex items-center gap-3 p-2 mb-3",
         data_class_todo_completed=is_completed,
         data_todo_id=str(todo.id),
@@ -92,7 +70,6 @@ def render_todo_item(todo: Todo, active_filter: Signal):
 
 
 def render_empty_state():
-    """Render bold empty state message."""
     return Div(
         Icon("lucide:sparkles", cls="text-6xl mx-auto mb-6 text-purple-400"),
         H3("No todos yet!", cls="text-2xl font-black text-gray-800 mb-3"),
@@ -108,7 +85,6 @@ def render_filter_button(
     count: int | Expr | Signal | None = None,
     active_filter: Signal | None = None,
 ):
-    """Render a pill-shaped tab button."""
     return Button(
         Span(
             Span(full_label, cls="hidden sm:inline"),
@@ -118,37 +94,28 @@ def render_filter_button(
             cls="ml-2 min-w-[24px] h-6 px-1.5 flex items-center justify-center text-xs rounded-full font-bold transition-all bg-purple-200 text-purple-700",
             data_class_counter_active=active_filter == filter_value,
             data_text=count,
-            data_show=count > 0,  # Show counter only when count > 0
+            data_show=count > 0,
         )
         if count is not None
-        else None,  # Always include the span if count is provided
+        else None,
         data_on_click=active_filter.set(filter_value),
         cls="filter-btn px-6 py-3 text-sm font-semibold rounded-full transition-all duration-200 flex items-center justify-center",
         data_class_active=active_filter == filter_value,
     )
 
 
-# ============================================================================
-#  Main Page
-# ============================================================================
-
-
 @rt("/")
 def home():
-    """Bold todo app home page."""
-    # Calculate actual values from Python data
     completed = sum(1 for todo in todos_store if todo.completed)
     total = len(todos_store)
     initial_progress = round((completed / total * 100) if total > 0 else 0)
 
     return Div(
-        # Only signals for UI state and counts - NOT the actual todo data
         (todo_text := Signal("todo_text", "")),
         (active_filter := Signal("active_filter", "all")),
         (total_count := Signal("total_count", total)),
         (completed_count := Signal("completed_count", completed)),
         (active_count := Signal("active_count", total - completed)),
-        # Computed signals for derived state and validation
         (
             progress_percent := Signal(
                 "progress_percent", js("Math.round($completed_count / Math.max($total_count, 1) * 100)")
@@ -161,16 +128,13 @@ def home():
             )
         ),
         (can_add_todo := Signal("can_add_todo", js("$todo_text.trim().length > 0 && !$todo_error"))),
-        # Hero Header
         Header(
             H1("✨ Todo Conqueror", cls="hero-text text-6xl font-black mb-4"),
             P("Dominate your tasks", cls="text-xl font-semibold text-gray-600"),
             cls="text-center py-12 mb-8",
         ),
-        # Main container
         Main(
             Div(
-                # Chunky progress bar
                 Div(
                     Div(
                         Div(
@@ -190,9 +154,7 @@ def home():
                     ),
                     cls="mb-8 opacity-80",
                 ),
-                # Combined todo management section
                 Div(
-                    # Add todo form (now inside the list container)
                     Div(
                         Form(
                             Div(
@@ -203,9 +165,8 @@ def home():
                                     cls="bold-input flex-1 px-6 py-4 text-lg font-semibold resize-none overflow-hidden",
                                     style="field-sizing: content; min-height: 3.5rem; max-height: 10rem;",
                                     data_bind=todo_text,
-                                    # Enter submits (but not Shift+Enter for newlines)
                                     data_on_keydown=js(
-                                        "if(evt.key === 'Enter' && !evt.shiftKey) { evt.preventDefault(); if($can_add_todo) { @post('todos/add', {todo_text: $todo_text}); } }"
+                                        "if(evt.key === 'Enter' && !evt.shiftKey) { evt.preventDefault(); if($can_add_todo) { @post('todos/add'); } }"
                                     ),
                                 ),
                                 Button(
@@ -213,12 +174,11 @@ def home():
                                     "Add",
                                     type="button",
                                     cls="bold-button px-6 py-4 text-lg font-bold text-white flex items-center",
-                                    data_on_click=post("todos/add", todo_text=todo_text),
+                                    data_on_click=post("todos/add"),
                                     data_attr_disabled=~can_add_todo,
                                 ),
                                 cls="flex gap-4",
                             ),
-                            # Character count
                             Div(
                                 Span(
                                     cls="text-red-500 text-sm font-medium",
@@ -228,7 +188,6 @@ def home():
                                 Span(
                                     cls="text-sm font-medium ml-auto text-gray-500",
                                     data_text=todo_text.length + "/200",
-                                    # Color based on length thresholds
                                     data_attr_class=switch(
                                         [
                                             (todo_text.length > 200, "text-red-500"),
@@ -242,7 +201,6 @@ def home():
                         ),
                         cls="border-b border-gray-200 pb-6 mb-6",
                     ),
-                    # Filter buttons (now connected to list)
                     Div(
                         Div(
                             render_filter_button("All Quests", "All", "all", total_count, active_filter),
@@ -252,16 +210,12 @@ def home():
                         ),
                         cls="flex justify-center mb-6",
                     ),
-                    # Todo list container
                     Div(
-                        # Render all todos - visibility controlled by filter in each item
                         *[render_todo_item(todo, active_filter) for todo in todos_store],
-                        # Empty state - show when no todos exist
                         render_empty_state() if not todos_store else None,
                         id="todo-list",
                         cls="min-h-[200px]",
                     ),
-                    # Clear completed button
                     Div(
                         Button(
                             Icon("lucide:trash", cls="text-xl mr-3"),
@@ -279,7 +233,6 @@ def home():
             ),
             cls="container mx-auto px-6 py-8",
         ),
-        # Stats Footer - Appears at bottom of content
         Div(
             Div(
                 Div(
@@ -309,67 +262,42 @@ def home():
             ),
             cls="stats-footer",
         ),
-        # All keyword arguments must go at the end
         cls="min-h-screen",
     )
-
-
-# ============================================================================
-#  SSE Endpoints
-# ============================================================================
 
 
 @rt("/todos/add", methods=["POST"])
 @sse
 def add_todo(req, todo_text: str = "", active_filter: Signal = None):
-    """Add a new todo - simplified."""
     global next_id
-
-    # Get text from parameter
     text = todo_text.strip()
     if not text or len(text) > 200:
         return
 
-    # Create new todo
     new_todo = Todo(id=next_id, text=text)
     todos_store.append(new_todo)
     next_id += 1
 
-    yield elements(
-        render_todo_item(new_todo, active_filter),
-        "#todo-list",  # Target the todo list container
-        "append",
-    )
+    yield elements(render_todo_item(new_todo, active_filter), "#todo-list", "append")
 
-    # Update only counts, not the full todos array
     completed = sum(1 for t in todos_store if t.completed)
     total = len(todos_store)
     yield signals(
         total_count=total,
         completed_count=completed,
         active_count=total - completed,
-        todo_text="",  # Clear input
+        todo_text="",
     )
 
 
 @rt("/todos/{todo_id}/toggle", methods=["POST"])
 @sse
-def toggle_todo(req, todo_id: str):
-    """Toggle todo completion - surgical update."""
+def toggle_todo(req, todo_id: str, active_filter: Signal = None):
     todo_id = int(todo_id)
-
-    # Find and toggle
     for todo in todos_store:
         if todo.id == todo_id:
             todo.completed = not todo.completed
-
-            # Surgical update - replace just this item
-            # Create a dummy Signal since we're just updating structure, not filter logic
-            yield elements(
-                render_todo_item(todo, Signal("active_filter", "all")), f'[data-todo-id="{todo_id}"]', "outer"
-            )
-
-            # Update only counts
+            yield elements(render_todo_item(todo, active_filter), f'[data-todo-id="{todo_id}"]', "outer")
             completed = sum(1 for t in todos_store if t.completed)
             total = len(todos_store)
             yield signals(
@@ -382,63 +310,35 @@ def toggle_todo(req, todo_id: str):
 @rt("/todos/{todo_id}/edit", methods=["POST"])
 @sse
 def edit_todo(req, todo_id: str, text: str = ""):
-    """Edit todo text."""
     todo_id = int(todo_id)
     text = text.strip()
-
     if not text or len(text) > 200:
         return
-
-    # Find and update
     for todo in todos_store:
         if todo.id == todo_id:
             todo.text = text
-            # No signal updates needed - text change doesn't affect counts
             break
 
 
 @rt("/todos/clear-completed", methods=["DELETE"])
 @sse
 def clear_completed(req):
-    """Clear all completed todos."""
     global todos_store
-
-    # Get IDs to remove for surgical updates
     completed_ids = [t.id for t in todos_store if t.completed]
-
-    # Remove from store
     todos_store = [t for t in todos_store if not t.completed]
-
-    # Surgical removal - remove each completed item
     for todo_id in completed_ids:
         yield elements("", f'[data-todo-id="{todo_id}"]', "outer")
-
-    # Update counts
     total = len(todos_store)
-    yield signals(
-        total_count=total,
-        completed_count=0,  # We just cleared all completed
-        active_count=total,  # All remaining are active
-    )
+    yield signals(total_count=total, completed_count=0, active_count=total)
 
 
 @rt("/todos/{todo_id}", methods=["DELETE"])
 @sse
 def delete_todo(req, todo_id: str):
-    """Delete a single todo - surgical removal."""
     global todos_store
     todo_id = int(todo_id)
-
-    # Check if it was completed before removing
-    any(t.id == todo_id and t.completed for t in todos_store)
-
-    # Remove from store
     todos_store = [t for t in todos_store if t.id != todo_id]
-
-    # Surgical removal
     yield elements("", f'[data-todo-id="{todo_id}"]', "outer")
-
-    # Update counts
     completed = sum(1 for t in todos_store if t.completed)
     total = len(todos_store)
     yield signals(
@@ -447,22 +347,9 @@ def delete_todo(req, todo_id: str):
         active_count=total - completed,
     )
 
-    # Show empty state if no todos left
     if not todos_store:
         yield elements(render_empty_state(), "#todo-list", "inner")
 
 
 if __name__ == "__main__":
-    print("=" * 60)
-    print("🚀 TODO CONQUEROR")
-    print("=" * 60)
-    print("📍 Running on: http://localhost:5001")
-    print("🎨 Design: Bold typography, vibrant gradients, smooth animations")
-    print("⚡ Features:")
-    print("   • Working Datastar patterns")
-    print("   • Bold visual design")
-    print("   • Smooth animations")
-    print("   • Stats dashboard")
-    print("   • Persistent state")
-    print("=" * 60)
     serve(port=5001)

@@ -534,6 +534,48 @@ class TestFormSubmit:
         assert "data_on_submit" in spread
         assert "action" in spread
 
+    def test_reset_on_success_false_by_default(self):
+        [sig] = self._make_validated_signals("name")
+        result = form_submit("test", sig, name="t")
+        assert "data_on_signal_patch" not in result
+        assert "data-on-signal-patch-filter" not in result
+
+    def test_reset_on_success_adds_signal_patch_handler(self):
+        [sig] = self._make_validated_signals("name")
+        result = form_submit("test", sig, name="t", reset_on_success=True)
+        assert "data_on_signal_patch" in result
+        assert result["data-on-signal-patch-filter"] == "{include: /^t_submitted$/}"
+
+    def test_reset_on_success_guards_on_submitted(self):
+        [sig] = self._make_validated_signals("name")
+        result = form_submit("test", sig, name="t", reset_on_success=True)
+        js = result["data_on_signal_patch"].to_js()
+        assert "&&" in js
+        assert "$t_submitted" in js
+
+    def test_reset_on_success_resets_field_signals(self):
+        em, pw = self._make_validated_signals("email", "pw")
+        em.validate(email)
+        pw.validate(min_length, 8)
+        result = form_submit("test", em, pw, name="reg", reset_on_success=True)
+        js = result["data_on_signal_patch"].to_js()
+        assert "$email" in js
+        assert "$pw" in js
+
+    def test_reset_on_success_clears_error_signals(self):
+        [sig] = self._make_validated_signals("name")
+        result = form_submit("test", sig, name="t", reset_on_success=True)
+        js = result["data_on_signal_patch"].to_js()
+        assert "$name_err" in js
+
+    def test_reset_on_success_without_submitted_is_noop(self):
+        """When no submitted signal exists, reset_on_success has no effect."""
+        [sig] = self._make_validated_signals("name")
+        my_sub = Signal("sub", False)
+        result = form_submit("test", sig, submitting=my_sub, reset_on_success=True)
+        assert "data_on_signal_patch" not in result
+        assert "data-on-signal-patch-filter" not in result
+
 
 # ============================================================================
 # Native POST validation

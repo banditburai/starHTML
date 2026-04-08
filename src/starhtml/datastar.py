@@ -435,7 +435,8 @@ class Signal(Expr):
         self._ref_only = _ref_only
         self._is_computed = isinstance(initial, Expr)
         self.type_ = type_ or self._infer_type(initial)
-        self._validate_name()
+        self._check_name()
+        self._constraint_attrs: dict[str, Any] = {}
         self._id = f"{namespace}_{name}" if namespace else name
         self._js = f"${self._id}"
 
@@ -452,7 +453,7 @@ class Signal(Expr):
             return dict
         return type(initial)
 
-    def _validate_name(self):
+    def _check_name(self):
         if not re.match(r"^[a-z][a-z0-9_]*$", self._name):
             raise ValueError(f"Signal name must be snake_case: '{self._name}'")
 
@@ -496,6 +497,7 @@ class Signal(Expr):
     def validate(self, rule, *args, event="input", **kwargs) -> dict:
         "Validate-on-blur, re-validate-on-input."
         validation = rule(self, *args, **kwargs) if callable(rule) and not isinstance(rule, Expr) else rule
+        html_attrs = dict(self._constraint_attrs)  # prior attrs + anything rule() just set
         self._validation_expr = validation
         err = self.err
         attrs = {
@@ -505,9 +507,9 @@ class Signal(Expr):
             "data_class_error": err,
             "data_attr_aria_invalid": err.if_(True, False),
         }
-        # Used by StarUI Field component
         processed, _ = process_datastar_kwargs(attrs)
-        self._validate_html = {k: v for k, v in processed.items() if not k.startswith("data-signals")}
+        self._constraint_attrs = {k: v for k, v in processed.items() if not k.startswith("data-signals")}
+        self._constraint_attrs.update(html_attrs)
         return attrs
 
     def __getattr__(self, key: str) -> PropertyAccess:
@@ -658,24 +660,24 @@ def any_(*signals) -> _JSRaw:
     return _JSRaw(" || ".join(f"!!{_ensure_expr(s).to_js()}" for s in signals))
 
 
-def post(url: str, data: dict[str, Any] | None = None, **kwargs) -> _JSRaw:
-    return _action("post", url, data, **kwargs)
+def post(url: str, **kwargs) -> _JSRaw:
+    return _action("post", url, **kwargs)
 
 
-def get(url: str, data: dict[str, Any] | None = None, **kwargs) -> _JSRaw:
-    return _action("get", url, data, **kwargs)
+def get(url: str, **kwargs) -> _JSRaw:
+    return _action("get", url, **kwargs)
 
 
-def put(url: str, data: dict[str, Any] | None = None, **kwargs) -> _JSRaw:
-    return _action("put", url, data, **kwargs)
+def put(url: str, **kwargs) -> _JSRaw:
+    return _action("put", url, **kwargs)
 
 
-def patch(url: str, data: dict[str, Any] | None = None, **kwargs) -> _JSRaw:
-    return _action("patch", url, data, **kwargs)
+def patch(url: str, **kwargs) -> _JSRaw:
+    return _action("patch", url, **kwargs)
 
 
-def delete(url: str, data: dict[str, Any] | None = None, **kwargs) -> _JSRaw:
-    return _action("delete", url, data, **kwargs)
+def delete(url: str, **kwargs) -> _JSRaw:
+    return _action("delete", url, **kwargs)
 
 
 def _timer_ref(timer: "Signal", window: bool = False) -> str:
@@ -763,12 +765,11 @@ def scroll_to(
     )
 
 
-def _action(verb: str, url: str, data: dict[str, Any] | None = None, **kwargs) -> _JSRaw:
-    payload = {**(data or {}), **kwargs}
-    if not payload:
+def _action(verb: str, url: str, **kwargs) -> _JSRaw:
+    if not kwargs:
         return _JSRaw(f"@{verb}('{url}')")
-    parts = [f"{k}: {to_js_value(v)}" for k, v in payload.items()]
-    return _JSRaw(f"@{verb}('{url}', {{{', '.join(parts)}}})")
+    opts = ", ".join(f"{k}: {to_js_value(v)}" for k, v in kwargs.items())
+    return _JSRaw(f"@{verb}('{url}', {{{opts}}})")
 
 
 console = js("console")

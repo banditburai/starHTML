@@ -133,7 +133,8 @@ def star_app(
         body_wrap=body_wrap,
         datastar=datastar,
     )
-    app.static_route_exts(static_path=static_path)
+    if static_path:
+        app.static_route_exts(static_path=static_path)
 
     if not db_file:
         return app, app.route

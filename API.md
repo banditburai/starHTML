@@ -468,7 +468,7 @@ data_effect=[
 data_effect=is_form_complete.then(auto_save_data)
 
 # API calls on signal changes
-data_effect=search_query.length >= 3 & post("/api/search", q=search_query)
+data_effect=search_query.length >= 3 & post("/api/search")
 ```
 
 **Key Differences:**
@@ -477,21 +477,92 @@ data_effect=search_query.length >= 3 & post("/api/search", q=search_query)
 
 ### HTTP Actions
 
+Use `get()`, `post()`, `put()`, `patch()`, and `delete()` to make requests from the browser.
+
+**Important:** Datastar automatically sends **all signals** as the request body. You don't pass user data as keyword arguments — your server-side route handler receives every signal value by default.
+
 ```python
-# Simple requests
+# All signal values are sent automatically — no need to specify data
 data_on_click=get("/api/data")
 data_on_click=post("/api/submit")
-data_on_click=delete(f"/api/items/{item_id}")
-
-# With parameters
-data_on_click=get("/api/search", q=search_term)
-data_on_click=post("/api/contact", name=name, email=email)
+data_on_click=delete(f"/api/items/{item_id}")  # item_id is a Python variable baked into the URL at render time
 
 # Conditional requests
-data_on_click=is_valid.then(post("/api/submit", data=form_data))
+data_on_click=is_valid.then(post("/api/submit"))
+```
+
+**Sending specific data instead of all signals:**
+
+Use the `payload` option to send only certain values. Use `js()` to reference browser-side values (like DOM events or element properties) that don't exist in Python:
+
+```python
+# Send only "text" — derived from a browser-side DOM value
+data_on_blur=post("/api/edit", payload={"text": js("evt.target.innerText.trim()")})
+```
+
+**Action options:**
+
+All keyword arguments are [Datastar action options](https://data-star.dev/reference/action_plugins/backend), not user data. Available options include `contentType`, `headers`, `payload`, `selector`, `filterSignals`, and others.
+
+```python
+# Set content type for form submissions
+data_on_click=post("/api/submit", contentType="form")
+
+# Send only signals whose names match a regex
+data_on_click=post("/api/submit", filterSignals="name|email")
 ```
 
 ## Advanced Features
+
+### Startup & Shutdown
+
+Run code when your app starts (connect to a database, warm a cache) or stops (close connections, flush logs). There are four ways to register these handlers — pick whichever fits your situation.
+
+**Constructor lists** — simplest for quick setup:
+
+```python
+app, rt = star_app(
+    on_startup=[init_db, warm_cache],
+    on_shutdown=[close_db],
+)
+```
+
+**Lifespan context manager** — best when startup and shutdown are paired (e.g. open/close the same resource):
+
+```python
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app):
+    db = await connect_db()
+    yield
+    await db.close()
+
+app, rt = star_app(lifespan=lifespan)
+```
+
+**Decorator** — register handlers after creating the app:
+
+```python
+@app.on_event("startup")
+async def init_db():
+    ...
+
+@app.on_event("shutdown")
+def cleanup():
+    ...
+```
+
+**Programmatic** — useful when handlers come from plugins or configuration:
+
+```python
+app.add_lifecycle_handler("startup", init_db)
+app.add_lifecycle_handler("shutdown", close_db)
+```
+
+All handlers can be sync or async, and can optionally accept the `app` instance as a parameter.
+
+**Combining approaches**: You can use a lifespan context manager *and* individual handlers together. The handlers run inside the lifespan context, so they can access any resources it initializes (e.g. a database connection created in the lifespan is available to startup handlers).
 
 ### Slot Attributes System
 
@@ -811,170 +882,160 @@ data_on_input=(search, {"debounce": 300})             # Wait 300ms after typing
 ```python
 from starhtml import *
 
-def contact_form():
-    return Form(
-        H2("Contact Us"),
-        
-        # Name field with inline signal definition
-        Div(
-            Label("Name", for_="name"),
-        Input(
-                (name := Signal("name", "")),         # Define signal inline
-                type="text",
-                id="name",
-            data_bind=name,
-                data_on_input=(name_error := Signal("name_error", "")).set(
-                switch([
-                        (~name, "Name is required"),
-                        (name.length < 2, "Name too short")
-                    ], default="")
-                ),
-                cls="form-input",
-            data_class_error=name_error
-        ),
-            Span(data_text=name_error, data_show=name_error, cls="error-text")
-        ),
-        
-        # Email field with inline signal definition
-        Div(
-            Label("Email", for_="email"),
-        Input(
-                (email := Signal("email", "")),       # Define signal inline
-            type="email",
-                id="email", 
-            data_bind=email,
-                data_on_input=(email_error := Signal("email_error", "")).set(
-                    switch([
-                        (~email, "Email is required"),
-                        (~email.contains("@"), "Invalid email format")
-                    ], default="")
-                ),
-                cls="form-input",
-                data_class_error=email_error
+app, rt = star_app()
+
+@rt("/")
+def home():
+    # Create signals for each form field
+    name = Signal("name", "")
+    em = Signal("email", "")
+    message = Signal("message", "")
+
+    # .validate() attaches a validation rule and returns attrs
+    # (data-bind, blur/input handlers, aria-invalid) to spread into the Input
+    name_v = name.validate(min_length, 2, "Name")
+    em_v = em.validate(email)
+
+    # form_submit() wires everything together:
+    #   - Runs all validations on submit, POSTs only if all pass
+    #   - Auto-creates contact_submitting / contact_submitted / contact_error signals
+    #   - reset_on_success clears listed signals after a successful submit
+    # Only validated signals need to be listed here — message has no rules.
+    fs = form_submit("/submit", name, em, name="contact", reset_on_success=True)
+
+    return Div(
+        name, em, message,   # Place signals to emit their data-signals attrs
+
+        Form(
+            fs,              # FormAttrs dict — sets action, method, data-on-submit, etc.
+
+            # Spread name_v into Input to get two-way binding + validation
+            Div(
+                Label("Name", fr="name"),
+                Input(name_v, type="text", id="name", name="name", cls="form-input"),
+                # name.err is the auto-created error signal (empty string = no error)
+                Span(data_text=name.err, data_show=name.err, cls="error-text"),
             ),
-            Span(data_text=email_error, data_show=email_error, cls="error-text")
+
+            # Email field — same pattern
+            Div(
+                Label("Email", fr="email"),
+                Input(em_v, type="email", id="email", name="email", cls="form-input"),
+                Span(data_text=em.err, data_show=em.err, cls="error-text"),
+            ),
+
+            # Message — no validation, just two-way binding via data_bind
+            Div(
+                Label("Message", fr="message"),
+                Textarea(data_bind=message, id="message", name="message", rows="4", cls="form-input"),
+            ),
+
+            # fs.submitting is a Signal — use it for loading state
+            Button(
+                data_text=fs.submitting.if_("Sending...", "Send Message"),
+                type="submit",
+                data_attr_disabled=fs.submitting,
+                cls="btn btn-primary",
+            ),
         ),
-        
-        # Message field
-        Div(
-            Label("Message", for_="message"),
-        Textarea(
-                (message := Signal("message", "")),   # Define signal inline
-                id="message",
-            data_bind=message,
-                rows="4",
-                cls="form-input"
-            )
-        ),
-        
-        # Submit button
-        Button(
-            (is_submitting := Signal("is_submitting", False)),  # Define inline
-            data_text=is_submitting.if_("Sending...", "Send Message"),
-            type="submit",
-            data_attr_disabled=is_submitting | name_error | email_error | ~all(name, email, message),
-            cls="btn btn-primary"
-        ),
-        
-        # Form submission
-        data_on_submit=([
-            is_submitting.set(True),
-            post("/api/contact", name=name, email=email, message=message)
-        ], {"prevent": True}),
-        
-        cls="contact-form"
+        cls="contact-form",
     )
+
+@rt("/submit", methods=["POST"])
+@sse
+async def submit_form(name: str = "", email: str = "", message: str = ""):
+    import asyncio
+    # Show loading state on the button
+    yield signals(contact_submitting=True)
+    await asyncio.sleep(0.5)  # Simulate work
+    # End loading and mark success — reset_on_success will clear the form
+    yield signals(contact_submitting=False, contact_submitted=True)
 ```
 
 ### Chat with Server-Sent Events (SSE)
 
 ```python
 from starhtml import *
+import time
 
 def chat_app():
+    message = Signal("message", "")
+    sending = Signal("sending", False)
+
     return Div(
+        message, sending,  # Signals render as hidden setup attributes
+        
         H1("Live Chat"),
         
         # Messages container
-        Div(
-            id="messages",
-            cls="messages-container"
-        ),
+        Div(id="messages", cls="messages-container"),
         
         # Chat input form
         Form(
             Input(
-                (message := Signal("message", "")),
-                (sending := Signal("sending", False)),
                 placeholder="Type your message...",
-                data_bind=message,
-                data_attr_disabled=sending,
+                data_bind=message,           # Two-way bind to message signal
+                data_attr_disabled=sending,   # Disable while sending
                 cls="message-input"
             ),
             
             Button(
                 data_text=sending.if_("Sending...", "Send"),
                 type="submit",
-                data_attr_disabled=sending | ~message,
+                data_attr_disabled=sending | ~message,  # Disabled when sending or empty
                 cls="send-button"
             ),
             
-            # Submit triggers SSE endpoint
-            data_on_submit=(post("/chat/send", text=message), {"prevent": True}),
+            # post() sends all current signal values to the server
+            data_on_submit=(post("/chat/send"), {"prevent": True}),
             cls="chat-form"
         ),
         
         cls="chat-app"
     )
 
-# SSE endpoint for sending messages
+# @sse makes the handler yield SSE events instead of returning a response
 @rt("/chat/send", methods=["POST"])
 @sse
-def send_message(message: str = ""):
-    import time
-    
-    # Show sending state
+def send_message(message: str = ""):  # Signal values arrive as parameters
+    # Update sending signal on the client
     yield signals(sending=True)
     
-    # Simulate message processing
-    time.sleep(0.5)
+    time.sleep(0.5)  # Simulated delay
     
-    # Add message to chat
-    message_element = Div(
-        Span("You", cls="username"),
-        Span(message, cls="message-text"),
-        Span(time.strftime("%H:%M"), cls="timestamp"),
-        cls="message user-message"
+    # Append user message to chat
+    yield elements(
+        Div(
+            Span("You", cls="username"),
+            Span(message, cls="message-text"),
+            Span(time.strftime("%H:%M"), cls="timestamp"),
+            cls="message user-message"
+        ),
+        "#messages", "append"
     )
     
-    # Append new message to chat
-    yield elements(message_element, "#messages", "append")
+    time.sleep(1)  # Simulated delay
     
-    # Simulate server response
-    time.sleep(1)
-    
-    # Add bot response
-    bot_response = Div(
-        Span("Bot", cls="username"),
-        Span(f"Echo: {message}", cls="message-text"),
-        Span(time.strftime("%H:%M"), cls="timestamp"),
-        cls="message bot-message"
+    # Append bot response
+    yield elements(
+        Div(
+            Span("Bot", cls="username"),
+            Span(f"Echo: {message}", cls="message-text"),
+            Span(time.strftime("%H:%M"), cls="timestamp"),
+            cls="message bot-message"
+        ),
+        "#messages", "append"
     )
     
-    yield elements(bot_response, "#messages", "append")
-    
-    # Clear form and reset state
-    yield signals(
-        message="",      # Clear input
-        sending=False    # Reset sending state
-    )
+    # Clear input and reset sending state
+    yield signals(message="", sending=False)
 
-# ⚠️ SSE Best Practice: When replacing elements (not appending), 
-# always preserve id attributes to allow future targeting:
-# 
+# ⚠️ SSE Best Practice: When replacing elements (not appending),
+# preserve the id so the selector keeps working for future updates:
+#
 # yield elements(
 #     Div("New content", id="messages", cls="messages-container"),
-#     "#messages"  # ← Same id preserved in replacement
+#     "#messages"  # Replacement still has id="messages"
 # )
 ```
 
