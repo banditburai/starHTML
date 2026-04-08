@@ -66,7 +66,11 @@ def home():
         Div(
             H2("Contact Information", cls="text-2xl font-bold text-black mb-8"),
             Form(
-                (fs := form_submit("submit", name, em, age, phone, name="contact", submitted=submitted)),
+                (
+                    fs := form_submit(
+                        "submit", name, em, age, phone, name="contact", submitted=submitted, reset_on_success=True
+                    )
+                ),
                 # Name
                 Div(
                     Label(
@@ -236,18 +240,7 @@ async def submit_form(req, name: str = "", email: str = "", age: str = "", phone
     if errors:
         yield signals(contact_submitting=False, **errors)
     else:
-        yield signals(
-            contact_submitting=False,
-            contact_submitted=True,
-            name="",
-            email="",
-            age="",
-            phone="",
-            name_err="",
-            email_err="",
-            age_err="",
-            phone_err="",
-        )
+        yield signals(contact_submitting=False, contact_submitted=True)
         await asyncio.sleep(3)
         yield signals(contact_submitted=False)
 

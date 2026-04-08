@@ -33,13 +33,19 @@ __all__ = [
 _EMAIL_RE = r"[^\s@]+@[^\s@]+\.[^\s@]+"
 
 
+def _require(signal: Signal) -> None:
+    signal._constraint_attrs.update({"required": True, "aria-required": "true"})
+
+
 def required(signal: Signal, label: str = "This field") -> Expr:
     "Error message when empty, empty string when valid."
+    _require(signal)
     return (~signal).if_(f"{label} is required")
 
 
 def email(signal: Signal, *, re: str = _EMAIL_RE) -> Expr:
     "Email validation: required + regex."
+    _require(signal)
     return switch(
         [
             (~signal, "Email is required"),
@@ -50,6 +56,8 @@ def email(signal: Signal, *, re: str = _EMAIL_RE) -> Expr:
 
 def min_length(signal: Signal, n: int, label: str = "This field") -> Expr:
     "Required + minimum length."
+    _require(signal)
+    signal._constraint_attrs["minlength"] = str(n)
     return switch(
         [
             (~signal, f"{label} is required"),
@@ -60,13 +68,16 @@ def min_length(signal: Signal, n: int, label: str = "This field") -> Expr:
 
 def max_length(signal: Signal, n: int) -> Expr:
     "Maximum length (does not check required)."
+    signal._constraint_attrs["maxlength"] = str(n)
     return (signal.length > n).if_(f"Must be at most {n} characters")
 
 
 def pattern(signal: Signal, pat: str, message: str, *, optional: bool = False) -> Expr:
     "Regex pattern validation. Set optional=True to skip when empty."
+    signal._constraint_attrs["pattern"] = pat
     if optional:
         return (signal & ~regex(pat).test(signal)).if_(message)
+    _require(signal)
     return switch(
         [
             (~signal, "This field is required"),
@@ -77,6 +88,7 @@ def pattern(signal: Signal, pat: str, message: str, *, optional: bool = False) -
 
 def matches(signal: Signal, other: Signal, message: str = "Fields must match", *, label: str = "This field") -> Expr:
     "Must match another field (e.g., password confirmation)."
+    _require(signal)
     return switch(
         [
             (~signal, f"{label} is required"),
@@ -87,6 +99,7 @@ def matches(signal: Signal, other: Signal, message: str = "Fields must match", *
 
 def checked(signal: Signal, message: str = "This field is required") -> Expr:
     "Checkbox must be checked."
+    _require(signal)
     return (~signal).if_(message)
 
 
@@ -129,6 +142,7 @@ def form_submit(
     submitted: Signal | None = None,
     error: Signal | list[Signal] | None = None,
     focus_first_error: bool = True,
+    reset_on_success: bool = False,
 ) -> FormAttrs:
     "Datastar attrs for form submission. Auto-creates submitting/submitted/error signals from name=."
     orig = (submitting, submitted, error)
@@ -143,7 +157,7 @@ def form_submit(
     validate_all = [err.set(val) for err, val in fields.items()]
     can_submit = ~any_(*fields.keys()) & ~submitting
     clears = [e.set("") for e in (error if isinstance(error, list) else [error] if error else [])]
-    submit_action = seq(*clears, post(endpoint))
+    submit_action = seq(*clears, post(endpoint, contentType="form"))
 
     actions = [*validate_all, can_submit.then(submit_action)]
     if focus_first_error:
@@ -155,6 +169,9 @@ def form_submit(
     ]
     if auto_created:
         attrs["data_signals"] = auto_created
+    if reset_on_success and submitted:
+        attrs["data_on_signal_patch"] = submitted & form_reset(*signals)
+        attrs["data-on-signal-patch-filter"] = f"{{include: /^{submitted._id}$/}}"
     return FormAttrs(attrs, submitting=submitting, submitted=submitted, error=error)
 
 
@@ -183,10 +200,9 @@ async def parse_form(req: Request) -> FormData | dict[str, Any]:
         return await req.json()
     if not ctype.startswith("multipart/form-data"):
         return await req.form()
-    try:
-        boundary = ctype.split("boundary=")[1].strip()
-    except IndexError as e:
-        raise HTTPException(400, "Invalid form-data: no boundary") from e
+    if "boundary=" not in ctype:
+        raise HTTPException(400, "Invalid form-data: no boundary")
+    boundary = ctype.split("boundary=")[1].strip()
     min_len = len(boundary) + 6
     clen = int(req.headers.get("Content-Length", "0"))
     if clen <= min_len:
@@ -235,7 +251,7 @@ def _formitem(form: FormData | dict[str, Any], k: str) -> Any:
     if isinstance(form, dict):
         return form.get(k)
     o = form.getlist(k)
-    return o[0] if len(o) == 1 else o if o else None
+    return o[0] if len(o) == 1 else o or None
 
 
 def _fill_item(item: Any, obj: dict[str, Any]) -> Any:
@@ -261,9 +277,9 @@ def _fill_item(item: Any, obj: dict[str, Any]) -> Any:
                     attr.pop("checked", "")
             else:
                 attr["value"] = val
-        if tag == "textarea":
+        elif tag == "textarea":
             cs = (val,)
-        if tag == "select":
+        elif tag == "select":
             if isinstance(val, list):
                 for opt in cs:
                     if opt.tag == "option" and opt.get("value") in val:
