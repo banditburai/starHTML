@@ -1,6 +1,6 @@
 [project]
 name = "starhtml"
-version = "0.5.24"
+version = "0.6.0"
 description = "Modern HTML generation in Python, inspired by FastHTML"
 readme = "README.md"
 requires-python = ">=3.12"
