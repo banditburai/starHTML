@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     # Core (Pyodide/WASM compatible)
-    "starlette",
+    "starlette~=1.0",
     "httpx",
     "beautifulsoup4",
     "python-dateutil",
@@ -207,6 +207,7 @@ reportArgumentType = false
 dev = [
     "psutil>=7.0.0",
     "pytest-asyncio>=1.1.0",
+    "pytest-cov>=6.1.1",
     "python-multipart>=0.0.20",
 ]
 

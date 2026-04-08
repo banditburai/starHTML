@@ -437,14 +437,19 @@ class TestLiveReloadRealWorldScenarios:
 
     def test_live_reload_with_complex_app(self):
         """Test live reload with a more complex application structure."""
-        app = StarHTMLWithLiveReload(reload_attempts=5, reload_interval=1000)
+        from starlette.middleware import Middleware
+        from starlette.middleware.base import BaseHTTPMiddleware
 
-        # Add some middleware-like behavior
-        @app.middleware("http")
         async def add_process_time_header(request, call_next):
             response = await call_next(request)
             response.headers["X-Process-Time"] = "0.001"
             return response
+
+        app = StarHTMLWithLiveReload(
+            reload_attempts=5,
+            reload_interval=1000,
+            middleware=[Middleware(BaseHTTPMiddleware, dispatch=add_process_time_header)],
+        )
 
         @app.route("/")
         def home():

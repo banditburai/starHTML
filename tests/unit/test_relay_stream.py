@@ -2,6 +2,8 @@
 
 import asyncio
 
+import pytest
+
 from starhtml.realtime import (
     SSE_KEEPALIVE,
     Relay,
@@ -285,18 +287,74 @@ class TestStreamSseItemsStringPassthrough:
 
 
 class TestInstallApp:
-    def test_install_registers_shutdown_handler(self):
-        """relay.install(app) registers shutdown so relay.shutdown() is called on app exit."""
+    def test_install_uses_internal_lifecycle_handler(self):
         calls = []
 
         class FakeApp:
-            def add_event_handler(self, event, handler):
+            def add_lifecycle_handler(self, event, handler):
                 calls.append((event, handler))
 
         relay = Relay()
         relay.install(FakeApp())
+
         assert len(calls) == 1
         assert calls[0][0] == "shutdown"
-        # Calling the registered handler should shut down the relay
         calls[0][1]()
         assert relay._closed is True
+
+    def test_install_wraps_server_exit_before_original_handler(self):
+        events = []
+
+        class FakeApp:
+            def add_lifecycle_handler(self, event, handler): ...
+
+        class FakeServer:
+            def handle_exit(self, sig, frame):
+                events.append(("server", sig, frame))
+
+        class TestRelay(Relay):
+            def shutdown(self):
+                events.append(("relay", None, None))
+
+        relay = TestRelay()
+        server = FakeServer()
+
+        relay.install(FakeApp(), server=server)
+        server.handle_exit("SIGTERM", "frame")
+
+        assert events == [("relay", None, None), ("server", "SIGTERM", "frame")]
+
+    def test_install_does_not_double_wrap_server_exit(self):
+        calls = []
+
+        class FakeApp:
+            def add_lifecycle_handler(self, event, handler):
+                calls.append((event, handler))
+
+        class FakeServer:
+            def __init__(self):
+                self.count = 0
+
+            def handle_exit(self, sig, frame):
+                self.count += 1
+
+        shutdowns = []
+
+        class TestRelay(Relay):
+            def shutdown(self):
+                shutdowns.append("shutdown")
+
+        relay = TestRelay()
+        server = FakeServer()
+
+        relay.install(FakeApp(), server=server)
+        relay.install(FakeApp(), server=server)
+        server.handle_exit("SIGTERM", None)
+
+        assert server.count == 1
+        assert shutdowns == ["shutdown"]
+
+    def test_install_raises_on_unsupported_app(self):
+        relay = Relay()
+        with pytest.raises(AttributeError, match="must support add_lifecycle_handler"):
+            relay.install(object())

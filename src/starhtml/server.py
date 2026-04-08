@@ -7,7 +7,6 @@ import os
 import sys
 import types
 from collections.abc import Mapping
-from copy import deepcopy
 from datetime import datetime
 from functools import partialmethod, update_wrapper
 from http import cookies
@@ -685,7 +684,7 @@ def _wrap_ex(f, status_code, hdrs, ftrs, htmlkw, bodykw, body_wrap):
     "Wrap exception handler"
 
     async def _f(req, exc):
-        req.hdrs, req.ftrs, req.htmlkw, req.bodykw = map(deepcopy, (hdrs, ftrs, htmlkw, bodykw))
+        req.hdrs, req.ftrs, req.htmlkw, req.bodykw = list(hdrs), list(ftrs), dict(htmlkw), dict(bodykw)
         req.body_wrap = body_wrap
         res = await _handle(f, (req, exc))
         return render_response(req, res, status_code=status_code)

@@ -763,12 +763,39 @@ def scroll_to(
     )
 
 
+_ACTION_OPTIONS = frozenset(
+    {
+        "selector",
+        "headers",
+        "contentType",
+        "filterSignals",
+        "openWhenHidden",
+        "payload",
+        "requestCancellation",
+        "retry",
+        "retryInterval",
+        "retryScaler",
+        "retryMaxInterval",
+        "retryMaxRetries",
+        "retryMaxWaitMs",
+        "retryMaxCount",
+        "abort",
+    }
+)
+
+
 def _action(verb: str, url: str, data: dict[str, Any] | None = None, **kwargs) -> _JSRaw:
-    payload = {**(data or {}), **kwargs}
-    if not payload:
+    # kwargs that aren't Datastar options become payload data
+    user_data = dict(data or {})
+    options: dict[str, Any] = {}
+    for k, v in kwargs.items():
+        (options if k in _ACTION_OPTIONS else user_data)[k] = v
+    if user_data:
+        options["payload"] = user_data
+    if not options:
         return _JSRaw(f"@{verb}('{url}')")
-    parts = [f"{k}: {to_js_value(v)}" for k, v in payload.items()]
-    return _JSRaw(f"@{verb}('{url}', {{{', '.join(parts)}}})")
+    opts = ", ".join(f"{k}: {to_js_value(v)}" for k, v in options.items())
+    return _JSRaw(f"@{verb}('{url}', {{{opts}}})")
 
 
 console = js("console")

@@ -1,8 +1,10 @@
 """Tests for app.register() unified registration method."""
 
+from contextlib import asynccontextmanager
+
 import pytest
 
-from starhtml import StarHTML
+from starhtml import StarHTML, TestClient
 from starhtml.plugins import Plugin, canvas, persist, scroll, split
 
 
@@ -259,3 +261,64 @@ class TestRegisterIntegration:
         assert str(main.sizes) == "$main_sizes"
         assert str(sidebar.position) == "$sidebar_position"
         assert str(sidebar.sizes) == "$sidebar_sizes"
+
+    def test_register_wires_item_lifecycle_hooks(self):
+        events = []
+        app = StarHTML()
+
+        class RegistrableWithLifecycle:
+            def get_package_name(self):
+                return "lifecycle"
+
+            def get_static_path(self):
+                return None
+
+            def get_headers(self, pkg_prefix):
+                return ()
+
+            def on_startup(self, app):
+                events.append(("startup", app))
+
+            def on_shutdown(self, app):
+                events.append(("shutdown", app))
+
+        app.register(RegistrableWithLifecycle())
+
+        with TestClient(app):
+            assert events == [("startup", app)]
+
+        assert events == [("startup", app), ("shutdown", app)]
+
+    def test_register_lifecycle_wraps_existing_lifespan(self):
+        events = []
+
+        @asynccontextmanager
+        async def lifespan(app):
+            events.append("lifespan_enter")
+            yield
+            events.append("lifespan_exit")
+
+        app = StarHTML(lifespan=lifespan)
+
+        class RegistrableWithStartup:
+            def get_package_name(self):
+                return "wrapped"
+
+            def get_static_path(self):
+                return None
+
+            def get_headers(self, pkg_prefix):
+                return ()
+
+            def on_startup(self, app):
+                events.append("startup")
+
+            def on_shutdown(self, app):
+                events.append("shutdown")
+
+        app.register(RegistrableWithStartup())
+
+        with TestClient(app):
+            assert events == ["lifespan_enter", "startup"]
+
+        assert events == ["lifespan_enter", "startup", "shutdown", "lifespan_exit"]

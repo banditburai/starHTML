@@ -624,9 +624,32 @@ class Relay:
             self._deliver_shutdown(q)
         logger.debug("Relay shut down (%d subscribers notified)", len(subscribers))
 
-    def install(self, app) -> None:
-        """Call shutdown on app shutdown."""
-        app.add_event_handler("shutdown", self.shutdown)
+    def install(self, app, *, server=None) -> None:
+        """Hook relay shutdown into app lifespan and optionally server signal handler.
+
+        GOTCHA: ASGI lifespan "shutdown" fires *after* the server waits for open
+        connections — deadlocking long-lived SSE streams.  Passing *server* wraps
+        ``handle_exit`` so the relay shuts down on the first signal, before the
+        server blocks.
+        """
+        if not hasattr(app, "add_lifecycle_handler"):
+            raise AttributeError("App must support add_lifecycle_handler()")
+        app.add_lifecycle_handler("shutdown", self.shutdown)
+        if server:
+            self._wrap_server_exit(server)
+
+    def _wrap_server_exit(self, server) -> None:
+        """Wrap server.handle_exit to shutdown SSE before graceful shutdown waits."""
+        if hasattr(server, "_starhtml_relay_wrapped"):
+            return
+        orig = server.handle_exit
+
+        def _handle_exit(sig, frame):
+            self.shutdown()
+            orig(sig, frame)
+
+        server.handle_exit = _handle_exit
+        server._starhtml_relay_wrapped = True
 
     async def stream(self, *, shutdown: asyncio.Event | None = None) -> AsyncIterator[Any]:
         """Yield SSE items until shutdown, cancellation, or disconnect."""

@@ -1,16 +1,15 @@
 """The `StarHTML` subclass of `Starlette`"""
 
-import asyncio
 import logging
 import os
 import re
 
 logger = logging.getLogger(__name__)
 from collections.abc import Callable
-from copy import deepcopy
+from contextlib import asynccontextmanager, nullcontext
 from functools import partialmethod
 from pathlib import Path as PathlibPath
-from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Literal, Protocol, runtime_checkable
 
 from fastcore.utils import (
     Path,
@@ -29,7 +28,7 @@ from starlette.responses import FileResponse, RedirectResponse, Response
 from starlette.routing import Mount, Route, WebSocketRoute
 
 from .realtime import _ws_endp, set_devtools_context, setup_ws
-from .server import _mk_locfunc, _wrap_call, _wrap_ex, _wrap_req, all_meths, cookie, render_response, serve
+from .server import _handle, _mk_locfunc, _wrap_call, _wrap_ex, _wrap_req, all_meths, cookie, render_response, serve
 from .starapp import Beforeware, _datastar_cdn_url, def_hdrs
 from .utils import _list, _params, get_key, noop_body, reg_re_param
 
@@ -47,9 +46,12 @@ DEFAULT_PKG_PREFIX = "/_pkg"
 
 __all__ = [
     "StarHTML",
+    "StarRoute",
+    "Lifespan",
     "Request",
     "Response",
     "Route",
+    "Mount",
     "WebSocketRoute",
     "HTTPException",
     "RedirectResponse",
@@ -62,6 +64,69 @@ __all__ = [
     "register_package_static",
     "Registrable",
 ]
+
+
+async def _run_handler(handler, app):
+    await _handle(handler, [app] if _params(handler) else [])
+
+
+class Lifespan:
+    """Handlers run INSIDE the user lifespan so they can access resources it initializes."""
+
+    def __init__(self, startup=None, shutdown=None, lifespan=None):
+        self.startup = listify(startup)
+        self.shutdown = listify(shutdown)
+        self.lifespan = lifespan
+
+    @asynccontextmanager
+    async def __call__(self, app):
+        ctx = self.lifespan(app) if self.lifespan else nullcontext()
+        async with ctx:
+            for f in self.startup:
+                await _run_handler(f, app)
+            yield
+            for f in self.shutdown:
+                await _run_handler(f, app)
+
+
+class StarRoute(Route):
+    """Route subclass that wraps endpoints with StarHTML's request processing pipeline."""
+
+    def __init__(
+        self,
+        path,
+        endpoint,
+        *,
+        app=None,
+        methods=None,
+        name=None,
+        include_in_schema=True,
+        middleware=None,
+        body_wrap=None,
+    ):
+        self._original_endpoint = endpoint
+        self._body_wrap = body_wrap
+        self._bound = False
+        methods = methods or ["GET", "POST"]
+        super().__init__(
+            path, endpoint, methods=methods, name=name, include_in_schema=include_in_schema, middleware=middleware
+        )
+        if app:
+            self._bind(app)
+
+    def _bind(self, app):
+        if self._bound:
+            return
+        wrapped = app._endp(self._original_endpoint, self._body_wrap or app.body_wrap)
+        # Second super().__init__ is safe — it fully overwrites all Route attrs
+        super().__init__(
+            self.path,
+            wrapped,
+            methods=self.methods,
+            name=self.name,
+            include_in_schema=self.include_in_schema,
+        )
+        self._bound = True
 
 
 class StarHTML(Starlette):
@@ -111,8 +176,8 @@ class StarHTML(Starlette):
         htmlkw = htmlkw or {}
         if default_hdrs:
             hdrs = def_hdrs(datastar_url=self._datastar_url) + hdrs
-        on_startup, on_shutdown = listify(on_startup) or None, listify(on_shutdown) or None
-        self.lifespan, self.hdrs, self.ftrs = lifespan, hdrs, ftrs
+        self._lifespan = Lifespan(on_startup, on_shutdown, lifespan)
+        self.hdrs, self.ftrs = hdrs, ftrs
         self.body_wrap, self.before, self.after, self.htmlkw, self.bodykw = body_wrap, before, after, htmlkw, bodykw
         self._registered_plugins: list = []
         self._plugin_hdrs: tuple = ()
@@ -157,12 +222,12 @@ class StarHTML(Starlette):
             routes,
             middleware=middleware,
             exception_handlers=excs,
-            on_startup=on_startup,
-            on_shutdown=on_shutdown,
-            lifespan=lifespan,
+            lifespan=self._lifespan,
         )
 
-        # Single route serves all JS: datastar, plugins, devtools, and shared chunks.
+        self._bind_star_routes(self.router.routes)
+
+        # One route for all framework JS avoids chunk 404s when plugins share bundled dependencies
         self.register_package_static(
             name="starhtml",
             static_path=PathlibPath(__file__).parent / "static" / "js",
@@ -179,7 +244,16 @@ class StarHTML(Starlette):
         if static_path:
             self.static_route_exts(static_path=static_path)
 
-    def add_route(self, route) -> None:
+    def _bind_star_routes(self, routes):
+        for route in routes:
+            if isinstance(route, StarRoute):
+                route._bind(self)
+            elif isinstance(route, Mount) and route.routes:
+                self._bind_star_routes(route.routes)
+
+    def add_route(self, route):
+        if isinstance(route, StarRoute):
+            route._bind(self)
         route.methods = [m.upper() if isinstance(m, str) else m for m in listify(route.methods)]
         self.router.routes = [
             r
@@ -226,18 +300,51 @@ class StarHTML(Starlette):
             headers=dict(response.headers),
         )
 
+    def add_lifecycle_handler(self, event: Literal["startup", "shutdown"], handler: Callable) -> None:
+        """Register a startup or shutdown handler."""
+        getattr(self._lifespan, event).append(handler)
+
+    def on_event(self, event: Literal["startup", "shutdown"]) -> Callable:
+        """Decorator to register a startup or shutdown handler."""
+
+        def _decorator(func: Callable) -> Callable:
+            self.add_lifecycle_handler(event, func)
+            return func
+
+        return _decorator
+
+    def add_exception_handler(self, exc_class_or_status_code: int | type[Exception], handler: Callable) -> None:
+        wrapped = _wrap_ex(
+            handler,
+            exc_class_or_status_code,
+            self.hdrs,
+            self.ftrs,
+            self.htmlkw,
+            self.bodykw,
+            body_wrap=self.body_wrap,
+        )
+        super().add_exception_handler(exc_class_or_status_code, wrapped)
+
+    def exception_handler(self, exc_class_or_status_code: int | type[Exception]) -> Callable:
+        """Decorator to register an exception handler."""
+
+        def _decorator(func: Callable) -> Callable:
+            self.add_exception_handler(exc_class_or_status_code, func)
+            return func
+
+        return _decorator
+
 
 @patch
 def _endp(self: StarHTML, f, body_wrap):
-    """Create a Starlette-compatible endpoint from a StarHTML route function"""
     sig = signature_ex(f, True)
     _has_devtools = self._devtools
 
     async def _f(req):
         resp = None
         req.injects = []
-        req.hdrs, req.ftrs, req.htmlkw, req.bodykw = map(deepcopy, (self.hdrs, self.ftrs, self.htmlkw, self.bodykw))
-        req.hdrs, req.ftrs = listify(req.hdrs), listify(req.ftrs)
+        req.hdrs, req.ftrs = list(self.hdrs), list(self.ftrs)
+        req.htmlkw, req.bodykw = dict(self.htmlkw), dict(self.bodykw)
         # No reset needed — each ASGI request gets its own contextvars copy
         if _has_devtools:
             set_devtools_context(handler=f.__qualname__, route=req.url.path)
@@ -264,7 +371,6 @@ def _endp(self: StarHTML, f, body_wrap):
 
 @patch
 def _add_ws(self: StarHTML, func, path, conn, disconn, name, middleware):
-    """Add a WebSocket route to the application"""
     endp = _ws_endp(func, conn, disconn)
     route = WebSocketRoute(path, endpoint=endp, name=name, middleware=middleware)
     route.methods = ["ws"]
@@ -274,8 +380,6 @@ def _add_ws(self: StarHTML, func, path, conn, disconn, name, middleware):
 
 @patch
 def ws(self: StarHTML, path: str, conn=None, disconn=None, name=None, middleware=None):
-    """Add a websocket route at `path`"""
-
     def f(func=noop):
         return self._add_ws(func, path, conn, disconn, name=name, middleware=middleware)  # type: ignore[attr-defined]
 
@@ -289,7 +393,6 @@ def nested_name(f):
 
 @patch
 def _add_route(self: StarHTML, func, path, methods, name, include_in_schema, body_wrap):
-    """Add an HTTP route to the application"""
     n, fn, p = name, nested_name(func), None if callable(path) else path
     if methods:
         m = [methods] if isinstance(methods, str) else methods
@@ -301,12 +404,14 @@ def _add_route(self: StarHTML, func, path, methods, name, include_in_schema, bod
         n = fn
     if not p:
         p = "/" + ("" if fn == "index" else fn)
-    route = Route(
+    route = StarRoute(
         p,
-        endpoint=self._endp(func, body_wrap or self.body_wrap),
+        func,
+        app=self,
         methods=m,
         name=n,
         include_in_schema=include_in_schema,
+        body_wrap=body_wrap,
     )
     self.add_route(route)
     lf = _mk_locfunc(func, p)
@@ -323,15 +428,12 @@ def route(
     include_in_schema: bool = True,
     body_wrap: Callable[..., Any] | None = None,
 ) -> Callable[..., Any]:
-    """Add a route at `path`"""
-
     def f(func: Callable[..., Any]) -> Callable[..., Any]:
         return self._add_route(func, path, methods, name=name, include_in_schema=include_in_schema, body_wrap=body_wrap)  # type: ignore[attr-defined]
 
     return f(path) if callable(path) else f
 
 
-# Add HTTP method decorators (@app.get, @app.post, etc.) via @patch
 for o in all_meths:
     setattr(StarHTML, o, partialmethod(StarHTML.route, methods=o))
 
@@ -488,27 +590,13 @@ def register(self: StarHTML, *items, prefix: str | None = None):
     merged = {"imports": {"datastar": self._datastar_url, **self._import_map}}
     self.hdrs.insert(0, Script(json.dumps(merged), type="importmap"))
 
-    # Wire lifecycle handlers
     for item in items:
         if id(item) in self._lifecycle_wired:
             continue
         self._lifecycle_wired.add(id(item))
         for event in ("startup", "shutdown"):
-            method = getattr(item, f"on_{event}", None)
-            if method is None:
-                continue
-            if asyncio.iscoroutinefunction(method):
-
-                async def _async(app=self, m=method):
-                    await m(app)
-
-                self.add_event_handler(event, _async)
-            else:
-
-                def _sync(app=self, m=method):
-                    m(app)
-
-                self.add_event_handler(event, _sync)
+            if (method := getattr(item, f"on_{event}", None)) is not None:
+                self.add_lifecycle_handler(event, method)
 
     return items[0] if len(items) == 1 else (tuple(items) or None)
 
