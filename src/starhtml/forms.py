@@ -171,7 +171,7 @@ def form_submit(
         attrs["data_signals"] = auto_created
     if reset_on_success and submitted:
         attrs["data_on_signal_patch"] = submitted & form_reset(*signals)
-        attrs["data-on-signal-patch-filter"] = f"{{include: /^{submitted._id}$/}}"
+        attrs["data_on_signal_patch_filter"] = f"{{include: /^{submitted._id}$/}}"
     return FormAttrs(attrs, submitting=submitting, submitted=submitted, error=error)
 
 

@@ -538,13 +538,13 @@ class TestFormSubmit:
         [sig] = self._make_validated_signals("name")
         result = form_submit("test", sig, name="t")
         assert "data_on_signal_patch" not in result
-        assert "data-on-signal-patch-filter" not in result
+        assert "data_on_signal_patch_filter" not in result
 
     def test_reset_on_success_adds_signal_patch_handler(self):
         [sig] = self._make_validated_signals("name")
         result = form_submit("test", sig, name="t", reset_on_success=True)
         assert "data_on_signal_patch" in result
-        assert result["data-on-signal-patch-filter"] == "{include: /^t_submitted$/}"
+        assert result["data_on_signal_patch_filter"] == "{include: /^t_submitted$/}"
 
     def test_reset_on_success_guards_on_submitted(self):
         [sig] = self._make_validated_signals("name")
@@ -574,7 +574,7 @@ class TestFormSubmit:
         my_sub = Signal("sub", False)
         result = form_submit("test", sig, submitting=my_sub, reset_on_success=True)
         assert "data_on_signal_patch" not in result
-        assert "data-on-signal-patch-filter" not in result
+        assert "data_on_signal_patch_filter" not in result
 
 
 # ============================================================================

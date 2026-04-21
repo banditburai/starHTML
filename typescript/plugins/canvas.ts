@@ -114,6 +114,9 @@ class CanvasController {
   }
 
   private registerInGlobalRegistry() {
+    // Replace any prior controller on the same signal so re-mounts (hot reload,
+    // dynamic re-apply) don't leak document-level listeners from the old one.
+    controllerRegistry[this.config.signal]?.destroy();
     controllerRegistry[this.config.signal] = this;
   }
   public setContext(ctx: AttributeContext) {

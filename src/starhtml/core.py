@@ -81,16 +81,23 @@ class Lifespan:
     @asynccontextmanager
     async def __call__(self, app):
         ctx = self.lifespan(app) if self.lifespan else nullcontext()
-        async with ctx:
+        # Forward lifespan state (Starlette 1.0 removed the fallback that
+        # swallowed it; without this req.state.X raises AttributeError).
+        async with ctx as state:
             for f in self.startup:
                 await _run_handler(f, app)
-            yield
+            yield state
             for f in self.shutdown:
                 await _run_handler(f, app)
 
 
 class StarRoute(Route):
-    """Route subclass that wraps endpoints with StarHTML's request processing pipeline."""
+    """Route that runs endpoints through StarHTML's request pipeline.
+
+    Must be bound to a StarHTML app — auto-bound when passed via
+    ``StarHTML(routes=[...])``, ``app.add_route(...)``, or ``app=`` on
+    the constructor.
+    """
 
     def __init__(
         self,
@@ -117,8 +124,12 @@ class StarRoute(Route):
     def _bind(self, app):
         if self._bound:
             return
+        if not isinstance(app, StarHTML):
+            raise TypeError(
+                f"StarRoute({self.path!r}) requires a StarHTML app, got {type(app).__name__}. "
+                "Use StarHTML(routes=[...]) or pass app= to StarRoute."
+            )
         wrapped = app._endp(self._original_endpoint, self._body_wrap or app.body_wrap)
-        # Second super().__init__ is safe — it fully overwrites all Route attrs
         super().__init__(
             self.path,
             wrapped,
@@ -127,6 +138,14 @@ class StarRoute(Route):
             include_in_schema=self.include_in_schema,
         )
         self._bound = True
+
+    async def handle(self, scope, receive, send):
+        if not self._bound:
+            raise RuntimeError(
+                f"StarRoute({self.path!r}) was never bound to a StarHTML app. "
+                "Pass it via StarHTML(routes=[...]) or app.add_route(...)."
+            )
+        await super().handle(scope, receive, send)
 
 
 class StarHTML(Starlette):
@@ -273,7 +292,8 @@ class StarHTML(Starlette):
             self, name: str, static_path: Any = None, hdrs: Any = None, prefix: str | None = None
         ) -> None: ...
         def register_package_static(self, name: str, static_path: Any, prefix: str | None = None) -> None: ...
-        def static_route_exts(self, static_path: str = ".") -> None: ...
+        def static_route_exts(self, prefix: str = "/", static_path: str = ".", exts: str = "static") -> None: ...
+        def static_route(self, ext: str = "", prefix: str = "/", static_path: str = ".") -> None: ...
 
     async def handle_request(
         self,
@@ -356,7 +376,10 @@ def _endp(self: StarHTML, f, body_wrap):
                     bf, skip = b, []
                 if not any(re.fullmatch(r, req.url.path) for r in skip):
                     resp = await _wrap_call(bf, req, _params(bf))
-        req.body_wrap = body_wrap
+        # Beforeware may set req.body_wrap to override the shell for this
+        # request; only fall back to the route/app default if it didn't.
+        if getattr(req, "body_wrap", None) is None:
+            req.body_wrap = body_wrap
         if not resp:
             resp = await _wrap_call(f, req, sig.parameters)
         for a in self.after:

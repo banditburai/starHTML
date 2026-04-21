@@ -494,6 +494,32 @@ class Signal(Expr):
             )
         return self.__dict__["_err_cache"]
 
+    def with_initial(self, value: Any) -> "Signal":
+        """Return a new Signal with a replaced initial value (for SSR hydration).
+
+        Raises ValueError on computed signals — their value is derived, not settable.
+        """
+        if self._is_computed:
+            raise ValueError(
+                f"Cannot call with_initial on computed signal {self._name!r}; "
+                "computed signals derive their value from an expression."
+            )
+        return Signal(
+            self._name,
+            initial=value,
+            ifmissing=self._ifmissing,
+            type_=self.type_,
+            namespace=self._namespace,
+            _ref_only=self._ref_only,
+        )
+
+    def persisted(self, persisted_dict: dict[str, Any]) -> "Signal":
+        """Hydrate initial value from a dict keyed by signal name (falls back to
+        the original initial). Typical: ``sig.persisted(req.session.get("state", {}))``
+        so SSR first paint matches server-persisted state.
+        """
+        return self.with_initial(persisted_dict.get(self._name, self._initial))
+
     def validate(self, rule, *args, event="input", **kwargs) -> dict:
         "Validate-on-blur, re-validate-on-input."
         validation = rule(self, *args, **kwargs) if callable(rule) and not isinstance(rule, Expr) else rule
@@ -765,7 +791,38 @@ def scroll_to(
     )
 
 
+# Prefixes preserved unchanged by URL normalization. Shared by action
+# helpers (post/get/...) and realtime history helpers (push/replace_state).
+_ABSOLUTE_URL_PREFIXES = (
+    "/",
+    "@",  # Datastar expression / signal ref
+    "./",
+    "../",
+    "?",  # query-only (preserves current path)
+    "#",
+    "http://",
+    "https://",
+    "ws://",
+    "wss://",
+)
+
+
+def _force_absolute_url(url: str) -> str:
+    """Prepend ``/`` to bare resource paths so fetch/pushState don't resolve
+    them against the current page URL (``'chat/foo'`` from ``/chat/{id}``
+    would become ``/chat/chat/foo`` → 404). Already-absolute, scheme-prefixed,
+    fragment/query, ``./``/``../``, and Datastar ``@expr`` forms pass through.
+
+    Sub-mount caveat: assumes root mount. Under a mount prefix, use
+    ``req.url_for(name)`` (root_path-aware) or hardcode the prefix.
+    """
+    if url and not url.startswith(_ABSOLUTE_URL_PREFIXES):
+        return "/" + url
+    return url
+
+
 def _action(verb: str, url: str, **kwargs) -> _JSRaw:
+    url = _force_absolute_url(url)
     if not kwargs:
         return _JSRaw(f"@{verb}('{url}')")
     opts = ", ".join(f"{k}: {to_js_value(v)}" for k, v in kwargs.items())
@@ -801,8 +858,7 @@ def emit(event_name: str, **detail) -> _JSRaw:
     return _JSRaw(f"el.dispatchEvent(new CustomEvent('{event_name}', {{bubbles: true{detail_js}}}))")
 
 
-# Datastar plugins using "on-*" naming (hyphen syntax, not colon like DOM events)
-_ON_PLUGINS: set[str] = {"interval", "intersect", "signal_patch"}
+_ON_PLUGINS: set[str] = {"interval", "intersect", "signal_patch", "signal_patch_filter"}
 
 
 def register_on_plugin(name: str) -> None:
