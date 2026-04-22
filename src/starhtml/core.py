@@ -5,7 +5,7 @@ import os
 import re
 
 logger = logging.getLogger(__name__)
-from collections.abc import Callable
+from collections.abc import Callable, Collection, Sequence
 from contextlib import asynccontextmanager, nullcontext
 from functools import partialmethod
 from pathlib import Path as PathlibPath
@@ -101,16 +101,16 @@ class StarRoute(Route):
 
     def __init__(
         self,
-        path,
-        endpoint,
+        path: str,
+        endpoint: Callable[..., Any],
         *,
-        app=None,
-        methods=None,
-        name=None,
-        include_in_schema=True,
-        middleware=None,
-        body_wrap=None,
-    ):
+        app: "StarHTML | None" = None,
+        methods: Collection[str] | None = None,
+        name: str | None = None,
+        include_in_schema: bool = True,
+        middleware: Sequence[Middleware] | None = None,
+        body_wrap: Callable[..., Any] | None = None,
+    ) -> None:
         self._original_endpoint = endpoint
         self._body_wrap = body_wrap
         self._bound = False
