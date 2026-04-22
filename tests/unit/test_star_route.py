@@ -196,3 +196,100 @@ class TestStarRouteDeferredBinding:
         resp = client.get("/dynamic")
         assert resp.status_code == 200
         assert "added" in resp.text
+
+
+class TestStarRouteGuards:
+    """Fail-fast errors when StarRoute is misused (wrong app type / unbound)."""
+
+    def test_bind_rejects_non_starhtml_app(self):
+        """StarRoute(..., app=plain_starlette) raises TypeError with actionable guidance."""
+        import pytest
+        from starlette.applications import Starlette
+
+        plain_app = Starlette()
+
+        with pytest.raises(TypeError) as excinfo:
+            StarRoute("/oops", lambda: "x", app=plain_app)
+
+        msg = str(excinfo.value)
+        assert "StarRoute" in msg
+        assert "StarHTML" in msg
+        assert "StarHTML(routes=" in msg
+
+    def test_unbound_starroute_raises_clear_error_at_request_time(self):
+        """A StarRoute that ends up in a plain Starlette app (never bound) raises a clear RuntimeError."""
+        import pytest
+        from starlette.applications import Starlette
+
+        def handler():
+            return "unreachable"
+
+        unbound = StarRoute("/fragment", handler)
+        assert unbound._bound is False
+
+        plain_app = Starlette(routes=[unbound])
+        client = TestClient(plain_app)
+
+        with pytest.raises(RuntimeError) as excinfo:
+            client.get("/fragment")
+
+        msg = str(excinfo.value)
+        assert "StarRoute" in msg
+        assert "never bound" in msg
+        assert "StarHTML(routes=" in msg
+        assert "add_route" in msg
+
+
+class TestRuntimeBodyWrap:
+    """Beforeware can override body_wrap per request (htmx fragments, embed views, etc.)."""
+
+    def test_beforeware_body_wrap_override_is_respected(self):
+        """A beforeware that sets ``req.body_wrap`` wins over the app-level default."""
+
+        def app_wrap(content):
+            return Div(content, cls="app-shell")
+
+        def fragment_wrap(content):
+            # Bare passthrough for htmx/iframe/embed fragment requests
+            return content
+
+        def maybe_fragment(req):
+            if req.headers.get("x-fragment") == "1":
+                req.body_wrap = fragment_wrap
+
+        app = StarHTML(body_wrap=app_wrap, before=[maybe_fragment])
+
+        @app.route("/page")
+        def page():
+            return Div("hello", id="content")
+
+        client = TestClient(app)
+
+        # No header → app-level shell kicks in
+        full = client.get("/page")
+        assert full.status_code == 200
+        assert 'class="app-shell"' in full.text
+
+        # With header → beforeware override wins
+        frag = client.get("/page", headers={"x-fragment": "1"})
+        assert frag.status_code == 200
+        assert 'class="app-shell"' not in frag.text
+        assert 'id="content"' in frag.text
+
+    def test_app_body_wrap_still_applies_when_no_override(self):
+        """Default path unchanged: app-level body_wrap applies when beforeware doesn't touch it."""
+
+        def shell(content):
+            return Div(content, cls="outer-shell")
+
+        app = StarHTML(body_wrap=shell)
+
+        @app.route("/default")
+        def default_page():
+            return Div("hi", id="inner")
+
+        client = TestClient(app)
+        resp = client.get("/default")
+        assert resp.status_code == 200
+        assert 'class="outer-shell"' in resp.text
+        assert 'id="inner"' in resp.text

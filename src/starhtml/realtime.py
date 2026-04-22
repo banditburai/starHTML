@@ -4,6 +4,7 @@ import asyncio
 import contextvars
 import inspect
 import itertools
+import json
 import logging
 import re
 import time
@@ -21,6 +22,7 @@ from starlette.responses import StreamingResponse
 from starlette.routing import WebSocketRoute
 from starlette.websockets import WebSocket
 
+from .datastar import _force_absolute_url
 from .html import fh_cfg
 from .utils import _params, empty
 
@@ -33,6 +35,9 @@ __all__ = [
     "signals",
     "elements",
     "execute_script",
+    "push_state",
+    "replace_state",
+    "redirect",
     "SSE_HEADERS",
     "RETRY_DURATION",
     "EventStream",
@@ -407,6 +412,40 @@ def execute_script(
     script_element = Script(script_content, **script_attrs)
 
     return elements(script_element, selector="body", mode="append")
+
+
+def _history_update(method: str, url: str) -> tuple[str, tuple]:
+    safe = json.dumps(_force_absolute_url(url))
+    return execute_script(f"if(location.pathname!=={safe})history.{method}State({{}},'',{safe})")
+
+
+def push_state(url: str) -> tuple[str, tuple]:
+    """SSE item: push a new browser history entry without a page reload.
+
+    Idempotent — skips when ``location.pathname`` already matches. Use
+    ``replace_state`` when the update shouldn't add a back-button entry.
+    """
+    return _history_update("push", url)
+
+
+def replace_state(url: str) -> tuple[str, tuple]:
+    """SSE item: replace the current browser history entry.
+
+    Idempotent — skips when ``location.pathname`` already matches. Use
+    ``push_state`` when the update should add a back-button entry.
+    """
+    return _history_update("replace", url)
+
+
+def redirect(url: str) -> tuple[str, tuple]:
+    """SSE item: full-page navigation via ``window.location``.
+
+    ``setTimeout(0)`` defers past the current tick so in-flight Datastar
+    patches apply before teardown. Use ``push_state`` / ``replace_state``
+    for URL updates without a page reload.
+    """
+    safe = json.dumps(_force_absolute_url(url))
+    return execute_script(f"setTimeout(()=>window.location={safe})")
 
 
 def sse_message(elm, event="message"):

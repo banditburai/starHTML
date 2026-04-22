@@ -18,7 +18,7 @@ const SCROLL_ARG_NAMES = [
   "scroll_progress",
 ] as const;
 
-let globalScrollInitialized = false;
+let globalRefCount = 0;
 let globalScrollManager: (() => void) | null = null;
 
 function calculateVisiblePercent(rect: DOMRect, viewportHeight: number): number {
@@ -48,9 +48,8 @@ const scrollAttributePlugin: AttributePlugin = {
   apply(ctx: AttributeContext): OnRemovalFn | void {
     const { el, value, mods, rx } = ctx;
 
-    const shouldManageGlobal = !globalScrollInitialized;
-    if (shouldManageGlobal) {
-      globalScrollInitialized = true;
+    globalRefCount++;
+    if (globalRefCount === 1) {
       mergePatch({
         scroll_x: window.scrollX || 0,
         scroll_y: window.scrollY || 0,
@@ -174,22 +173,21 @@ const scrollAttributePlugin: AttributePlugin = {
     const handleElementScroll = () => throttledElementUpdate();
     window.addEventListener("scroll", handleElementScroll, { passive: true });
 
-    let elementScrollCleanup: (() => void) | null = null;
-    if (el.scrollHeight > el.clientHeight) {
-      const handleInternalScroll = () => throttledElementUpdate();
-      el.addEventListener("scroll", handleInternalScroll, { passive: true });
-      elementScrollCleanup = () => el.removeEventListener("scroll", handleInternalScroll);
-    }
+    // Attach unconditionally: a mount-time scrollable check misses elements
+    // that become scrollable later (streaming chat, infinite lists).
+    const handleInternalScroll = () => throttledElementUpdate();
+    el.addEventListener("scroll", handleInternalScroll, { passive: true });
+    const elementScrollCleanup = () => el.removeEventListener("scroll", handleInternalScroll);
 
     return () => {
       window.removeEventListener("scroll", handleElementScroll);
-      elementScrollCleanup?.();
+      elementScrollCleanup();
       smoothScroll?.cleanup();
 
-      if (shouldManageGlobal && globalScrollManager) {
+      globalRefCount--;
+      if (globalRefCount === 0 && globalScrollManager) {
         globalScrollManager();
         globalScrollManager = null;
-        globalScrollInitialized = false;
       }
     };
   },

@@ -245,3 +245,220 @@ class TestIntegration:
         assert "data-style-opacity" in html
         assert "data-style-transform" in html
         assert "`scale(${$scale})`" in html
+
+
+class TestActionUrlNormalization:
+    """``post()`` / ``get()`` / ``put()`` / ``delete()`` / ``patch()`` should
+    force a leading slash on bare resource paths so that the browser's
+    ``fetch()`` resolves the URL absolutely instead of relative to the
+    current page URL.
+
+    Background: under per-resource URL routing (e.g. ``/chat/{uuid}``),
+    a Datastar action like ``post('chat/foo')`` would resolve to
+    ``/chat/chat/foo`` from any sub-resource page — silently broken in
+    a way that doesn't surface in tests or on landing pages. Forcing the
+    leading slash at the helper level prevents the entire bug class.
+    """
+
+    def test_post_bare_resource_gets_leading_slash(self):
+        # 'chat/foo' must become '/chat/foo' so it's an absolute URL.
+        assert str(post("chat/foo")) == "@post('/chat/foo')"
+
+    def test_get_bare_resource_gets_leading_slash(self):
+        assert str(get("api/users")) == "@get('/api/users')"
+
+    def test_put_bare_resource_gets_leading_slash(self):
+        assert str(put("items/42")) == "@put('/items/42')"
+
+    def test_delete_bare_resource_gets_leading_slash(self):
+        assert str(delete("things/x")) == "@delete('/things/x')"
+
+    def test_patch_bare_resource_gets_leading_slash(self):
+        assert str(patch("things/x")) == "@patch('/things/x')"
+
+    def test_already_absolute_path_unchanged(self):
+        assert str(post("/chat/foo")) == "@post('/chat/foo')"
+        assert str(get("/api/users")) == "@get('/api/users')"
+
+    def test_full_https_url_unchanged(self):
+        assert str(post("https://api.example.com/v1/foo")) == "@post('https://api.example.com/v1/foo')"
+
+    def test_full_http_url_unchanged(self):
+        assert str(post("http://localhost:8000/foo")) == "@post('http://localhost:8000/foo')"
+
+    def test_websocket_url_unchanged(self):
+        assert str(get("ws://localhost/socket")) == "@get('ws://localhost/socket')"
+        assert str(get("wss://api.example.com/socket")) == "@get('wss://api.example.com/socket')"
+
+    def test_explicit_relative_dot_unchanged(self):
+        # Author explicitly used './' — preserve their intent.
+        assert str(post("./relative")) == "@post('./relative')"
+
+    def test_explicit_parent_relative_unchanged(self):
+        assert str(post("../parent")) == "@post('../parent')"
+
+    def test_query_only_unchanged(self):
+        # Query-only refresh of the current URL — preserve.
+        assert str(get("?refresh=1")) == "@get('?refresh=1')"
+
+    def test_fragment_only_unchanged(self):
+        assert str(get("#anchor")) == "@get('#anchor')"
+
+    def test_datastar_expression_prefix_unchanged(self):
+        # An '@'-prefixed value would be a Datastar expression, not a URL.
+        # Defensive: preserve unchanged so the user can debug their typo.
+        assert str(post("@signal")) == "@post('@signal')"
+
+    def test_normalization_preserves_kwargs(self):
+        # The kwargs path renders an options object after the URL —
+        # normalization must apply BEFORE the kwargs render so the
+        # options object is unaffected.
+        result = str(post("chat/ui-state", contentType="json"))
+        assert result.startswith("@post('/chat/ui-state'")
+        assert "contentType:" in result
+
+    def test_fstring_with_dynamic_segment(self):
+        # The most common pattern that bit zacks: f-string with a UUID.
+        thread_id = "abc-123"
+        assert str(post(f"chat/select-thread/{thread_id}")) == "@post('/chat/select-thread/abc-123')"
+
+
+class TestForceAbsoluteUrlHelper:
+    """The shared ``_force_absolute_url`` helper that powers both the
+    ``post``/``get``/``put``/``delete``/``patch`` action helpers and the
+    realtime ``push_state``/``replace_state`` history helpers. Direct
+    helper tests so coverage is independent of the call-site flow.
+    """
+
+    def test_bare_path_gets_leading_slash(self):
+        from starhtml.datastar import _force_absolute_url
+
+        assert _force_absolute_url("foo") == "/foo"
+        assert _force_absolute_url("api/v1/users") == "/api/v1/users"
+
+    def test_already_absolute_unchanged(self):
+        from starhtml.datastar import _force_absolute_url
+
+        assert _force_absolute_url("/foo") == "/foo"
+        assert _force_absolute_url("//example.com/foo") == "//example.com/foo"  # protocol-relative
+
+    def test_explicit_relative_unchanged(self):
+        from starhtml.datastar import _force_absolute_url
+
+        assert _force_absolute_url("./foo") == "./foo"
+        assert _force_absolute_url("../foo") == "../foo"
+
+    def test_full_urls_unchanged(self):
+        from starhtml.datastar import _force_absolute_url
+
+        assert _force_absolute_url("http://x.test/foo") == "http://x.test/foo"
+        assert _force_absolute_url("https://x.test/foo") == "https://x.test/foo"
+        assert _force_absolute_url("ws://x.test/socket") == "ws://x.test/socket"
+        assert _force_absolute_url("wss://x.test/socket") == "wss://x.test/socket"
+
+    def test_query_and_fragment_only_unchanged(self):
+        from starhtml.datastar import _force_absolute_url
+
+        assert _force_absolute_url("?refresh=1") == "?refresh=1"
+        assert _force_absolute_url("#anchor") == "#anchor"
+
+    def test_datastar_expression_unchanged(self):
+        from starhtml.datastar import _force_absolute_url
+
+        assert _force_absolute_url("@signal") == "@signal"
+
+    def test_empty_string_unchanged(self):
+        from starhtml.datastar import _force_absolute_url
+
+        assert _force_absolute_url("") == ""
+
+
+class TestStateHelpersNormalization:
+    """``push_state`` and ``replace_state`` should apply the same URL
+    normalization as the action helpers, so a bare resource path doesn't
+    silently push the wrong URL under per-resource routing.
+    """
+
+    def test_push_state_normalizes_bare_url(self):
+        from starhtml import push_state
+
+        result = push_state("dashboard")
+        # ('elements', (script_element, selector, mode, ...))
+        script_html = str(result[1][0])
+        assert '"/dashboard"' in script_html
+        # Plain (non-slashed) form should not appear in the JSON-encoded URL.
+        assert '"dashboard"' not in script_html
+        assert "history.pushState" in script_html
+
+    def test_push_state_preserves_absolute_url(self):
+        from starhtml import push_state
+
+        result = push_state("/chat/abc")
+        script_html = str(result[1][0])
+        assert '"/chat/abc"' in script_html
+
+    def test_push_state_fstring_uuid(self):
+        from starhtml import push_state
+
+        thread_id = "abc-123"
+        result = push_state(f"chat/{thread_id}")
+        script_html = str(result[1][0])
+        assert '"/chat/abc-123"' in script_html
+
+    def test_replace_state_normalizes_bare_url(self):
+        from starhtml import replace_state
+
+        result = replace_state("dashboard")
+        script_html = str(result[1][0])
+        assert '"/dashboard"' in script_html
+        assert "history.replaceState" in script_html
+
+    def test_replace_state_preserves_full_url(self):
+        from starhtml import replace_state
+
+        # Full URLs (e.g., to a different host) should not be normalized.
+        result = replace_state("https://other.example/foo")
+        script_html = str(result[1][0])
+        assert '"https://other.example/foo"' in script_html
+
+
+class TestRedirectHelper:
+    """``redirect()`` should perform full-page navigation via
+    ``window.location`` and apply the same URL normalization as the
+    history helpers, so a bare URL doesn't navigate to the wrong place
+    under per-resource routing.
+    """
+
+    def test_redirect_normalizes_bare_url(self):
+        from starhtml import redirect
+
+        result = redirect("login")
+        script_html = str(result[1][0])
+        assert '"/login"' in script_html
+        assert "window.location" in script_html
+        assert "setTimeout" in script_html  # deferred past in-flight patches
+
+    def test_redirect_preserves_absolute_path(self):
+        from starhtml import redirect
+
+        result = redirect("/dashboard")
+        script_html = str(result[1][0])
+        assert '"/dashboard"' in script_html
+
+    def test_redirect_preserves_full_https_url(self):
+        from starhtml import redirect
+
+        # The Stripe-checkout pattern: redirect to a fully-qualified
+        # external URL should NOT be normalized.
+        url = "https://checkout.stripe.com/c/pay/cs_test_abc123"
+        result = redirect(url)
+        script_html = str(result[1][0])
+        assert f'"{url}"' in script_html
+
+    def test_redirect_fstring_with_dynamic_segment(self):
+        from starhtml import redirect
+
+        thread_id = "abc-123"
+        result = redirect(f"chat/{thread_id}")
+        script_html = str(result[1][0])
+        assert '"/chat/abc-123"' in script_html
