@@ -45,6 +45,13 @@ class TestDevtoolsCaptureMode:
         assert "starhtml-devtools" not in ftrs_html
         assert "capture.js" not in hdrs_html
 
+    def test_unknown_string_mode_raises(self):
+        """Typo guard: unknown string modes must fail loud at construction."""
+        import pytest
+
+        with pytest.raises(ValueError, match="Unknown devtools mode"):
+            StarHTML(devtools="capturee")
+
     def test_env_override_capture(self):
         """STARHTML_DEVTOOLS=capture sets capture mode even when devtools=False."""
         with patch.dict(os.environ, {"STARHTML_DEVTOOLS": "capture"}):

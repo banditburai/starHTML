@@ -57,6 +57,9 @@ def setup_devtools(app, mode: bool | str = True):
         _setup_capture_only(app)
         return
 
+    if isinstance(mode, str):
+        raise ValueError(f"Unknown devtools mode: {mode!r}. Expected True, False, or 'capture'.")
+
     try:
         from starelements import Local, element  # noqa: PLC0415
     except ImportError:
