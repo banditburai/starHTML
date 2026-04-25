@@ -40,7 +40,10 @@ def _setup_capture_only(app):
     cascade measurements."""
     app.hdrs.append(
         Script(
-            "import {init} from '/_pkg/starhtml/devtools/capture.js'; init();",
+            "import * as capture from '/_pkg/starhtml/devtools/capture.js';"
+            " window.__starhtml_capture__ = capture;"
+            " capture.init();"
+            " window.dispatchEvent(new Event('starhtml:capture-ready'));",
             type="module",
         )
     )
