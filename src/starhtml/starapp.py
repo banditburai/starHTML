@@ -53,7 +53,7 @@ def star_app(
     middleware: tuple = None,
     live: bool = False,
     debug: bool = False,
-    devtools: bool = False,
+    devtools: bool | str = False,
     routes: tuple = None,
     exception_handlers: dict = None,
     on_startup: Callable = None,

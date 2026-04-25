@@ -233,7 +233,11 @@ class StarHTML(Starlette):
 
         env_devtools = os.environ.get("STARHTML_DEVTOOLS")
         if env_devtools is not None:
-            devtools = env_devtools.lower() in ("1", "true", "yes")
+            env_lower = env_devtools.lower()
+            if env_lower == "capture":
+                devtools = "capture"
+            else:
+                devtools = env_lower in ("1", "true", "yes")
         self._devtools = devtools
 
         super().__init__(
@@ -258,7 +262,7 @@ class StarHTML(Starlette):
         if self._devtools:
             from .devtools import setup_devtools
 
-            setup_devtools(self)
+            setup_devtools(self, mode=self._devtools)
 
         if static_path:
             self.static_route_exts(static_path=static_path)
