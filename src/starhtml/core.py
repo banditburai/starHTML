@@ -1,5 +1,6 @@
 """The `StarHTML` subclass of `Starlette`"""
 
+import inspect
 import logging
 import os
 import re
@@ -71,8 +72,6 @@ async def _run_handler(handler, app):
     # needs param count. Resolving annotations would crash on forward-refs
     # whose target isn't importable from the handler's module (e.g. starimo's
     # `on_startup(self, app: "Starlette")` where Starlette isn't imported).
-    import inspect
-
     takes_arg = bool(inspect.signature(handler).parameters)
     await _handle(handler, [app] if takes_arg else [])
 
