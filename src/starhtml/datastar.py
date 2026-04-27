@@ -1027,9 +1027,16 @@ def process_datastar_kwargs(kwargs: dict) -> tuple[dict, set[Signal]]:
             case Expr() as expr:
                 collect(expr)
                 js_str = expr.to_js()
-                if key in ("data_bind", "data_ref", "data_indicator") and isinstance(expr, Signal):
+                # data_bind / data_ref / data_indicator expect a signal
+                # PATH (e.g. ``name``), not an expression (``$name``).
+                # Duck-type on ``_id`` so signal-like classes from
+                # downstream packages (e.g. starimo's ReactiveSignal)
+                # work without a hard dependency on starhtml's Signal
+                # class. ``get_signal_attr`` is optional (only Signal
+                # uses it for ``__ifmissing`` semantics).
+                if key in ("data_bind", "data_ref", "data_indicator") and hasattr(expr, "_id"):
                     processed[normalized_key] = expr._id
-                    if signal_attr := expr.get_signal_attr():
+                    if hasattr(expr, "get_signal_attr") and (signal_attr := expr.get_signal_attr()):
                         processed[signal_attr[0]] = NotStr(_to_js(signal_attr[1], allow_expressions=False))
                 elif key == "data_class":
                     processed["data-class"] = NotStr(js_str)
