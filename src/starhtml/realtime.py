@@ -649,7 +649,18 @@ class Relay:
                 try:
                     q.put_nowait(event)
                 except asyncio.QueueFull:
-                    logger.warning("Subscriber queue full, dropping event")
+                    # Drop the OLDEST item to make room for the new one — a
+                    # full queue indicates an abandoned subscriber (consumer
+                    # stopped reading), and silently keeping fresh events
+                    # is better than blocking the producer indefinitely.
+                    # Avoid logger.warning here: in Pyodide-worker mode
+                    # marimo hijacks Python logging, and a logger call from
+                    # this hot path can hang the producer.
+                    try:
+                        q.get_nowait()
+                        q.put_nowait(event)
+                    except (asyncio.QueueEmpty, asyncio.QueueFull):
+                        pass
 
     def shutdown(self) -> None:
         """Close the relay and unblock all subscribers."""
