@@ -180,6 +180,7 @@ class StarHTML(Starlette):
         same_site="lax",
         sess_https_only=False,
         sess_domain=None,
+        host_cookie_prefix=True,
         key_fname=".sesskey",
         body_wrap=noop_body,
         htmlkw=None,
@@ -213,10 +214,25 @@ class StarHTML(Starlette):
         self._import_map: dict[str, str] = {}
         if sess_cls:
             secret_key = get_key(secret_key, key_fname, secret_env=secret_env)
+            # RFC 6265bis §4.1.3.2: ``__Host-`` cookies require Secure +
+            # Path=/ + no Domain. When all three preconditions are met
+            # and ``host_cookie_prefix`` is on (default), prepend the
+            # prefix so misconfigured proxies / subdomain attackers
+            # can't shadow the cookie. Apps can opt out via
+            # host_cookie_prefix=False.
+            cookie_name = session_cookie
+            if (
+                host_cookie_prefix
+                and sess_https_only
+                and sess_path == "/"
+                and sess_domain is None
+                and not cookie_name.startswith("__Host-")
+            ):
+                cookie_name = f"__Host-{cookie_name}"
             sess = Middleware(
                 sess_cls,
                 secret_key=secret_key,
-                session_cookie=session_cookie,
+                session_cookie=cookie_name,
                 max_age=max_age,
                 path=sess_path,
                 same_site=same_site,
