@@ -173,6 +173,7 @@ class StarHTML(Starlette):
         default_hdrs=True,
         sess_cls=SessionMiddleware,
         secret_key=None,
+        secret_env=None,
         session_cookie="session_",
         max_age=365 * 24 * 3600,
         sess_path="/",
@@ -211,7 +212,7 @@ class StarHTML(Starlette):
         self._registered_items: set[int] = set()
         self._import_map: dict[str, str] = {}
         if sess_cls:
-            secret_key = get_key(secret_key, key_fname)
+            secret_key = get_key(secret_key, key_fname, secret_env=secret_env)
             sess = Middleware(
                 sess_cls,
                 secret_key=secret_key,

@@ -118,6 +118,50 @@ def test_env_var_short_circuits_before_file_mode_check(
     assert get_key(fname=str(fname), strict_mode=True) == "env-wins"
 
 
+# --- secret_env ----------------------------------------------------------
+
+
+def test_custom_secret_env_var(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fname = tmp_path / ".sesskey"
+    monkeypatch.setenv("MY_APP_SIGNING_KEY", "from-custom-env")
+    monkeypatch.delenv("STARHTML_SECRET_KEY", raising=False)
+    assert (
+        get_key(fname=str(fname), secret_env="MY_APP_SIGNING_KEY")
+        == "from-custom-env"
+    )
+    # Custom env shouldn't trigger file creation.
+    assert not fname.exists()
+
+
+def test_custom_secret_env_falls_through_to_file_when_unset(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fname = tmp_path / ".sesskey"
+    monkeypatch.delenv("MY_APP_SIGNING_KEY", raising=False)
+    monkeypatch.delenv("STARHTML_SECRET_KEY", raising=False)
+    key = get_key(fname=str(fname), secret_env="MY_APP_SIGNING_KEY")
+    assert fname.exists()
+    assert _mode(fname) == 0o600
+    assert key == fname.read_text().strip()
+
+
+def test_custom_secret_env_wins_over_starhtml_default(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When both ``STARHTML_SECRET_KEY`` and the user-named env var are
+    set, the user's variable wins — that's the whole point of allowing
+    apps to name their own."""
+    fname = tmp_path / ".sesskey"
+    monkeypatch.setenv("MY_APP_SIGNING_KEY", "custom-wins")
+    monkeypatch.setenv("STARHTML_SECRET_KEY", "default-loses")
+    assert (
+        get_key(fname=str(fname), secret_env="MY_APP_SIGNING_KEY")
+        == "custom-wins"
+    )
+
+
 # --- backward compat ------------------------------------------------------
 
 

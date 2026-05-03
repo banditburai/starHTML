@@ -207,7 +207,9 @@ def snake2hyphens(s: str):
     return camel2words(s, "-")
 
 
-def get_key(key=None, fname=".sesskey", *, strict_mode: bool = True):
+def get_key(
+    key=None, fname=".sesskey", *, secret_env: str | None = None, strict_mode: bool = True
+):
     """Get or create a session key.
 
     Resolution order:
@@ -238,7 +240,15 @@ def get_key(key=None, fname=".sesskey", *, strict_mode: bool = True):
     import warnings
     from pathlib import Path
 
-    if key := key or os.environ.get("STARHTML_SECRET_KEY"):
+    # Resolution order for env var: explicit ``secret_env`` wins (so apps
+    # can name their own variable like ``HERMES_WEB_SESSION_SIGNING_KEY``);
+    # ``STARHTML_SECRET_KEY`` is the implicit default.
+    env_value: str | None = None
+    if secret_env:
+        env_value = os.environ.get(secret_env)
+    if not env_value:
+        env_value = os.environ.get("STARHTML_SECRET_KEY")
+    if key := key or env_value:
         return key
 
     fpath = Path(fname)
