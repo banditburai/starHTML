@@ -154,6 +154,13 @@ class StarRoute(Route):
         await super().handle(scope, receive, send)
 
 
+def _host_cookie_prefix(name, *, https_only, path, domain, enabled):
+    # RFC 6265bis §4.1.3.2: __Host- requires Secure + Path=/ + no Domain.
+    if enabled and https_only and path == "/" and domain is None and not name.startswith("__Host-"):
+        return f"__Host-{name}"
+    return name
+
+
 class StarHTML(Starlette):
     def __init__(
         self,
@@ -214,21 +221,13 @@ class StarHTML(Starlette):
         self._import_map: dict[str, str] = {}
         if sess_cls:
             secret_key = get_key(secret_key, key_fname, secret_env=secret_env)
-            # RFC 6265bis §4.1.3.2: ``__Host-`` cookies require Secure +
-            # Path=/ + no Domain. When all three preconditions are met
-            # and ``host_cookie_prefix`` is on (default), prepend the
-            # prefix so misconfigured proxies / subdomain attackers
-            # can't shadow the cookie. Apps can opt out via
-            # host_cookie_prefix=False.
-            cookie_name = session_cookie
-            if (
-                host_cookie_prefix
-                and sess_https_only
-                and sess_path == "/"
-                and sess_domain is None
-                and not cookie_name.startswith("__Host-")
-            ):
-                cookie_name = f"__Host-{cookie_name}"
+            cookie_name = _host_cookie_prefix(
+                session_cookie,
+                https_only=sess_https_only,
+                path=sess_path,
+                domain=sess_domain,
+                enabled=host_cookie_prefix,
+            )
             sess = Middleware(
                 sess_cls,
                 secret_key=secret_key,

@@ -207,74 +207,35 @@ def snake2hyphens(s: str):
     return camel2words(s, "-")
 
 
-def get_key(
-    key=None, fname=".sesskey", *, secret_env: str | None = None, strict_mode: bool = True
-):
-    """Get or create a session key.
-
-    Resolution order:
-    1. ``key`` argument (explicit override).
-    2. ``STARHTML_SECRET_KEY`` environment variable.
-    3. ``fname`` on disk; if missing, atomically created with mode 0o600
-       and a fresh ``secrets.token_urlsafe(32)`` value.
-
-    File-mode safety
-    ----------------
-    The on-disk path is treated as a secret-equivalent: an attacker on
-    the same host with read access to the file can forge sessions. To
-    avoid silently inheriting unsafe permissions:
-
-    * Newly created files are written via ``os.open`` with ``O_EXCL`` and
-      mode ``0o600``. A concurrent boot losing the ``O_EXCL`` race falls
-      through to read whatever the winner wrote (without ``O_EXCL`` we'd
-      risk truncating their value).
-    * Existing files are stat-checked. When ``strict_mode=True`` (the
-      default), any mode other than ``0o600`` raises ``PermissionError``
-      with an actionable ``chmod`` hint. When ``strict_mode=False``, a
-      warning is emitted and the file is read anyway — this exists for
-      apps migrating from older versions whose ``.sesskey`` files have
-      broader permissions; new apps should leave ``strict_mode`` on.
-    """
+def get_key(key=None, fname=".sesskey", *, secret_env=None, strict_mode=True):
+    "Get or create a session key (atomic 0o600 on create, mode-checked on read)."
     import os
     import stat
     import warnings
     from pathlib import Path
 
-    # Resolution order for env var: explicit ``secret_env`` wins (so apps
-    # can name their own variable like ``HERMES_WEB_SESSION_SIGNING_KEY``);
-    # ``STARHTML_SECRET_KEY`` is the implicit default.
-    env_value: str | None = None
-    if secret_env:
-        env_value = os.environ.get(secret_env)
-    if not env_value:
-        env_value = os.environ.get("STARHTML_SECRET_KEY")
-    if key := key or env_value:
+    env = (secret_env and os.environ.get(secret_env)) or os.environ.get("STARHTML_SECRET_KEY")
+    if key := key or env:
         return key
 
     fpath = Path(fname)
     if fpath.exists():
         mode = stat.S_IMODE(fpath.stat().st_mode)
         if mode != 0o600:
+            msg = f"{fpath} mode is {mode:04o}; expected 0600. Run: chmod 600 {fpath}"
             if strict_mode:
-                raise PermissionError(
-                    f"{fpath} mode is {mode:04o}; expected 0600. "
-                    f"Run: chmod 600 {fpath}"
-                )
-            warnings.warn(
-                f"{fpath} mode is {mode:04o}; expected 0600. "
-                f"Reading anyway because strict_mode=False.",
-                stacklevel=2,
-            )
+                raise PermissionError(msg)
+            warnings.warn(msg, stacklevel=2)
         return fpath.read_text().strip()
 
     new_key = secrets.token_urlsafe(32)
     try:
-        fd = os.open(str(fpath), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        fd = os.open(fpath, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     except FileExistsError:
-        # Concurrent boot won the race; defer to whatever they wrote.
-        return get_key(key=key, fname=fname, strict_mode=strict_mode)
+        # Concurrent boot won the race; read what they wrote.
+        return get_key(key, fname, secret_env=secret_env, strict_mode=strict_mode)
     try:
-        os.write(fd, new_key.encode("utf-8"))
+        os.write(fd, new_key.encode())
     finally:
         os.close(fd)
     return new_key
