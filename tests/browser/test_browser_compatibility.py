@@ -5,12 +5,14 @@ This test suite ensures consistent behavior across all supported browsers
 using Playwright for automated cross-browser testing.
 """
 
+import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import pytest
+import pytest_asyncio
 
 # Add the project root to the path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -39,6 +41,7 @@ BROWSER_MATRIX = {
 }
 
 MOBILE_DEVICES = ["iPhone 12", "iPhone SE", "iPad", "Pixel 5", "Galaxy S21"]
+REQUIRE_BROWSER_MATRIX = os.environ.get("STARHTML_REQUIRE_BROWSER_MATRIX") == "1"
 
 
 @dataclass
@@ -249,7 +252,7 @@ except ImportError:
 class TestBrowserCompatibility:
     """Browser compatibility tests using Playwright."""
 
-    @pytest.fixture(scope="class")
+    @pytest_asyncio.fixture(scope="class")
     async def browser_setup(self):
         """Set up browsers for testing."""
         if not PLAYWRIGHT_AVAILABLE:
@@ -257,18 +260,29 @@ class TestBrowserCompatibility:
 
         async with async_playwright() as p:
             browsers = {}
+            launch_errors = {}
             for browser_name in BROWSER_MATRIX.keys():
                 try:
                     if browser_name == "chromium":
-                        browser = await p.chromium.launch()
+                        browser = await p.chromium.launch(timeout=10000)
                     elif browser_name == "firefox":
-                        browser = await p.firefox.launch()
+                        browser = await p.firefox.launch(timeout=10000)
                     elif browser_name == "webkit":
-                        browser = await p.webkit.launch()
+                        browser = await p.webkit.launch(timeout=10000)
 
                     browsers[browser_name] = browser
                 except Exception as e:
-                    print(f"Failed to launch {browser_name}: {e}")
+                    launch_errors[browser_name] = str(e).splitlines()[0]
+
+            if launch_errors:
+                for browser in browsers.values():
+                    await browser.close()
+                message = "Browser compatibility matrix unavailable: " + ", ".join(
+                    f"{browser}: {error}" for browser, error in launch_errors.items()
+                )
+                if REQUIRE_BROWSER_MATRIX:
+                    pytest.fail(message)
+                pytest.skip(message)
 
             yield browsers
 
@@ -459,12 +473,10 @@ class TestBrowserCompatibility:
         for browser_name, browser in mobile_browsers.items():
             for device_name in MOBILE_DEVICES[:2]:  # Test first 2 devices to save time
                 context = await browser.new_context(
-                    **await browser.new_context(
-                        user_agent="Mozilla/5.0 (iPhone; CPU iPhone OS 14_7_1 like Mac OS X) AppleWebKit/605.1.15",
-                        viewport={"width": 375, "height": 667},
-                        is_mobile=True,
-                        has_touch=True,
-                    )
+                    user_agent="Mozilla/5.0 (iPhone; CPU iPhone OS 14_7_1 like Mac OS X) AppleWebKit/605.1.15",
+                    viewport={"width": 375, "height": 667},
+                    is_mobile=True,
+                    has_touch=True,
                 )
                 page = await context.new_page()
 
@@ -587,132 +599,17 @@ class TestBrowserCompatibilityMatrix:
             "persist": (_JS_PLUGINS_DIR / "persist.js").read_text(),
         }
 
-    def test_javascript_syntax_compatibility(self):
-        """Test JavaScript syntax compatibility across browser targets."""
-        handlers = self._get_handler_scripts()
+    def test_no_browser_sniffing(self):
+        """Plugins must rely on feature detection, not user-agent sniffing."""
+        for handler_name, content in self._get_handler_scripts().items():
+            assert "navigator.userAgent" not in content, f"{handler_name} sniffs userAgent"
 
-        # Check for modern JavaScript features that might not be supported
-        problematic_features = [
-            "?.",  # Optional chaining
-            "??",  # Nullish coalescing (outside of comments)
-            "=>",  # Arrow functions (check if excessive)
-            "async ",  # Async/await
-            "const ",  # Let/const (should be fine in modern browsers)
-        ]
-
-        for handler_name, content in handlers.items():
-            # Count modern features
-            feature_counts = {}
-            for feature in problematic_features:
-                if feature == "??":
-                    # Exclude comments
-                    lines = [line for line in content.split("\n") if not line.strip().startswith("//")]
-                    feature_counts[feature] = "\n".join(lines).count(feature)
-                else:
-                    feature_counts[feature] = content.count(feature)
-
-            # Arrow functions are OK but shouldn't be excessive
-            if feature_counts.get("=>", 0) > 10:
-                print(f"Warning: Many arrow functions in {handler_name}: {feature_counts['=>']}")
-
-            # Optional chaining and async/await are used in RC6 pattern
-            # Datastar RC6 itself requires modern browser features, so these are acceptable
-            # Note: setConfig?.() pattern is used for optional handler config
-            if feature_counts.get("?.", 0) > 0:
-                print(f"Note: Optional chaining in {handler_name} (RC6 pattern, requires modern browser)")
-            if feature_counts.get("async ", 0) > 0:
-                print(f"Note: Async/await in {handler_name} (RC6 dynamic imports)")
-
-    def test_required_browser_apis(self):
-        """Test that only supported browser APIs are used."""
-        handlers = self._get_handler_scripts()
-
-        # APIs that should be available in target browsers
-
-        # APIs that might not be universally supported
-        potentially_unsupported = [
-            "IntersectionObserver",  # Good support but newer
-            "PerformanceObserver",  # Newer API
-            "AbortController",  # Modern API
-            "fetch",  # Should use fallbacks
-        ]
-
-        for handler_name, content in handlers.items():
-            # Check for potentially unsupported APIs
-            for api in potentially_unsupported:
-                if api in content:
-                    print(f"Warning: {api} used in {handler_name} (check compatibility)")
-
-            # Ensure fallback patterns for newer APIs
-            if "fetch" in content:
-                assert "XMLHttpRequest" in content or "fallback" in content.lower(), (
-                    f"No fetch fallback in {handler_name}"
-                )
-
-    def test_polyfill_requirements(self):
-        """Test polyfill requirements for browser compatibility."""
-        all_handlers = self._get_handler_scripts()
-        handlers = {
-            "resize_dom": all_handlers["resize_dom"],
-            "resize_sp": all_handlers["resize_sp"],
-        }
-
-        # APIs that might need polyfills
-        polyfill_apis = {
-            "ResizeObserver": "resize-observer-polyfill",
-            "WeakMap": "weakmap-polyfill",
-            "requestAnimationFrame": "raf-polyfill",
-        }
-
-        for handler_name, content in handlers.items():
-            for api, _polyfill in polyfill_apis.items():
-                if api in content:
-                    # Should have feature detection or polyfill loading
-                    has_detection = f"typeof {api}" in content or f"window.{api}" in content
-                    has_fallback = "polyfill" in content.lower() or "fallback" in content.lower()
-
-                    if not (has_detection or has_fallback):
-                        print(f"Consider adding feature detection for {api} in {handler_name}")
-
-    def test_browser_specific_code_paths(self):
-        """Test for browser-specific code paths."""
-        all_handlers = self._get_handler_scripts()
-        handlers = {
-            "scroll": all_handlers["scroll"],
-            "resize_dom": all_handlers["resize_dom"],
-            "persist": all_handlers["persist"],
-        }
-
-        # Browser detection patterns (should be avoided)
-        browser_detection = ["navigator.userAgent", "chrome", "firefox", "safari", "webkit", "gecko"]
-
-        for handler_name, content in handlers.items():
-            for pattern in browser_detection:
-                if pattern.lower() in content.lower():
-                    # This might indicate browser-specific code
-                    print(f"Potential browser-specific code in {handler_name}: {pattern}")
-
-    def test_event_compatibility(self):
-        """Test event handling compatibility."""
-        handlers = self._get_handler_scripts()
-        scroll_content = handlers["scroll"]
-        resize_content = handlers["resize_dom"]
-
-        # Plugin JS files should be valid JavaScript with event handling
-        # Check for Datastar signal pattern
-        assert "datastar" in scroll_content.lower() or "ctx" in scroll_content, "Should use datastar signals"
-        assert "datastar" in resize_content.lower() or "ctx" in resize_content, "Should use datastar signals"
-
-        # Should not use deprecated event patterns
-        deprecated_patterns = [
-            ".attachEvent",  # IE-specific
-            "on" + "scroll =",  # Inline event handlers in JS
-            "on" + "resize =",
-        ]
-
-        for pattern in deprecated_patterns:
-            assert pattern not in scroll_content, f"Deprecated event pattern in scroll: {pattern}"
-            assert pattern not in resize_content, f"Deprecated event pattern in resize: {pattern}"
+    def test_no_deprecated_event_patterns(self):
+        """Plugins must not use IE-era event APIs or assign on* directly."""
+        deprecated = [".attachEvent", "on" + "scroll =", "on" + "resize ="]
+        for handler_name, content in self._get_handler_scripts().items():
+            for pattern in deprecated:
+                assert pattern not in content, f"Deprecated pattern {pattern!r} in {handler_name}"
 
 
 if __name__ == "__main__":

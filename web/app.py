@@ -17,6 +17,7 @@ from starhtml.plugins import clipboard, position, scroll, split
 VERSION = version("starhtml")
 
 app, rt = star_app(
+    sess_cls=None,
     title="StarHTML — Python-First Hypermedia Framework",
     middleware=[compression()],
     hdrs=hdrs,

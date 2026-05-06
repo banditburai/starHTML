@@ -17,6 +17,7 @@ from starhtml.plugins import (
 )
 
 app, rt = star_app(
+    sess_cls=None,
     title="Motion Plugin Demo",
     htmlkw={"lang": "en"},
     hdrs=[
@@ -695,12 +696,12 @@ def home():
                     Div(
                         Button(
                             "Replace → V2",
-                            data_on_click=get("replace/v2"),
+                            data_on_click=get("./replace/v2"),
                             cls="px-3 py-1 bg-amber-500 text-white text-sm rounded hover:bg-amber-600",
                         ),
                         Button(
                             "Reset → V1",
-                            data_on_click=get("replace/v1"),
+                            data_on_click=get("./replace/v1"),
                             cls="px-3 py-1 bg-gray-500 text-white text-sm rounded hover:bg-gray-600 ml-2",
                         ),
                         cls="flex gap-2",

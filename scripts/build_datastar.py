@@ -1,8 +1,14 @@
 #!/usr/bin/env python3
-"""Build patched datastar.js from vanilla upstream source.
+"""Build StarHTML's Datastar runtime from vanilla upstream source.
 
-Called by `bun run build` (via build.ts) to produce src/starhtml/static/js/datastar.js
-alongside the TypeScript-built plugins and debugger JS.
+Called by `bun run build` (via build.ts) to produce:
+
+- src/starhtml/static/js/datastar-core.js: patched Datastar core.
+- src/starhtml/static/js/datastar.js: StarHTML wrapper that prehydrates persisted
+  signals through Datastar's public API before Datastar's deferred first scan.
+
+The public import map points at datastar.js. The wrapper imports the private
+core module and re-exports its API, so plugins still import from "datastar".
 """
 
 import re
@@ -12,10 +18,62 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 UPSTREAM_PATH = ROOT / "patches" / "datastar-upstream.js"
 OUTPUT_PATH = ROOT / "src" / "starhtml" / "static" / "js" / "datastar.js"
+CORE_OUTPUT_PATH = ROOT / "src" / "starhtml" / "static" / "js" / "datastar-core.js"
 STARAPP_PATH = ROOT / "src" / "starhtml" / "starapp.py"
 
 sys.path.insert(0, str(ROOT / "patches"))
 from patch_definitions import apply_all, verify  # noqa: E402
+
+WRAPPER_TEMPLATE = """// Datastar v{version} (StarHTML wrapper: persist-prehydrate)
+import {{ mergePatch }} from "./datastar-core.js";
+export * from "./datastar-core.js";
+
+const DEFAULT_STORAGE_PREFIX = "starhtml-persist";
+
+function readPersistedSignals() {{
+  const patch = {{}};
+  const sources = {{}};
+
+  for (const [storageName, getStorage] of [
+    ["local", () => globalThis.localStorage],
+    ["session", () => globalThis.sessionStorage],
+  ]) {{
+    try {{
+      const storage = getStorage();
+      for (let i = 0; i < storage.length; i++) {{
+        const storageKey = storage.key(i);
+        if (!storageKey?.startsWith(DEFAULT_STORAGE_PREFIX)) continue;
+        try {{
+          const data = JSON.parse(storage.getItem(storageKey) || "{{}}");
+          if (!data || typeof data !== "object" || Array.isArray(data)) continue;
+          for (const [path, value] of Object.entries(data)) {{
+            if (value == null) continue;
+            patch[path] = value;
+            sources[path] = {{ storage: storageName, storageKey }};
+          }}
+        }} catch {{}}
+      }}
+    }} catch {{}}
+  }}
+
+  return {{ patch, sources }};
+}}
+
+const {{ patch, sources }} = readPersistedSignals();
+if (Object.keys(patch).length > 0) {{
+  globalThis.__starhtml_pc = {{ ...patch }};
+  const sourceDetail = {{
+    source: "persist",
+    signals: patch,
+    paths: Object.keys(patch),
+    sources,
+    phase: "before",
+  }};
+  (globalThis.__starhtml_signal_sources ||= []).push(sourceDetail);
+  document.dispatchEvent(new CustomEvent("starhtml:signal-source", {{ detail: sourceDetail }}));
+  mergePatch(patch);
+}}
+"""
 
 
 def get_version() -> str:
@@ -54,8 +112,13 @@ def main() -> int:
         return 1
 
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    OUTPUT_PATH.write_text(patched)
-    print(f"Wrote {len(patched)} bytes to {OUTPUT_PATH.relative_to(ROOT)}")
+    CORE_OUTPUT_PATH.write_text(patched)
+
+    wrapper = WRAPPER_TEMPLATE.format(version=version)
+    OUTPUT_PATH.write_text(wrapper)
+
+    print(f"Wrote {len(patched)} bytes to {CORE_OUTPUT_PATH.relative_to(ROOT)}")
+    print(f"Wrote {len(wrapper)} bytes to {OUTPUT_PATH.relative_to(ROOT)}")
     return 0
 
 

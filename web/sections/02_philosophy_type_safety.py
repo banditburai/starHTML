@@ -967,6 +967,7 @@ def remove_song(req, selector_song_index: int = -1, playlist: list[str] = None, 
 
 
 app, rt = star_app(
+    sess_cls=None,
     title="Type Safety - StarHTML Philosophy (Dev Mode)",
     hdrs=[
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),

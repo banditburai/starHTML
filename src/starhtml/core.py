@@ -3,11 +3,10 @@
 import logging
 import os
 import re
-
-logger = logging.getLogger(__name__)
 from collections.abc import Callable, Collection, Sequence
 from contextlib import asynccontextmanager, nullcontext
 from functools import partialmethod
+from inspect import signature
 from pathlib import Path as PathlibPath
 from typing import TYPE_CHECKING, Any, Literal, Protocol, runtime_checkable
 
@@ -31,6 +30,10 @@ from .realtime import _ws_endp, set_devtools_context, setup_ws
 from .server import _handle, _mk_locfunc, _wrap_call, _wrap_ex, _wrap_req, all_meths, cookie, render_response, serve
 from .starapp import Beforeware, _datastar_cdn_url, def_hdrs
 from .utils import _list, _params, get_key, noop_body, reg_re_param
+
+logger = logging.getLogger(__name__)
+
+_TRUE_ENV = {"1", "true", "yes"}
 
 
 @runtime_checkable
@@ -67,7 +70,8 @@ __all__ = [
 
 
 async def _run_handler(handler, app):
-    await _handle(handler, [app] if _params(handler) else [])
+    # Lifespan only needs arity; _params resolves annotations and can fail on forward refs.
+    await _handle(handler, [app] if signature(handler).parameters else [])
 
 
 class Lifespan:
@@ -148,6 +152,13 @@ class StarRoute(Route):
         await super().handle(scope, receive, send)
 
 
+def _host_cookie_prefix(name, *, https_only, path, domain, enabled):
+    # RFC 6265bis §4.1.3.2: __Host- requires Secure + Path=/ + no Domain.
+    if enabled and https_only and path == "/" and domain is None and not name.startswith("__Host-"):
+        return f"__Host-{name}"
+    return name
+
+
 class StarHTML(Starlette):
     def __init__(
         self,
@@ -167,13 +178,16 @@ class StarHTML(Starlette):
         default_hdrs=True,
         sess_cls=SessionMiddleware,
         secret_key=None,
+        secret_env=None,
         session_cookie="session_",
         max_age=365 * 24 * 3600,
         sess_path="/",
         same_site="lax",
         sess_https_only=False,
         sess_domain=None,
+        host_cookie_prefix=True,
         key_fname=".sesskey",
+        key_strict_mode=False,
         body_wrap=noop_body,
         htmlkw=None,
         canonical=True,
@@ -205,11 +219,18 @@ class StarHTML(Starlette):
         self._registered_items: set[int] = set()
         self._import_map: dict[str, str] = {}
         if sess_cls:
-            secret_key = get_key(secret_key, key_fname)
+            secret_key = get_key(secret_key, key_fname, secret_env=secret_env, strict_mode=key_strict_mode)
+            cookie_name = _host_cookie_prefix(
+                session_cookie,
+                https_only=sess_https_only,
+                path=sess_path,
+                domain=sess_domain,
+                enabled=host_cookie_prefix,
+            )
             sess = Middleware(
                 sess_cls,
                 secret_key=secret_key,
-                session_cookie=session_cookie,
+                session_cookie=cookie_name,
                 max_age=max_age,
                 path=sess_path,
                 same_site=same_site,
@@ -227,13 +248,12 @@ class StarHTML(Starlette):
         excs = {
             k: _wrap_ex(v, k, hdrs, ftrs, htmlkw, bodykw, body_wrap=body_wrap) for k, v in exception_handlers.items()
         }
-        env_debug = os.environ.get("STARHTML_DEBUG")
-        if env_debug is not None:
-            debug = env_debug.lower() in ("1", "true", "yes")
+        if (env_debug := os.environ.get("STARHTML_DEBUG")) is not None:
+            debug = env_debug.lower() in _TRUE_ENV
 
-        env_devtools = os.environ.get("STARHTML_DEVTOOLS")
-        if env_devtools is not None:
-            devtools = env_devtools.lower() in ("1", "true", "yes")
+        if (env_devtools := os.environ.get("STARHTML_DEVTOOLS")) is not None:
+            devtools = env_devtools.lower()
+            devtools = "capture" if devtools == "capture" else devtools in _TRUE_ENV
         self._devtools = devtools
 
         super().__init__(
@@ -258,7 +278,7 @@ class StarHTML(Starlette):
         if self._devtools:
             from .devtools import setup_devtools
 
-            setup_devtools(self)
+            setup_devtools(self, mode=self._devtools)
 
         if static_path:
             self.static_route_exts(static_path=static_path)

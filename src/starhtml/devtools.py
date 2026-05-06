@@ -32,8 +32,31 @@ _EXPORT_OPTS = (
 )
 
 
-def setup_devtools(app):
-    """Register the StarElements devtools, or warn if starelements is missing."""
+def _setup_capture_only(app):
+    """Load capture.js without the UI so diagnostics don't perturb reactive timings."""
+    app.hdrs.append(
+        Script(
+            "import * as capture from '/_pkg/starhtml/devtools/capture.js';"
+            " window.__starhtml_capture__ = capture;"
+            " capture.init();"
+            " window.dispatchEvent(new Event('starhtml:capture-ready'));",
+            type="module",
+        )
+    )
+
+
+def setup_devtools(app, mode: bool | str = True):
+    """Register the UI panel, capture-only data layer, or no-op."""
+    if not mode:
+        return
+
+    if mode == "capture":
+        _setup_capture_only(app)
+        return
+
+    if isinstance(mode, str):
+        raise ValueError(f"Unknown devtools mode: {mode!r}. Expected True, False, or 'capture'.")
+
     try:
         from starelements import Local, element  # noqa: PLC0415
     except ImportError:

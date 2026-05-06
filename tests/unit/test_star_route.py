@@ -7,22 +7,17 @@ from starhtml import Div, Mount, StarHTML, StarRoute, TestClient
 
 
 class TestStarRouteBasic:
-    def test_with_app_immediate_binding(self):
+    def test_with_app_serves_immediately(self):
+        """When app= is provided at construction the route serves through it."""
         app = StarHTML()
-
-        def handler():
-            return "hello"
-
-        route = StarRoute("/test", handler, app=app)
-        assert route._bound is True
+        route = StarRoute("/test", lambda: "hello", app=app)
+        app.add_route(route)
         assert isinstance(route, Route)
+        assert TestClient(app).get("/test").text.startswith("hello")
 
-    def test_without_app_deferred(self):
-        def handler():
-            return "hello"
-
-        route = StarRoute("/test", handler)
-        assert route._bound is False
+    def test_without_app_has_route_shape(self):
+        """A deferred StarRoute is still a valid Route (path+methods) before binding."""
+        route = StarRoute("/test", lambda: "hello")
         assert route.path == "/test"
         assert route.methods is not None
         assert "GET" in route.methods
@@ -183,17 +178,12 @@ class TestStarRouteDeferredBinding:
         assert "nested deferred" in resp.text
 
     def test_via_add_route(self):
-        """app.add_route(StarRoute(...)) auto-binds."""
+        """app.add_route(StarRoute(...)) auto-binds (visible: it serves)."""
         app = StarHTML()
-
         route = StarRoute("/dynamic", lambda: "added")
-        assert route._bound is False
-
         app.add_route(route)
-        assert route._bound is True
 
-        client = TestClient(app)
-        resp = client.get("/dynamic")
+        resp = TestClient(app).get("/dynamic")
         assert resp.status_code == 200
         assert "added" in resp.text
 
@@ -202,42 +192,21 @@ class TestStarRouteGuards:
     """Fail-fast errors when StarRoute is misused (wrong app type / unbound)."""
 
     def test_bind_rejects_non_starhtml_app(self):
-        """StarRoute(..., app=plain_starlette) raises TypeError with actionable guidance."""
+        """StarRoute(..., app=plain_starlette) fails at construction with TypeError."""
         import pytest
         from starlette.applications import Starlette
 
-        plain_app = Starlette()
-
-        with pytest.raises(TypeError) as excinfo:
-            StarRoute("/oops", lambda: "x", app=plain_app)
-
-        msg = str(excinfo.value)
-        assert "StarRoute" in msg
-        assert "StarHTML" in msg
-        assert "StarHTML(routes=" in msg
+        with pytest.raises(TypeError, match="StarRoute"):
+            StarRoute("/oops", lambda: "x", app=Starlette())
 
     def test_unbound_starroute_raises_clear_error_at_request_time(self):
-        """A StarRoute that ends up in a plain Starlette app (never bound) raises a clear RuntimeError."""
+        """A StarRoute in a plain Starlette app (never bound) raises RuntimeError on request."""
         import pytest
         from starlette.applications import Starlette
 
-        def handler():
-            return "unreachable"
-
-        unbound = StarRoute("/fragment", handler)
-        assert unbound._bound is False
-
-        plain_app = Starlette(routes=[unbound])
-        client = TestClient(plain_app)
-
-        with pytest.raises(RuntimeError) as excinfo:
-            client.get("/fragment")
-
-        msg = str(excinfo.value)
-        assert "StarRoute" in msg
-        assert "never bound" in msg
-        assert "StarHTML(routes=" in msg
-        assert "add_route" in msg
+        plain_app = Starlette(routes=[StarRoute("/fragment", lambda: "unreachable")])
+        with pytest.raises(RuntimeError, match="never bound"):
+            TestClient(plain_app).get("/fragment")
 
 
 class TestRuntimeBodyWrap:

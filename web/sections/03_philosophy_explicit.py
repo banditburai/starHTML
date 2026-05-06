@@ -541,6 +541,7 @@ def explicit_section() -> Div:
 
 
 app, rt = star_app(
+    sess_cls=None,
     title="Explicit Philosophy - Monster Hunter Arena",
     hdrs=[
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),

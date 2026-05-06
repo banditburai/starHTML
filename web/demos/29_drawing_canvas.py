@@ -9,6 +9,7 @@ from star_drawing import DrawingCanvas, drawing_toolbar
 from starhtml import *
 
 app, rt = star_app(
+    sess_cls=None,
     title="Drawing Canvas Demo",
     htmlkw={"lang": "en"},
     hdrs=[

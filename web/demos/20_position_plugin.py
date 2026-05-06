@@ -4,6 +4,7 @@ from starhtml import *
 from starhtml.plugins import position
 
 app, rt = star_app(
+    sess_cls=None,
     title="Position Handler Demo",
     htmlkw={"lang": "en"},
     hdrs=[

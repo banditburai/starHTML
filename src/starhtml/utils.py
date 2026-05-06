@@ -29,6 +29,8 @@ from starlette.datastructures import UploadFile
 
 from .forms import form2dict, parse_form
 
+_SESSION_KEY_MODE = 0o600
+
 __all__ = [
     "qp",
     "decode_uri",
@@ -207,19 +209,44 @@ def snake2hyphens(s: str):
     return camel2words(s, "-")
 
 
-def get_key(key=None, fname=".sesskey"):
-    "Get or create a session key"
+def get_key(key=None, fname=".sesskey", *, secret_env=None, strict_mode=False):
+    "Get or create a session key (atomic 0o600 on create, mode-checked on read)."
     import os
+    import stat
+    import tempfile
+    import warnings
     from pathlib import Path
 
-    if key := key or os.environ.get("STARHTML_SECRET_KEY"):
+    if key := key or (secret_env and os.environ.get(secret_env)) or os.environ.get("STARHTML_SECRET_KEY"):
         return key
+
     fpath = Path(fname)
-    if fpath.exists():
+    if fpath.exists() or fpath.is_symlink():
+        mode = stat.S_IMODE(fpath.stat(follow_symlinks=False).st_mode)
+        if mode != _SESSION_KEY_MODE:
+            msg = f"{fpath} mode is {mode:04o}; expected 0600. Run: chmod 600 {fpath}"
+            if strict_mode:
+                raise PermissionError(msg)
+            warnings.warn(msg, stacklevel=2)
         return fpath.read_text().strip()
-    key = secrets.token_urlsafe(32)
-    fpath.write_text(key)
-    return key
+
+    new_key = secrets.token_urlsafe(32)
+    tmp_name = None
+    try:
+        fd, tmp_name = tempfile.mkstemp(prefix=f".{fpath.name}.", dir=fpath.parent)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(new_key)
+        os.link(tmp_name, fpath)
+    except FileExistsError:
+        # Concurrent boot won the race; read what they wrote.
+        return get_key(key, fname, secret_env=secret_env, strict_mode=strict_mode)
+    finally:
+        if tmp_name:
+            try:
+                os.unlink(tmp_name)
+            except FileNotFoundError:
+                pass
+    return new_key
 
 
 def flat_xt(lst):

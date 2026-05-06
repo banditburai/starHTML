@@ -296,6 +296,7 @@ drag = drag_plugin(
 )
 
 app, rt = star_app(
+    sess_cls=None,
     title="Composable Node Graph Demo",
     htmlkw={"lang": "en"},
     hdrs=[

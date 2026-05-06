@@ -3,6 +3,7 @@
 from starhtml import *
 
 app, rt = star_app(
+    sess_cls=None,
     title="Routing Patterns",
     htmlkw={"lang": "en"},
     hdrs=[
@@ -34,17 +35,17 @@ def home():
                 Div(
                     Button(
                         "Home",
-                        data_on_click=get("page/home"),
+                        data_on_click=get("./page/home"),
                         cls="px-4 py-2 bg-black text-white font-medium hover:bg-gray-800 transition-colors",
                     ),
                     Button(
                         "About",
-                        data_on_click=get("page/about"),
+                        data_on_click=get("./page/about"),
                         cls="px-4 py-2 bg-black text-white font-medium hover:bg-gray-800 transition-colors",
                     ),
                     Button(
                         "Contact",
-                        data_on_click=get("page/contact"),
+                        data_on_click=get("./page/contact"),
                         cls="px-4 py-2 bg-black text-white font-medium hover:bg-gray-800 transition-colors",
                     ),
                     cls="flex gap-2 mb-6",
@@ -52,7 +53,7 @@ def home():
                 # Page content area
                 Div(
                     id="page-content",
-                    data_init=get("page/home"),
+                    data_init=get("./page/home"),
                     cls="p-6 bg-white border border-gray-200 min-h-[150px]",
                 ),
                 cls="mb-12 p-8 bg-gray-50",
@@ -66,19 +67,19 @@ def home():
                     Button(
                         Icon("material-symbols:person", width="20", height="20", cls="inline mr-2"),
                         "Alice (ID: 1)",
-                        data_on_click=get("user/1"),
+                        data_on_click=get("./user/1"),
                         cls="px-4 py-2 bg-blue-600 text-white font-medium hover:bg-blue-700 transition-colors",
                     ),
                     Button(
                         Icon("material-symbols:person", width="20", height="20", cls="inline mr-2"),
                         "Bob (ID: 2)",
-                        data_on_click=get("user/2"),
+                        data_on_click=get("./user/2"),
                         cls="px-4 py-2 bg-blue-600 text-white font-medium hover:bg-blue-700 transition-colors",
                     ),
                     Button(
                         Icon("material-symbols:person", width="20", height="20", cls="inline mr-2"),
                         "Charlie (ID: 3)",
-                        data_on_click=get("user/3"),
+                        data_on_click=get("./user/3"),
                         cls="px-4 py-2 bg-blue-600 text-white font-medium hover:bg-blue-700 transition-colors",
                     ),
                     cls="flex gap-2 mb-6",
@@ -117,7 +118,7 @@ def home():
                     ),
                     Button(
                         "Search",
-                        data_on_click=post("search"),
+                        data_on_click=post("./search"),
                         cls="w-full px-4 py-2 bg-black text-white font-medium hover:bg-gray-800 transition-colors sm:w-auto sm:rounded-r-lg",
                     ),
                     cls="flex flex-col sm:flex-row mb-6",
@@ -140,12 +141,12 @@ def home():
                 Div(
                     Button(
                         "Dashboard",
-                        data_on_click=get("dashboard"),
+                        data_on_click=get("./dashboard"),
                         cls="px-4 py-2 bg-purple-600 text-white font-medium hover:bg-purple-700 transition-colors",
                     ),
                     Button(
                         "Settings",
-                        data_on_click=get("settings"),
+                        data_on_click=get("./settings"),
                         cls="px-4 py-2 bg-purple-600 text-white font-medium hover:bg-purple-700 transition-colors",
                     ),
                     cls="flex gap-2 mb-4",
@@ -253,17 +254,17 @@ def dashboard(req):
         Div(
             Button(
                 "Overview",
-                data_on_click=get("dashboard/overview"),
+                data_on_click=get("./dashboard/overview"),
                 cls="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 transition-colors",
             ),
             Button(
                 "Analytics",
-                data_on_click=get("dashboard/analytics"),
+                data_on_click=get("./dashboard/analytics"),
                 cls="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 transition-colors",
             ),
             Button(
                 "Reports",
-                data_on_click=get("dashboard/reports"),
+                data_on_click=get("./dashboard/reports"),
                 cls="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 transition-colors",
             ),
             cls="flex gap-2 p-4 border-b border-gray-200",
@@ -289,17 +290,17 @@ def settings(req):
         Div(
             Button(
                 "Profile",
-                data_on_click=get("settings/profile"),
+                data_on_click=get("./settings/profile"),
                 cls="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 transition-colors",
             ),
             Button(
                 "Security",
-                data_on_click=get("settings/security"),
+                data_on_click=get("./settings/security"),
                 cls="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 transition-colors",
             ),
             Button(
                 "Preferences",
-                data_on_click=get("settings/preferences"),
+                data_on_click=get("./settings/preferences"),
                 cls="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 transition-colors",
             ),
             cls="flex gap-2 p-4 border-b border-gray-200",

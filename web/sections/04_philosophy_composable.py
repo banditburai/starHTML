@@ -397,6 +397,7 @@ def composable_section():
 
 
 app, rt = star_app(
+    sess_cls=None,
     title="Composable Philosophy - StarHTML",
     hdrs=[
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),

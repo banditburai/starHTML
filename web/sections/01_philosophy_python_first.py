@@ -671,6 +671,7 @@ split_plugin = split(name="code_split", responsive=False)
 
 # Standalone app
 app, rt = star_app(
+    sess_cls=None,
     title="Python First Philosophy",
     hdrs=[
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),

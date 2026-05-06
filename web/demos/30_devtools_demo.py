@@ -10,6 +10,7 @@ from starhtml import *
 from starhtml.plugins import persist
 
 app, rt = star_app(
+    sess_cls=None,
     devtools=True,
     title="DevTools Demo",
     htmlkw={"lang": "en"},
@@ -153,13 +154,13 @@ def home():
                 Button(
                     Icon("material-symbols:add", cls="mr-2"),
                     "Increment",
-                    data_on_click=get("increment"),
+                    data_on_click=get("./increment"),
                     cls=BTN_PRIMARY,
                 ),
                 Button(
                     Icon("material-symbols:remove", cls="mr-2"),
                     "Decrement",
-                    data_on_click=get("decrement"),
+                    data_on_click=get("./decrement"),
                     cls=BTN_OUTLINE,
                 ),
                 Button("Reset", data_on_click=count.set(0), cls=BTN_OUTLINE),
@@ -187,13 +188,13 @@ def home():
                 Button(
                     Icon("material-symbols:add-box-outline", cls="mr-2"),
                     "Append Element",
-                    data_on_click=get("add-element"),
+                    data_on_click=get("./add-element"),
                     cls=f"{BTN} bg-blue-600 text-white hover:bg-blue-700",
                 ),
                 Button(
                     Icon("material-symbols:border-color", cls="mr-2"),
                     "Update Attribute",
-                    data_on_click=get("update-attr"),
+                    data_on_click=get("./update-attr"),
                     cls=BTN_OUTLINE,
                 ),
                 cls="mb-6 flex flex-wrap gap-2",
@@ -209,19 +210,19 @@ def home():
                 Button(
                     Icon("material-symbols:warning", cls="mr-2"),
                     "Bad JSON",
-                    data_on_click=get("malformed-json"),
+                    data_on_click=get("./malformed-json"),
                     cls=f"{BTN} bg-red-600 text-white hover:bg-red-700",
                 ),
                 Button(
                     Icon("material-symbols:warning", cls="mr-2"),
                     "Missing Event Type",
-                    data_on_click=get("malformed-no-type"),
+                    data_on_click=get("./malformed-no-type"),
                     cls=f"{BTN} bg-red-600 text-white hover:bg-red-700",
                 ),
                 Button(
                     Icon("material-symbols:warning", cls="mr-2"),
                     "Merged Events",
-                    data_on_click=get("malformed-merged"),
+                    data_on_click=get("./malformed-merged"),
                     cls=f"{BTN} bg-red-600 text-white hover:bg-red-700",
                 ),
                 cls="mb-6 flex flex-wrap gap-2",

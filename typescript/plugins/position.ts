@@ -52,15 +52,27 @@ interface VirtualReference {
 type Position = { x: number; y: number; placement: string };
 
 const VALID_PLACEMENTS = new Set<Placement>([
-  "top", "bottom", "left", "right",
-  "top-start", "top-end", "bottom-start", "bottom-end",
-  "left-start", "left-end", "right-start", "right-end",
+  "top",
+  "bottom",
+  "left",
+  "right",
+  "top-start",
+  "top-end",
+  "bottom-start",
+  "bottom-end",
+  "left-start",
+  "left-end",
+  "right-start",
+  "right-end",
 ]);
 
 const VALID_CONTAINERS = new Set(["auto", "none", "parent"]);
 
 const ORIGIN_MAP: Record<string, string> = {
-  bottom: "top", top: "bottom", left: "right", right: "left",
+  bottom: "top",
+  top: "bottom",
+  left: "right",
+  right: "left",
 };
 const placementOrigin = (p: string) => ORIGIN_MAP[p.split("-")[0]] ?? "center";
 
@@ -133,9 +145,10 @@ async function computeFloatingPosition(
   resolvedDefaults: Required<PositionDefaults> = DEFAULTS
 ): Promise<Position> {
   const { padding } = resolvedDefaults;
-  const offsetValue = reference instanceof HTMLElement
-    ? computeDefaultOffset(reference, config, resolvedDefaults)
-    : config.offset;
+  const offsetValue =
+    reference instanceof HTMLElement
+      ? computeDefaultOffset(reference, config, resolvedDefaults)
+      : config.offset;
 
   const mainAxis = config.offsetMain ?? offsetValue;
   const middleware: Middleware[] = [
@@ -163,7 +176,7 @@ async function computeFloatingPosition(
   const { x, y, placement } = await computePosition(
     reference as Parameters<typeof computePosition>[0],
     floating,
-    { placement: config.placement, strategy, middleware },
+    { placement: config.placement, strategy, middleware }
   );
 
   if (x === 0 && y === 0) {
@@ -199,7 +212,13 @@ const boolMod = (mods: Map<string, unknown>, name: string, defaultVal: boolean):
   mods.has(name) ? extract(mods.get(name)) !== "false" : defaultVal;
 
 function getPositionArgNames(signal = "position") {
-  return [`${signal}_x`, `${signal}_y`, `${signal}_placement`, `${signal}_visible`, `${signal}_is_positioning`];
+  return [
+    `${signal}_x`,
+    `${signal}_y`,
+    `${signal}_placement`,
+    `${signal}_visible`,
+    `${signal}_is_positioning`,
+  ];
 }
 
 function getGlobalConfig(): {
@@ -271,7 +290,9 @@ const positionAttributePlugin: AttributePlugin = {
       : 0;
     let closeGuard = 0;
     const effStrategy: Strategy =
-      (hasDataShow || isPopover || isCursorMode) && !mods.has("strategy") ? "fixed" : config.strategy;
+      (hasDataShow || isPopover || isCursorMode) && !mods.has("strategy")
+        ? "fixed"
+        : config.strategy;
 
     const prepareHiddenState = () => {
       if (isPopover) {

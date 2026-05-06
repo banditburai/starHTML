@@ -12,7 +12,18 @@ Key principles:
 
 from fastcore.xml import NotStr
 
-from starhtml.datastar import Signal, js, process_datastar_kwargs
+from starhtml.datastar import Expr, PropertyAccess, Signal, _is_signal_like, get, js, post, process_datastar_kwargs
+
+
+class FakeSignal(Expr):
+    _is_signal = True
+
+    def __init__(self, name: str):
+        self._id = name
+        self._js = f"${name}"
+
+    def to_js(self) -> str:
+        return self._js
 
 
 class TestFlattenedSyntaxBehavior:
@@ -134,6 +145,13 @@ class TestDictSyntaxBehavior:
 
         assert "data-class" in processed
         # Dict syntax produces a JS object, not individual keys
+
+    def test_dict_class_with_signal_preserves_literal_keys(self):
+        """Dict keys are literal JS object keys, not Python kwargs."""
+        selected = Signal("selected", False)
+        processed, _ = process_datastar_kwargs({"data_class": {"hover_blue": selected}})
+
+        assert str(processed["data-class"]) == '{"hover_blue": $selected}'
 
     def test_dict_style_creates_data_style_attribute(self):
         """data_style dict should create a data-style attribute."""
@@ -274,6 +292,71 @@ class TestSpecialDataAttributes:
         # When data_class is an Expr, it goes to data-class attribute
         assert "data-class" in processed
 
+    def test_data_bind_signal_with_prop_modifier_uses_bare_path(self):
+        """data-bind__prop should bind to the signal path, not the JS expression."""
+        checked = Signal("checked", False)
+        processed, signals = process_datastar_kwargs({"data_bind": (checked, {"prop": "checked"})})
+
+        assert str(processed["data-bind__prop.checked"]) == "checked"
+        assert "data-signals:checked__ifmissing" in processed
+        assert checked in signals
+
+    def test_data_bind_signal_with_event_modifier_uses_bare_path(self):
+        """Datastar 1.0.1 allows __event without requiring __prop."""
+        value = Signal("value", "")
+        processed, signals = process_datastar_kwargs({"data_bind": (value, {"event": "change"})})
+
+        assert str(processed["data-bind__event.change"]) == "value"
+        assert "data-signals:value__ifmissing" in processed
+        assert value in signals
+
+    def test_data_bind_signal_with_prop_and_event_modifiers_uses_bare_path(self):
+        """Combined bind modifiers should preserve hyphenated modifier tags."""
+        selected_index = Signal("selected_index", 0)
+        processed, signals = process_datastar_kwargs(
+            {"data_bind": (selected_index, {"prop": "selected-index", "event": "change"})}
+        )
+
+        assert str(processed["data-bind__prop.selected-index__event.change"]) == "selected_index"
+        assert "data-signals:selected_index__ifmissing" in processed
+        assert selected_index in signals
+
+
+class TestDuckTypedSignalLike:
+    """Pin the ``_is_signal_like`` discrimination for ``data_bind`` /
+    ``data_ref`` / ``data_indicator``.
+
+    Downstream signal-shaped classes can declare ``_is_signal = True``
+    without inheriting from core ``Signal``. The renderer must emit the
+    path (``count``), not the expression (``$count``).
+    """
+
+    def test_signal_like_class_renders_path_for_data_bind(self):
+        fake = FakeSignal("guest_count")
+        processed, _ = process_datastar_kwargs({"data_bind": fake})
+        assert processed["data-bind"] == "guest_count"
+
+    def test_signal_like_class_renders_path_for_data_ref_and_indicator(self):
+        fake_ref = FakeSignal("modal_ref")
+        fake_ind = FakeSignal("loading_ind")
+        processed_ref, _ = process_datastar_kwargs({"data_ref": fake_ref})
+        processed_ind, _ = process_datastar_kwargs({"data_indicator": fake_ind})
+        assert processed_ref["data-ref"] == "modal_ref"
+        assert processed_ind["data-indicator"] == "loading_ind"
+
+    def test_non_signal_expr_does_not_render_path_for_data_bind(self):
+        """A plain Expr passed to ``data_bind`` must not match the signal marker."""
+        a = Signal("a", 0)
+        b = Signal("b", 0)
+        bop = a + b
+        assert _is_signal_like(bop) is False
+        assert isinstance(bop._id, PropertyAccess)
+
+    def test_signal_class_satisfies_signal_like_check(self):
+        """The core ``Signal`` class declares the marker."""
+        sig = Signal("sentinel", 0)
+        assert _is_signal_like(sig) is True
+
 
 class TestEventModifiers:
     """Test that event modifiers work correctly."""
@@ -294,6 +377,63 @@ class TestEventModifiers:
 
         found_key = [k for k in processed if "debounce" in k]
         assert len(found_key) == 1
+
+    def test_event_with_document_modifier(self):
+        """data-on listeners should be able to attach to document."""
+        processed, _ = process_datastar_kwargs({"data_on_custom": ("handle()", {"document": True})})
+
+        assert processed["data-on:custom__document"] == "handle()"
+
+    def test_event_with_capture_modifier(self):
+        """Capture modifier output must remain stable for Datastar cleanup semantics."""
+        processed, _ = process_datastar_kwargs({"data_on_click": ("handle()", {"capture": True})})
+
+        assert processed["data-on:click__capture"] == "handle()"
+
+    def test_event_with_viewtransition_prevent_modifiers(self):
+        """View-transition and prevent modifiers should compose in order."""
+        processed, _ = process_datastar_kwargs(
+            {"data_on_submit": ("save()", {"viewtransition": True, "prevent": True})}
+        )
+
+        assert processed["data-on:submit__viewtransition__prevent"] == "save()"
+
+    def test_event_with_outside_modifier(self):
+        """Outside modifier output is StarHTML-patched runtime behavior."""
+        processed, _ = process_datastar_kwargs({"data_on_click": ("close()", {"outside": True})})
+
+        assert processed["data-on:click__outside"] == "close()"
+
+    def test_event_with_multiple_101_modifiers(self):
+        """Common Datastar 1.0.1 data-on modifiers should compose predictably."""
+        processed, _ = process_datastar_kwargs(
+            {
+                "data_on_click": (
+                    "handle(evt)",
+                    {"document": True, "capture": True, "viewtransition": True, "prevent": True, "outside": True},
+                )
+            }
+        )
+
+        assert processed["data-on:click__document__capture__viewtransition__prevent__outside"] == "handle(evt)"
+
+
+class TestFetchActionOptions:
+    """Test fetch action helper option output."""
+
+    def test_post_action_can_emit_retry_max_wait(self):
+        """Datastar 1.0.1 uses retryMaxWait, not retryMaxWaitMs."""
+        action = post("/save", retryMaxWait=15000)
+
+        assert str(action) == "@post('/save', {retryMaxWait: 15000})"
+
+    def test_get_action_can_emit_retry_max_wait_with_other_options(self):
+        """Fetch options should preserve current upstream names alongside other options."""
+        action = get("/items", retryMaxWait=5000, requestCancellation="cleanup")
+
+        assert "retryMaxWait: 5000" in str(action)
+        assert 'requestCancellation: "cleanup"' in str(action)
+        assert "retryMaxWaitMs" not in str(action)
 
 
 class TestNonDatastarAttributes:

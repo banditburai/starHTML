@@ -258,6 +258,7 @@ def hero_section():
 
 
 app, rt = star_app(
+    sess_cls=None,
     title="Hero Section - StarHTML Documentation (Dev Mode)",
     hdrs=[
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),

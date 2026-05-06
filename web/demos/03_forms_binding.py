@@ -3,7 +3,7 @@
 from starhtml import *
 
 app, rt = star_app(
-    devtools=True,
+    sess_cls=None,
     title="Forms and Binding Demo",
     htmlkw={"lang": "en"},
     hdrs=[

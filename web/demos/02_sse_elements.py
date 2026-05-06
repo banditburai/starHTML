@@ -6,6 +6,7 @@ import time
 from starhtml import *
 
 app, rt = star_app(
+    sess_cls=None,
     title="SSE Elements Demo",
     htmlkw={"lang": "en"},
     hdrs=[
@@ -45,20 +46,20 @@ def home():
                         Icon("material-symbols:sync", cls="mr-2", data_class_animate_spin=loading),
                         Span("Load Sample Data", data_show=~loading),  # JS: data_show="!$loading"
                         Span("Loading...", data_show=loading),  # JS: data_show="$loading"
-                        data_on_click=get("api/load-data"),
+                        data_on_click=get("./api/load-data"),
                         data_indicator="loading",
                         cls="inline-flex items-center px-4 py-2 bg-black text-white font-medium hover:bg-gray-800 transition-colors mr-2",
                     ),
                     Button(
                         Icon("material-symbols:add", cls="mr-2"),
                         "Add Random Item",
-                        data_on_click=get("api/add-item"),
+                        data_on_click=get("./api/add-item"),
                         cls="inline-flex items-center px-4 py-2 bg-blue-600 text-white font-medium hover:bg-blue-700 transition-colors mr-2",
                     ),
                     Button(
                         Icon("material-symbols:delete-outline", cls="mr-2"),
                         "Clear All",
-                        data_on_click=get("api/clear"),
+                        data_on_click=get("./api/clear"),
                         cls="inline-flex items-center px-4 py-2 border border-gray-300 text-black font-medium hover:border-gray-500 transition-colors",
                     ),
                     cls="flex flex-wrap gap-2",

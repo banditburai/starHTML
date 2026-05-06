@@ -15,6 +15,7 @@ drag = drag_plugin(
 )
 
 app, rt = star_app(
+    sess_cls=None,
     title="Freeform Drag Demo",
     htmlkw={"lang": "en"},
     hdrs=[

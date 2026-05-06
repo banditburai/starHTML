@@ -80,15 +80,15 @@ class TestEventDelivery:
 
 
 class TestBackpressure:
-    def test_full_queue_drops_events_silently(self):
+    def test_full_queue_drops_oldest_silently(self):
         relay = Relay(maxsize=2)
         q = relay.subscribe()
         relay.emit(SignalEvent({"a": 1}))
         relay.emit(SignalEvent({"b": 2}))
-        relay.emit(SignalEvent({"c": 3}))  # dropped
+        relay.emit(SignalEvent({"c": 3}))
         assert q.qsize() == 2
-        assert q.get_nowait().signals == {"a": 1}
         assert q.get_nowait().signals == {"b": 2}
+        assert q.get_nowait().signals == {"c": 3}
 
     def test_full_queue_does_not_affect_other_subscribers(self):
         relay = Relay(maxsize=2)
@@ -100,9 +100,7 @@ class TestBackpressure:
         qb.get_nowait()
         relay.emit(SignalEvent({"x": 2}))
         relay.emit(SignalEvent({"x": 3}))
-        # qa is full after 2 events; 3rd is dropped for qa
         assert qa.qsize() == 2
-        # qb had room and received all three it wasn't drained from
         assert qb.qsize() == 2
         assert qb.get_nowait().signals == {"x": 2}
         assert qb.get_nowait().signals == {"x": 3}

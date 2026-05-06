@@ -4,6 +4,7 @@ from starhtml import *
 from starhtml.plugins import persist
 
 app, rt = star_app(
+    sess_cls=None,
     title="✨ Todo List",
     htmlkw={"lang": "en"},
     hdrs=[
@@ -174,7 +175,7 @@ def home():
                                     "Add",
                                     type="button",
                                     cls="bold-button px-6 py-4 text-lg font-bold text-white flex items-center",
-                                    data_on_click=post("todos/add"),
+                                    data_on_click=post("./todos/add"),
                                     data_attr_disabled=~can_add_todo,
                                 ),
                                 cls="flex gap-4",
@@ -221,7 +222,7 @@ def home():
                             Icon("lucide:trash", cls="text-xl mr-3"),
                             "Clear Conquered",
                             data_on_click=js('confirm("Remove all conquered todos?")')
-                            & delete("todos/clear-completed"),
+                            & delete("./todos/clear-completed"),
                             data_show=completed_count > 0,
                             cls="px-6 py-3 bg-gradient-to-r from-red-500 to-pink-500 text-white rounded-xl font-bold hover:shadow-lg transition-all flex items-center",
                         ),

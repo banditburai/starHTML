@@ -53,7 +53,7 @@ def star_app(
     middleware: tuple = None,
     live: bool = False,
     debug: bool = False,
-    devtools: bool = False,
+    devtools: bool | str = False,
     routes: tuple = None,
     exception_handlers: dict = None,
     on_startup: Callable = None,
@@ -63,6 +63,7 @@ def star_app(
     title: str = "StarHTML page",
     canonical: bool = True,
     secret_key: str = None,
+    secret_env: str | None = None,
     key_fname: str = ".sesskey",
     session_cookie: str = "session_",
     max_age: int = 365 * 24 * 3600,
@@ -70,12 +71,14 @@ def star_app(
     same_site: str = "lax",
     sess_https_only: bool = False,
     sess_domain: str = None,
+    host_cookie_prefix: bool = True,
     sess_cls=SessionMiddleware,
+    key_strict_mode: bool = False,
     htmlkw: dict = None,
     bodykw: dict = None,
     reload_attempts: int = 1,
     reload_interval: int = 1000,
-    static_path: str = ".",
+    static_path: str | None = ".",
     body_wrap: Callable = None,
     datastar: str = "patched",
     inline_icons: bool = False,
@@ -117,15 +120,18 @@ def star_app(
         default_hdrs=default_hdrs,
         title=title,
         secret_key=secret_key,
+        secret_env=secret_env,
         canonical=canonical,
         session_cookie=session_cookie,
         max_age=max_age,
         sess_path=sess_path,
         same_site=same_site,
         sess_https_only=sess_https_only,
+        host_cookie_prefix=host_cookie_prefix,
         sess_cls=sess_cls,
         sess_domain=sess_domain,
         key_fname=key_fname,
+        key_strict_mode=key_strict_mode,
         htmlkw=htmlkw,
         bodykw=bodykw,
         reload_attempts=reload_attempts,
@@ -159,7 +165,7 @@ def star_app(
     return app, app.route, *db_tables
 
 
-DATASTAR_VERSION = "1.0.0-RC.7+starhtml"
+DATASTAR_VERSION = "1.0.1+starhtml"
 _DATASTAR_CDN_TEMPLATE = "https://cdn.jsdelivr.net/gh/starfederation/datastar@{version}/bundles/datastar.js"
 ICONIFY_VERSION = "2.3.0"
 
@@ -169,11 +175,15 @@ def _datastar_cdn_url() -> str:
     return _DATASTAR_CDN_TEMPLATE.format(version=DATASTAR_VERSION.split("+")[0])
 
 
-def def_hdrs(datastar_url="/_pkg/starhtml/datastar.js"):
-    from .tags import Meta, Style
+_VENDORED_DATASTAR_URL = "/_pkg/starhtml/datastar.js"
+_VENDORED_DATASTAR_CORE_URL = "/_pkg/starhtml/datastar-core.js"
+
+
+def def_hdrs(datastar_url=_VENDORED_DATASTAR_URL):
+    from .tags import Link, Meta, Style
     from .xtend import Script
 
-    return [
+    hdrs = [
         # FOUC prevention: hide custom elements until registered; size icon wrappers
         Style(
             ":not(:defined){visibility:hidden} [data-icon-sh]{display:inline-block}"
@@ -181,8 +191,11 @@ def def_hdrs(datastar_url="/_pkg/starhtml/datastar.js"):
         ),
         Meta(charset="utf-8"),
         Meta(name="viewport", content="width=device-width, initial-scale=1, viewport-fit=cover"),
-        Script(src=datastar_url, type="module"),
     ]
+    if datastar_url == _VENDORED_DATASTAR_URL:
+        hdrs.append(Link(rel="modulepreload", href=_VENDORED_DATASTAR_CORE_URL))
+    hdrs.append(Script(src=datastar_url, type="module"))
+    return hdrs
 
 
 def theme_script(

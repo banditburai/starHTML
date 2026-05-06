@@ -9,6 +9,7 @@ Showcases:
 from starhtml import *
 
 app, rt = star_app(
+    sess_cls=None,
     title="Datastar Control Attributes Demo",
     htmlkw={"lang": "en"},
     hdrs=[
@@ -129,7 +130,7 @@ def home():
                             data_text=js("JSON.stringify($user_data, null, 2) || 'Loading user data...'"),
                             cls="text-green-400",
                         ),
-                        data_init=get("fetch-user-data"),
+                        data_init=get("./fetch-user-data"),
                         cls="bg-gray-900 p-4 font-mono text-sm overflow-auto whitespace-pre border border-gray-200",
                     ),
                     cls="p-6 bg-blue-50 border border-blue-200 mb-6",
