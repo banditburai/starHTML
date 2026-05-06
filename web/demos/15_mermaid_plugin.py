@@ -93,22 +93,22 @@ def home():
             Div(
                 Button(
                     "Flowchart",
-                    data_on_click=get("diagram/flowchart"),
+                    data_on_click=get("./diagram/flowchart"),
                     cls="px-4 py-2 bg-black text-white font-medium hover:bg-gray-800 transition-colors",
                 ),
                 Button(
                     "Sequence",
-                    data_on_click=get("diagram/sequence"),
+                    data_on_click=get("./diagram/sequence"),
                     cls="px-4 py-2 bg-black text-white font-medium hover:bg-gray-800 transition-colors",
                 ),
                 Button(
                     "Class",
-                    data_on_click=get("diagram/class"),
+                    data_on_click=get("./diagram/class"),
                     cls="px-4 py-2 bg-black text-white font-medium hover:bg-gray-800 transition-colors",
                 ),
                 Button(
                     "State",
-                    data_on_click=get("diagram/state"),
+                    data_on_click=get("./diagram/state"),
                     cls="px-4 py-2 bg-black text-white font-medium hover:bg-gray-800 transition-colors",
                 ),
                 cls="mb-8 flex flex-wrap gap-2",
@@ -128,7 +128,7 @@ def home():
             Textarea(
                 DIAGRAMS["flowchart"],
                 data_bind=custom_code,
-                data_on_input=get("diagram/custom").with_(debounce=500),
+                data_on_input=get("./diagram/custom").with_(debounce=500),
                 rows="8",
                 cls="w-full p-3 sm:p-4 font-mono text-xs sm:text-sm border border-gray-300 rounded-lg focus:border-gray-500 focus:outline-none mb-4",
             ),

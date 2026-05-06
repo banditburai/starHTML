@@ -45,19 +45,19 @@ def home():
                     Button(
                         Icon("material-symbols:check-circle", width="20", height="20"),
                         "Success",
-                        data_on_click=get("notify/success"),
+                        data_on_click=get("./notify/success"),
                         cls="px-4 py-2 bg-green-600 text-white font-medium hover:bg-green-700 transition-colors w-32 flex items-center justify-center gap-2",
                     ),
                     Button(
                         Icon("material-symbols:warning", width="20", height="20"),
                         "Warning",
-                        data_on_click=get("notify/warning"),
+                        data_on_click=get("./notify/warning"),
                         cls="px-4 py-2 bg-amber-600 text-white font-medium hover:bg-amber-700 transition-colors w-32 flex items-center justify-center gap-2",
                     ),
                     Button(
                         Icon("material-symbols:error", width="20", height="20"),
                         "Error",
-                        data_on_click=get("notify/error"),
+                        data_on_click=get("./notify/error"),
                         cls="px-4 py-2 bg-red-600 text-white font-medium hover:bg-red-700 transition-colors w-32 flex items-center justify-center gap-2",
                     ),
                     cls="mb-4 flex flex-wrap gap-2",
@@ -74,7 +74,7 @@ def home():
                 Div(
                     Button(
                         "Check All Systems",
-                        data_on_click=get("check-status"),
+                        data_on_click=get("./check-status"),
                         cls="px-4 py-2 bg-black text-white font-medium hover:bg-gray-800 transition-colors",
                     ),
                     cls="mb-6",
@@ -125,12 +125,12 @@ def home():
                 Div(
                     Button(
                         "Simulate User Activity",
-                        data_on_click=get("activity"),
+                        data_on_click=get("./activity"),
                         cls="px-4 py-2 bg-black text-white font-medium hover:bg-gray-800 transition-colors",
                     ),
                     Button(
                         "Clear Feed",
-                        data_on_click=get("clear-feed"),
+                        data_on_click=get("./clear-feed"),
                         cls="px-4 py-2 border border-gray-300 text-black font-medium hover:border-gray-500 transition-colors",
                     ),
                     cls="mb-6 flex flex-wrap gap-2",
@@ -153,7 +153,7 @@ def home():
                 Div(
                     Button(
                         "Start Process",
-                        data_on_click=get("process"),
+                        data_on_click=get("./process"),
                         cls="px-4 py-2 bg-black text-white font-medium hover:bg-gray-800 transition-colors",
                     ),
                     cls="mb-6",

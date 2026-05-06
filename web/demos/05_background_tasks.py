@@ -49,17 +49,17 @@ def home():
                 Div(
                     Button(
                         "Start API Chain",
-                        data_on_click=get("api-chain"),
+                        data_on_click=get("./api-chain"),
                         cls="px-4 py-2 bg-black text-white font-medium hover:bg-gray-800 transition-colors",
                     ),
                     Button(
                         "Simulate API Race",
-                        data_on_click=get("api-race"),
+                        data_on_click=get("./api-race"),
                         cls="px-4 py-2 bg-purple-600 text-white font-medium hover:bg-purple-700 transition-colors",
                     ),
                     Button(
                         "Reset",
-                        data_on_click=get("api-reset"),
+                        data_on_click=get("./api-reset"),
                         cls="px-4 py-2 border border-gray-300 text-black font-medium hover:border-gray-500 transition-colors",
                     ),
                     cls="mb-6 flex flex-wrap gap-3",
@@ -133,12 +133,12 @@ def home():
                 Div(
                     Button(
                         "Start Data Stream",
-                        data_on_click=get("stream-start"),
+                        data_on_click=get("./stream-start"),
                         cls="px-4 py-2 bg-blue-600 text-white font-medium hover:bg-blue-700 transition-colors",
                     ),
                     Button(
                         "Stop Stream",
-                        data_on_click=get("stream-stop"),
+                        data_on_click=get("./stream-stop"),
                         cls="px-4 py-2 bg-red-600 text-white font-medium hover:bg-red-700 transition-colors",
                     ),
                     Div(
@@ -229,22 +229,22 @@ def home():
                 Div(
                     Button(
                         "Add Jobs to Queue",
-                        data_on_click=get("queue-add"),
+                        data_on_click=get("./queue-add"),
                         cls="px-4 py-2 bg-green-600 text-white font-medium hover:bg-green-700 transition-colors",
                     ),
                     Button(
                         "Start Workers",
-                        data_on_click=get("workers-start"),
+                        data_on_click=get("./workers-start"),
                         cls="px-4 py-2 bg-orange-600 text-white font-medium hover:bg-orange-700 transition-colors",
                     ),
                     Button(
                         "Stop Workers",
-                        data_on_click=get("workers-stop"),
+                        data_on_click=get("./workers-stop"),
                         cls="px-4 py-2 bg-red-600 text-white font-medium hover:bg-red-700 transition-colors",
                     ),
                     Button(
                         "Clear Queue",
-                        data_on_click=get("queue-clear"),
+                        data_on_click=get("./queue-clear"),
                         cls="px-4 py-2 border border-gray-300 text-black font-medium hover:border-gray-500 transition-colors",
                     ),
                     cls="mb-6 flex flex-wrap gap-3",

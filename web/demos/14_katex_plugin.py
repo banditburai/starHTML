@@ -130,22 +130,22 @@ def home():
             Div(
                 Button(
                     "Basics",
-                    data_on_click=get("math/basics"),
+                    data_on_click=get("./math/basics"),
                     cls="px-4 py-2 bg-black text-white font-medium hover:bg-gray-800 transition-colors",
                 ),
                 Button(
                     "Calculus",
-                    data_on_click=get("math/calculus"),
+                    data_on_click=get("./math/calculus"),
                     cls="px-4 py-2 bg-black text-white font-medium hover:bg-gray-800 transition-colors",
                 ),
                 Button(
                     "Matrices",
-                    data_on_click=get("math/matrices"),
+                    data_on_click=get("./math/matrices"),
                     cls="px-4 py-2 bg-black text-white font-medium hover:bg-gray-800 transition-colors",
                 ),
                 Button(
                     "Physics",
-                    data_on_click=get("math/physics"),
+                    data_on_click=get("./math/physics"),
                     cls="px-4 py-2 bg-black text-white font-medium hover:bg-gray-800 transition-colors",
                 ),
                 cls="mb-8 flex flex-wrap gap-2",
@@ -168,7 +168,7 @@ def home():
             Textarea(
                 DEFAULT_CUSTOM,
                 data_bind=custom_math,
-                data_on_input=get("math/custom").with_(debounce=500),
+                data_on_input=get("./math/custom").with_(debounce=500),
                 rows="12",
                 cls="w-full p-3 sm:p-4 font-mono text-xs sm:text-sm border border-gray-300 rounded-lg focus:border-gray-500 focus:outline-none mb-4",
             ),

@@ -1178,8 +1178,8 @@ These actions work the same as `@get()` but send `POST`, `PUT`, `PATCH`, or `DEL
 *   <code id="selector">selector</code>: A CSS selector for a form when `contentType` is `'form'`.
 *   <code id="headers">headers</code>: An object of custom headers.
 *   <code id="openWhenHidden">openWhenHidden</code>: `true` or `false`. Defaults to `false`.
-*   <code id="retryInterval">retryInterval</code>, <code id="retryScaler">retryScaler</code>, <code id="retryMaxWaitMs">retryMaxWaitMs</code>, <code id="retryMaxCount">retryMaxCount</code>: Control retry behavior.
-*   <code id="requestCancellation">requestCancellation</code>: `'auto'`, `'disabled'`, or an `AbortController`. Defaults to `'auto'`.
+*   <code id="retryInterval">retryInterval</code>, <code id="retryScaler">retryScaler</code>, <code id="retryMaxWait">retryMaxWait</code>, <code id="retryMaxCount">retryMaxCount</code>: Control retry behavior.
+*   <code id="requestCancellation">requestCancellation</code>: `'auto'`, `'cleanup'`, `'disabled'`, or an `AbortController`. Defaults to `'auto'`.
 
 <a id="request-cancellation"></a>
 ### Request Cancellation

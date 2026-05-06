@@ -229,17 +229,17 @@ def home():
             Div(
                 Button(
                     "Introduction",
-                    data_on_click=get("content/intro"),
+                    data_on_click=get("./content/intro"),
                     cls="px-4 py-2 bg-black text-white font-medium hover:bg-gray-800 transition-colors",
                 ),
                 Button(
                     "Code Examples",
-                    data_on_click=get("content/code"),
+                    data_on_click=get("./content/code"),
                     cls="px-4 py-2 bg-black text-white font-medium hover:bg-gray-800 transition-colors",
                 ),
                 Button(
                     "Links & Formatting",
-                    data_on_click=get("content/links"),
+                    data_on_click=get("./content/links"),
                     cls="px-4 py-2 bg-black text-white font-medium hover:bg-gray-800 transition-colors",
                 ),
                 cls="mb-8 flex flex-wrap gap-2",
@@ -262,7 +262,7 @@ def home():
             Textarea(
                 DEFAULT_CUSTOM,
                 data_bind=custom_md,
-                data_on_input=get("content/custom").with_(debounce=500),
+                data_on_input=get("./content/custom").with_(debounce=500),
                 rows="10",
                 cls="w-full p-3 sm:p-4 font-mono text-xs sm:text-sm border border-gray-300 rounded-lg focus:border-gray-500 focus:outline-none mb-4",
             ),

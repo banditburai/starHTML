@@ -189,7 +189,7 @@ def home():
                 Div(
                     Button(
                         "Add Resizable Box",
-                        data_on_click=get("add-box"),
+                        data_on_click=get("./add-box"),
                         cls="mb-4 px-4 py-2 bg-black text-white font-medium hover:bg-gray-800 transition-colors",
                     ),
                     # Dynamic boxes container
