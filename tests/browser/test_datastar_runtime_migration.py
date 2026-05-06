@@ -103,6 +103,22 @@ async def dispatch_signal_patch(page: Page, signals: dict[str, object]) -> None:
     )
 
 
+async def dispatch_element_patch(page: Page, elements: str, selector: str = "", mode: str = "outer") -> None:
+    """Patch elements through Datastar's registered patch-elements watcher."""
+    await page.evaluate(
+        """args => {
+            document.dispatchEvent(new CustomEvent("datastar-fetch", {
+                detail: {
+                    type: "datastar-patch-elements",
+                    argsRaw: args,
+                },
+            }));
+        }""",
+        {"elements": elements, "selector": selector, "mode": mode},
+    )
+    await page.wait_for_timeout(50)
+
+
 async def read_signals(page: Page, selector: str = "#signals") -> dict[str, object]:
     """Read a JSON signal snapshot rendered by ``data-json-signals``."""
     text = await page.locator(selector).text_content()
@@ -602,3 +618,149 @@ async def test_single_select_initializes_missing_signal_as_string_value(page, da
 
     signals = await read_signals(page)
     assert signals["quantity"] == "1"
+
+
+@pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
+@pytest.mark.asyncio
+async def test_morphing_bound_text_input_updates_value_and_signal(page, datastar_runtime_source):
+    """Morphing an input value dispatches property-change sync for data-bind."""
+    await load_datastar_page(
+        page,
+        """
+<main data-signals='{"name": "Ada"}'>
+  <input id="name" data-bind="name" value="Ada">
+  <output id="name-output" data-text="$name"></output>
+</main>
+""",
+        datastar_runtime_source,
+    )
+
+    await wait_for_dom_text(page, "#name-output", "Ada")
+
+    await dispatch_element_patch(page, '<input id="name" data-bind="name" value="Grace">')
+
+    assert await page.locator("#name").input_value() == "Grace"
+    await wait_for_dom_text(page, "#name-output", "Grace")
+
+
+@pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
+@pytest.mark.asyncio
+async def test_morphing_checked_inputs_update_checked_state_and_signals(page, datastar_runtime_source):
+    """Morphing checkbox/radio checked state dispatches property-change sync."""
+    await load_datastar_page(
+        page,
+        """
+<main id="controls" data-signals='{"enabled": false, "choice": "alpha"}'>
+  <input id="enabled" type="checkbox" data-bind="enabled">
+  <input id="alpha" type="radio" name="choice" value="alpha" data-bind="choice" checked>
+  <input id="beta" type="radio" name="choice" value="beta" data-bind="choice">
+  <output id="enabled-output" data-text="$enabled"></output>
+  <output id="choice-output" data-text="$choice"></output>
+</main>
+""",
+        datastar_runtime_source,
+    )
+
+    await wait_for_dom_text(page, "#enabled-output", "false")
+    await wait_for_dom_text(page, "#choice-output", "alpha")
+
+    await dispatch_element_patch(
+        page,
+        """
+<main id="controls" data-signals='{"enabled": false, "choice": "alpha"}'>
+  <input id="enabled" type="checkbox" data-bind="enabled" checked>
+  <input id="alpha" type="radio" name="choice" value="alpha" data-bind="choice">
+  <input id="beta" type="radio" name="choice" value="beta" data-bind="choice" checked>
+  <output id="enabled-output" data-text="$enabled"></output>
+  <output id="choice-output" data-text="$choice"></output>
+</main>
+""",
+    )
+
+    assert await page.locator("#enabled").is_checked()
+    assert await page.locator("#beta").is_checked()
+    await wait_for_dom_text(page, "#enabled-output", "true")
+    await wait_for_dom_text(page, "#choice-output", "beta")
+
+
+@pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
+@pytest.mark.asyncio
+async def test_morphing_select_selected_option_updates_value_and_signal(page, datastar_runtime_source):
+    """Morphing selected options updates select value and bound signal."""
+    await load_datastar_page(
+        page,
+        """
+<main data-signals='{"choice": "a"}'>
+  <select id="choice" data-bind="choice">
+    <option value="a" selected>A</option>
+    <option value="b">B</option>
+  </select>
+  <output id="choice-output" data-text="$choice"></output>
+</main>
+""",
+        datastar_runtime_source,
+    )
+
+    await wait_for_dom_text(page, "#choice-output", "a")
+
+    await dispatch_element_patch(
+        page,
+        """
+<select id="choice" data-bind="choice">
+  <option value="a">A</option>
+  <option value="b" selected>B</option>
+</select>
+""",
+    )
+
+    assert await page.locator("#choice").input_value() == "b"
+    await wait_for_dom_text(page, "#choice-output", "b")
+
+
+@pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
+@pytest.mark.asyncio
+async def test_morphing_textarea_updates_value_default_and_signal(page, datastar_runtime_source):
+    """Morphing textarea content updates value/default text and bound signal."""
+    await load_datastar_page(
+        page,
+        """
+<main data-signals='{"bio": "Old"}'>
+  <textarea id="bio" data-bind="bio">Old</textarea>
+  <output id="bio-output" data-text="$bio"></output>
+</main>
+""",
+        datastar_runtime_source,
+    )
+
+    await wait_for_dom_text(page, "#bio-output", "Old")
+
+    await dispatch_element_patch(page, '<textarea id="bio" data-bind="bio">New</textarea>')
+
+    assert await page.locator("#bio").input_value() == "New"
+    assert await page.locator("#bio").evaluate("el => el.textContent") == "New"
+    await wait_for_dom_text(page, "#bio-output", "New")
+
+
+@pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
+@pytest.mark.asyncio
+async def test_morphing_preserve_attr_keeps_protected_attrs(page, datastar_runtime_source):
+    """data-preserve-attr keeps protected attrs while other attrs and children morph."""
+    await load_datastar_page(
+        page,
+        """
+<main>
+  <div id="box" class="keep" data-state="old" data-preserve-attr="class">Old</div>
+</main>
+""",
+        datastar_runtime_source,
+    )
+
+    await dispatch_element_patch(
+        page,
+        '<div id="box" class="replace" data-state="new" data-preserve-attr="class">New</div>',
+    )
+
+    box = page.locator("#box")
+    assert await box.get_attribute("class") == "keep"
+    assert await box.get_attribute("data-state") == "new"
+    assert await box.text_content() == "New"
