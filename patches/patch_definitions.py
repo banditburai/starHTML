@@ -12,7 +12,10 @@ class PatchDef:
     markers: list[str] = field(default_factory=list)
 
 
-PATCHED_HEADER = "// Datastar v{version} (StarHTML patched: shadow-dom-scan, outside-race-fix, persist-aware-init)"
+PATCHED_HEADER = (
+    "// Datastar v{version} "
+    "(StarHTML patched: shadow-dom-scan, outside-race-fix, retry-current-payload, persist-aware-init)"
+)
 
 PATCHES: list[PatchDef] = [
     PatchDef(
@@ -83,6 +86,39 @@ PATCHES: list[PatchDef] = [
             ),
         ],
         markers=['var _J_src=""', "signals:n,source:_J_src"],
+    ),
+    PatchDef(
+        name="retry-current-payload",
+        operations=[
+            (
+                'if(M!==200){if(u?.(),d!=="never"&&!pe&&!mt&&(d==="always"||d==="error"&&on)){'
+                "clearTimeout(q),q=setTimeout(L,p);return}C(),n();return}",
+                'if(M!==200){if(u?.(),d!=="never"&&!pe&&!mt&&(d==="always"||d==="error"&&on)){'
+                "let G=t();G&&(i=G.input,U.body=G.body),clearTimeout(q),q=setTimeout(L,p);return}"
+                "C(),n();return}",
+            ),
+            (
+                "let H=f?.(S)||p;clearTimeout(q),q=setTimeout(L,H),p=Math.min(p*v,y),"
+                '++J>=F?(se(Rn,e,{}),C(),r("Max retries reached.")):'
+                "console.error(`Datastar failed to reach ${i.toString()} retrying in ${H}ms.`)",
+                "let H=f?.(S)||p,G=t();G&&(i=G.input,U.body=G.body),"
+                "clearTimeout(q),q=setTimeout(L,H),p=Math.min(p*v,y),"
+                '++J>=F?(se(Rn,e,{}),C(),r("Max retries reached.")):'
+                "console.error(`Datastar failed to reach ${i.toString()} retrying in ${H}ms.`)",
+            ),
+            (
+                "let qe=h||window.fetch,b=c||(()=>{}),J=0,A=p,"
+                "L=async()=>{ee=new AbortController;let E=ee.signal;try{let S=await qe(i,{...U,headers:X,signal:E});",
+                "let qe=h||window.fetch,b=c||(()=>{}),J=0,A=p,be=!0,"
+                "L=async()=>{if(be)be=!1;else{let G=t();if(G){i=G.input;U.body=G.body}}"
+                "ee=new AbortController;let E=ee.signal;try{let S=await qe(i,{...U,headers:X,signal:E});",
+            ),
+        ],
+        markers=[
+            "retry-current-payload",
+            "G=t();G&&(i=G.input,U.body=G.body)",
+            "be=!0,L=async()=>{if(be)be=!1;else{let G=t();if(G){i=G.input;U.body=G.body}",
+        ],
     ),
     PatchDef(
         name="persist-aware-init",
