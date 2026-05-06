@@ -28,7 +28,7 @@ DATASTAR_RUNTIME = PROJECT_ROOT / "src" / "starhtml" / "static" / "js" / "datast
 DATASTAR_UPSTREAM = PROJECT_ROOT / "patches" / "datastar-upstream.js"
 STARAPP_PATH = PROJECT_ROOT / "src" / "starhtml" / "starapp.py"
 sys.path.insert(0, str(PROJECT_ROOT / "patches"))
-from patch_definitions import apply_all  # noqa: E402
+from patch_definitions import apply_all, verify  # noqa: E402
 
 
 @pytest.fixture(scope="session")
@@ -86,12 +86,36 @@ async def load_datastar_page(page: Page, body: str, datastar_source: str) -> Non
     await page.set_content(datastar_test_page(body, datastar_source), wait_until="domcontentloaded")
 
 
+async def load_datastar_page_at_origin(page: Page, body: str, datastar_source: str) -> None:
+    """Load a Datastar test document at a real origin for storage-sensitive tests."""
+    url = "https://starhtml.test/datastar-runtime-test"
+    html = datastar_test_page(body, datastar_source)
+
+    async def route_handler(route):
+        await route.fulfill(status=200, content_type="text/html", body=html)
+
+    await page.route(url, route_handler)
+    try:
+        await page.goto(url, wait_until="domcontentloaded")
+    finally:
+        await page.unroute(url, route_handler)
+
+
 async def wait_for_dom_text(page: Page, selector: str, expected: str, timeout: int = 5000) -> None:
     """Wait until a selector has the expected text content."""
     await page.wait_for_function(
         """([selector, expected]) => document.querySelector(selector)?.textContent === expected""",
         arg=[selector, expected],
         timeout=timeout,
+    )
+
+
+async def wait_for_shadow_text(page: Page, host_selector: str, selector: str, expected: str) -> None:
+    """Wait until a selector inside an open shadow root has the expected text."""
+    await page.wait_for_function(
+        """([hostSelector, selector, expected]) =>
+            document.querySelector(hostSelector)?.shadowRoot?.querySelector(selector)?.textContent === expected""",
+        arg=[host_selector, selector, expected],
     )
 
 
@@ -764,3 +788,110 @@ async def test_morphing_preserve_attr_keeps_protected_attrs(page, datastar_runti
     assert await box.get_attribute("class") == "keep"
     assert await box.get_attribute("data-state") == "new"
     assert await box.text_content() == "New"
+
+
+def test_local_runtime_contains_starhtml_patch_markers(datastar_runtime_source):
+    """The loaded runtime includes every expected StarHTML patch marker."""
+    missing = [f"{name}: {marker}" for name, marker, ok in verify(datastar_runtime_source) if not ok]
+
+    assert not missing
+
+
+@pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
+@pytest.mark.asyncio
+async def test_datastar_scan_binds_shadow_root(page, datastar_runtime_source):
+    """StarHTML's datastar:scan patch binds attributes inside shadow roots."""
+    await load_datastar_page(
+        page,
+        """
+<div id="host"></div>
+<script>
+  const host = document.querySelector("#host");
+  host.attachShadow({ mode: "open" }).innerHTML = `
+    <main data-signals='{"count": 0}'>
+      <button id="increment" data-on:click="$count++">Increment</button>
+      <output id="count" data-text="$count"></output>
+    </main>
+  `;
+</script>
+""",
+        datastar_runtime_source,
+    )
+
+    await page.evaluate(
+        """() => {
+            const host = document.querySelector("#host");
+            document.dispatchEvent(new CustomEvent("datastar:scan", { detail: { root: host } }));
+        }"""
+    )
+    await wait_for_shadow_text(page, "#host", "#count", "0")
+
+    await page.evaluate("""() => document.querySelector("#host").shadowRoot.querySelector("#increment").click()""")
+
+    await wait_for_shadow_text(page, "#host", "#count", "1")
+
+
+@pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
+@pytest.mark.asyncio
+async def test_late_plugin_registration_does_not_refire_data_init(page, datastar_runtime_source):
+    """Registering a late plugin should not re-run existing data-init handlers."""
+    await load_datastar_page(
+        page,
+        """
+<main data-signals='{"count": 0}' data-init="$count++">
+  <div id="late" data-late-test></div>
+  <output id="count" data-text="$count"></output>
+</main>
+""",
+        datastar_runtime_source,
+    )
+
+    await wait_for_dom_text(page, "#count", "1")
+    await page.evaluate(
+        """() => {
+            window.__latePluginRuns = 0;
+            window.__datastar.attribute({
+                name: "late-test",
+                apply() {
+                    window.__latePluginRuns++;
+                },
+            });
+        }"""
+    )
+
+    await page.wait_for_function("window.__latePluginRuns === 1")
+    await page.wait_for_timeout(50)
+
+    assert await page.locator("#count").text_content() == "1"
+
+
+@pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
+@pytest.mark.asyncio
+async def test_persist_prehydrates_ifmissing_defaults_and_tags_signal_source(page, datastar_runtime_source):
+    """Persisted values win over ifmissing defaults and signal patches include source metadata."""
+    await load_datastar_page_at_origin(
+        page,
+        """
+<script>
+  localStorage.clear();
+  sessionStorage.clear();
+  localStorage.setItem("starhtml-persist:settings", JSON.stringify({ theme: "persisted" }));
+  window.__signalPatches = [];
+  document.addEventListener("datastar-signal-patch", event => {
+    window.__signalPatches.push(event.detail);
+  });
+</script>
+<main data-signals:theme__ifmissing="'default'">
+  <output id="theme" data-text="$theme"></output>
+</main>
+""",
+        datastar_runtime_source,
+    )
+
+    await wait_for_dom_text(page, "#theme", "persisted")
+
+    assert await page.evaluate(
+        """() => window.__signalPatches.some(detail =>
+            detail?.source === "persist" && detail?.signals?.theme === "persisted"
+        )"""
+    )
