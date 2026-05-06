@@ -431,3 +431,174 @@ async def test_on_intersect_threshold_modifier_uses_numeric_fraction(page, datas
 
     thresholds = await page.evaluate("window.__intersectionOptions.map(options => options.threshold)")
     assert thresholds == [0.25]
+
+
+@pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
+@pytest.mark.asyncio
+async def test_data_bind_prop_modifier_binds_without_event_modifier(page, datastar_runtime_source):
+    """data-bind__prop can target an element property while using default events."""
+    await load_datastar_page(
+        page,
+        """
+<main data-signals='{"hidden": true}'>
+  <section id="panel" data-bind__prop.hidden="hidden"></section>
+  <output id="hidden" data-text="$hidden"></output>
+</main>
+""",
+        datastar_runtime_source,
+    )
+
+    await wait_for_dom_text(page, "#hidden", "true")
+    assert await page.locator("#panel").evaluate("el => el.hidden") is True
+
+    await page.locator("#panel").evaluate(
+        """el => {
+            el.hidden = false;
+            el.dispatchEvent(new Event("input", { bubbles: true }));
+        }"""
+    )
+
+    await wait_for_dom_text(page, "#hidden", "false")
+
+
+@pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
+@pytest.mark.asyncio
+async def test_data_bind_event_modifier_binds_without_prop_modifier(page, datastar_runtime_source):
+    """data-bind__event can override events while preserving default input binding."""
+    await load_datastar_page(
+        page,
+        """
+<main data-signals='{"name": "Ada"}'>
+  <input id="name" data-bind__event.change="name">
+  <output id="name-output" data-text="$name"></output>
+</main>
+""",
+        datastar_runtime_source,
+    )
+
+    await wait_for_dom_text(page, "#name-output", "Ada")
+    assert await page.locator("#name").input_value() == "Ada"
+
+    await page.locator("#name").evaluate(
+        """el => {
+            el.value = "Grace";
+            el.dispatchEvent(new Event("input", { bubbles: true }));
+        }"""
+    )
+    await page.wait_for_timeout(50)
+    assert await page.locator("#name-output").text_content() == "Ada"
+
+    await page.locator("#name").dispatch_event("change")
+    await wait_for_dom_text(page, "#name-output", "Grace")
+
+
+@pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
+@pytest.mark.asyncio
+async def test_data_bind_prop_and_event_modifiers_combine(page, datastar_runtime_source):
+    """Combined prop/event modifiers bind the property and listen only to the requested event."""
+    await load_datastar_page(
+        page,
+        """
+<main data-signals='{"label": "Ada"}'>
+  <div id="target" data-bind__prop.title__event.datastar-prop-change="label"></div>
+  <output id="label" data-text="$label"></output>
+</main>
+""",
+        datastar_runtime_source,
+    )
+
+    await wait_for_dom_text(page, "#label", "Ada")
+    assert await page.locator("#target").evaluate("el => el.title") == "Ada"
+
+    await page.locator("#target").evaluate(
+        """el => {
+            el.title = "Grace";
+            el.dispatchEvent(new Event("input", { bubbles: true }));
+        }"""
+    )
+    await page.wait_for_timeout(50)
+    assert await page.locator("#label").text_content() == "Ada"
+
+    await page.locator("#target").dispatch_event("datastar-prop-change")
+    await wait_for_dom_text(page, "#label", "Grace")
+
+
+@pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
+@pytest.mark.asyncio
+async def test_data_bind_prop_selected_index_uses_camel_cased_property(page, datastar_runtime_source):
+    """Hyphenated prop modifiers bind through the camel-cased DOM property."""
+    await load_datastar_page(
+        page,
+        """
+<main data-signals='{"choice_index": 1}'>
+  <select id="choice" data-bind__prop.selected-index="choice_index">
+    <option value="a">A</option>
+    <option value="b">B</option>
+    <option value="c">C</option>
+  </select>
+  <output id="choice-index" data-text="$choice_index"></output>
+</main>
+""",
+        datastar_runtime_source,
+    )
+
+    await wait_for_dom_text(page, "#choice-index", "1")
+    assert await page.locator("#choice").evaluate("el => el.selectedIndex") == 1
+
+    await page.locator("#choice").evaluate(
+        """el => {
+            el.selectedIndex = 2;
+            el.dispatchEvent(new Event("change", { bubbles: true }));
+        }"""
+    )
+
+    await wait_for_dom_text(page, "#choice-index", "2")
+
+
+@pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
+@pytest.mark.asyncio
+async def test_radio_bind_initializes_missing_signal_from_checked_radio(page, datastar_runtime_source):
+    """Missing radio signals adopt the initially checked radio value."""
+    await load_datastar_page(
+        page,
+        """
+<main>
+  <label><input type="radio" name="choice" value="alpha" data-bind="choice">Alpha</label>
+  <label><input type="radio" name="choice" value="beta" data-bind="choice" checked>Beta</label>
+  <output id="choice" data-text="$choice"></output>
+  <pre id="signals" data-json-signals></pre>
+</main>
+""",
+        datastar_runtime_source,
+    )
+
+    await wait_for_dom_text(page, "#choice", "beta")
+    assert await page.locator("input[value='beta']").is_checked()
+
+    signals = await read_signals(page)
+    assert signals["choice"] == "beta"
+
+
+@pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
+@pytest.mark.asyncio
+async def test_single_select_initializes_missing_signal_as_string_value(page, datastar_runtime_source):
+    """Missing select signals keep selected string values instead of coercing numbers."""
+    await load_datastar_page(
+        page,
+        """
+<main>
+  <select id="quantity" data-bind="quantity">
+    <option value="1" selected>One</option>
+    <option value="2">Two</option>
+  </select>
+  <output id="quantity-output" data-text="$quantity"></output>
+  <pre id="signals" data-json-signals></pre>
+</main>
+""",
+        datastar_runtime_source,
+    )
+
+    await wait_for_dom_text(page, "#quantity-output", "1")
+
+    signals = await read_signals(page)
+    assert signals["quantity"] == "1"
