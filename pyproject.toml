@@ -76,6 +76,15 @@ exclude = [
     "node_modules/",
 ]
 
+[tool.hatch.build.targets.sdist]
+# Keep rebuildable source inputs such as TypeScript, but do not ship the
+# project test suite in the source distribution.
+exclude = [
+    "/tests",
+    "/dist",
+    "/node_modules",
+]
+
 
 [tool.pytest.ini_options]
 minversion = "7.0"
@@ -210,4 +219,3 @@ dev = [
     "pytest-cov>=6.1.1",
     "python-multipart>=0.0.20",
 ]
-
