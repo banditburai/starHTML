@@ -5,6 +5,7 @@ This test suite ensures consistent behavior across all supported browsers
 using Playwright for automated cross-browser testing.
 """
 
+import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -40,6 +41,7 @@ BROWSER_MATRIX = {
 }
 
 MOBILE_DEVICES = ["iPhone 12", "iPhone SE", "iPad", "Pixel 5", "Galaxy S21"]
+REQUIRE_BROWSER_MATRIX = os.environ.get("STARHTML_REQUIRE_BROWSER_MATRIX") == "1"
 
 
 @dataclass
@@ -258,18 +260,29 @@ class TestBrowserCompatibility:
 
         async with async_playwright() as p:
             browsers = {}
+            launch_errors = {}
             for browser_name in BROWSER_MATRIX.keys():
                 try:
                     if browser_name == "chromium":
-                        browser = await p.chromium.launch()
+                        browser = await p.chromium.launch(timeout=10000)
                     elif browser_name == "firefox":
-                        browser = await p.firefox.launch()
+                        browser = await p.firefox.launch(timeout=10000)
                     elif browser_name == "webkit":
-                        browser = await p.webkit.launch()
+                        browser = await p.webkit.launch(timeout=10000)
 
                     browsers[browser_name] = browser
                 except Exception as e:
-                    print(f"Failed to launch {browser_name}: {e}")
+                    launch_errors[browser_name] = str(e).splitlines()[0]
+
+            if launch_errors:
+                for browser in browsers.values():
+                    await browser.close()
+                message = "Browser compatibility matrix unavailable: " + ", ".join(
+                    f"{browser}: {error}" for browser, error in launch_errors.items()
+                )
+                if REQUIRE_BROWSER_MATRIX:
+                    pytest.fail(message)
+                pytest.skip(message)
 
             yield browsers
 
@@ -460,12 +473,10 @@ class TestBrowserCompatibility:
         for browser_name, browser in mobile_browsers.items():
             for device_name in MOBILE_DEVICES[:2]:  # Test first 2 devices to save time
                 context = await browser.new_context(
-                    **await browser.new_context(
-                        user_agent="Mozilla/5.0 (iPhone; CPU iPhone OS 14_7_1 like Mac OS X) AppleWebKit/605.1.15",
-                        viewport={"width": 375, "height": 667},
-                        is_mobile=True,
-                        has_touch=True,
-                    )
+                    user_agent="Mozilla/5.0 (iPhone; CPU iPhone OS 14_7_1 like Mac OS X) AppleWebKit/605.1.15",
+                    viewport={"width": 375, "height": 667},
+                    is_mobile=True,
+                    has_touch=True,
                 )
                 page = await context.new_page()
 
