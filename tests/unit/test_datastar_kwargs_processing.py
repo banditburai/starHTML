@@ -12,7 +12,7 @@ Key principles:
 
 from fastcore.xml import NotStr
 
-from starhtml.datastar import Expr, PropertyAccess, Signal, _is_signal_like, js, process_datastar_kwargs
+from starhtml.datastar import Expr, PropertyAccess, Signal, _is_signal_like, get, js, post, process_datastar_kwargs
 
 
 class FakeSignal(Expr):
@@ -292,6 +292,35 @@ class TestSpecialDataAttributes:
         # When data_class is an Expr, it goes to data-class attribute
         assert "data-class" in processed
 
+    def test_data_bind_signal_with_prop_modifier_uses_bare_path(self):
+        """data-bind__prop should bind to the signal path, not the JS expression."""
+        checked = Signal("checked", False)
+        processed, signals = process_datastar_kwargs({"data_bind": (checked, {"prop": "checked"})})
+
+        assert str(processed["data-bind__prop.checked"]) == "checked"
+        assert "data-signals:checked__ifmissing" in processed
+        assert checked in signals
+
+    def test_data_bind_signal_with_event_modifier_uses_bare_path(self):
+        """Datastar 1.0.1 allows __event without requiring __prop."""
+        value = Signal("value", "")
+        processed, signals = process_datastar_kwargs({"data_bind": (value, {"event": "change"})})
+
+        assert str(processed["data-bind__event.change"]) == "value"
+        assert "data-signals:value__ifmissing" in processed
+        assert value in signals
+
+    def test_data_bind_signal_with_prop_and_event_modifiers_uses_bare_path(self):
+        """Combined bind modifiers should preserve hyphenated modifier tags."""
+        selected_index = Signal("selected_index", 0)
+        processed, signals = process_datastar_kwargs(
+            {"data_bind": (selected_index, {"prop": "selected-index", "event": "change"})}
+        )
+
+        assert str(processed["data-bind__prop.selected-index__event.change"]) == "selected_index"
+        assert "data-signals:selected_index__ifmissing" in processed
+        assert selected_index in signals
+
 
 class TestDuckTypedSignalLike:
     """Pin the ``_is_signal_like`` discrimination for ``data_bind`` /
@@ -348,6 +377,63 @@ class TestEventModifiers:
 
         found_key = [k for k in processed if "debounce" in k]
         assert len(found_key) == 1
+
+    def test_event_with_document_modifier(self):
+        """data-on listeners should be able to attach to document."""
+        processed, _ = process_datastar_kwargs({"data_on_custom": ("handle()", {"document": True})})
+
+        assert processed["data-on:custom__document"] == "handle()"
+
+    def test_event_with_capture_modifier(self):
+        """Capture modifier output must remain stable for Datastar cleanup semantics."""
+        processed, _ = process_datastar_kwargs({"data_on_click": ("handle()", {"capture": True})})
+
+        assert processed["data-on:click__capture"] == "handle()"
+
+    def test_event_with_viewtransition_prevent_modifiers(self):
+        """View-transition and prevent modifiers should compose in order."""
+        processed, _ = process_datastar_kwargs(
+            {"data_on_submit": ("save()", {"viewtransition": True, "prevent": True})}
+        )
+
+        assert processed["data-on:submit__viewtransition__prevent"] == "save()"
+
+    def test_event_with_outside_modifier(self):
+        """Outside modifier output is StarHTML-patched runtime behavior."""
+        processed, _ = process_datastar_kwargs({"data_on_click": ("close()", {"outside": True})})
+
+        assert processed["data-on:click__outside"] == "close()"
+
+    def test_event_with_multiple_101_modifiers(self):
+        """Common Datastar 1.0.1 data-on modifiers should compose predictably."""
+        processed, _ = process_datastar_kwargs(
+            {
+                "data_on_click": (
+                    "handle(evt)",
+                    {"document": True, "capture": True, "viewtransition": True, "prevent": True, "outside": True},
+                )
+            }
+        )
+
+        assert processed["data-on:click__document__capture__viewtransition__prevent__outside"] == "handle(evt)"
+
+
+class TestFetchActionOptions:
+    """Test fetch action helper option output."""
+
+    def test_post_action_can_emit_retry_max_wait(self):
+        """Datastar 1.0.1 uses retryMaxWait, not retryMaxWaitMs."""
+        action = post("/save", retryMaxWait=15000)
+
+        assert str(action) == "@post('/save', {retryMaxWait: 15000})"
+
+    def test_get_action_can_emit_retry_max_wait_with_other_options(self):
+        """Fetch options should preserve current upstream names alongside other options."""
+        action = get("/items", retryMaxWait=5000, requestCancellation="cleanup")
+
+        assert "retryMaxWait: 5000" in str(action)
+        assert 'requestCancellation: "cleanup"' in str(action)
+        assert "retryMaxWaitMs" not in str(action)
 
 
 class TestNonDatastarAttributes:
