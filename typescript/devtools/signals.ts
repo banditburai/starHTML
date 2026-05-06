@@ -25,8 +25,10 @@ const CHANGE_FLASH_MS = 2000;
 const REMOVED_CLEANUP_MS = 6000;
 const REMOVED_DISPLAY_MS = 4000;
 const MAX_DISPLAY_STRING = 40;
+const SOURCE_METADATA_TTL_MS = 250;
 
 const entries: Map<string, SignalEntry> = new Map();
+const pendingSources: Map<string, SourceMetadata> = new Map();
 let devtoolsPrefix = "";
 let excludeRe: RegExp | undefined;
 let devtoolsSignalNames: Set<string> = new Set();
@@ -48,17 +50,20 @@ export function init(
   devtoolsSignalNames = new Set(excludeNames ?? []);
   if (visibilityFn) isVisible = visibilityFn;
   document.addEventListener("datastar-signal-patch", onSignalPatch as EventListener);
+  document.addEventListener("starhtml:signal-source", onSignalSource as EventListener);
   structuralPoll();
   pollInterval = setInterval(structuralPoll, POLL_INTERVAL_MS);
 }
 
 export function cleanup(): void {
   document.removeEventListener("datastar-signal-patch", onSignalPatch as EventListener);
+  document.removeEventListener("starhtml:signal-source", onSignalSource as EventListener);
   if (pollInterval !== null) {
     clearInterval(pollInterval);
     pollInterval = null;
   }
   entries.clear();
+  pendingSources.clear();
   subscribers.clear();
   devtoolsPrefix = "";
   excludeRe = undefined;
@@ -147,11 +152,29 @@ function onSignalPatch(e: CustomEvent): void {
     try {
       const value = getPath(path);
       if (updateOrCreateEntry(path, value)) changed = true;
+      if (applySourceMetadata(path, takePendingSource(path))) changed = true;
     } catch {
       /* noop */
     }
   }
 
+  if (changed) scheduleNotify();
+}
+
+function onSignalSource(e: CustomEvent): void {
+  const metadata = sourceMetadataFromDetail(e.detail);
+  if (!metadata) return;
+
+  let changed = false;
+  for (const path of metadata.paths) {
+    if (isDevtoolsSignal(path)) continue;
+    const entry = entries.get(path);
+    if (entry && Date.now() - entry.lastChanged <= SOURCE_METADATA_TTL_MS) {
+      if (applySourceMetadata(path, metadata)) changed = true;
+    } else {
+      pendingSources.set(path, metadata);
+    }
+  }
   if (changed) scheduleNotify();
 }
 
@@ -228,7 +251,7 @@ function updateExistingEntry(entry: SignalEntry, value: unknown): void {
 function assignNamespace(entry: SignalEntry, namespace: string, tag: string): void {
   entry.namespace = namespace;
   entry.tagName = tag;
-  if (!entry.source.startsWith("persist:")) {
+  if (!isPersistSource(entry.source)) {
     entry.source = `component:${tag}`;
   }
 }
@@ -266,13 +289,78 @@ function detectNamespaces(): void {
           .replace(/_id\d+$/, "")
           .replace(/_/g, "-");
         assignNamespace(entry, m[1], tag);
-      } else if (!entry.source.startsWith("persist:")) {
+      } else if (!isPersistSource(entry.source)) {
         entry.namespace = "";
         entry.tagName = "";
         entry.source = "page";
       }
     }
   }
+}
+
+interface SourceMetadata {
+  source: string;
+  paths: string[];
+  storageKey?: string;
+  storage?: "local" | "session";
+  expiresAt: number;
+}
+
+function sourceMetadataFromDetail(detail: unknown): SourceMetadata | undefined {
+  if (!detail || typeof detail !== "object") return;
+  const obj = detail as Record<string, unknown>;
+  const source = obj.source;
+  if (typeof source !== "string" || source.length === 0) return;
+
+  let paths: string[] = [];
+  if (Array.isArray(obj.paths)) {
+    paths = obj.paths.filter((path): path is string => typeof path === "string" && path.length > 0);
+  }
+  if (paths.length === 0 && obj.signals && typeof obj.signals === "object") {
+    paths = flattenPaths(obj.signals as Record<string, unknown>, "");
+  }
+  if (paths.length === 0) return;
+
+  const storage = obj.storage === "local" || obj.storage === "session" ? obj.storage : undefined;
+  const storageKey = typeof obj.storageKey === "string" ? obj.storageKey : undefined;
+  return {
+    source,
+    paths,
+    storage,
+    storageKey,
+    expiresAt: Date.now() + SOURCE_METADATA_TTL_MS,
+  };
+}
+
+function takePendingSource(path: string): SourceMetadata | undefined {
+  const metadata = pendingSources.get(path);
+  if (!metadata) return;
+  pendingSources.delete(path);
+  if (metadata.expiresAt < Date.now()) return;
+  return metadata;
+}
+
+function applySourceMetadata(path: string, metadata: SourceMetadata | undefined): boolean {
+  if (!metadata) return false;
+  const entry = entries.get(path);
+  if (!entry) return false;
+
+  let changed = false;
+  if (metadata.storage && entry.persistStorage !== metadata.storage) {
+    entry.persistStorage = metadata.storage;
+    changed = true;
+  }
+  const previousSource = entry.source;
+  if (metadata.source === "persist") {
+    entry.source = metadata.storageKey ? `persist:${metadata.storageKey}` : "persist";
+  } else {
+    entry.source = metadata.source;
+  }
+  return changed || previousSource !== entry.source;
+}
+
+function isPersistSource(source: string): boolean {
+  return source === "persist" || source.startsWith("persist:");
 }
 
 function detectPersistence(): void {

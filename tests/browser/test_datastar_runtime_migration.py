@@ -53,6 +53,12 @@ def datastar_runtime_source() -> str:
     return apply_all(DATASTAR_UPSTREAM.read_text(), version_match.group(1).split("+")[0])
 
 
+@pytest.fixture(scope="session")
+def datastar_upstream_source() -> str:
+    """Return vanilla Datastar 1.0.1 for upstream behavior comparisons."""
+    return DATASTAR_UPSTREAM.read_text()
+
+
 @pytest_asyncio.fixture
 async def page():
     """Create a Chromium page for focused Datastar migration tests."""
@@ -187,6 +193,40 @@ def fetch_capture_script(response_statuses: list[int] | None = None) -> str:
     const status = window.__fetchStatuses.shift() || 204;
     return new Response(null, {{ status }});
   }};
+</script>
+"""
+
+
+def fetch_visibility_reconnect_script() -> str:
+    """Install a fetch mock whose first request stays open until visibility reconnect."""
+    return """
+<script>
+  window.__fetchCalls = [];
+  window.fetch = async (url, init = {}) => {
+    const headers = Object.fromEntries(new Headers(init.headers || {}).entries());
+    let body = null;
+    if (init.body instanceof URLSearchParams) {
+      body = init.body.toString();
+    } else if (init.body instanceof FormData) {
+      body = Array.from(init.body.entries());
+    } else if (init.body !== undefined && init.body !== null) {
+      body = String(init.body);
+    }
+    window.__fetchCalls.push({
+      url: String(url),
+      method: init.method || "GET",
+      headers,
+      body
+    });
+    if (window.__fetchCalls.length === 1) {
+      return new Promise((resolve, reject) => {
+        init.signal?.addEventListener("abort", () => {
+          reject(new DOMException("Aborted", "AbortError"));
+        }, { once: true });
+      });
+    }
+    return new Response(null, { status: 204 });
+  };
 </script>
 """
 
@@ -329,8 +369,10 @@ async def test_form_submit_input_value_is_included(page, datastar_runtime_source
 
 @pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
 @pytest.mark.asyncio
-async def test_retry_rebuilds_payload_from_current_signals(page, datastar_runtime_source):
-    """Datastar 1.0.1 retries should rebuild request payloads from current signals."""
+@pytest.mark.parametrize("runtime_fixture", ["datastar_upstream_source", "datastar_runtime_source"])
+async def test_http_retry_reuses_original_signal_payload(page, request, runtime_fixture):
+    """Vanilla and StarHTML Datastar 1.0.1 ordinary HTTP retries reuse the original payload."""
+    datastar_source = request.getfixturevalue(runtime_fixture)
     await load_datastar_page(
         page,
         f"""
@@ -343,13 +385,45 @@ async def test_retry_rebuilds_payload_from_current_signals(page, datastar_runtim
   <output id="ready" data-text="$name"></output>
 </main>
 """,
-        datastar_runtime_source,
+        datastar_source,
     )
 
     await wait_for_dom_text(page, "#ready", "Ada")
     await page.locator("#send").click()
     await read_fetch_calls(page)
     await dispatch_signal_patch(page, {"name": "Grace"})
+
+    calls = await read_fetch_calls(page, expected_count=2)
+    assert json.loads(calls[0]["body"]) == {"name": "Ada"}
+    assert json.loads(calls[1]["body"]) == {"name": "Ada"}
+
+
+@pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
+@pytest.mark.asyncio
+@pytest.mark.parametrize("runtime_fixture", ["datastar_upstream_source", "datastar_runtime_source"])
+async def test_visibility_reconnect_rebuilds_payload_from_current_signals(page, request, runtime_fixture):
+    """Vanilla and StarHTML Datastar 1.0.1 rebuild payloads on visibility reconnect."""
+    datastar_source = request.getfixturevalue(runtime_fixture)
+    await load_datastar_page(
+        page,
+        f"""
+{fetch_visibility_reconnect_script()}
+<main data-signals='{{"name": "Ada"}}'>
+  <button
+    id="send"
+    data-on:click="@post('https://example.test/capture', {{openWhenHidden: false}})"
+  >Send</button>
+  <output id="ready" data-text="$name"></output>
+</main>
+""",
+        datastar_source,
+    )
+
+    await wait_for_dom_text(page, "#ready", "Ada")
+    await page.locator("#send").click()
+    await read_fetch_calls(page)
+    await dispatch_signal_patch(page, {"name": "Grace"})
+    await page.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
 
     calls = await read_fetch_calls(page, expected_count=2)
     assert json.loads(calls[0]["body"]) == {"name": "Ada"}
@@ -879,8 +953,10 @@ async def test_late_plugin_registration_does_not_refire_data_init(page, datastar
 
 @pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
 @pytest.mark.asyncio
-async def test_persist_prehydrates_ifmissing_defaults_and_tags_signal_source(page, datastar_runtime_source):
-    """Persisted values win over ifmissing defaults and signal patches include source metadata."""
+async def test_persist_prehydrates_ifmissing_defaults_and_emits_starhtml_source_event(
+    page, datastar_runtime_source
+):
+    """Persisted values win, Datastar patches stay vanilla, and StarHTML emits source metadata."""
     await load_datastar_page_at_origin(
         page,
         """
@@ -889,6 +965,10 @@ async def test_persist_prehydrates_ifmissing_defaults_and_tags_signal_source(pag
   sessionStorage.clear();
   localStorage.setItem("starhtml-persist:settings", JSON.stringify({ theme: "persisted" }));
   window.__signalPatches = [];
+  window.__signalSources = [];
+  document.addEventListener("starhtml:signal-source", event => {
+    window.__signalSources.push(event.detail);
+  });
   document.addEventListener("datastar-signal-patch", event => {
     window.__signalPatches.push(event.detail);
   });
@@ -904,6 +984,16 @@ async def test_persist_prehydrates_ifmissing_defaults_and_tags_signal_source(pag
 
     assert await page.evaluate(
         """() => window.__signalPatches.some(detail =>
-            detail?.source === "persist" && detail?.signals?.theme === "persisted"
+            detail?.theme === "persisted" &&
+            !("signals" in detail) &&
+            !("source" in detail)
+        )"""
+    )
+    assert await page.evaluate(
+        """() => window.__signalSources.some(detail =>
+            detail?.source === "persist" &&
+            detail?.signals?.theme === "persisted" &&
+            detail?.paths?.includes("theme") &&
+            detail?.phase === "before"
         )"""
     )

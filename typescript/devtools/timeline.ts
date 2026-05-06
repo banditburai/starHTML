@@ -256,11 +256,20 @@ function captureUserActions(): void {
 // ─── Signal Change Capture ───────────────────────────────────────
 
 let signalPatchListener: ((e: Event) => void) | null = null;
+let signalSourceListener: ((e: Event) => void) | null = null;
 
 const MAX_PREV_VALUES = 500;
+const SOURCE_METADATA_TTL_MS = 250;
+
+interface SourceMetadata {
+  source: string;
+  paths: string[];
+  expiresAt: number;
+}
 
 function captureSignalChanges(): void {
   const prevValues = new Map<string, unknown>();
+  const pendingSources = new Map<string, SourceMetadata>();
 
   // Pre-populate with current signal values so the first change shows
   // the actual old value instead of undefined
@@ -276,20 +285,7 @@ function captureSignalChanges(): void {
     const raw = (e as CustomEvent).detail;
     if (!raw || typeof raw !== "object") return;
 
-    // Patched Datastar sends {signals, source} when source is tagged;
-    // unpatched sends the signal object directly (backward-compatible).
-    let detail: Record<string, unknown>;
-    let eventSource: string | undefined;
-    const rawObj = raw as Record<string, unknown>;
-    if ("signals" in rawObj && typeof rawObj.signals === "object") {
-      detail = rawObj.signals as Record<string, unknown>;
-      const src = rawObj.source;
-      if (typeof src === "string") eventSource = src;
-    } else {
-      detail = rawObj;
-    }
-
-    const paths = flattenPaths(detail, "");
+    const paths = flattenPaths(raw as Record<string, unknown>, "");
 
     let baseSource: SignalChangeData["source"] = activeTraceId === null ? "script" : "init";
     if (activeTraceRootType === "sse-lifecycle") baseSource = "sse";
@@ -316,9 +312,10 @@ function captureSignalChanges(): void {
         if (first !== undefined) prevValues.delete(first);
       }
 
-      // Definitive source from the patched event; fall back to trace heuristic
+      // Definitive StarHTML source metadata wins; otherwise use trace heuristics.
       let source: SignalChangeData["source"] = baseSource;
-      if (eventSource === "persist") {
+      const sourceMetadata = takePendingSource(pendingSources, path);
+      if (sourceMetadata?.source === "persist") {
         source = "persist";
       } else if (baseSource !== "sse" && baseSource !== "user" && oldValue === undefined) {
         source = "init";
@@ -332,7 +329,45 @@ function captureSignalChanges(): void {
       emit("signal-change", data);
     }
   };
+  signalSourceListener = (e: Event) => {
+    const metadata = sourceMetadataFromDetail((e as CustomEvent).detail);
+    if (!metadata) return;
+    for (const path of metadata.paths) {
+      if (isDevtoolsSignal(path)) continue;
+      pendingSources.set(path, metadata);
+    }
+  };
+  document.addEventListener("starhtml:signal-source", signalSourceListener);
   document.addEventListener("datastar-signal-patch", signalPatchListener);
+}
+
+function sourceMetadataFromDetail(detail: unknown): SourceMetadata | undefined {
+  if (!detail || typeof detail !== "object") return;
+  const obj = detail as Record<string, unknown>;
+  const source = obj.source;
+  if (typeof source !== "string" || source.length === 0) return;
+
+  let paths: string[] = [];
+  if (Array.isArray(obj.paths)) {
+    paths = obj.paths.filter((path): path is string => typeof path === "string" && path.length > 0);
+  }
+  if (paths.length === 0 && obj.signals && typeof obj.signals === "object") {
+    paths = flattenPaths(obj.signals as Record<string, unknown>, "");
+  }
+  if (paths.length === 0) return;
+
+  return { source, paths, expiresAt: Date.now() + SOURCE_METADATA_TTL_MS };
+}
+
+function takePendingSource(
+  pendingSources: Map<string, SourceMetadata>,
+  path: string
+): SourceMetadata | undefined {
+  const metadata = pendingSources.get(path);
+  if (!metadata) return;
+  pendingSources.delete(path);
+  if (metadata.expiresAt < Date.now()) return;
+  return metadata;
 }
 
 // ─── DOM Mutation Capture (via shared devtools-dom-observer) ──────
@@ -447,6 +482,10 @@ export function cleanup(): void {
   if (signalPatchListener) {
     document.removeEventListener("datastar-signal-patch", signalPatchListener);
     signalPatchListener = null;
+  }
+  if (signalSourceListener) {
+    document.removeEventListener("starhtml:signal-source", signalSourceListener);
+    signalSourceListener = null;
   }
   if (unsubDomObserver) {
     unsubDomObserver();

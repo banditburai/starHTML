@@ -14,7 +14,7 @@ class PatchDef:
 
 PATCHED_HEADER = (
     "// Datastar v{version} "
-    "(StarHTML patched: shadow-dom-scan, outside-race-fix, retry-current-payload, persist-aware-init)"
+    "(StarHTML patched: shadow-dom-scan, outside-race-fix, persist-aware-init)"
 )
 
 PATCHES: list[PatchDef] = [
@@ -68,66 +68,13 @@ PATCHES: list[PatchDef] = [
         ],
     ),
     PatchDef(
-        name="signal-patch-source-tag",
-        operations=[
-            # Declare module-scoped _J_src at the very top of the code body.
-            # J() includes it in the datastar-signal-patch event when non-empty,
-            # allowing the debugger to get definitive source info (e.g. "persist").
-            ("var ht=", 'var _J_src="";var ht='),
-            # Patch J() to wrap detail in {signals, source} when _J_src is set.
-            (
-                "z=(e,t)=>{if(e!==void 0&&t!==void 0&&xe.push([e,t]),"
-                "!He&&xe.length){let n=Le(xe);xe.length=0,"
-                "document.dispatchEvent(new CustomEvent(te,{detail:n}))}}",
-                "z=(e,t)=>{if(e!==void 0&&t!==void 0&&xe.push([e,t]),"
-                "!He&&xe.length){let n=Le(xe);xe.length=0;"
-                "let _d=_J_src?{signals:n,source:_J_src}:n;"
-                "document.dispatchEvent(new CustomEvent(te,{detail:_d}))}}",
-            ),
-        ],
-        markers=['var _J_src=""', "signals:n,source:_J_src"],
-    ),
-    PatchDef(
-        name="retry-current-payload",
-        operations=[
-            (
-                'if(M!==200){if(u?.(),d!=="never"&&!pe&&!mt&&(d==="always"||d==="error"&&on)){'
-                "clearTimeout(q),q=setTimeout(L,p);return}C(),n();return}",
-                'if(M!==200){if(u?.(),d!=="never"&&!pe&&!mt&&(d==="always"||d==="error"&&on)){'
-                "let G=t();G&&(i=G.input,U.body=G.body),clearTimeout(q),q=setTimeout(L,p);return}"
-                "C(),n();return}",
-            ),
-            (
-                "let H=f?.(S)||p;clearTimeout(q),q=setTimeout(L,H),p=Math.min(p*v,y),"
-                '++J>=F?(se(Rn,e,{}),C(),r("Max retries reached.")):'
-                "console.error(`Datastar failed to reach ${i.toString()} retrying in ${H}ms.`)",
-                "let H=f?.(S)||p,G=t();G&&(i=G.input,U.body=G.body),"
-                "clearTimeout(q),q=setTimeout(L,H),p=Math.min(p*v,y),"
-                '++J>=F?(se(Rn,e,{}),C(),r("Max retries reached.")):'
-                "console.error(`Datastar failed to reach ${i.toString()} retrying in ${H}ms.`)",
-            ),
-            (
-                "let qe=h||window.fetch,b=c||(()=>{}),J=0,A=p,"
-                "L=async()=>{ee=new AbortController;let E=ee.signal;try{let S=await qe(i,{...U,headers:X,signal:E});",
-                "let qe=h||window.fetch,b=c||(()=>{}),J=0,A=p,be=!0,"
-                "L=async()=>{if(be)be=!1;else{let G=t();if(G){i=G.input;U.body=G.body}}"
-                "ee=new AbortController;let E=ee.signal;try{let S=await qe(i,{...U,headers:X,signal:E});",
-            ),
-        ],
-        markers=[
-            "retry-current-payload",
-            "G=t();G&&(i=G.input,U.body=G.body)",
-            "be=!0,L=async()=>{if(be)be=!1;else{let G=t();if(G){i=G.input;U.body=G.body}",
-        ],
-    ),
-    PatchDef(
         name="persist-aware-init",
         operations=[
             # Patch mergePatch (O) so that ifMissing mode checks localStorage/
             # sessionStorage for starhtml-persist* keys before setting defaults.
             # Signals start with the persisted value on the very first render —
-            # zero FOUC.  Sets _J_src="persist" so the signal-patch event carries
-            # definitive source metadata for the debugger.
+            # zero FOUC. Dispatches a StarHTML-owned source event so Datastar's
+            # datastar-signal-patch detail remains the vanilla signal object.
             (
                 'D=(e,{ifMissing:t}={})=>{N();for(let n in e)e[n]==null?t||delete re[n]:Nt(e[n],n,re,"",t);P()}',
                 "D=(e,{ifMissing:t}={})=>{"
@@ -140,15 +87,16 @@ PATCHES: list[PatchDef] = [
                 'if(_d&&typeof _d==="object")Object.assign(_ps,_d)}'
                 "catch{}}}}}catch{}"
                 "window.__starhtml_pc=_ps}"
-                "let _hp=!1;"
-                "for(let n in e)if(n in _ps&&_ps[n]!=null){e[n]=_ps[n];_hp=!0}"
-                'if(_hp)_J_src="persist"}'
+                "let _pm={},_hp=!1;"
+                "for(let n in e)if(n in _ps&&_ps[n]!=null){e[n]=_ps[n];_pm[n]=_ps[n];_hp=!0}"
+                'if(_hp)document.dispatchEvent(new CustomEvent("starhtml:signal-source",'
+                '{detail:{source:"persist",signals:_pm,paths:Object.keys(_pm),phase:"before"}}))}'
                 "N();"
                 'for(let n in e)e[n]==null?t||delete re[n]:Nt(e[n],n,re,"",t);P();'
-                '_J_src=""}',
+                "}",
             ),
         ],
-        markers=["window.__starhtml_pc", '_J_src="persist"'],
+        markers=["window.__starhtml_pc", '"starhtml:signal-source"', 'source:"persist"'],
     ),
 ]
 

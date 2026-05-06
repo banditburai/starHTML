@@ -69,16 +69,20 @@ Older StarHTML builds patched Datastar's scan function to prevent `data-init` fr
 
 Datastar `1.0.1` tracks observed roots and preserves the newly-registered-plugin filter during late plugin registration. StarHTML now relies on that upstream behavior, backed by the browser migration test for late plugin registration. The shadow DOM scan patch still adds a filter override for explicit component scans, but there is no longer a separate `init-refire-fix` patch.
 
-## Patch 3: Signal Patch Source Tag
+## Patch 3: StarHTML Signal Source Event
 
 **Problem**: The debugger needs to distinguish user/application signal changes from StarHTML persist prehydration.
 
-**Fix**: Adds a small module-scoped source tag. Normal `datastar-signal-patch` event details remain unchanged; when StarHTML sets the source tag, the event detail is wrapped as `{signals, source}`.
+**Fix**: StarHTML dispatches a separate `starhtml:signal-source` event with source metadata for sourceful signal changes. Datastar's `datastar-signal-patch` event detail stays the vanilla signal object expected by upstream Datastar.
+
+## Removed: Retry Current Payload
+
+StarHTML briefly patched ordinary HTTP and network-error retries to rebuild the request payload from current signals before each retry. Datastar `1.0.1` only rebuilds request init for visibility reconnect/resume; normal retry attempts reuse the original request body/query. StarHTML now follows upstream semantics here to avoid surprising form and non-idempotent action behavior.
 
 ## Patch 4: Persist-Aware Init
 
 **Problem**: `data-signals__ifmissing` defaults render before StarHTML persist data can restore values, causing a flash of default state.
 
-**Fix**: In `ifMissing` signal merges, StarHTML checks cached `starhtml-persist*` storage values before applying defaults. When a persisted value is used, the source tag is set to `"persist"` for debugger metadata.
+**Fix**: In `ifMissing` signal merges, StarHTML checks cached `starhtml-persist*` storage values before applying defaults. When a persisted value is used, StarHTML emits `starhtml:signal-source` with `source: "persist"` before the Datastar patch event.
 
 The storage scan is cached on `window.__starhtml_pc` for the lifetime of the page.
