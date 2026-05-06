@@ -1017,7 +1017,14 @@ def process_datastar_kwargs(kwargs: dict) -> tuple[dict, set[Signal]]:
                 is_keyed = isinstance(expr, str) and not is_event
                 if isinstance(expr, Expr | Signal):
                     collect(expr)
-                    js_str = expr.to_js()
+                    if key in _SIGNAL_PATH_ATTRS and _is_signal_like(expr):
+                        js_str = expr._id
+                        get_signal_attr: Any = getattr(type(expr), "get_signal_attr", None)
+                        signal_attr: Any = get_signal_attr(expr) if callable(get_signal_attr) else None
+                        if signal_attr:
+                            processed[signal_attr[0]] = NotStr(_to_js(signal_attr[1], allow_expressions=False))
+                    else:
+                        js_str = expr.to_js()
                 elif isinstance(expr, list):
                     js_str = _expr_list_to_js(expr, collect)
                 else:
