@@ -165,7 +165,7 @@ def star_app(
     return app, app.route, *db_tables
 
 
-DATASTAR_VERSION = "1.0.0-RC.7+starhtml"
+DATASTAR_VERSION = "1.0.1+starhtml"
 _DATASTAR_CDN_TEMPLATE = "https://cdn.jsdelivr.net/gh/starfederation/datastar@{version}/bundles/datastar.js"
 ICONIFY_VERSION = "2.3.0"
 
