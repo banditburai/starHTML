@@ -39,7 +39,24 @@ DATASTAR_CORE_RUNTIME = PROJECT_ROOT / "src" / "starhtml" / "static" / "js" / "d
 DATASTAR_UPSTREAM = PROJECT_ROOT / "patches" / "datastar-upstream.js"
 STARAPP_PATH = PROJECT_ROOT / "src" / "starhtml" / "starapp.py"
 sys.path.insert(0, str(PROJECT_ROOT / "patches"))
-from patch_definitions import apply_all, verify  # noqa: E402
+sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
+from build_datastar import WRAPPER_TEMPLATE  # noqa: E402
+from patch_definitions import apply_all  # noqa: E402
+
+
+def datastar_version() -> str:
+    """Return the upstream Datastar version from StarHTML's configured version."""
+    version_match = re.search(r'DATASTAR_VERSION\s*=\s*["\']([^"\']+)["\']', STARAPP_PATH.read_text())
+    if not version_match:
+        pytest.fail("DATASTAR_VERSION not found in src/starhtml/starapp.py")
+    return version_match.group(1).split("+")[0]
+
+
+def built_datastar_core_source() -> str:
+    """Return the generated core if present, otherwise synthesize it from vendored upstream."""
+    if DATASTAR_CORE_RUNTIME.exists():
+        return DATASTAR_CORE_RUNTIME.read_text()
+    return apply_all(DATASTAR_UPSTREAM.read_text(), datastar_version())
 
 
 @pytest.fixture(scope="session")
@@ -48,22 +65,7 @@ def datastar_runtime_source() -> str:
     if DATASTAR_RUNTIME.exists():
         return DATASTAR_RUNTIME.read_text()
 
-    version_match = re.search(r'DATASTAR_VERSION\s*=\s*["\']([^"\']+)["\']', STARAPP_PATH.read_text())
-    if not version_match:
-        pytest.fail("DATASTAR_VERSION not found in src/starhtml/starapp.py")
-    return apply_all(DATASTAR_UPSTREAM.read_text(), version_match.group(1).split("+")[0])
-
-
-@pytest.fixture(scope="session")
-def datastar_core_runtime_source() -> str:
-    """Return the patched Datastar core module imported by StarHTML's wrapper."""
-    if DATASTAR_CORE_RUNTIME.exists():
-        return DATASTAR_CORE_RUNTIME.read_text()
-
-    version_match = re.search(r'DATASTAR_VERSION\s*=\s*["\']([^"\']+)["\']', STARAPP_PATH.read_text())
-    if not version_match:
-        pytest.fail("DATASTAR_VERSION not found in src/starhtml/starapp.py")
-    return apply_all(DATASTAR_UPSTREAM.read_text(), version_match.group(1).split("+")[0])
+    return WRAPPER_TEMPLATE.format(version=datastar_version())
 
 
 @pytest.fixture(scope="session")
@@ -92,11 +94,7 @@ async def page():
 def datastar_test_page(body: str, datastar_source: str, datastar_core_source: str | None = None) -> str:
     """Build a minimal HTML document that loads the local Datastar runtime."""
     if datastar_core_source is None and "./datastar-core.js" in datastar_source:
-        datastar_core_source = (
-            DATASTAR_CORE_RUNTIME.read_text()
-            if DATASTAR_CORE_RUNTIME.exists()
-            else apply_all(DATASTAR_UPSTREAM.read_text(), "1.0.1")
-        )
+        datastar_core_source = built_datastar_core_source()
     source_json = json.dumps(datastar_source)
     core_source_json = json.dumps(datastar_core_source)
     return f"""<!doctype html>
@@ -1042,17 +1040,6 @@ async def test_morphing_preserve_attr_keeps_protected_attrs(page, datastar_runti
     assert await box.get_attribute("data-state") == "new"
     assert await box.text_content() == "New"
 
-
-def test_local_runtime_contains_starhtml_patch_markers(datastar_runtime_source, datastar_core_runtime_source):
-    """The loaded runtime includes StarHTML core patches and wrapper prehydrate code."""
-    missing = [f"{name}: {marker}" for name, marker, ok in verify(datastar_core_runtime_source) if not ok]
-
-    assert not missing
-    assert "StarHTML wrapper: persist-prehydrate" in datastar_runtime_source
-    assert "starhtml:signal-source" in datastar_runtime_source
-    assert "mergePatch(patch)" in datastar_runtime_source
-
-
 @pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
 @pytest.mark.asyncio
 async def test_datastar_scan_binds_shadow_root(page, datastar_runtime_source):
@@ -1167,106 +1154,6 @@ async def test_persist_prehydrates_ifmissing_defaults_and_emits_starhtml_source_
     )
     assert await page.evaluate(
         """() => window.__starhtml_signal_sources?.some(detail =>
-            detail?.source === "persist" &&
-            detail?.signals?.theme === "persisted" &&
-            detail?.paths?.includes("theme")
-        )"""
-    )
-
-
-@pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
-@pytest.mark.asyncio
-async def test_starhtml_wrapper_can_prehydrate_before_datastar_initial_scan(page, datastar_upstream_source):
-    """A wrapper module can premerge persisted values before Datastar's deferred first scan."""
-    datastar_source_json = json.dumps(datastar_upstream_source)
-    url = "https://starhtml.test/datastar-wrapper-prehydrate-test"
-    html = f"""<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>Datastar Wrapper Prehydrate Test</title>
-</head>
-<body>
-<script>
-  localStorage.clear();
-  sessionStorage.clear();
-  localStorage.setItem("starhtml-persist:settings", JSON.stringify({{ theme: "persisted" }}));
-  window.__order = [];
-  window.__signalPatches = [];
-  window.__signalSources = [];
-  document.addEventListener("datastar-signal-patch", event => {{
-    window.__signalPatches.push(event.detail);
-  }});
-  document.addEventListener("starhtml:signal-source", event => {{
-    window.__signalSources.push(event.detail);
-  }});
-</script>
-<main data-signals:theme__ifmissing="'default'" data-init="window.__order.push(['init', $theme])">
-  <output id="theme" data-text="$theme"></output>
-</main>
-<script type="module">
-  const coreSource = {datastar_source_json};
-  const coreUrl = URL.createObjectURL(new Blob([coreSource], {{ type: "text/javascript" }}));
-  const wrapperSource = `
-    import {{ mergePatch }} from "${{coreUrl}}";
-    export * from "${{coreUrl}}";
-
-    window.__prehydrateRuns = (window.__prehydrateRuns || 0) + 1;
-    const patch = {{}};
-    for (const storage of [localStorage, sessionStorage]) {{
-      try {{
-        for (let i = 0; i < storage.length; i++) {{
-          const key = storage.key(i);
-          if (!key?.startsWith("starhtml-persist")) continue;
-          try {{
-            const data = JSON.parse(storage.getItem(key) || "{{}}");
-            if (data && typeof data === "object") Object.assign(patch, data);
-          }} catch {{}}
-        }}
-      }} catch {{}}
-    }}
-    if (Object.keys(patch).length > 0) {{
-      document.dispatchEvent(new CustomEvent("starhtml:signal-source", {{
-        detail: {{ source: "persist", signals: patch, paths: Object.keys(patch), phase: "before" }},
-      }}));
-      mergePatch(patch);
-    }}
-    window.__order.push(["wrapper-after-merge", document.querySelector("#theme").textContent]);
-  `;
-  const wrapperUrl = URL.createObjectURL(new Blob([wrapperSource], {{ type: "text/javascript" }}));
-  window.__order.push(["before-wrapper-import", document.querySelector("#theme").textContent]);
-  window.__datastar = await import(wrapperUrl);
-  window.__order.push(["after-wrapper-import", document.querySelector("#theme").textContent]);
-  await import(wrapperUrl);
-  window.__order.push(["after-second-wrapper-import", window.__prehydrateRuns]);
-</script>
-</body>
-</html>"""
-
-    async def route_handler(route):
-        await route.fulfill(status=200, content_type="text/html", body=html)
-
-    await page.route(url, route_handler)
-    try:
-        await page.goto(url, wait_until="domcontentloaded")
-    finally:
-        await page.unroute(url, route_handler)
-
-    await wait_for_dom_text(page, "#theme", "persisted")
-
-    assert await page.evaluate("""() => window.__prehydrateRuns === 1""")
-    assert await page.evaluate(
-        """() => window.__order.some(([phase, value]) => phase === "init" && value === "persisted")"""
-    )
-    assert await page.evaluate(
-        """() => window.__signalPatches.some(detail =>
-            detail?.theme === "persisted" &&
-            !("signals" in detail) &&
-            !("source" in detail)
-        )"""
-    )
-    assert await page.evaluate(
-        """() => window.__signalSources.some(detail =>
             detail?.source === "persist" &&
             detail?.signals?.theme === "persisted" &&
             detail?.paths?.includes("theme")

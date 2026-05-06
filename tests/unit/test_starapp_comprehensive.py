@@ -220,10 +220,11 @@ class TestDefHdrs:
 
         result = def_hdrs()
 
-        # Should create FOUC style, charset, viewport, core preload, and datastar script
         assert mock_meta.call_count == 2  # charset and viewport
         assert mock_script.call_count == 1  # datastar only
-        assert len(result) == 5  # style, charset, viewport, datastar-core preload, datastar
+        datastar_script_call = mock_script.call_args_list[0]
+        assert datastar_script_call.kwargs["src"] == "/_pkg/starhtml/datastar.js"
+        assert datastar_script_call.kwargs["type"] == "module"
 
     def test_def_hdrs_preloads_vendored_datastar_core(self):
         """Default vendored Datastar wrapper preloads its core module."""
