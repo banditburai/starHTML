@@ -8,6 +8,7 @@ import json
 import re
 import sys
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 import pytest_asyncio
@@ -107,6 +108,50 @@ async def read_signals(page: Page, selector: str = "#signals") -> dict[str, obje
     return json.loads(text or "{}")
 
 
+def fetch_capture_script(response_statuses: list[int] | None = None) -> str:
+    """Install a fetch mock that records request shape for assertions."""
+    statuses_json = json.dumps(response_statuses or [204])
+    return f"""
+<script>
+  window.__fetchCalls = [];
+  window.__fetchStatuses = {statuses_json};
+  window.fetch = async (url, init = {{}}) => {{
+    const headers = Object.fromEntries(new Headers(init.headers || {{}}).entries());
+    let body = null;
+    if (init.body instanceof URLSearchParams) {{
+      body = init.body.toString();
+    }} else if (init.body instanceof FormData) {{
+      body = Array.from(init.body.entries());
+    }} else if (init.body !== undefined && init.body !== null) {{
+      body = String(init.body);
+    }}
+    window.__fetchCalls.push({{
+      url: String(url),
+      method: init.method || "GET",
+      headers,
+      body
+    }});
+    const status = window.__fetchStatuses.shift() || 204;
+    return new Response(null, {{ status }});
+  }};
+</script>
+"""
+
+
+async def read_fetch_calls(page: Page, expected_count: int = 1) -> list[dict[str, object]]:
+    """Return captured calls from the fetch mock."""
+    await page.wait_for_function("expected => window.__fetchCalls?.length >= expected", arg=expected_count)
+    return await page.evaluate("window.__fetchCalls")
+
+
+def datastar_query_payload(url: str) -> dict[str, object]:
+    """Decode the Datastar JSON query parameter from a captured URL."""
+    parsed = urlparse(url)
+    values = parse_qs(parsed.query).get("datastar")
+    assert values, f"Missing datastar query parameter in {url}"
+    return json.loads(values[0])
+
+
 @pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
 @pytest.mark.asyncio
 async def test_local_runtime_binds_signals_text_and_click(page, datastar_runtime_source):
@@ -137,3 +182,122 @@ async def test_local_runtime_binds_signals_text_and_click(page, datastar_runtime
     signals = await read_signals(page)
     assert signals["count"] == 7
     assert signals["label"] == "patched"
+
+
+@pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("method", "action"),
+    [("GET", "@get('https://example.test/capture')"), ("DELETE", "@delete('https://example.test/capture')")],
+)
+async def test_get_and_delete_send_signals_in_query_without_body(page, datastar_runtime_source, method, action):
+    """Datastar 1.0.1 sends GET/DELETE signal payloads as query params only."""
+    await load_datastar_page(
+        page,
+        f"""
+{fetch_capture_script()}
+<main data-signals='{{"name": "Ada", "count": 2}}'>
+  <button id="send" data-on:click="{action}">Send</button>
+  <output id="ready" data-text="$name"></output>
+</main>
+""",
+        datastar_runtime_source,
+    )
+
+    await wait_for_dom_text(page, "#ready", "Ada")
+    await page.locator("#send").click()
+
+    [call] = await read_fetch_calls(page)
+    assert call["method"] == method
+    assert call["body"] is None
+    assert "content-type" not in call["headers"]
+    assert datastar_query_payload(call["url"]) == {"name": "Ada", "count": 2}
+
+
+@pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("method", "action"),
+    [
+        ("POST", "@post('https://example.test/capture')"),
+        ("PUT", "@put('https://example.test/capture')"),
+        ("PATCH", "@patch('https://example.test/capture')"),
+    ],
+)
+async def test_mutation_fetch_actions_send_json_body(page, datastar_runtime_source, method, action):
+    """POST/PUT/PATCH keep the Datastar signal payload in a JSON body."""
+    await load_datastar_page(
+        page,
+        f"""
+{fetch_capture_script()}
+<main data-signals='{{"name": "Ada", "count": 2}}'>
+  <button id="send" data-on:click="{action}">Send</button>
+  <output id="ready" data-text="$name"></output>
+</main>
+""",
+        datastar_runtime_source,
+    )
+
+    await wait_for_dom_text(page, "#ready", "Ada")
+    await page.locator("#send").click()
+
+    [call] = await read_fetch_calls(page)
+    assert call["method"] == method
+    assert urlparse(call["url"]).query == ""
+    assert call["headers"]["content-type"] == "application/json"
+    assert json.loads(call["body"]) == {"name": "Ada", "count": 2}
+
+
+@pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
+@pytest.mark.asyncio
+async def test_form_submit_input_value_is_included(page, datastar_runtime_source):
+    """Datastar 1.0.1 includes input[type=submit] name/value in form submissions."""
+    await load_datastar_page(
+        page,
+        f"""
+{fetch_capture_script()}
+<form id="form" data-on:submit__prevent="@post('https://example.test/capture', {{contentType: 'form'}})">
+  <input name="item" value="book">
+  <input id="submit" type="submit" name="intent" value="save">
+  <output id="ready" data-text="'ready'"></output>
+</form>
+""",
+        datastar_runtime_source,
+    )
+
+    await wait_for_dom_text(page, "#ready", "ready")
+    await page.locator("#submit").click()
+
+    [call] = await read_fetch_calls(page)
+    assert call["method"] == "POST"
+    assert call["headers"]["content-type"] == "application/x-www-form-urlencoded"
+    assert parse_qs(call["body"]) == {"item": ["book"], "intent": ["save"]}
+
+
+@pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
+@pytest.mark.asyncio
+async def test_retry_rebuilds_payload_from_current_signals(page, datastar_runtime_source):
+    """Datastar 1.0.1 retries should rebuild request payloads from current signals."""
+    await load_datastar_page(
+        page,
+        f"""
+{fetch_capture_script([500, 204])}
+<main data-signals='{{"name": "Ada"}}'>
+  <button
+    id="send"
+    data-on:click="@post('https://example.test/capture', {{retry: 'error', retryInterval: 50, retryMaxCount: 3}})"
+  >Send</button>
+  <output id="ready" data-text="$name"></output>
+</main>
+""",
+        datastar_runtime_source,
+    )
+
+    await wait_for_dom_text(page, "#ready", "Ada")
+    await page.locator("#send").click()
+    await read_fetch_calls(page)
+    await dispatch_signal_patch(page, {"name": "Grace"})
+
+    calls = await read_fetch_calls(page, expected_count=2)
+    assert json.loads(calls[0]["body"]) == {"name": "Ada"}
+    assert json.loads(calls[1]["body"]) == {"name": "Grace"}
