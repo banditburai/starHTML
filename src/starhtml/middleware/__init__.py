@@ -1,4 +1,4 @@
-"Security middleware: origin validation, rate limiting, host-header check."
+"Optional security middleware for StarHTML apps."
 
 from .host_header import HostHeaderMiddleware, is_accepted_host
 from .origin import OriginValidation

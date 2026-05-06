@@ -26,6 +26,12 @@ except ImportError:
 
 
 _FT_ATTRS = frozenset({"tag", "children", "attrs", "void_"})
+_SIGNAL_PATH_ATTRS = frozenset({"data_bind", "data_ref", "data_indicator"})
+
+
+def _is_signal_like(expr: Any) -> bool:
+    """Use a class marker; Expr.__getattr__ makes instance probing unsafe."""
+    return getattr(type(expr), "_is_signal", False) is True
 
 
 class Expr(ABC):
@@ -363,6 +369,7 @@ class PropertyAccess(Expr):
         return f"{self._obj.to_js()}.{self._prop}"
 
     def __call__(self, *args: Any) -> "MethodCall":
+        # No **kwargs: external callable probes rely on TypeError.
         return MethodCall(self._obj, self._prop, args)
 
 
@@ -418,6 +425,8 @@ def _try_evaluate_initial(expr: Expr) -> Any:
 
 class Signal(Expr):
     """Typed reactive state reference that auto-generates JavaScript and data attributes."""
+
+    _is_signal = True
 
     def __init__(
         self,
@@ -568,10 +577,7 @@ def _to_js(value: Any, allow_expressions: bool = True, wrap_objects: bool = True
             try:
                 return json.dumps(d)
             except (TypeError, ValueError):
-                items = [
-                    f"{_to_js(k.replace('_', '-') if isinstance(k, str) else k, allow_expressions)}: {_to_js(v, allow_expressions)}"
-                    for k, v in d.items()
-                ]
+                items = [f"{_to_js(k, allow_expressions)}: {_to_js(v, allow_expressions)}" for k, v in d.items()]
                 obj = f"{{{', '.join(items)}}}"
                 return f"({obj})" if wrap_objects else obj
         case list() | tuple() as l:
@@ -1027,16 +1033,11 @@ def process_datastar_kwargs(kwargs: dict) -> tuple[dict, set[Signal]]:
             case Expr() as expr:
                 collect(expr)
                 js_str = expr.to_js()
-                # data_bind / data_ref / data_indicator expect a signal
-                # PATH (e.g. ``name``), not an expression (``$name``).
-                # Duck-type on ``_id`` so signal-like classes from
-                # downstream packages (e.g. starimo's ReactiveSignal)
-                # work without a hard dependency on starhtml's Signal
-                # class. ``get_signal_attr`` is optional (only Signal
-                # uses it for ``__ifmissing`` semantics).
-                if key in ("data_bind", "data_ref", "data_indicator") and hasattr(expr, "_id"):
+                if key in _SIGNAL_PATH_ATTRS and _is_signal_like(expr):
                     processed[normalized_key] = expr._id
-                    if hasattr(expr, "get_signal_attr") and (signal_attr := expr.get_signal_attr()):
+                    get_signal_attr: Any = getattr(type(expr), "get_signal_attr", None)
+                    signal_attr: Any = get_signal_attr(expr) if callable(get_signal_attr) else None
+                    if signal_attr:
                         processed[signal_attr[0]] = NotStr(_to_js(signal_attr[1], allow_expressions=False))
                 elif key == "data_class":
                     processed["data-class"] = NotStr(js_str)

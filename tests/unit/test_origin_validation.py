@@ -15,7 +15,8 @@ async def _ok(_):
     return PlainTextResponse("ok")
 
 
-def _client(*, expected={"https://example.com"}, bypass=frozenset(), rejects=None):
+def _client(*, expected=None, bypass=frozenset(), rejects=None):
+    expected = {"https://example.com"} if expected is None else expected
     routes = [
         Route("/", _ok, methods=["GET", "POST", "PUT", "PATCH", "DELETE"]),
         Route("/auth/login", _ok, methods=["POST"]),

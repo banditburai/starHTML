@@ -12,7 +12,18 @@ Key principles:
 
 from fastcore.xml import NotStr
 
-from starhtml.datastar import Signal, js, process_datastar_kwargs
+from starhtml.datastar import Expr, PropertyAccess, Signal, _is_signal_like, js, process_datastar_kwargs
+
+
+class FakeSignal(Expr):
+    _is_signal = True
+
+    def __init__(self, name: str):
+        self._id = name
+        self._js = f"${name}"
+
+    def to_js(self) -> str:
+        return self._js
 
 
 class TestFlattenedSyntaxBehavior:
@@ -134,6 +145,13 @@ class TestDictSyntaxBehavior:
 
         assert "data-class" in processed
         # Dict syntax produces a JS object, not individual keys
+
+    def test_dict_class_with_signal_preserves_literal_keys(self):
+        """Dict keys are literal JS object keys, not Python kwargs."""
+        selected = Signal("selected", False)
+        processed, _ = process_datastar_kwargs({"data_class": {"hover_blue": selected}})
+
+        assert str(processed["data-class"]) == '{"hover_blue": $selected}'
 
     def test_dict_style_creates_data_style_attribute(self):
         """data_style dict should create a data-style attribute."""
@@ -273,6 +291,42 @@ class TestSpecialDataAttributes:
 
         # When data_class is an Expr, it goes to data-class attribute
         assert "data-class" in processed
+
+
+class TestDuckTypedSignalLike:
+    """Pin the ``_is_signal_like`` discrimination for ``data_bind`` /
+    ``data_ref`` / ``data_indicator``.
+
+    Downstream signal-shaped classes can declare ``_is_signal = True``
+    without inheriting from core ``Signal``. The renderer must emit the
+    path (``count``), not the expression (``$count``).
+    """
+
+    def test_signal_like_class_renders_path_for_data_bind(self):
+        fake = FakeSignal("guest_count")
+        processed, _ = process_datastar_kwargs({"data_bind": fake})
+        assert processed["data-bind"] == "guest_count"
+
+    def test_signal_like_class_renders_path_for_data_ref_and_indicator(self):
+        fake_ref = FakeSignal("modal_ref")
+        fake_ind = FakeSignal("loading_ind")
+        processed_ref, _ = process_datastar_kwargs({"data_ref": fake_ref})
+        processed_ind, _ = process_datastar_kwargs({"data_indicator": fake_ind})
+        assert processed_ref["data-ref"] == "modal_ref"
+        assert processed_ind["data-indicator"] == "loading_ind"
+
+    def test_non_signal_expr_does_not_render_path_for_data_bind(self):
+        """A plain Expr passed to ``data_bind`` must not match the signal marker."""
+        a = Signal("a", 0)
+        b = Signal("b", 0)
+        bop = a + b
+        assert _is_signal_like(bop) is False
+        assert isinstance(bop._id, PropertyAccess)
+
+    def test_signal_class_satisfies_signal_like_check(self):
+        """The core ``Signal`` class declares the marker."""
+        sig = Signal("sentinel", 0)
+        assert _is_signal_like(sig) is True
 
 
 class TestEventModifiers:

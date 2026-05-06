@@ -371,17 +371,18 @@ class TestBackpressure:
         assert healthy_q.get_nowait().signals == {"c": 3}
 
     def test_all_queues_full_does_not_raise(self):
-        """When every subscriber queue is full, emit still completes without error."""
+        """When every subscriber queue is full, emit still completes
+        without error and the freshest event wins (drop-oldest)."""
         relay = Relay()
         tiny_q = asyncio.Queue(maxsize=1)
         with relay._lock:
             relay._subscribers.append(tiny_q)
 
         relay.emit(SignalEvent({"first": True}))
-        relay.emit(SignalEvent({"dropped": True}))  # Should not raise
+        relay.emit(SignalEvent({"second": True}))
 
         assert tiny_q.qsize() == 1
-        assert tiny_q.get_nowait().signals == {"first": True}
+        assert tiny_q.get_nowait().signals == {"second": True}
 
 
 class TestFormatEventWithFTObjects:

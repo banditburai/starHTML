@@ -33,11 +33,7 @@ _EXPORT_OPTS = (
 
 
 def _setup_capture_only(app):
-    """Capture-mode wiring: load capture.js (so window.__starhtml_capture__
-    is populated and SSE events accumulate), but skip the <starhtml-devtools>
-    UI panel. Used by diagnostic rigs that want programmatic access to the
-    Datastar event log without the panel's ~50 reactive bindings distorting
-    cascade measurements."""
+    """Load capture.js without the UI so diagnostics don't perturb reactive timings."""
     app.hdrs.append(
         Script(
             "import * as capture from '/_pkg/starhtml/devtools/capture.js';"
@@ -50,12 +46,10 @@ def _setup_capture_only(app):
 
 
 def setup_devtools(app, mode: bool | str = True):
-    """Register the StarElements devtools, or warn if starelements is missing.
+    """Register the UI panel, capture-only data layer, or no-op."""
+    if not mode:
+        return
 
-    mode:
-        True: full UI panel + capture.js data layer (legacy default)
-        'capture': capture.js only — no UI panel. For diagnostic rigs.
-    """
     if mode == "capture":
         _setup_capture_only(app)
         return

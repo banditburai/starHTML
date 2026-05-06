@@ -211,7 +211,6 @@ class DevtoolsContext(TypedDict):
 # Keep old name as alias for backward compatibility in wire format
 DebugContext = DevtoolsContext
 
-# ─── Devtools context propagation ─────────────────────────────────
 # Set by _endp() in core.py when devtools=True. SSE format functions
 # auto-read it so handler code never needs to pass debug_ctx manually.
 
@@ -649,13 +648,7 @@ class Relay:
                 try:
                     q.put_nowait(event)
                 except asyncio.QueueFull:
-                    # Drop the OLDEST item to make room for the new one — a
-                    # full queue indicates an abandoned subscriber (consumer
-                    # stopped reading), and silently keeping fresh events
-                    # is better than blocking the producer indefinitely.
-                    # Avoid logger.warning here: in Pyodide-worker mode
-                    # marimo hijacks Python logging, and a logger call from
-                    # this hot path can hang the producer.
+                    # Avoid logging here: Pyodide/marimo can hang in this hot path.
                     try:
                         q.get_nowait()
                         q.put_nowait(event)
@@ -752,11 +745,6 @@ class Relay:
 
     def emit_script(self, script: str, auto_remove: bool = True) -> None:
         self.emit(ScriptEvent(script, auto_remove))
-
-
-# ============================================================================
-# Live Reload Functionality (from live_reload.py)
-# ============================================================================
 
 
 def LiveReloadJs(reload_attempts: int = 20, reload_interval: int = 1000, **kwargs):

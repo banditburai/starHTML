@@ -29,6 +29,8 @@ from starlette.datastructures import UploadFile
 
 from .forms import form2dict, parse_form
 
+_SESSION_KEY_MODE = 0o600
+
 __all__ = [
     "qp",
     "decode_uri",
@@ -207,21 +209,21 @@ def snake2hyphens(s: str):
     return camel2words(s, "-")
 
 
-def get_key(key=None, fname=".sesskey", *, secret_env=None, strict_mode=True):
+def get_key(key=None, fname=".sesskey", *, secret_env=None, strict_mode=False):
     "Get or create a session key (atomic 0o600 on create, mode-checked on read)."
     import os
     import stat
+    import tempfile
     import warnings
     from pathlib import Path
 
-    env = (secret_env and os.environ.get(secret_env)) or os.environ.get("STARHTML_SECRET_KEY")
-    if key := key or env:
+    if key := key or (secret_env and os.environ.get(secret_env)) or os.environ.get("STARHTML_SECRET_KEY"):
         return key
 
     fpath = Path(fname)
-    if fpath.exists():
-        mode = stat.S_IMODE(fpath.stat().st_mode)
-        if mode != 0o600:
+    if fpath.exists() or fpath.is_symlink():
+        mode = stat.S_IMODE(fpath.stat(follow_symlinks=False).st_mode)
+        if mode != _SESSION_KEY_MODE:
             msg = f"{fpath} mode is {mode:04o}; expected 0600. Run: chmod 600 {fpath}"
             if strict_mode:
                 raise PermissionError(msg)
@@ -229,15 +231,21 @@ def get_key(key=None, fname=".sesskey", *, secret_env=None, strict_mode=True):
         return fpath.read_text().strip()
 
     new_key = secrets.token_urlsafe(32)
+    tmp_name = None
     try:
-        fd = os.open(fpath, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        fd, tmp_name = tempfile.mkstemp(prefix=f".{fpath.name}.", dir=fpath.parent)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(new_key)
+        os.link(tmp_name, fpath)
     except FileExistsError:
         # Concurrent boot won the race; read what they wrote.
         return get_key(key, fname, secret_env=secret_env, strict_mode=strict_mode)
-    try:
-        os.write(fd, new_key.encode())
     finally:
-        os.close(fd)
+        if tmp_name:
+            try:
+                os.unlink(tmp_name)
+            except FileNotFoundError:
+                pass
     return new_key
 
 

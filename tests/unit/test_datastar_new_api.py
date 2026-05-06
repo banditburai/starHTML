@@ -317,6 +317,15 @@ class TestActionUrlNormalization:
         assert result.startswith("@post('/chat/ui-state'")
         assert "contentType:" in result
 
+    def test_payload_with_expression_preserves_underscore_keys(self):
+        # When an options dict contains an Expr, JSON serialization falls back
+        # to manual JS object rendering. That path must preserve payload keys so
+        # server query-param binding can still resolve names like project_id.
+        project_id = Signal("project_id")
+        result = str(get("/projects", payload={"project_id": project_id}))
+        assert 'payload: ({"project_id": $project_id})' in result
+        assert "project-id" not in result
+
     def test_fstring_with_dynamic_segment(self):
         # The most common pattern that bit zacks: f-string with a UUID.
         thread_id = "abc-123"

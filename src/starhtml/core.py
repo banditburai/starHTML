@@ -1,14 +1,12 @@
 """The `StarHTML` subclass of `Starlette`"""
 
-import inspect
 import logging
 import os
 import re
-
-logger = logging.getLogger(__name__)
 from collections.abc import Callable, Collection, Sequence
 from contextlib import asynccontextmanager, nullcontext
 from functools import partialmethod
+from inspect import signature
 from pathlib import Path as PathlibPath
 from typing import TYPE_CHECKING, Any, Literal, Protocol, runtime_checkable
 
@@ -32,6 +30,10 @@ from .realtime import _ws_endp, set_devtools_context, setup_ws
 from .server import _handle, _mk_locfunc, _wrap_call, _wrap_ex, _wrap_req, all_meths, cookie, render_response, serve
 from .starapp import Beforeware, _datastar_cdn_url, def_hdrs
 from .utils import _list, _params, get_key, noop_body, reg_re_param
+
+logger = logging.getLogger(__name__)
+
+_TRUE_ENV = {"1", "true", "yes"}
 
 
 @runtime_checkable
@@ -68,12 +70,8 @@ __all__ = [
 
 
 async def _run_handler(handler, app):
-    # Use inspect.signature directly (no eval_str) — lifespan dispatch only
-    # needs param count. Resolving annotations would crash on forward-refs
-    # whose target isn't importable from the handler's module (e.g. starimo's
-    # `on_startup(self, app: "Starlette")` where Starlette isn't imported).
-    takes_arg = bool(inspect.signature(handler).parameters)
-    await _handle(handler, [app] if takes_arg else [])
+    # Lifespan only needs arity; _params resolves annotations and can fail on forward refs.
+    await _handle(handler, [app] if signature(handler).parameters else [])
 
 
 class Lifespan:
@@ -189,6 +187,7 @@ class StarHTML(Starlette):
         sess_domain=None,
         host_cookie_prefix=True,
         key_fname=".sesskey",
+        key_strict_mode=False,
         body_wrap=noop_body,
         htmlkw=None,
         canonical=True,
@@ -220,7 +219,7 @@ class StarHTML(Starlette):
         self._registered_items: set[int] = set()
         self._import_map: dict[str, str] = {}
         if sess_cls:
-            secret_key = get_key(secret_key, key_fname, secret_env=secret_env)
+            secret_key = get_key(secret_key, key_fname, secret_env=secret_env, strict_mode=key_strict_mode)
             cookie_name = _host_cookie_prefix(
                 session_cookie,
                 https_only=sess_https_only,
@@ -249,17 +248,12 @@ class StarHTML(Starlette):
         excs = {
             k: _wrap_ex(v, k, hdrs, ftrs, htmlkw, bodykw, body_wrap=body_wrap) for k, v in exception_handlers.items()
         }
-        env_debug = os.environ.get("STARHTML_DEBUG")
-        if env_debug is not None:
-            debug = env_debug.lower() in ("1", "true", "yes")
+        if (env_debug := os.environ.get("STARHTML_DEBUG")) is not None:
+            debug = env_debug.lower() in _TRUE_ENV
 
-        env_devtools = os.environ.get("STARHTML_DEVTOOLS")
-        if env_devtools is not None:
-            env_lower = env_devtools.lower()
-            if env_lower == "capture":
-                devtools = "capture"
-            else:
-                devtools = env_lower in ("1", "true", "yes")
+        if (env_devtools := os.environ.get("STARHTML_DEVTOOLS")) is not None:
+            devtools = env_devtools.lower()
+            devtools = "capture" if devtools == "capture" else devtools in _TRUE_ENV
         self._devtools = devtools
 
         super().__init__(

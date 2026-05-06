@@ -82,7 +82,7 @@ def test_zero_zero_zero_zero_bind_accepts_anything():
     assert res.status_code == 200
 
 
-def test_undecodable_host_bytes_rejected():
+def test_garbled_host_bytes_rejected():
     app = HostHeaderMiddleware(Starlette(routes=[Route("/hello", _ok)]), "127.0.0.1")
     received = []
 
@@ -100,6 +100,4 @@ def test_undecodable_host_bytes_rejected():
     }
     asyncio.run(app(scope, receive, send))
     start = next(m for m in received if m["type"] == "http.response.start")
-    # \xff\xfe\x00 IS decodable as latin-1; what's NOT decodable is essentially nothing.
-    # Test instead that any garbled value falls into the host-mismatch path:
     assert start["status"] == 400

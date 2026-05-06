@@ -7,6 +7,7 @@ import threading
 
 import pytest
 
+from starhtml import star_app
 from starhtml.utils import get_key
 
 
@@ -22,8 +23,6 @@ def test_generate_new_creates_with_mode_0600(tmp_path):
 
 
 def test_generate_new_does_not_clobber_concurrent_writer(tmp_path):
-    # Two threads racing on the same path must agree on the key — the
-    # loser of the O_EXCL race reads the winner's value.
     fname = tmp_path / ".sesskey"
     results = []
     barrier = threading.Barrier(2)
@@ -46,7 +45,7 @@ def test_strict_mode_refuses_world_readable(tmp_path):
     fname.write_text("leaky-key")
     os.chmod(fname, 0o644)
     with pytest.raises(PermissionError, match=r"0600|mode"):
-        get_key(fname=str(fname))
+        get_key(fname=str(fname), strict_mode=True)
 
 
 def test_strict_mode_refuses_group_readable(tmp_path):
@@ -54,7 +53,7 @@ def test_strict_mode_refuses_group_readable(tmp_path):
     fname.write_text("leaky-key")
     os.chmod(fname, 0o640)
     with pytest.raises(PermissionError, match=r"0600|mode"):
-        get_key(fname=str(fname))
+        get_key(fname=str(fname), strict_mode=True)
 
 
 def test_non_strict_mode_warns_but_reads(tmp_path, recwarn):
@@ -65,8 +64,48 @@ def test_non_strict_mode_warns_but_reads(tmp_path, recwarn):
     assert any("0600" in str(w.message) or "mode" in str(w.message).lower() for w in recwarn)
 
 
+def test_strict_mode_refuses_symlink_even_when_target_is_0600(tmp_path):
+    target = tmp_path / "target"
+    target.write_text("target-key")
+    os.chmod(target, 0o600)
+    link = tmp_path / ".sesskey"
+    link.symlink_to(target)
+    with pytest.raises(PermissionError, match=r"0600|mode"):
+        get_key(fname=str(link), strict_mode=True)
+
+
+def test_strict_mode_refuses_broken_symlink(tmp_path):
+    link = tmp_path / ".sesskey"
+    link.symlink_to(tmp_path / "missing")
+    with pytest.raises(PermissionError, match=r"0600|mode"):
+        get_key(fname=str(link), strict_mode=True)
+
+
+def test_star_app_defaults_to_legacy_key_compatibility(tmp_path, recwarn):
+    fname = tmp_path / ".sesskey"
+    fname.write_text("legacy-key")
+    os.chmod(fname, 0o644)
+    star_app(key_fname=str(fname))
+    assert any("0600" in str(w.message) or "mode" in str(w.message).lower() for w in recwarn)
+
+
+def test_star_app_can_opt_into_strict_key_mode(tmp_path):
+    fname = tmp_path / ".sesskey"
+    fname.write_text("legacy-key")
+    os.chmod(fname, 0o644)
+    with pytest.raises(PermissionError, match=r"0600|mode"):
+        star_app(key_fname=str(fname), key_strict_mode=True)
+
+
+def test_star_app_passes_custom_secret_env(tmp_path, monkeypatch):
+    fname = tmp_path / ".sesskey"
+    fname.write_text("leaky-key")
+    os.chmod(fname, 0o644)
+    monkeypatch.setenv("MY_APP_KEY", "custom-wins")
+    star_app(key_fname=str(fname), secret_env="MY_APP_KEY", key_strict_mode=True)
+
+
 def test_env_var_short_circuits_before_file_mode_check(tmp_path, monkeypatch):
-    # Env wins so a misconfigured on-disk file isn't even statted.
     fname = tmp_path / ".sesskey"
     fname.write_text("on-disk-leaky")
     os.chmod(fname, 0o644)

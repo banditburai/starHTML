@@ -16,7 +16,8 @@ async def _ok(_):
 
 def _client(*, capacity=10, refill_per_second=10 / 60, now=None, throttles=None, path="/auth/login"):
     routes = [Route(path, _ok, methods=["GET", "POST"]), Route("/", _ok, methods=["POST"])]
-    time_fn = (lambda it=iter(now): next(it)) if now is not None else None
+    time_iter = iter(now) if now is not None else None
+    time_fn = (lambda: next(time_iter)) if time_iter is not None else None
     on_throttle = (lambda scope, ip: throttles.append(ip)) if throttles is not None else None
     app = PathRateLimit(
         Starlette(routes=routes),
