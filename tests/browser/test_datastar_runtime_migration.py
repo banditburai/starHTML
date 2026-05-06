@@ -86,11 +86,12 @@ async def load_datastar_page(page: Page, body: str, datastar_source: str) -> Non
     await page.set_content(datastar_test_page(body, datastar_source), wait_until="domcontentloaded")
 
 
-async def wait_for_dom_text(page: Page, selector: str, expected: str) -> None:
+async def wait_for_dom_text(page: Page, selector: str, expected: str, timeout: int = 5000) -> None:
     """Wait until a selector has the expected text content."""
     await page.wait_for_function(
         """([selector, expected]) => document.querySelector(selector)?.textContent === expected""",
         arg=[selector, expected],
+        timeout=timeout,
     )
 
 
@@ -301,3 +302,132 @@ async def test_retry_rebuilds_payload_from_current_signals(page, datastar_runtim
     calls = await read_fetch_calls(page, expected_count=2)
     assert json.loads(calls[0]["body"]) == {"name": "Ada"}
     assert json.loads(calls[1]["body"]) == {"name": "Grace"}
+
+
+@pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
+@pytest.mark.asyncio
+async def test_data_on_document_receives_document_events(page, datastar_runtime_source):
+    """data-on:*__document attaches the listener to document."""
+    await load_datastar_page(
+        page,
+        """
+<main data-signals='{"count": 0}'>
+  <div id="listener" data-on:custom__document="$count++"></div>
+  <output id="count" data-text="$count"></output>
+</main>
+""",
+        datastar_runtime_source,
+    )
+
+    await wait_for_dom_text(page, "#count", "0")
+    await page.evaluate("document.dispatchEvent(new CustomEvent('custom'))")
+
+    await wait_for_dom_text(page, "#count", "1")
+
+
+@pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
+@pytest.mark.asyncio
+async def test_data_on_document_capture_cleanup_removes_listener(page, datastar_runtime_source):
+    """Capture listener cleanup must use matching listener options."""
+    await load_datastar_page(
+        page,
+        """
+<main data-signals='{"count": 0}'>
+  <div id="listener" data-on:click__document__capture="$count++"></div>
+  <output id="count" data-text="$count"></output>
+</main>
+""",
+        datastar_runtime_source,
+    )
+
+    await wait_for_dom_text(page, "#count", "0")
+    await page.locator("body").click()
+    await wait_for_dom_text(page, "#count", "1")
+
+    await page.locator("#listener").evaluate("el => el.remove()")
+    await page.locator("body").click()
+    await page.wait_for_timeout(50)
+
+    assert await page.locator("#count").text_content() == "1"
+
+
+@pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
+@pytest.mark.asyncio
+async def test_submit_viewtransition_prevent_stops_native_submission(page, datastar_runtime_source):
+    """Submit prevent should run even when wrapped by viewtransition timing."""
+    await load_datastar_page(
+        page,
+        """
+<form
+  id="form"
+  action="https://example.test/native-submit"
+  data-signals='{"submitted": false}'
+  data-on:submit__viewtransition__prevent="$submitted = true"
+>
+  <button id="submit" type="submit">Submit</button>
+  <output id="submitted" data-text="$submitted"></output>
+</form>
+""",
+        datastar_runtime_source,
+    )
+
+    await wait_for_dom_text(page, "#submitted", "false")
+    await page.locator("#submit").click()
+
+    await wait_for_dom_text(page, "#submitted", "true")
+    assert page.url == "about:blank"
+
+
+@pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
+@pytest.mark.asyncio
+async def test_outside_click_does_not_close_just_opened_popover(page, datastar_runtime_source):
+    """StarHTML's outside-race patch keeps a just-opened data-show popover open."""
+    await load_datastar_page(
+        page,
+        """
+<main data-signals='{"open": false}'>
+  <button id="open" data-on:click="$open = true">Open</button>
+  <div id="popover" data-show="$open" data-on:click__outside="$open = false">Popover</div>
+  <output id="state" data-text="$open"></output>
+</main>
+""",
+        datastar_runtime_source,
+    )
+
+    await wait_for_dom_text(page, "#state", "false")
+    await page.locator("#open").click()
+
+    await wait_for_dom_text(page, "#state", "true")
+    assert await page.locator("#popover").evaluate("el => getComputedStyle(el).display") != "none"
+
+
+@pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
+@pytest.mark.asyncio
+async def test_on_intersect_threshold_modifier_uses_numeric_fraction(page, datastar_runtime_source):
+    """data-on-intersect__threshold.25 should configure threshold 0.25."""
+    await load_datastar_page(
+        page,
+        """
+<script>
+  window.__intersectionOptions = [];
+  window.IntersectionObserver = class {
+    constructor(callback, options) {
+      this.callback = callback;
+      window.__intersectionOptions.push(options);
+    }
+    observe() {}
+    disconnect() {}
+  };
+</script>
+<main data-signals='{"ready": "yes"}'>
+  <div id="target" data-on-intersect__threshold.25="$seen = true"></div>
+  <output id="ready" data-text="$ready"></output>
+</main>
+""",
+        datastar_runtime_source,
+    )
+
+    await wait_for_dom_text(page, "#ready", "yes")
+
+    thresholds = await page.evaluate("window.__intersectionOptions.map(options => options.threshold)")
+    assert thresholds == [0.25]
