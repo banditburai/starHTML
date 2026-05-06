@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import pytest_asyncio
 
 # Add the project root to the path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -249,7 +250,7 @@ except ImportError:
 class TestBrowserCompatibility:
     """Browser compatibility tests using Playwright."""
 
-    @pytest.fixture(scope="class")
+    @pytest_asyncio.fixture(scope="class")
     async def browser_setup(self):
         """Set up browsers for testing."""
         if not PLAYWRIGHT_AVAILABLE:
