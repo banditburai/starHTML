@@ -1040,6 +1040,7 @@ async def test_morphing_preserve_attr_keeps_protected_attrs(page, datastar_runti
     assert await box.get_attribute("data-state") == "new"
     assert await box.text_content() == "New"
 
+
 @pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
 @pytest.mark.asyncio
 async def test_datastar_scan_binds_shadow_root(page, datastar_runtime_source):
