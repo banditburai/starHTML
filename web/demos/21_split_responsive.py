@@ -9,6 +9,7 @@ from starhtml.plugins import split
 splitter = split(name="responsive", responsive=True, responsive_breakpoint=768)
 
 app, rt = star_app(
+    sess_cls=None,
     title="Split Demo - Responsive Test",
     htmlkw={"lang": "en"},
     hdrs=[

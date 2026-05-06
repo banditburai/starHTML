@@ -7,6 +7,7 @@ Start with common problems, then discover clean, Pythonic solutions.
 from starhtml import *
 
 app, rt = star_app(
+    sess_cls=None,
     title="Nested Property Access Demo",
     htmlkw={"lang": "en"},
     hdrs=[

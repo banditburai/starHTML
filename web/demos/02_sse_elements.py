@@ -6,6 +6,7 @@ import time
 from starhtml import *
 
 app, rt = star_app(
+    sess_cls=None,
     title="SSE Elements Demo",
     htmlkw={"lang": "en"},
     hdrs=[

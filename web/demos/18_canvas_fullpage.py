@@ -15,6 +15,7 @@ canvas = canvas_plugin(
 )
 
 app, rt = star_app(
+    sess_cls=None,
     title="Full-Page Canvas Demo",
     htmlkw={"lang": "en"},
     hdrs=[

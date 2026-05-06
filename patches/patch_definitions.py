@@ -12,10 +12,7 @@ class PatchDef:
     markers: list[str] = field(default_factory=list)
 
 
-PATCHED_HEADER = (
-    "// Datastar v{version} "
-    "(StarHTML patched: shadow-dom-scan, outside-race-fix, persist-aware-init)"
-)
+PATCHED_HEADER = "// Datastar v{version} (StarHTML patched: shadow-dom-scan, outside-race-fix)"
 
 PATCHES: list[PatchDef] = [
     PatchDef(
@@ -66,37 +63,6 @@ PATCHES: list[PatchDef] = [
             'e.style.display==="none"',
             'once:n.has("once")},d;if(n.has("outside")',
         ],
-    ),
-    PatchDef(
-        name="persist-aware-init",
-        operations=[
-            # Patch mergePatch (O) so that ifMissing mode checks localStorage/
-            # sessionStorage for starhtml-persist* keys before setting defaults.
-            # Signals start with the persisted value on the very first render —
-            # zero FOUC. Dispatches a StarHTML-owned source event so Datastar's
-            # datastar-signal-patch detail remains the vanilla signal object.
-            (
-                'D=(e,{ifMissing:t}={})=>{N();for(let n in e)e[n]==null?t||delete re[n]:Nt(e[n],n,re,"",t);P()}',
-                "D=(e,{ifMissing:t}={})=>{"
-                "if(t){let _ps=window.__starhtml_pc;"
-                "if(_ps===void 0){_ps={};"
-                "try{for(let _st of[localStorage,sessionStorage])"
-                "{for(let _i=0;_i<_st.length;_i++){let _k=_st.key(_i);"
-                'if(_k?.startsWith("starhtml-persist"))'
-                "{try{let _d=JSON.parse(_st.getItem(_k));"
-                'if(_d&&typeof _d==="object")Object.assign(_ps,_d)}'
-                "catch{}}}}}catch{}"
-                "window.__starhtml_pc=_ps}"
-                "let _pm={},_hp=!1;"
-                "for(let n in e)if(n in _ps&&_ps[n]!=null){e[n]=_ps[n];_pm[n]=_ps[n];_hp=!0}"
-                'if(_hp)document.dispatchEvent(new CustomEvent("starhtml:signal-source",'
-                '{detail:{source:"persist",signals:_pm,paths:Object.keys(_pm),phase:"before"}}))}'
-                "N();"
-                'for(let n in e)e[n]==null?t||delete re[n]:Nt(e[n],n,re,"",t);P();'
-                "}",
-            ),
-        ],
-        markers=["window.__starhtml_pc", '"starhtml:signal-source"', 'source:"persist"'],
     ),
 ]
 

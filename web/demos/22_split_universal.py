@@ -10,6 +10,7 @@ main = split(name="main", responsive=False)
 nested = split(name="nested", responsive=False)
 
 app, rt = star_app(
+    sess_cls=None,
     title="Universal Split Demo",
     htmlkw={"lang": "en"},
     hdrs=[

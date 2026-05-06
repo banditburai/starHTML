@@ -4,6 +4,7 @@ from starhtml import *
 from starhtml.plugins import scroll
 
 app, rt = star_app(
+    sess_cls=None,
     title="Scroll Handler Demo",
     htmlkw={"lang": "en"},
     hdrs=[

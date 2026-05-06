@@ -17,6 +17,7 @@ from starhtml import *
 from starhtml.plugins import motion_svg, track
 
 app, rt = star_app(
+    sess_cls=None,
     title="Motion SVG Plugin Demo",
     htmlkw={"lang": "en"},
     hdrs=[

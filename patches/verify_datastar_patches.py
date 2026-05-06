@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Verify that all Datastar patches are applied to the vendored file."""
+"""Verify that all Datastar patches are applied to the built core file."""
 
 import sys
 from pathlib import Path
 
-DATASTAR_PATH = Path(__file__).resolve().parent.parent / "src" / "starhtml" / "static" / "js" / "datastar.js"
+DATASTAR_PATH = Path(__file__).resolve().parent.parent / "src" / "starhtml" / "static" / "js" / "datastar-core.js"
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from patch_definitions import verify  # noqa: E402

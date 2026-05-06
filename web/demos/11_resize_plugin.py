@@ -10,6 +10,7 @@ from starhtml import *
 from starhtml.plugins import resize
 
 app, rt = star_app(
+    sess_cls=None,
     title="Resize Handler Demo",
     htmlkw={"lang": "en"},
     hdrs=[

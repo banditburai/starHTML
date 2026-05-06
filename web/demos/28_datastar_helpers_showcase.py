@@ -7,6 +7,7 @@ data helpers, and advanced expression patterns."""
 from starhtml import *
 
 app, rt = star_app(
+    sess_cls=None,
     title="Datastar Helper Functions",
     htmlkw={"lang": "en"},
     hdrs=[

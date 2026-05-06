@@ -35,6 +35,7 @@ class FetchCall(TypedDict):
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DATASTAR_RUNTIME = PROJECT_ROOT / "src" / "starhtml" / "static" / "js" / "datastar.js"
+DATASTAR_CORE_RUNTIME = PROJECT_ROOT / "src" / "starhtml" / "static" / "js" / "datastar-core.js"
 DATASTAR_UPSTREAM = PROJECT_ROOT / "patches" / "datastar-upstream.js"
 STARAPP_PATH = PROJECT_ROOT / "src" / "starhtml" / "starapp.py"
 sys.path.insert(0, str(PROJECT_ROOT / "patches"))
@@ -46,6 +47,18 @@ def datastar_runtime_source() -> str:
     """Return the built StarHTML Datastar runtime used by normal app pages."""
     if DATASTAR_RUNTIME.exists():
         return DATASTAR_RUNTIME.read_text()
+
+    version_match = re.search(r'DATASTAR_VERSION\s*=\s*["\']([^"\']+)["\']', STARAPP_PATH.read_text())
+    if not version_match:
+        pytest.fail("DATASTAR_VERSION not found in src/starhtml/starapp.py")
+    return apply_all(DATASTAR_UPSTREAM.read_text(), version_match.group(1).split("+")[0])
+
+
+@pytest.fixture(scope="session")
+def datastar_core_runtime_source() -> str:
+    """Return the patched Datastar core module imported by StarHTML's wrapper."""
+    if DATASTAR_CORE_RUNTIME.exists():
+        return DATASTAR_CORE_RUNTIME.read_text()
 
     version_match = re.search(r'DATASTAR_VERSION\s*=\s*["\']([^"\']+)["\']', STARAPP_PATH.read_text())
     if not version_match:
@@ -76,9 +89,16 @@ async def page():
             await browser.close()
 
 
-def datastar_test_page(body: str, datastar_source: str) -> str:
+def datastar_test_page(body: str, datastar_source: str, datastar_core_source: str | None = None) -> str:
     """Build a minimal HTML document that loads the local Datastar runtime."""
+    if datastar_core_source is None and "./datastar-core.js" in datastar_source:
+        datastar_core_source = (
+            DATASTAR_CORE_RUNTIME.read_text()
+            if DATASTAR_CORE_RUNTIME.exists()
+            else apply_all(DATASTAR_UPSTREAM.read_text(), "1.0.1")
+        )
     source_json = json.dumps(datastar_source)
+    core_source_json = json.dumps(datastar_core_source)
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -89,24 +109,38 @@ def datastar_test_page(body: str, datastar_source: str) -> str:
 {body}
   <script type="module">
     const datastarSource = {source_json};
-    const datastarUrl = URL.createObjectURL(new Blob([datastarSource], {{ type: "text/javascript" }}));
-    window.__datastar = await import(datastarUrl);
-    URL.revokeObjectURL(datastarUrl);
+    const datastarCoreSource = {core_source_json};
+    let datastarImportSource = datastarSource;
+    let datastarCoreUrl = null;
+    if (datastarCoreSource !== null) {{
+      datastarCoreUrl = URL.createObjectURL(new Blob([datastarCoreSource], {{ type: "text/javascript" }}));
+      datastarImportSource = datastarImportSource.replaceAll("./datastar-core.js", datastarCoreUrl);
+    }}
+    const datastarImportUrl = URL.createObjectURL(new Blob([datastarImportSource], {{ type: "text/javascript" }}));
+    window.__datastar = await import(datastarImportUrl);
+    URL.revokeObjectURL(datastarImportUrl);
+    if (datastarCoreUrl !== null) URL.revokeObjectURL(datastarCoreUrl);
   </script>
 </body>
 </html>"""
 
 
-async def load_datastar_page(page: "Page", body: str, datastar_source: str) -> None:
+async def load_datastar_page(
+    page: "Page", body: str, datastar_source: str, datastar_core_source: str | None = None
+) -> None:
     """Load a page with StarHTML's local Datastar runtime and wait for scans."""
-    await page.set_content(datastar_test_page(body, datastar_source), wait_until="domcontentloaded")
+    await page.set_content(
+        datastar_test_page(body, datastar_source, datastar_core_source), wait_until="domcontentloaded"
+    )
     await page.wait_for_function("window.__datastar !== undefined")
 
 
-async def load_datastar_page_at_origin(page: "Page", body: str, datastar_source: str) -> None:
+async def load_datastar_page_at_origin(
+    page: "Page", body: str, datastar_source: str, datastar_core_source: str | None = None
+) -> None:
     """Load a Datastar test document at a real origin for storage-sensitive tests."""
     url = "https://starhtml.test/datastar-runtime-test"
-    html = datastar_test_page(body, datastar_source)
+    html = datastar_test_page(body, datastar_source, datastar_core_source)
 
     async def route_handler(route):
         await route.fulfill(status=200, content_type="text/html", body=html)
@@ -167,7 +201,7 @@ async def read_signals(page: "Page", selector: str = "#signals") -> dict[str, ob
     return json.loads(text or "{}")
 
 
-def fetch_capture_script(response_statuses: list[int] | None = None) -> str:
+def fetch_capture_script(response_statuses: list[int | str] | None = None) -> str:
     """Install a fetch mock that records request shape for assertions."""
     statuses_json = json.dumps(response_statuses or [204])
     return f"""
@@ -191,6 +225,9 @@ def fetch_capture_script(response_statuses: list[int] | None = None) -> str:
       body
     }});
     const status = window.__fetchStatuses.shift() || 204;
+    if (status === "throw") {{
+      throw new TypeError("simulated network failure");
+    }}
     return new Response(null, {{ status }});
   }};
 </script>
@@ -396,6 +433,136 @@ async def test_http_retry_reuses_original_signal_payload(page, request, runtime_
     calls = await read_fetch_calls(page, expected_count=2)
     assert json.loads(calls[0]["body"]) == {"name": "Ada"}
     assert json.loads(calls[1]["body"]) == {"name": "Ada"}
+
+
+@pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
+@pytest.mark.asyncio
+@pytest.mark.parametrize("runtime_fixture", ["datastar_upstream_source", "datastar_runtime_source"])
+async def test_network_retry_reuses_original_signal_payload(page, request, runtime_fixture):
+    """Network-error retries reuse the request init created by the original action."""
+    datastar_source = request.getfixturevalue(runtime_fixture)
+    await load_datastar_page(
+        page,
+        f"""
+{fetch_capture_script(["throw", 204])}
+<main data-signals='{{"name": "Ada"}}'>
+  <button
+    id="send"
+    data-on:click="@post('https://example.test/capture', {{retry: 'error', retryInterval: 50, retryMaxCount: 3}})"
+  >Send</button>
+  <output id="ready" data-text="$name"></output>
+</main>
+""",
+        datastar_source,
+    )
+
+    await wait_for_dom_text(page, "#ready", "Ada")
+    await page.locator("#send").click()
+    await read_fetch_calls(page)
+    await dispatch_signal_patch(page, {"name": "Grace"})
+
+    calls = await read_fetch_calls(page, expected_count=2)
+    assert json.loads(calls[0]["body"]) == {"name": "Ada"}
+    assert json.loads(calls[1]["body"]) == {"name": "Ada"}
+
+
+@pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
+@pytest.mark.asyncio
+@pytest.mark.parametrize("runtime_fixture", ["datastar_upstream_source", "datastar_runtime_source"])
+async def test_get_retry_reuses_original_query_payload(page, request, runtime_fixture):
+    """GET retries reuse the original Datastar query payload."""
+    datastar_source = request.getfixturevalue(runtime_fixture)
+    await load_datastar_page(
+        page,
+        f"""
+{fetch_capture_script([500, 204])}
+<main data-signals='{{"name": "Ada"}}'>
+  <button
+    id="send"
+    data-on:click="@get('https://example.test/capture', {{retry: 'error', retryInterval: 50, retryMaxCount: 3}})"
+  >Send</button>
+  <output id="ready" data-text="$name"></output>
+</main>
+""",
+        datastar_source,
+    )
+
+    await wait_for_dom_text(page, "#ready", "Ada")
+    await page.locator("#send").click()
+    await read_fetch_calls(page)
+    await dispatch_signal_patch(page, {"name": "Grace"})
+
+    calls = await read_fetch_calls(page, expected_count=2)
+    assert calls[0]["method"] == "GET"
+    assert calls[1]["method"] == "GET"
+    assert calls[0]["body"] is None
+    assert calls[1]["body"] is None
+    assert datastar_query_payload(calls[0]["url"]) == {"name": "Ada"}
+    assert datastar_query_payload(calls[1]["url"]) == {"name": "Ada"}
+
+
+@pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
+@pytest.mark.asyncio
+@pytest.mark.parametrize("runtime_fixture", ["datastar_upstream_source", "datastar_runtime_source"])
+async def test_form_post_retry_reuses_original_form_payload(page, request, runtime_fixture):
+    """Form retries do not rebuild changed field values after the original submit."""
+    datastar_source = request.getfixturevalue(runtime_fixture)
+    await load_datastar_page(
+        page,
+        f"""
+{fetch_capture_script([500, 204])}
+<form
+  id="form"
+  data-on:submit__prevent="@post('https://example.test/capture', {{contentType: 'form', retry: 'error', retryInterval: 50, retryMaxCount: 3}})"
+>
+  <input id="item" name="item" value="book">
+  <button id="submit" type="submit">Send</button>
+  <output id="ready" data-text="'ready'"></output>
+</form>
+""",
+        datastar_source,
+    )
+
+    await wait_for_dom_text(page, "#ready", "ready")
+    await page.locator("#submit").click()
+    await read_fetch_calls(page)
+    await page.locator("#item").fill("pen")
+
+    calls = await read_fetch_calls(page, expected_count=2)
+    assert parse_qs(calls[0]["body"]) == {"item": ["book"]}
+    assert parse_qs(calls[1]["body"]) == {"item": ["book"]}
+
+
+@pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
+@pytest.mark.asyncio
+@pytest.mark.parametrize("runtime_fixture", ["datastar_upstream_source", "datastar_runtime_source"])
+async def test_form_submitter_retry_reuses_original_submitter_payload(page, request, runtime_fixture):
+    """Form retries preserve the submitter name/value captured by the original submit."""
+    datastar_source = request.getfixturevalue(runtime_fixture)
+    await load_datastar_page(
+        page,
+        f"""
+{fetch_capture_script([500, 204])}
+<form
+  id="form"
+  data-on:submit__prevent="@post('https://example.test/capture', {{contentType: 'form', retry: 'error', retryInterval: 50, retryMaxCount: 3}})"
+>
+  <input name="item" value="book">
+  <input id="submit" type="submit" name="intent" value="save">
+  <output id="ready" data-text="'ready'"></output>
+</form>
+""",
+        datastar_source,
+    )
+
+    await wait_for_dom_text(page, "#ready", "ready")
+    await page.locator("#submit").click()
+    await read_fetch_calls(page)
+    await page.locator("#submit").evaluate("el => el.value = 'delete'")
+
+    calls = await read_fetch_calls(page, expected_count=2)
+    assert parse_qs(calls[0]["body"]) == {"item": ["book"], "intent": ["save"]}
+    assert parse_qs(calls[1]["body"]) == {"item": ["book"], "intent": ["save"]}
 
 
 @pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
@@ -876,11 +1043,14 @@ async def test_morphing_preserve_attr_keeps_protected_attrs(page, datastar_runti
     assert await box.text_content() == "New"
 
 
-def test_local_runtime_contains_starhtml_patch_markers(datastar_runtime_source):
-    """The loaded runtime includes every expected StarHTML patch marker."""
-    missing = [f"{name}: {marker}" for name, marker, ok in verify(datastar_runtime_source) if not ok]
+def test_local_runtime_contains_starhtml_patch_markers(datastar_runtime_source, datastar_core_runtime_source):
+    """The loaded runtime includes StarHTML core patches and wrapper prehydrate code."""
+    missing = [f"{name}: {marker}" for name, marker, ok in verify(datastar_core_runtime_source) if not ok]
 
     assert not missing
+    assert "StarHTML wrapper: persist-prehydrate" in datastar_runtime_source
+    assert "starhtml:signal-source" in datastar_runtime_source
+    assert "mergePatch(patch)" in datastar_runtime_source
 
 
 @pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
@@ -953,9 +1123,7 @@ async def test_late_plugin_registration_does_not_refire_data_init(page, datastar
 
 @pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
 @pytest.mark.asyncio
-async def test_persist_prehydrates_ifmissing_defaults_and_emits_starhtml_source_event(
-    page, datastar_runtime_source
-):
+async def test_persist_prehydrates_ifmissing_defaults_and_emits_starhtml_source_event(page, datastar_runtime_source):
     """Persisted values win, Datastar patches stay vanilla, and StarHTML emits source metadata."""
     await load_datastar_page_at_origin(
         page,
@@ -997,3 +1165,179 @@ async def test_persist_prehydrates_ifmissing_defaults_and_emits_starhtml_source_
             detail?.phase === "before"
         )"""
     )
+    assert await page.evaluate(
+        """() => window.__starhtml_signal_sources?.some(detail =>
+            detail?.source === "persist" &&
+            detail?.signals?.theme === "persisted" &&
+            detail?.paths?.includes("theme")
+        )"""
+    )
+
+
+@pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
+@pytest.mark.asyncio
+async def test_starhtml_wrapper_can_prehydrate_before_datastar_initial_scan(page, datastar_upstream_source):
+    """A wrapper module can premerge persisted values before Datastar's deferred first scan."""
+    datastar_source_json = json.dumps(datastar_upstream_source)
+    url = "https://starhtml.test/datastar-wrapper-prehydrate-test"
+    html = f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Datastar Wrapper Prehydrate Test</title>
+</head>
+<body>
+<script>
+  localStorage.clear();
+  sessionStorage.clear();
+  localStorage.setItem("starhtml-persist:settings", JSON.stringify({{ theme: "persisted" }}));
+  window.__order = [];
+  window.__signalPatches = [];
+  window.__signalSources = [];
+  document.addEventListener("datastar-signal-patch", event => {{
+    window.__signalPatches.push(event.detail);
+  }});
+  document.addEventListener("starhtml:signal-source", event => {{
+    window.__signalSources.push(event.detail);
+  }});
+</script>
+<main data-signals:theme__ifmissing="'default'" data-init="window.__order.push(['init', $theme])">
+  <output id="theme" data-text="$theme"></output>
+</main>
+<script type="module">
+  const coreSource = {datastar_source_json};
+  const coreUrl = URL.createObjectURL(new Blob([coreSource], {{ type: "text/javascript" }}));
+  const wrapperSource = `
+    import {{ mergePatch }} from "${{coreUrl}}";
+    export * from "${{coreUrl}}";
+
+    window.__prehydrateRuns = (window.__prehydrateRuns || 0) + 1;
+    const patch = {{}};
+    for (const storage of [localStorage, sessionStorage]) {{
+      try {{
+        for (let i = 0; i < storage.length; i++) {{
+          const key = storage.key(i);
+          if (!key?.startsWith("starhtml-persist")) continue;
+          try {{
+            const data = JSON.parse(storage.getItem(key) || "{{}}");
+            if (data && typeof data === "object") Object.assign(patch, data);
+          }} catch {{}}
+        }}
+      }} catch {{}}
+    }}
+    if (Object.keys(patch).length > 0) {{
+      document.dispatchEvent(new CustomEvent("starhtml:signal-source", {{
+        detail: {{ source: "persist", signals: patch, paths: Object.keys(patch), phase: "before" }},
+      }}));
+      mergePatch(patch);
+    }}
+    window.__order.push(["wrapper-after-merge", document.querySelector("#theme").textContent]);
+  `;
+  const wrapperUrl = URL.createObjectURL(new Blob([wrapperSource], {{ type: "text/javascript" }}));
+  window.__order.push(["before-wrapper-import", document.querySelector("#theme").textContent]);
+  window.__datastar = await import(wrapperUrl);
+  window.__order.push(["after-wrapper-import", document.querySelector("#theme").textContent]);
+  await import(wrapperUrl);
+  window.__order.push(["after-second-wrapper-import", window.__prehydrateRuns]);
+</script>
+</body>
+</html>"""
+
+    async def route_handler(route):
+        await route.fulfill(status=200, content_type="text/html", body=html)
+
+    await page.route(url, route_handler)
+    try:
+        await page.goto(url, wait_until="domcontentloaded")
+    finally:
+        await page.unroute(url, route_handler)
+
+    await wait_for_dom_text(page, "#theme", "persisted")
+
+    assert await page.evaluate("""() => window.__prehydrateRuns === 1""")
+    assert await page.evaluate(
+        """() => window.__order.some(([phase, value]) => phase === "init" && value === "persisted")"""
+    )
+    assert await page.evaluate(
+        """() => window.__signalPatches.some(detail =>
+            detail?.theme === "persisted" &&
+            !("signals" in detail) &&
+            !("source" in detail)
+        )"""
+    )
+    assert await page.evaluate(
+        """() => window.__signalSources.some(detail =>
+            detail?.source === "persist" &&
+            detail?.signals?.theme === "persisted" &&
+            detail?.paths?.includes("theme")
+        )"""
+    )
+
+
+@pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
+@pytest.mark.asyncio
+async def test_wrapper_prehydrate_handles_custom_session_and_invalid_storage(page, datastar_runtime_source):
+    """Wrapper prehydrate scans StarHTML storage keys once and ignores malformed values."""
+    await load_datastar_page_at_origin(
+        page,
+        """
+<script>
+  localStorage.clear();
+  sessionStorage.clear();
+  localStorage.setItem("starhtml-persist:settings", JSON.stringify({ theme: "local-persisted" }));
+  localStorage.setItem("starhtml-persist-bad", "{not json");
+  sessionStorage.setItem("starhtml-persist:session", JSON.stringify({ mode: "session-persisted" }));
+  window.__signalPatches = [];
+  window.__signalSources = [];
+  document.addEventListener("datastar-signal-patch", event => {
+    window.__signalPatches.push(event.detail);
+  });
+  document.addEventListener("starhtml:signal-source", event => {
+    window.__signalSources.push(event.detail);
+  });
+</script>
+<main
+  data-signals:theme__ifmissing="'theme-default'"
+  data-signals:mode__ifmissing="'mode-default'"
+>
+  <output id="theme" data-text="$theme"></output>
+  <output id="mode" data-text="$mode"></output>
+</main>
+""",
+        datastar_runtime_source,
+    )
+
+    await wait_for_dom_text(page, "#theme", "local-persisted")
+    await wait_for_dom_text(page, "#mode", "session-persisted")
+
+    assert await page.evaluate(
+        """() => window.__signalPatches.some(detail =>
+            detail?.theme === "local-persisted" && detail?.mode === "session-persisted"
+        )"""
+    )
+    assert await page.evaluate(
+        """() => window.__signalSources.some(detail =>
+            detail?.source === "persist" &&
+            detail?.signals?.theme === "local-persisted" &&
+            detail?.signals?.mode === "session-persisted" &&
+            detail?.sources?.theme?.storage === "local" &&
+            detail?.sources?.mode?.storage === "session"
+        )"""
+    )
+
+
+@pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
+@pytest.mark.asyncio
+async def test_wrapper_prehydrate_storage_errors_fall_back_to_ifmissing_defaults(page, datastar_runtime_source):
+    """Storage access errors should not break Datastar startup or ifmissing defaults."""
+    await load_datastar_page(
+        page,
+        """
+<main data-signals:theme__ifmissing="'default'">
+  <output id="theme" data-text="$theme"></output>
+</main>
+""",
+        datastar_runtime_source,
+    )
+
+    await wait_for_dom_text(page, "#theme", "default")

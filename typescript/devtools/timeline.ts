@@ -338,7 +338,17 @@ function captureSignalChanges(): void {
     }
   };
   document.addEventListener("starhtml:signal-source", signalSourceListener);
+  replayStartupSignalSources(signalSourceListener);
   document.addEventListener("datastar-signal-patch", signalPatchListener);
+}
+
+function replayStartupSignalSources(listener: (e: Event) => void): void {
+  const globalState = window as unknown as { __starhtml_signal_sources?: unknown[] };
+  const startupSources = globalState.__starhtml_signal_sources;
+  if (!Array.isArray(startupSources)) return;
+  for (const detail of startupSources) {
+    listener(new CustomEvent("starhtml:signal-source", { detail }));
+  }
 }
 
 function sourceMetadataFromDetail(detail: unknown): SourceMetadata | undefined {

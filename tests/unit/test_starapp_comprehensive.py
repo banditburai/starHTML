@@ -220,10 +220,26 @@ class TestDefHdrs:
 
         result = def_hdrs()
 
-        # Should create FOUC style, charset, viewport, and datastar script
+        # Should create FOUC style, charset, viewport, core preload, and datastar script
         assert mock_meta.call_count == 2  # charset and viewport
         assert mock_script.call_count == 1  # datastar only
-        assert len(result) == 4  # style, charset, viewport, datastar
+        assert len(result) == 5  # style, charset, viewport, datastar-core preload, datastar
+
+    def test_def_hdrs_preloads_vendored_datastar_core(self):
+        """Default vendored Datastar wrapper preloads its core module."""
+        html = "".join(str(h) for h in def_hdrs())
+
+        assert 'rel="modulepreload"' in html
+        assert 'href="/_pkg/starhtml/datastar-core.js"' in html
+        assert 'src="/_pkg/starhtml/datastar.js"' in html
+
+    def test_def_hdrs_custom_datastar_url_does_not_preload_vendored_core(self):
+        """Custom Datastar runtimes should not assume StarHTML's core URL."""
+        html = "".join(str(h) for h in def_hdrs(datastar_url="/assets/datastar.js"))
+
+        assert 'rel="modulepreload"' not in html
+        assert "/_pkg/starhtml/datastar-core.js" not in html
+        assert 'src="/assets/datastar.js"' in html
 
     @patch("starhtml.tags.Meta")
     @patch("starhtml.xtend.Script")
@@ -237,7 +253,7 @@ class TestDefHdrs:
         custom_fallback = "/assets/datastar.js"
         result = def_hdrs(datastar_url=custom_fallback)
 
-        # Headers now include FOUC style
+        # Headers now include FOUC style but no vendored core preload
         assert len(result) == 4  # style, charset, viewport, datastar (no iconify by default)
         # With plugins=False, it uses external script with fallback
         datastar_script_call = mock_script.call_args_list[0]

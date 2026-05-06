@@ -3,6 +3,7 @@
 from starhtml import *
 
 app, rt = star_app(
+    sess_cls=None,
     title="Routing Patterns",
     htmlkw={"lang": "en"},
     hdrs=[

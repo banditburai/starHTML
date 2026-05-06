@@ -7,6 +7,7 @@ edge cases, and real-world patterns that go beyond simple boolean toggles.
 from starhtml import *
 
 app, rt = star_app(
+    sess_cls=None,
     title="Advanced Toggle Patterns",
     htmlkw={"lang": "en"},
     hdrs=[

@@ -10,6 +10,7 @@ from starhtml import *
 from starhtml.plugins import persist
 
 app, rt = star_app(
+    sess_cls=None,
     devtools=True,
     title="DevTools Demo",
     htmlkw={"lang": "en"},

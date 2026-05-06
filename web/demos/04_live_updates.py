@@ -6,6 +6,7 @@ from datetime import datetime
 from starhtml import *
 
 app, rt = star_app(
+    sess_cls=None,
     title="Live Updates",
     htmlkw={"lang": "en"},
     hdrs=[

@@ -34,6 +34,12 @@ def _is_signal_like(expr: Any) -> bool:
     return getattr(type(expr), "_is_signal", False) is True
 
 
+def _signal_attr(expr: Any) -> tuple[str, Any] | None:
+    """Use class lookup; Expr.__getattr__ fabricates property expressions."""
+    getter = getattr(type(expr), "get_signal_attr", None)
+    return getter(expr) if callable(getter) else None
+
+
 class Expr(ABC):
     """Base class for objects that compile to JavaScript with operator overloading."""
 
@@ -1019,9 +1025,7 @@ def process_datastar_kwargs(kwargs: dict) -> tuple[dict, set[Signal]]:
                     collect(expr)
                     if key in _SIGNAL_PATH_ATTRS and _is_signal_like(expr):
                         js_str = expr._id
-                        get_signal_attr: Any = getattr(type(expr), "get_signal_attr", None)
-                        signal_attr: Any = get_signal_attr(expr) if callable(get_signal_attr) else None
-                        if signal_attr:
+                        if signal_attr := _signal_attr(expr):
                             processed[signal_attr[0]] = NotStr(_to_js(signal_attr[1], allow_expressions=False))
                     else:
                         js_str = expr.to_js()
@@ -1042,9 +1046,7 @@ def process_datastar_kwargs(kwargs: dict) -> tuple[dict, set[Signal]]:
                 js_str = expr.to_js()
                 if key in _SIGNAL_PATH_ATTRS and _is_signal_like(expr):
                     processed[normalized_key] = expr._id
-                    get_signal_attr: Any = getattr(type(expr), "get_signal_attr", None)
-                    signal_attr: Any = get_signal_attr(expr) if callable(get_signal_attr) else None
-                    if signal_attr:
+                    if signal_attr := _signal_attr(expr):
                         processed[signal_attr[0]] = NotStr(_to_js(signal_attr[1], allow_expressions=False))
                 elif key == "data_class":
                     processed["data-class"] = NotStr(js_str)

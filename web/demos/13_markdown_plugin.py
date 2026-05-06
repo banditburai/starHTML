@@ -4,6 +4,7 @@ from starhtml import *
 from starhtml.plugins import markdown
 
 app, rt = star_app(
+    sess_cls=None,
     title="Dynamic Markdown",
     htmlkw={"lang": "en"},
     hdrs=[

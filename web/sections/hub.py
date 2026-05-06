@@ -57,6 +57,7 @@ def section_card(section, index):
 
 
 app, rt = star_app(
+    sess_cls=None,
     title="Sections Development Hub",
     hdrs=[
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),

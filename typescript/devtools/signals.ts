@@ -51,6 +51,7 @@ export function init(
   if (visibilityFn) isVisible = visibilityFn;
   document.addEventListener("datastar-signal-patch", onSignalPatch as EventListener);
   document.addEventListener("starhtml:signal-source", onSignalSource as EventListener);
+  replayStartupSignalSources();
   structuralPoll();
   pollInterval = setInterval(structuralPoll, POLL_INTERVAL_MS);
 }
@@ -196,6 +197,7 @@ function structuralPoll(): void {
     const entry = entries.get(path);
     if (!entry) {
       updateOrCreateEntry(path, value);
+      applySourceMetadata(path, takePendingSource(path));
     } else {
       // Poll catches changes missed by patch events
       if (!valuesEqual(entry.value, value)) {
@@ -303,7 +305,17 @@ interface SourceMetadata {
   paths: string[];
   storageKey?: string;
   storage?: "local" | "session";
+  sources?: Record<string, { storage?: "local" | "session"; storageKey?: string }>;
   expiresAt: number;
+}
+
+function replayStartupSignalSources(): void {
+  const globalState = window as unknown as { __starhtml_signal_sources?: unknown[] };
+  const startupSources = globalState.__starhtml_signal_sources;
+  if (!Array.isArray(startupSources)) return;
+  for (const detail of startupSources) {
+    onSignalSource(new CustomEvent("starhtml:signal-source", { detail }));
+  }
 }
 
 function sourceMetadataFromDetail(detail: unknown): SourceMetadata | undefined {
@@ -323,11 +335,24 @@ function sourceMetadataFromDetail(detail: unknown): SourceMetadata | undefined {
 
   const storage = obj.storage === "local" || obj.storage === "session" ? obj.storage : undefined;
   const storageKey = typeof obj.storageKey === "string" ? obj.storageKey : undefined;
+  const sources: SourceMetadata["sources"] = {};
+  if (obj.sources && typeof obj.sources === "object") {
+    for (const [path, sourceInfo] of Object.entries(obj.sources as Record<string, unknown>)) {
+      if (!sourceInfo || typeof sourceInfo !== "object") continue;
+      const item = sourceInfo as Record<string, unknown>;
+      const itemStorage =
+        item.storage === "local" || item.storage === "session" ? item.storage : undefined;
+      const itemStorageKey = typeof item.storageKey === "string" ? item.storageKey : undefined;
+      if (itemStorage || itemStorageKey)
+        sources[path] = { storage: itemStorage, storageKey: itemStorageKey };
+    }
+  }
   return {
     source,
     paths,
     storage,
     storageKey,
+    sources: Object.keys(sources).length > 0 ? sources : undefined,
     expiresAt: Date.now() + SOURCE_METADATA_TTL_MS,
   };
 }
@@ -346,13 +371,16 @@ function applySourceMetadata(path: string, metadata: SourceMetadata | undefined)
   if (!entry) return false;
 
   let changed = false;
-  if (metadata.storage && entry.persistStorage !== metadata.storage) {
-    entry.persistStorage = metadata.storage;
+  const pathSource = metadata.sources?.[path];
+  const storage = pathSource?.storage ?? metadata.storage;
+  const storageKey = pathSource?.storageKey ?? metadata.storageKey;
+  if (storage && entry.persistStorage !== storage) {
+    entry.persistStorage = storage;
     changed = true;
   }
   const previousSource = entry.source;
   if (metadata.source === "persist") {
-    entry.source = metadata.storageKey ? `persist:${metadata.storageKey}` : "persist";
+    entry.source = storageKey ? `persist:${storageKey}` : "persist";
   } else {
     entry.source = metadata.source;
   }

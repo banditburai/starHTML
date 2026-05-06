@@ -4,6 +4,7 @@ from starhtml import *
 from starhtml.plugins import mermaid
 
 app, rt = star_app(
+    sess_cls=None,
     title="Dynamic Mermaid Diagrams",
     htmlkw={"lang": "en"},
     hdrs=[

@@ -4,6 +4,7 @@ from starhtml import *
 from starhtml.plugins import persist
 
 app, rt = star_app(
+    sess_cls=None,
     title="✨ Todo List",
     htmlkw={"lang": "en"},
     hdrs=[

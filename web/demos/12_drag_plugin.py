@@ -18,6 +18,7 @@ todos = [
 todos_drag = drag(name="todos", mode="sortable")
 
 app, rt = star_app(
+    sess_cls=None,
     title="Drag Handler Demo",
     htmlkw={"lang": "en"},
     hdrs=[

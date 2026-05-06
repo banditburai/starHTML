@@ -175,11 +175,15 @@ def _datastar_cdn_url() -> str:
     return _DATASTAR_CDN_TEMPLATE.format(version=DATASTAR_VERSION.split("+")[0])
 
 
-def def_hdrs(datastar_url="/_pkg/starhtml/datastar.js"):
-    from .tags import Meta, Style
+_VENDORED_DATASTAR_URL = "/_pkg/starhtml/datastar.js"
+_VENDORED_DATASTAR_CORE_URL = "/_pkg/starhtml/datastar-core.js"
+
+
+def def_hdrs(datastar_url=_VENDORED_DATASTAR_URL):
+    from .tags import Link, Meta, Style
     from .xtend import Script
 
-    return [
+    hdrs = [
         # FOUC prevention: hide custom elements until registered; size icon wrappers
         Style(
             ":not(:defined){visibility:hidden} [data-icon-sh]{display:inline-block}"
@@ -187,8 +191,11 @@ def def_hdrs(datastar_url="/_pkg/starhtml/datastar.js"):
         ),
         Meta(charset="utf-8"),
         Meta(name="viewport", content="width=device-width, initial-scale=1, viewport-fit=cover"),
-        Script(src=datastar_url, type="module"),
     ]
+    if datastar_url == _VENDORED_DATASTAR_URL:
+        hdrs.append(Link(rel="modulepreload", href=_VENDORED_DATASTAR_CORE_URL))
+    hdrs.append(Script(src=datastar_url, type="module"))
+    return hdrs
 
 
 def theme_script(

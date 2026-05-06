@@ -8,6 +8,7 @@ from starhtml import *
 from starhtml.plugins import persist
 
 app, rt = star_app(
+    sess_cls=None,
     title="Persist Handler Demo",
     htmlkw={"lang": "en"},
     hdrs=[

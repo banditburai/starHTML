@@ -4,6 +4,7 @@ from starhtml import *
 from starhtml.plugins import katex
 
 app, rt = star_app(
+    sess_cls=None,
     title="Dynamic KaTeX Math",
     htmlkw={"lang": "en"},
     hdrs=[

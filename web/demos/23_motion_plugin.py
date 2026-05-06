@@ -17,6 +17,7 @@ from starhtml.plugins import (
 )
 
 app, rt = star_app(
+    sess_cls=None,
     title="Motion Plugin Demo",
     htmlkw={"lang": "en"},
     hdrs=[

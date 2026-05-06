@@ -71,6 +71,7 @@ def quick_reference_section() -> Div:
 
 
 app, rt = star_app(
+    sess_cls=None,
     title="Quick Reference - StarHTML Documentation (Dev Mode)",
     hdrs=[
         Script(src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"),

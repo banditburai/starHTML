@@ -1,7 +1,8 @@
 # Datastar Vendored Patches
 
 Vanilla source: `patches/datastar-upstream.js` (committed)
-Patched output: `src/starhtml/static/js/datastar.js` (gitignored, built by `bun run build`)
+Patched core output: `src/starhtml/static/js/datastar-core.js` (gitignored, built by `bun run build`)
+Public wrapper output: `src/starhtml/static/js/datastar.js` (gitignored, built by `bun run build`)
 Version tracked in `DATASTAR_VERSION` (`starapp.py`), with `+starhtml` build metadata suffix.
 
 ## Build Pipeline
@@ -10,9 +11,10 @@ Version tracked in `DATASTAR_VERSION` (`starapp.py`), with `+starhtml` build met
 1. Reads `patches/datastar-upstream.js`
 2. Applies all patches from `patches/patch_definitions.py`
 3. Verifies all patch markers
-4. Writes to `src/starhtml/static/js/datastar.js`
+4. Writes the patched Datastar runtime to `src/starhtml/static/js/datastar-core.js`
+5. Writes `src/starhtml/static/js/datastar.js` as a wrapper that prehydrates StarHTML persist storage through Datastar's public `mergePatch()` API, then re-exports the patched core
 
-The patched file is served alongside plugins and debugger JS via the general `/_pkg/starhtml/{filename}` route.
+The public wrapper and private patched core are served alongside plugins and debugger JS via the general `/_pkg/starhtml/{filename}` route. Default headers modulepreload `datastar-core.js` and load `datastar.js`; plugins keep importing from the public `datastar` wrapper.
 
 ## Updating Datastar
 
@@ -27,7 +29,7 @@ This downloads vanilla Datastar from CDN, dry-runs all patches to verify they ap
 
 If a patch fails (Datastar internals changed), the script saves `patches/datastar-upstream.vanilla.js` for diffing. Fix the search strings in `patches/patch_definitions.py`.
 
-To verify patches on the current built file:
+To verify patches on the current built core file:
 
 ```
 python patches/verify_datastar_patches.py
@@ -69,20 +71,20 @@ Older StarHTML builds patched Datastar's scan function to prevent `data-init` fr
 
 Datastar `1.0.1` tracks observed roots and preserves the newly-registered-plugin filter during late plugin registration. StarHTML now relies on that upstream behavior, backed by the browser migration test for late plugin registration. The shadow DOM scan patch still adds a filter override for explicit component scans, but there is no longer a separate `init-refire-fix` patch.
 
-## Patch 3: StarHTML Signal Source Event
+## Wrapper: Persist Prehydrate + StarHTML Signal Source Event
 
 **Problem**: The debugger needs to distinguish user/application signal changes from StarHTML persist prehydration.
 
-**Fix**: StarHTML dispatches a separate `starhtml:signal-source` event with source metadata for sourceful signal changes. Datastar's `datastar-signal-patch` event detail stays the vanilla signal object expected by upstream Datastar.
+**Fix**: StarHTML serves public `datastar.js` as a wrapper module. The wrapper imports and re-exports private `datastar-core.js`, reads `starhtml-persist*` storage once during startup, dispatches `starhtml:signal-source` metadata, and calls Datastar's public `mergePatch()` before Datastar's deferred initial scan. Datastar's `datastar-signal-patch` event detail stays the vanilla signal object expected by upstream Datastar.
 
 ## Removed: Retry Current Payload
 
 StarHTML briefly patched ordinary HTTP and network-error retries to rebuild the request payload from current signals before each retry. Datastar `1.0.1` only rebuilds request init for visibility reconnect/resume; normal retry attempts reuse the original request body/query. StarHTML now follows upstream semantics here to avoid surprising form and non-idempotent action behavior.
 
-## Patch 4: Persist-Aware Init
+## Removed: Persist-Aware Init Patch
 
 **Problem**: `data-signals__ifmissing` defaults render before StarHTML persist data can restore values, causing a flash of default state.
 
-**Fix**: In `ifMissing` signal merges, StarHTML checks cached `starhtml-persist*` storage values before applying defaults. When a persisted value is used, StarHTML emits `starhtml:signal-source` with `source: "persist"` before the Datastar patch event.
+**Previous fix**: In `ifMissing` signal merges, StarHTML checked cached `starhtml-persist*` storage values before applying defaults.
 
-The storage scan is cached on `window.__starhtml_pc` for the lifetime of the page.
+**Current fix**: The wrapper prehydrates through public `mergePatch()` before Datastar scans `data-signals__ifmissing`, so defaults naturally skip existing values without patching Datastar's merge path.

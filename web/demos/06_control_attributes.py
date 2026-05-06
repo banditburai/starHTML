@@ -9,6 +9,7 @@ Showcases:
 from starhtml import *
 
 app, rt = star_app(
+    sess_cls=None,
     title="Datastar Control Attributes Demo",
     htmlkw={"lang": "en"},
     hdrs=[

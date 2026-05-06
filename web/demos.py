@@ -19,6 +19,7 @@ except ImportError:
 
 
 app, rt = star_app(
+    sess_cls=None,
     title="starHTML Demos",
     htmlkw={"lang": "en", "translate": "no", "cls": "notranslate"},
     hdrs=[

@@ -8,6 +8,7 @@ and advanced interaction patterns.
 from starhtml import *
 
 app, rt = star_app(
+    sess_cls=None,
     title="Complex Modifier Usage",
     htmlkw={"lang": "en"},
     hdrs=[
