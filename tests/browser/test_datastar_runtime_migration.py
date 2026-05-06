@@ -8,19 +8,29 @@ import json
 import re
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING, TypedDict, cast
 from urllib.parse import parse_qs, urlparse
 
 import pytest
 import pytest_asyncio
 
+if TYPE_CHECKING:
+    from playwright.async_api import Page
+
 try:
-    from playwright.async_api import Page, async_playwright
+    from playwright.async_api import async_playwright
 
     PLAYWRIGHT_AVAILABLE = True
 except ImportError:  # pragma: no cover - exercised only when the optional dep is absent
-    Page = None
     async_playwright = None
     PLAYWRIGHT_AVAILABLE = False
+
+
+class FetchCall(TypedDict):
+    url: str
+    method: str
+    headers: dict[str, str]
+    body: str | None
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -81,13 +91,13 @@ def datastar_test_page(body: str, datastar_source: str) -> str:
 </html>"""
 
 
-async def load_datastar_page(page: Page, body: str, datastar_source: str) -> None:
+async def load_datastar_page(page: "Page", body: str, datastar_source: str) -> None:
     """Load a page with StarHTML's local Datastar runtime and wait for scans."""
     await page.set_content(datastar_test_page(body, datastar_source), wait_until="domcontentloaded")
     await page.wait_for_function("window.__datastar !== undefined")
 
 
-async def load_datastar_page_at_origin(page: Page, body: str, datastar_source: str) -> None:
+async def load_datastar_page_at_origin(page: "Page", body: str, datastar_source: str) -> None:
     """Load a Datastar test document at a real origin for storage-sensitive tests."""
     url = "https://starhtml.test/datastar-runtime-test"
     html = datastar_test_page(body, datastar_source)
@@ -103,7 +113,7 @@ async def load_datastar_page_at_origin(page: Page, body: str, datastar_source: s
         await page.unroute(url, route_handler)
 
 
-async def wait_for_dom_text(page: Page, selector: str, expected: str, timeout: int = 5000) -> None:
+async def wait_for_dom_text(page: "Page", selector: str, expected: str, timeout: int = 5000) -> None:
     """Wait until a selector has the expected text content."""
     await page.wait_for_function(
         """([selector, expected]) => document.querySelector(selector)?.textContent === expected""",
@@ -112,7 +122,7 @@ async def wait_for_dom_text(page: Page, selector: str, expected: str, timeout: i
     )
 
 
-async def wait_for_shadow_text(page: Page, host_selector: str, selector: str, expected: str) -> None:
+async def wait_for_shadow_text(page: "Page", host_selector: str, selector: str, expected: str) -> None:
     """Wait until a selector inside an open shadow root has the expected text."""
     await page.wait_for_function(
         """([hostSelector, selector, expected]) =>
@@ -121,7 +131,7 @@ async def wait_for_shadow_text(page: Page, host_selector: str, selector: str, ex
     )
 
 
-async def dispatch_signal_patch(page: Page, signals: dict[str, object]) -> None:
+async def dispatch_signal_patch(page: "Page", signals: dict[str, object]) -> None:
     """Patch Datastar signals through the public runtime API."""
     await page.evaluate(
         """signals => window.__datastar.mergePatch(signals)""",
@@ -129,7 +139,7 @@ async def dispatch_signal_patch(page: Page, signals: dict[str, object]) -> None:
     )
 
 
-async def dispatch_element_patch(page: Page, elements: str, selector: str = "", mode: str = "outer") -> None:
+async def dispatch_element_patch(page: "Page", elements: str, selector: str = "", mode: str = "outer") -> None:
     """Patch elements through Datastar's registered patch-elements watcher."""
     await page.evaluate(
         """args => {
@@ -145,7 +155,7 @@ async def dispatch_element_patch(page: Page, elements: str, selector: str = "", 
     await page.wait_for_timeout(50)
 
 
-async def read_signals(page: Page, selector: str = "#signals") -> dict[str, object]:
+async def read_signals(page: "Page", selector: str = "#signals") -> dict[str, object]:
     """Read a JSON signal snapshot rendered by ``data-json-signals``."""
     text = await page.locator(selector).text_content()
     return json.loads(text or "{}")
@@ -181,10 +191,10 @@ def fetch_capture_script(response_statuses: list[int] | None = None) -> str:
 """
 
 
-async def read_fetch_calls(page: Page, expected_count: int = 1) -> list[dict[str, object]]:
+async def read_fetch_calls(page: "Page", expected_count: int = 1) -> list[FetchCall]:
     """Return captured calls from the fetch mock."""
     await page.wait_for_function("expected => window.__fetchCalls?.length >= expected", arg=expected_count)
-    return await page.evaluate("window.__fetchCalls")
+    return cast("list[FetchCall]", await page.evaluate("window.__fetchCalls"))
 
 
 def datastar_query_payload(url: str) -> dict[str, object]:
