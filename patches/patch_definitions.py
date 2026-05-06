@@ -12,85 +12,56 @@ class PatchDef:
     markers: list[str] = field(default_factory=list)
 
 
-PATCHED_HEADER = (
-    "// Datastar v{version} (StarHTML patched: shadow-dom-scan, outside-race-fix, init-refire-fix, persist-aware-init)"
-)
+PATCHED_HEADER = "// Datastar v{version} (StarHTML patched: shadow-dom-scan, outside-race-fix, persist-aware-init)"
 
 PATCHES: list[PatchDef] = [
     PatchDef(
         name="shadow-dom-scan",
         operations=[
             (
-                "export{k as action",
+                'En=(e=document.documentElement,t=!0)=>{Z(e)&&De([e],!0),De(e.querySelectorAll("*"),!0),',
+                'En=(e=document.documentElement,t=!0,n=!0)=>{Z(e)&&De([e],n),De(e.querySelectorAll("*"),n),',
+            ),
+            (
+                "export{I as action",
                 'document.addEventListener("datastar:scan",e=>'
-                "{let r=e.detail?.root;r&&nn(r.shadowRoot||r,!0)});"
-                "export{k as action",
+                "{let t=e.detail?.root;t&&En(t.shadowRoot||t,!0,!1)});"
+                "export{I as action",
             ),
         ],
-        markers=['"datastar:scan",e=>{let r=e.detail'],
+        markers=[
+            "En=(e=document.documentElement,t=!0,n=!0)=>",
+            '"datastar:scan",e=>{let t=e.detail',
+        ],
     ),
     PatchDef(
         name="outside-race-fix",
         operations=[
-            # Hoist a,b declaration before outside block (avoids TDZ — the
-            # new outside block references a and b, so they must be declared first)
             (
-                'once:n.has("once")};if(n.has("outside"))',
-                'once:n.has("once")};let a=L(t,n,"kebab"),b;if(n.has("outside"))',
-            ),
-            # Replace simple outside block with race-fix version
-            (
-                'if(n.has("outside")){s=document;let c=o;o=l=>{e.contains(l?.target)||c(l)}}',
-                'if(n.has("outside")){s=document;let c=o,d=!1,'
-                "f=new MutationObserver(()=>{d=!0;"
-                "requestAnimationFrame(()=>{d=!1})});"
+                'let o=O(t,n,"kebab"),a={capture:n.has("capture"),passive:n.has("passive"),once:n.has("once")};'
+                'if(n.has("outside")){s=document;let l=i;i=u=>{e.contains(u?.target)||l(u)}}'
+                "(o===B||o===te)&&(s=document);",
+                'let o=O(t,n,"kebab"),a={capture:n.has("capture"),passive:n.has("passive"),once:n.has("once")},d;'
+                'if(n.has("outside")){s=document;let l=i,u=!1,'
+                "f=new MutationObserver(()=>{u=!0;"
+                "requestAnimationFrame(()=>{u=!1})});"
                 'f.observe(e,{attributeFilter:["style"]});'
-                "let h=!1,g=()=>{"
-                'h=e.style.display==="none"};'
-                "document.addEventListener(a,g,!0);"
-                "o=l=>{d||h||(e.contains(l?.target)||c(l))};"
-                "b=()=>{f.disconnect();"
-                "document.removeEventListener(a,g,!0)}}",
+                'let g=!1,h=()=>{g=e.style.display==="none"};'
+                "document.addEventListener(o,h,!0);"
+                "i=p=>{u||g||e.contains(p?.target)||l(p)};"
+                "d=()=>{f.disconnect();"
+                "document.removeEventListener(o,h,!0)}}"
+                "(o===B||o===te)&&(s=document);",
             ),
-            # Remove original a declaration (now hoisted above)
             (
-                'let a=L(t,n,"kebab");if',
-                "if",
-            ),
-            # Add cleanup call
-            (
-                "s.removeEventListener(a,o)}}});",
-                "s.removeEventListener(a,o);b?.()}}});",
+                "s.removeEventListener(o,c,a)}}});",
+                "s.removeEventListener(o,c,a);d?.()}}});",
             ),
         ],
         markers=[
-            "requestAnimationFrame(()=>{d=!1})",
+            "requestAnimationFrame(()=>{u=!1})",
             'e.style.display==="none"',
-            'once")};let a=L(t,n,"kebab"),b;if(n.has("outside")',
-        ],
-    ),
-    PatchDef(
-        name="init-refire-fix",
-        operations=[
-            # nn(): add 3rd param `f` (filter flag) and pass it to _e() calls.
-            # When f is truthy, _e/xt only process newly-registered plugins (via Ze).
-            # When f is undefined (shadow DOM scans), all plugins are processed.
-            # This supersedes the earlier "scan-timing-fix" which bluntly removed
-            # the hardcoded !0 — that broke plugin-registration rescans.
-            (
-                'nn=(e=document.documentElement,t=!0)=>{K(e)&&_e([e],!0),_e(e.querySelectorAll("*"),!0),',
-                'nn=(e=document.documentElement,t=!0,f)=>{K(e)&&_e([e],f),_e(e.querySelectorAll("*"),f),',
-            ),
-            # p(): pass filter flag so plugin-registration rescans only process
-            # the newly registered plugin, not re-fire data-init on every element.
-            (
-                "He.length=0,nn(),Ze.clear()",
-                "He.length=0,nn(void 0,!0,!0),Ze.clear()",
-            ),
-        ],
-        markers=[
-            "nn=(e=document.documentElement,t=!0,f)=>",
-            "nn(void 0,!0,!0)",
+            'once:n.has("once")},d;if(n.has("outside")',
         ],
     ),
     PatchDef(
@@ -99,16 +70,16 @@ PATCHES: list[PatchDef] = [
             # Declare module-scoped _J_src at the very top of the code body.
             # J() includes it in the datastar-signal-patch event when non-empty,
             # allowing the debugger to get definitive source info (e.g. "persist").
-            ("var at=", 'var _J_src="";var at='),
+            ("var ht=", 'var _J_src="";var ht='),
             # Patch J() to wrap detail in {signals, source} when _J_src is set.
             (
-                "J=(e,t)=>{if(e!==void 0&&t!==void 0&&xe.push([e,t]),"
-                "!Oe&&xe.length){let n=Me(xe);xe.length=0,"
-                "document.dispatchEvent(new CustomEvent(Z,{detail:n}))}}",
-                "J=(e,t)=>{if(e!==void 0&&t!==void 0&&xe.push([e,t]),"
-                "!Oe&&xe.length){let n=Me(xe);xe.length=0;"
+                "z=(e,t)=>{if(e!==void 0&&t!==void 0&&xe.push([e,t]),"
+                "!He&&xe.length){let n=Le(xe);xe.length=0,"
+                "document.dispatchEvent(new CustomEvent(te,{detail:n}))}}",
+                "z=(e,t)=>{if(e!==void 0&&t!==void 0&&xe.push([e,t]),"
+                "!He&&xe.length){let n=Le(xe);xe.length=0;"
                 "let _d=_J_src?{signals:n,source:_J_src}:n;"
-                "document.dispatchEvent(new CustomEvent(Z,{detail:_d}))}}",
+                "document.dispatchEvent(new CustomEvent(te,{detail:_d}))}}",
             ),
         ],
         markers=['var _J_src=""', "signals:n,source:_J_src"],
@@ -122,8 +93,8 @@ PATCHES: list[PatchDef] = [
             # zero FOUC.  Sets _J_src="persist" so the signal-patch event carries
             # definitive source metadata for the debugger.
             (
-                'O=(e,{ifMissing:t}={})=>{M();for(let n in e)e[n]==null?t||delete X[n]:vt(e[n],n,X,"",t);x()}',
-                "O=(e,{ifMissing:t}={})=>{"
+                'D=(e,{ifMissing:t}={})=>{N();for(let n in e)e[n]==null?t||delete re[n]:Nt(e[n],n,re,"",t);P()}',
+                "D=(e,{ifMissing:t}={})=>{"
                 "if(t){let _ps=window.__starhtml_pc;"
                 "if(_ps===void 0){_ps={};"
                 "try{for(let _st of[localStorage,sessionStorage])"
@@ -136,8 +107,8 @@ PATCHES: list[PatchDef] = [
                 "let _hp=!1;"
                 "for(let n in e)if(n in _ps&&_ps[n]!=null){e[n]=_ps[n];_hp=!0}"
                 'if(_hp)_J_src="persist"}'
-                "M();"
-                'for(let n in e)e[n]==null?t||delete X[n]:vt(e[n],n,X,"",t);x();'
+                "N();"
+                'for(let n in e)e[n]==null?t||delete re[n]:Nt(e[n],n,re,"",t);P();'
                 '_J_src=""}',
             ),
         ],

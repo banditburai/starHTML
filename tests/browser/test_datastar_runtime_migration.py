@@ -84,6 +84,7 @@ def datastar_test_page(body: str, datastar_source: str) -> str:
 async def load_datastar_page(page: Page, body: str, datastar_source: str) -> None:
     """Load a page with StarHTML's local Datastar runtime and wait for scans."""
     await page.set_content(datastar_test_page(body, datastar_source), wait_until="domcontentloaded")
+    await page.wait_for_function("window.__datastar !== undefined")
 
 
 async def load_datastar_page_at_origin(page: Page, body: str, datastar_source: str) -> None:
@@ -97,6 +98,7 @@ async def load_datastar_page_at_origin(page: Page, body: str, datastar_source: s
     await page.route(url, route_handler)
     try:
         await page.goto(url, wait_until="domcontentloaded")
+        await page.wait_for_function("window.__datastar !== undefined")
     finally:
         await page.unroute(url, route_handler)
 
@@ -494,7 +496,7 @@ async def test_data_bind_prop_modifier_binds_without_event_modifier(page, datast
     await page.locator("#panel").evaluate(
         """el => {
             el.hidden = false;
-            el.dispatchEvent(new Event("input", { bubbles: true }));
+            el.dispatchEvent(new Event("change", { bubbles: true }));
         }"""
     )
 

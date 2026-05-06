@@ -17,11 +17,11 @@ The patched file is served alongside plugins and debugger JS via the general `/_
 ## Updating Datastar
 
 ```
-python scripts/update_datastar.py 1.0.0-RC.8
+python scripts/update_datastar.py 1.0.1
 bun run build
 ```
 
-(The `v` prefix is optional — `v1.0.0-RC.8` also works.)
+(The `v` prefix is optional — `v1.0.1` also works.)
 
 This downloads vanilla Datastar from CDN, dry-runs all patches to verify they apply, saves the vanilla source to `patches/datastar-upstream.js`, and updates `DATASTAR_VERSION`.
 
@@ -45,9 +45,9 @@ Serves vanilla Datastar from CDN. Shadow DOM components (StarElements) require t
 
 **Problem**: Datastar's `MutationObserver` cannot see inside shadow trees. The `datastar:scan` custom event dispatched by StarElements has no listener, so shadow DOM components get zero reactive bindings.
 
-**Fix**: Added a `document.addEventListener("datastar:scan", ...)` that calls Datastar's internal `nn` (scan) function on the provided root.
+**Fix**: Added a `document.addEventListener("datastar:scan", ...)` that calls Datastar's internal `En` (scan) function on the provided root. The scan function now accepts a third filter argument: normal late-plugin rescans keep upstream's newly-registered-plugin filter, while explicit `datastar:scan` calls pass no filter so all loaded plugins bind inside the shadow root.
 
-**Note**: The minified function name `nn` may change across versions. Look for the function that calls `_e()` on descendants and sets up a `MutationObserver`.
+**Note**: The minified function name `En` may change across versions. Look for the function that calls the attribute scan helper on descendants and sets up a `MutationObserver`.
 
 ## Patch 2: Outside Modifier Race Fix
 
@@ -63,15 +63,22 @@ Serves vanilla Datastar from CDN. Shadow DOM components (StarElements) require t
 
 **Scope**: The `e.style.display === "none"` check only detects inline styles set by `data-show`. This is an intentional coupling — `data-show` is the primary use case for `outside` modifiers.
 
-## Patch 3: Init Refire Fix
+## Obsolete: Init Refire Fix
 
-**Problem**: `data-init` fires twice on page load when any Datastar plugin (e.g., `persist`) is registered in a separate `<script type="module">`. Each late-arriving `attribute()` call triggers a full-page rescan via `nn()`, re-executing all already-processed bindings including `data-init`.
+Older StarHTML builds patched Datastar's scan function to prevent `data-init` from firing twice when plugins registered after the first page scan.
 
-**Root cause**: Datastar's `nn` scan function passed a hardcoded filter flag (`!0`) to `_e()`, which told the attribute processor (`xt`) to only process newly-registered plugins. An earlier fix ("scan-timing-fix") removed this flag entirely so that shadow DOM scans would process all plugins — but this also removed the filter for plugin-registration rescans, causing the double-fire.
+Datastar `1.0.1` tracks observed roots and preserves the newly-registered-plugin filter during late plugin registration. StarHTML now relies on that upstream behavior, backed by the browser migration test for late plugin registration. The shadow DOM scan patch still adds a filter override for explicit component scans, but there is no longer a separate `init-refire-fix` patch.
 
-**Fix**: Made the filter conditional via a 3rd parameter `f` on `nn()`:
+## Patch 3: Signal Patch Source Tag
 
-- **Plugin registration rescans** (`p()` → `nn(void 0, !0, !0)`): `f=true` → only newly-registered plugins are processed on existing elements.
-- **Shadow DOM / component scans** (`datastar:scan` → `nn(root, !0)`): `f` absent → all plugins are processed (required for new DOM scopes).
+**Problem**: The debugger needs to distinguish user/application signal changes from StarHTML persist prehydration.
 
-This supersedes the earlier "scan-timing-fix" which was never formalized as a patch.
+**Fix**: Adds a small module-scoped source tag. Normal `datastar-signal-patch` event details remain unchanged; when StarHTML sets the source tag, the event detail is wrapped as `{signals, source}`.
+
+## Patch 4: Persist-Aware Init
+
+**Problem**: `data-signals__ifmissing` defaults render before StarHTML persist data can restore values, causing a flash of default state.
+
+**Fix**: In `ifMissing` signal merges, StarHTML checks cached `starhtml-persist*` storage values before applying defaults. When a persisted value is used, the source tag is set to `"persist"` for debugger metadata.
+
+The storage scan is cached on `window.__starhtml_pc` for the lifetime of the page.
