@@ -60,7 +60,7 @@ def test_other_paths_bypass():
 
 
 def test_tokens_refill_over_time():
-    # capacity=2, 1 token/sec. t=0 drain twice; t=1 refills 1; t=2 (next call) refills another.
+    # capacity=2, 1 token/sec. now=[0,0,0,1,1] -> drain twice at t=0; one refill by t=1.
     c = _client(capacity=2, refill_per_second=1.0, now=[0.0, 0.0, 0.0, 1.0, 1.0])
     assert c.post("/auth/login").status_code == 200  # t=0: 1 left
     assert c.post("/auth/login").status_code == 200  # t=0: 0 left
@@ -102,12 +102,12 @@ def _drive(app, client_ip):
 
 
 def _bare_limiter(**kwargs):
+    kwargs.setdefault("capacity", 2)
+    kwargs.setdefault("refill_per_second", 0.0)
+    kwargs.setdefault("time_fn", lambda: 0.0)
     return PathRateLimit(
         Starlette(routes=[Route("/auth/login", _ok, methods=["POST"])]),
         path="/auth/login",
-        capacity=2,
-        refill_per_second=0.0,
-        time_fn=lambda: 0.0,
         **kwargs,
     )
 
@@ -131,6 +131,72 @@ def test_ipv6_bucket_keyed_by_address():
     assert _drive(app, "2001:db8::1") == 200
     assert _drive(app, "2001:db8::1") == 429
     assert _drive(app, "2001:db8::2") == 200
+
+
+def _drive_with_headers(app, client_ip, headers):
+    received = []
+    scope = {
+        "type": "http",
+        "method": "POST",
+        "path": "/auth/login",
+        "headers": [(k.lower().encode("latin-1"), v.encode("latin-1")) for k, v in headers],
+        "client": (client_ip, 12345),
+    }
+
+    async def receive():
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    async def send(msg):
+        received.append(msg)
+
+    asyncio.run(app(scope, receive, send))
+    return next(m for m in received if m["type"] == "http.response.start")["status"]
+
+
+def test_forwarded_headers_cannot_reset_bucket():
+    """Without a trusted proxy upstream, X-Forwarded-For/X-Real-IP must not key the bucket.
+
+    Threat: if forwarded headers were honored, an attacker on a single IP
+    could brute-force /auth/login by rotating XFF values.
+    """
+    app = _bare_limiter()
+    # Drain the same client IP twice → third call should 429 regardless of headers.
+    assert _drive(app, "10.0.0.1") == 200
+    assert _drive(app, "10.0.0.1") == 200
+    assert _drive_with_headers(app, "10.0.0.1", [("X-Forwarded-For", "203.0.113.99")]) == 429
+    assert _drive_with_headers(app, "10.0.0.1", [("X-Real-IP", "203.0.113.42")]) == 429
+    assert _drive_with_headers(app, "10.0.0.1", [("Forwarded", "for=198.51.100.7")]) == 429
+
+
+def test_concurrent_requests_share_one_bucket_per_ip():
+    """N concurrent requests from one IP at capacity=1 yield exactly one 200."""
+    app = _bare_limiter(capacity=1)
+
+    async def _one():
+        received = []
+        scope = {
+            "type": "http",
+            "method": "POST",
+            "path": "/auth/login",
+            "headers": [],
+            "client": ("10.0.0.99", 0),
+        }
+
+        async def receive():
+            return {"type": "http.request", "body": b"", "more_body": False}
+
+        async def send(msg):
+            received.append(msg)
+
+        await app(scope, receive, send)
+        return next(m for m in received if m["type"] == "http.response.start")["status"]
+
+    async def _gather():
+        return await asyncio.gather(*[_one() for _ in range(20)])
+
+    statuses = asyncio.run(_gather())
+    assert statuses.count(200) == 1
+    assert statuses.count(429) == 19
 
 
 def test_missing_client_falls_back_to_unknown():

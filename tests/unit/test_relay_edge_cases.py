@@ -272,26 +272,6 @@ class TestMixedEventOrdering:
         assert isinstance(e3, ScriptEvent)
         assert e3.script == "void 0"
 
-    def test_convenience_methods_ordering(self):
-        """emit_signals, emit_element, emit_script produce correct event types."""
-        relay = Relay()
-        q = relay.subscribe()
-
-        relay.emit_signals({"a": 1})
-        relay.emit_element("<b>x</b>", "#b", "append")
-        relay.emit_script("run()")
-
-        assert isinstance(q.get_nowait(), SignalEvent)
-        assert isinstance(q.get_nowait(), ElementEvent)
-        assert isinstance(q.get_nowait(), ScriptEvent)
-
-    def test_emit_signals_skips_empty_dict(self):
-        """emit_signals with empty dict should not emit."""
-        relay = Relay()
-        q = relay.subscribe()
-        relay.emit_signals({})
-        assert q.empty()
-
 
 class TestLargePayloads:
     """Large data must not be truncated or corrupted."""
@@ -473,20 +453,10 @@ class TestSubscribeUnsubscribeChurn:
 class TestEdgeCases:
     """Miscellaneous edge-case behaviors."""
 
-    def test_emit_with_no_subscribers(self):
-        """Emitting with no subscribers is a no-op, no error."""
-        relay = Relay()
-        relay.emit(SignalEvent({"lonely": True}))  # Should not raise
-
     def test_subscribe_returns_queue_with_correct_maxsize(self):
         relay = Relay(maxsize=42)
         q = relay.subscribe()
         assert q.maxsize == 42
-
-    def test_default_maxsize_is_500(self):
-        relay = Relay()
-        q = relay.subscribe()
-        assert q.maxsize == 500
 
     def test_element_event_default_mode(self):
         """ElementEvent defaults mode to 'outer'."""

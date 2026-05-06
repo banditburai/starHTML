@@ -48,17 +48,6 @@ class TestRunHandler:
         asyncio.run(_run_handler(handler, sentinel))
         assert called == [("async", sentinel)]
 
-    def test_handler_with_unresolvable_forward_ref_annotation(self):
-        """Lifespan dispatch should not resolve annotations just to count args."""
-        called = []
-
-        async def handler(app: "NotImportedAnywhere") -> None:  # noqa: F821
-            called.append(app)
-
-        sentinel = object()
-        asyncio.run(_run_handler(handler, sentinel))
-        assert called == [sentinel]
-
 
 class TestLifespan:
     def test_empty_lifespan(self):

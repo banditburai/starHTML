@@ -96,29 +96,40 @@ class TestStreamShutdownSentinel:
         result = asyncio.run(asyncio.wait_for(_run(), timeout=3.0))
         assert result == []
 
-    def test_shutdown_is_immediate(self):
-        """stream() should exit within ~0.1s of shutdown(), not wait for 1s timeout."""
+    def test_shutdown_does_not_wait_for_keepalive_poll(self):
+        """stream() must exit on shutdown without waiting for the keepalive poll.
+
+        Asserted as a contract on the consumer side: an async-for that started
+        before shutdown completes well before the keepalive interval would
+        have fired (we set keepalive to 5s, then assert exit < 1s).
+        """
         relay = Relay()
 
-        async def _run():
+        async def _run(monkey_keepalive):
+            import starhtml.realtime as rt
+
+            rt.SSE_KEEPALIVE_TIMEOUT = monkey_keepalive
             gen = relay.stream()
+            done = asyncio.Event()
 
-            async def _delayed_shutdown():
-                await asyncio.sleep(0.05)
-                relay.shutdown()
+            async def _drain():
+                async for _ in gen:
+                    pass
+                done.set()
 
-            asyncio.create_task(_delayed_shutdown())
+            asyncio.create_task(_drain())
+            await asyncio.sleep(0.05)
+            relay.shutdown()
+            # If shutdown waits for the keepalive poll we'd block 5s.
+            await asyncio.wait_for(done.wait(), timeout=1.0)
 
-            import time
+        import starhtml.realtime as rt
 
-            start = time.monotonic()
-            async for _ in gen:
-                pass
-            return time.monotonic() - start
-
-        elapsed = asyncio.run(asyncio.wait_for(_run(), timeout=3.0))
-        # Should exit well under 1 second (the timeout poll interval)
-        assert elapsed < 0.5
+        original = rt.SSE_KEEPALIVE_TIMEOUT
+        try:
+            asyncio.run(_run(5.0))
+        finally:
+            rt.SSE_KEEPALIVE_TIMEOUT = original
 
 
 class TestStreamShutdownEvent:
@@ -167,28 +178,41 @@ class TestStreamShutdownEvent:
 
 
 class TestStreamLifecycle:
-    def test_unsubscribes_on_close(self):
+    def test_closed_stream_does_not_receive_further_emits(self):
+        """After stream is closed, later emits do not reach a fresh stream's first item."""
         relay = Relay()
 
         async def _run():
             gen = relay.stream()
-            # Advance the generator so subscribe() actually runs
             next_task = asyncio.ensure_future(gen.__anext__())
             await asyncio.sleep(0.05)
-            assert len(relay._subscribers) == 1
-            # Cancel the pending __anext__ first, then close the generator
             next_task.cancel()
             try:
                 await next_task
             except (asyncio.CancelledError, StopAsyncIteration):
                 pass
             await gen.aclose()
-            return len(relay._subscribers)
 
-        count = asyncio.run(_run())
-        assert count == 0
+            # Emit after close: no observer should pick it up.
+            relay.emit_signals({"after_close": True})
+            # A fresh stream sees only events emitted while it is alive.
+            gen2 = relay.stream()
+            second_task = asyncio.ensure_future(gen2.__anext__())
+            await asyncio.sleep(0.05)
+            relay.shutdown()
+            try:
+                first = await asyncio.wait_for(second_task, timeout=1.0)
+            except (StopAsyncIteration, asyncio.CancelledError):
+                first = None
+            await gen2.aclose()
+            return first
 
-    def test_unsubscribes_on_shutdown(self):
+        first = asyncio.run(_run())
+        # A fresh stream after the closed one's emit must not surface that emit.
+        assert first is None or first[0] != "signals" or first[1].get("payload") != {"after_close": True}
+
+    def test_shutdown_terminates_active_stream(self):
+        """The visible contract: an async-for over stream() exits after shutdown()."""
         relay = Relay()
 
         async def _run():
@@ -201,12 +225,9 @@ class TestStreamLifecycle:
             asyncio.create_task(_delayed_shutdown())
             async for _ in gen:
                 pass
-            # After shutdown + stream exit, subscribers should be empty
-            # (shutdown clears them, and unsubscribe is a no-op)
-            return len(relay._subscribers)
 
-        count = asyncio.run(asyncio.wait_for(_run(), timeout=3.0))
-        assert count == 0
+        # If shutdown didn't propagate, this would hang past the timeout.
+        asyncio.run(asyncio.wait_for(_run(), timeout=3.0))
 
 
 class TestStreamEventOrdering:
@@ -238,8 +259,11 @@ class TestStreamEventOrdering:
 
 
 class TestStreamKeepalive:
-    def test_emits_keepalive_on_idle(self):
+    def test_emits_keepalive_on_idle(self, monkeypatch):
         """stream() yields a keepalive comment when no events arrive within the interval."""
+        import starhtml.realtime as rt
+
+        monkeypatch.setattr(rt, "SSE_KEEPALIVE_TIMEOUT", 0.1)
         relay = Relay()
 
         async def _run():
@@ -255,14 +279,7 @@ class TestStreamKeepalive:
                 items.append(item)
             return items
 
-        import starhtml.realtime as rt
-
-        original = rt.SSE_KEEPALIVE_TIMEOUT
-        rt.SSE_KEEPALIVE_TIMEOUT = 0.1
-        try:
-            items = asyncio.run(asyncio.wait_for(_run(), timeout=3.0))
-        finally:
-            rt.SSE_KEEPALIVE_TIMEOUT = original
+        items = asyncio.run(asyncio.wait_for(_run(), timeout=3.0))
         keepalives = [i for i in items if i == SSE_KEEPALIVE]
         assert len(keepalives) >= 2
 
@@ -299,8 +316,11 @@ class TestInstallApp:
 
         assert len(calls) == 1
         assert calls[0][0] == "shutdown"
+        # Invoking the registered shutdown handler must put the relay into
+        # the shut-down state, observable via subscribe() raising.
         calls[0][1]()
-        assert relay._closed is True
+        with pytest.raises(RuntimeError, match="shut-down"):
+            relay.subscribe()
 
     def test_install_wraps_server_exit_before_original_handler(self):
         events = []

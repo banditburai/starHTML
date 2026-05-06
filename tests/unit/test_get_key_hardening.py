@@ -22,21 +22,41 @@ def test_generate_new_creates_with_mode_0600(tmp_path):
     assert len(key) >= 32
 
 
-def test_generate_new_does_not_clobber_concurrent_writer(tmp_path):
+def test_generate_new_does_not_clobber_concurrent_writers(tmp_path):
+    """16 threads racing get_key on a non-existent path must all return the same key.
+
+    The atomic primitive is os.link() — only the first thread links the
+    tempfile to the target; the rest see FileExistsError and recurse to
+    read what the winner wrote. The GIL doesn't help here: tempfile.mkstemp
+    and os.link both release it during I/O, so this exercises the real race.
+    """
     fname = tmp_path / ".sesskey"
-    results = []
-    barrier = threading.Barrier(2)
+    n = 16
+    results: list[str] = []
+    errors: list[BaseException] = []
+    barrier = threading.Barrier(n)
+    lock = threading.Lock()
 
     def worker():
-        barrier.wait()
-        results.append(get_key(fname=str(fname)))
+        try:
+            barrier.wait()
+            key = get_key(fname=str(fname))
+        except BaseException as exc:  # noqa: BLE001
+            with lock:
+                errors.append(exc)
+            return
+        with lock:
+            results.append(key)
 
-    threads = [threading.Thread(target=worker) for _ in range(2)]
+    threads = [threading.Thread(target=worker) for _ in range(n)]
     for t in threads:
         t.start()
     for t in threads:
         t.join()
-    assert results[0] == results[1]
+
+    assert errors == []
+    assert len(results) == n
+    assert len(set(results)) == 1, "racers must converge on the winner's key"
     assert _mode(fname) == 0o600
 
 

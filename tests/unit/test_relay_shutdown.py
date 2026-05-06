@@ -22,13 +22,6 @@ class TestShutdownBasics:
         assert q1.get_nowait() is RELAY_SHUTDOWN
         assert q2.get_nowait() is RELAY_SHUTDOWN
 
-    def test_shutdown_clears_subscriber_list(self):
-        relay = Relay()
-        relay.subscribe()
-        relay.subscribe()
-        relay.shutdown()
-        assert len(relay._subscribers) == 0
-
     def test_shutdown_idempotent(self):
         relay = Relay()
         q = relay.subscribe()

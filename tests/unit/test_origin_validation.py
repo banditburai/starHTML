@@ -134,3 +134,47 @@ def test_on_reject_optional():
     # No on_reject callback — still rejects, just doesn't notify.
     res = _client().post("/", headers={"Origin": "https://attacker.example"})
     assert res.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# Realistic CSRF bypass attempts — must all reject. These are the spoof
+# vectors a real attacker reaches for, so they are the ones we explicitly
+# pin (and re-pin if origin parsing ever changes).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "spoof_origin",
+    [
+        "https://example.com/",  # trailing slash (malformed Origin)
+        "http://example.com",  # scheme downgrade
+        "https://example.com:8443",  # port mismatch
+        "https://example.com.attacker.example",  # suffix spoof
+        "https://attacker.example/example.com",  # path-as-host trick
+        "https://EXAMPLE.COM",  # case differs (Origin must match byte-for-byte)
+    ],
+)
+def test_realistic_csrf_spoof_origins_rejected(spoof_origin):
+    res = _client().post("/", headers={"Origin": spoof_origin})
+    assert res.status_code == 403
+
+
+@pytest.mark.parametrize(
+    "spoof_referer",
+    [
+        "http://example.com/safe",  # scheme downgrade
+        "https://example.com:8443/safe",  # port mismatch
+        "https://attacker.example/?next=https://example.com",  # path-bait
+        "https://example.com.attacker.example/",  # suffix spoof
+    ],
+)
+def test_realistic_csrf_spoof_referer_rejected(spoof_referer):
+    res = _client().post("/", headers={"Referer": spoof_referer})
+    assert res.status_code == 403
+
+
+def test_referer_with_userinfo_rejected():
+    """Userinfo (`user@host`) splits the netloc; we must not treat it as the trusted host."""
+    res = _client().post("/", headers={"Referer": "https://attacker.example@example.com/"})
+    # urlparse netloc keeps the userinfo, so the candidate is not "https://example.com".
+    assert res.status_code == 403

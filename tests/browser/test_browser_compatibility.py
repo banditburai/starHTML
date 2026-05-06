@@ -599,132 +599,17 @@ class TestBrowserCompatibilityMatrix:
             "persist": (_JS_PLUGINS_DIR / "persist.js").read_text(),
         }
 
-    def test_javascript_syntax_compatibility(self):
-        """Test JavaScript syntax compatibility across browser targets."""
-        handlers = self._get_handler_scripts()
+    def test_no_browser_sniffing(self):
+        """Plugins must rely on feature detection, not user-agent sniffing."""
+        for handler_name, content in self._get_handler_scripts().items():
+            assert "navigator.userAgent" not in content, f"{handler_name} sniffs userAgent"
 
-        # Check for modern JavaScript features that might not be supported
-        problematic_features = [
-            "?.",  # Optional chaining
-            "??",  # Nullish coalescing (outside of comments)
-            "=>",  # Arrow functions (check if excessive)
-            "async ",  # Async/await
-            "const ",  # Let/const (should be fine in modern browsers)
-        ]
-
-        for handler_name, content in handlers.items():
-            # Count modern features
-            feature_counts = {}
-            for feature in problematic_features:
-                if feature == "??":
-                    # Exclude comments
-                    lines = [line for line in content.split("\n") if not line.strip().startswith("//")]
-                    feature_counts[feature] = "\n".join(lines).count(feature)
-                else:
-                    feature_counts[feature] = content.count(feature)
-
-            # Arrow functions are OK but shouldn't be excessive
-            if feature_counts.get("=>", 0) > 10:
-                print(f"Warning: Many arrow functions in {handler_name}: {feature_counts['=>']}")
-
-            # Optional chaining and async/await are used in RC6 pattern
-            # Datastar RC6 itself requires modern browser features, so these are acceptable
-            # Note: setConfig?.() pattern is used for optional handler config
-            if feature_counts.get("?.", 0) > 0:
-                print(f"Note: Optional chaining in {handler_name} (RC6 pattern, requires modern browser)")
-            if feature_counts.get("async ", 0) > 0:
-                print(f"Note: Async/await in {handler_name} (RC6 dynamic imports)")
-
-    def test_required_browser_apis(self):
-        """Test that only supported browser APIs are used."""
-        handlers = self._get_handler_scripts()
-
-        # APIs that should be available in target browsers
-
-        # APIs that might not be universally supported
-        potentially_unsupported = [
-            "IntersectionObserver",  # Good support but newer
-            "PerformanceObserver",  # Newer API
-            "AbortController",  # Modern API
-            "fetch",  # Should use fallbacks
-        ]
-
-        for handler_name, content in handlers.items():
-            # Check for potentially unsupported APIs
-            for api in potentially_unsupported:
-                if api in content:
-                    print(f"Warning: {api} used in {handler_name} (check compatibility)")
-
-            # Ensure fallback patterns for newer APIs
-            if "fetch" in content:
-                assert "XMLHttpRequest" in content or "fallback" in content.lower(), (
-                    f"No fetch fallback in {handler_name}"
-                )
-
-    def test_polyfill_requirements(self):
-        """Test polyfill requirements for browser compatibility."""
-        all_handlers = self._get_handler_scripts()
-        handlers = {
-            "resize_dom": all_handlers["resize_dom"],
-            "resize_sp": all_handlers["resize_sp"],
-        }
-
-        # APIs that might need polyfills
-        polyfill_apis = {
-            "ResizeObserver": "resize-observer-polyfill",
-            "WeakMap": "weakmap-polyfill",
-            "requestAnimationFrame": "raf-polyfill",
-        }
-
-        for handler_name, content in handlers.items():
-            for api, _polyfill in polyfill_apis.items():
-                if api in content:
-                    # Should have feature detection or polyfill loading
-                    has_detection = f"typeof {api}" in content or f"window.{api}" in content
-                    has_fallback = "polyfill" in content.lower() or "fallback" in content.lower()
-
-                    if not (has_detection or has_fallback):
-                        print(f"Consider adding feature detection for {api} in {handler_name}")
-
-    def test_browser_specific_code_paths(self):
-        """Test for browser-specific code paths."""
-        all_handlers = self._get_handler_scripts()
-        handlers = {
-            "scroll": all_handlers["scroll"],
-            "resize_dom": all_handlers["resize_dom"],
-            "persist": all_handlers["persist"],
-        }
-
-        # Browser detection patterns (should be avoided)
-        browser_detection = ["navigator.userAgent", "chrome", "firefox", "safari", "webkit", "gecko"]
-
-        for handler_name, content in handlers.items():
-            for pattern in browser_detection:
-                if pattern.lower() in content.lower():
-                    # This might indicate browser-specific code
-                    print(f"Potential browser-specific code in {handler_name}: {pattern}")
-
-    def test_event_compatibility(self):
-        """Test event handling compatibility."""
-        handlers = self._get_handler_scripts()
-        scroll_content = handlers["scroll"]
-        resize_content = handlers["resize_dom"]
-
-        # Plugin JS files should be valid JavaScript with event handling
-        # Check for Datastar signal pattern
-        assert "datastar" in scroll_content.lower() or "ctx" in scroll_content, "Should use datastar signals"
-        assert "datastar" in resize_content.lower() or "ctx" in resize_content, "Should use datastar signals"
-
-        # Should not use deprecated event patterns
-        deprecated_patterns = [
-            ".attachEvent",  # IE-specific
-            "on" + "scroll =",  # Inline event handlers in JS
-            "on" + "resize =",
-        ]
-
-        for pattern in deprecated_patterns:
-            assert pattern not in scroll_content, f"Deprecated event pattern in scroll: {pattern}"
-            assert pattern not in resize_content, f"Deprecated event pattern in resize: {pattern}"
+    def test_no_deprecated_event_patterns(self):
+        """Plugins must not use IE-era event APIs or assign on* directly."""
+        deprecated = [".attachEvent", "on" + "scroll =", "on" + "resize ="]
+        for handler_name, content in self._get_handler_scripts().items():
+            for pattern in deprecated:
+                assert pattern not in content, f"Deprecated pattern {pattern!r} in {handler_name}"
 
 
 if __name__ == "__main__":

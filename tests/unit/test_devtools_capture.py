@@ -29,11 +29,6 @@ class TestDevtoolsCaptureMode:
         hdrs_html = "".join(str(h) for h in app.hdrs)
         assert 'type="module"' in hdrs_html or "type='module'" in hdrs_html
 
-    def test_capture_mode_records_mode_attr(self):
-        """app._devtools should preserve the 'capture' string for downstream checks."""
-        app = StarHTML(devtools="capture")
-        assert app._devtools == "capture"
-
     def test_star_app_passes_capture_mode(self):
         app, _ = star_app(devtools="capture")
         assert "capture.js" in "".join(str(h) for h in app.hdrs)

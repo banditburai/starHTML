@@ -34,6 +34,14 @@ from starhtml.middleware import HostHeaderMiddleware, is_accepted_host
         ("[invalid", "127.0.0.1", False),
         ("localhost.:8282", "127.0.0.1", False),  # trailing dot — fail closed
         ("[fe80::1%eth0]:9119", "127.0.0.1", False),  # IPv6 zone-id — fail closed
+        # Suffix-spoof vectors: attacker tries to make their host *look* like ours.
+        ("evil.hermes.example:443", "hermes.example", False),
+        ("hermes.example.evil.com:443", "hermes.example", False),
+        ("xhermes.example:443", "hermes.example", False),  # left-anchored prefix shouldn't match
+        # Suffix-spoof against loopback: only loopback aliases are allowed.
+        ("localhost.evil.com:443", "127.0.0.1", False),
+        ("evil.localhost:443", "127.0.0.1", False),
+        ("127.0.0.1.evil.com:443", "127.0.0.1", False),
     ],
 )
 def test_is_accepted_host(host_header, bound, expected):
