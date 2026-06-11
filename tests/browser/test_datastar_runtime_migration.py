@@ -70,7 +70,7 @@ def datastar_runtime_source() -> str:
 
 @pytest.fixture(scope="session")
 def datastar_upstream_source() -> str:
-    """Return vanilla Datastar 1.0.1 for upstream behavior comparisons."""
+    """Return vanilla Datastar 1.0.2 for upstream behavior comparisons."""
     return DATASTAR_UPSTREAM.read_text()
 
 
@@ -319,7 +319,7 @@ async def test_local_runtime_binds_signals_text_and_click(page, datastar_runtime
     [("GET", "@get('https://example.test/capture')"), ("DELETE", "@delete('https://example.test/capture')")],
 )
 async def test_get_and_delete_send_signals_in_query_without_body(page, datastar_runtime_source, method, action):
-    """Datastar 1.0.1 sends GET/DELETE signal payloads as query params only."""
+    """Datastar 1.0.2 sends GET/DELETE signal payloads as query params only."""
     await load_datastar_page(
         page,
         f"""
@@ -379,7 +379,7 @@ async def test_mutation_fetch_actions_send_json_body(page, datastar_runtime_sour
 @pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
 @pytest.mark.asyncio
 async def test_form_submit_input_value_is_included(page, datastar_runtime_source):
-    """Datastar 1.0.1 includes input[type=submit] name/value in form submissions."""
+    """Datastar 1.0.2 includes input[type=submit] name/value in form submissions."""
     await load_datastar_page(
         page,
         f"""
@@ -406,7 +406,7 @@ async def test_form_submit_input_value_is_included(page, datastar_runtime_source
 @pytest.mark.asyncio
 @pytest.mark.parametrize("runtime_fixture", ["datastar_upstream_source", "datastar_runtime_source"])
 async def test_http_retry_reuses_original_signal_payload(page, request, runtime_fixture):
-    """Vanilla and StarHTML Datastar 1.0.1 ordinary HTTP retries reuse the original payload."""
+    """Vanilla and StarHTML Datastar 1.0.2 ordinary HTTP retries reuse the original payload."""
     datastar_source = request.getfixturevalue(runtime_fixture)
     await load_datastar_page(
         page,
@@ -567,7 +567,7 @@ async def test_form_submitter_retry_reuses_original_submitter_payload(page, requ
 @pytest.mark.asyncio
 @pytest.mark.parametrize("runtime_fixture", ["datastar_upstream_source", "datastar_runtime_source"])
 async def test_visibility_reconnect_rebuilds_payload_from_current_signals(page, request, runtime_fixture):
-    """Vanilla and StarHTML Datastar 1.0.1 rebuild payloads on visibility reconnect."""
+    """Vanilla and StarHTML Datastar 1.0.2 rebuild payloads on visibility reconnect."""
     datastar_source = request.getfixturevalue(runtime_fixture)
     await load_datastar_page(
         page,

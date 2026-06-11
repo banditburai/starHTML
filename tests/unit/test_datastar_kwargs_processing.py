@@ -302,7 +302,7 @@ class TestSpecialDataAttributes:
         assert checked in signals
 
     def test_data_bind_signal_with_event_modifier_uses_bare_path(self):
-        """Datastar 1.0.1 allows __event without requiring __prop."""
+        """Datastar 1.0.2 allows __event without requiring __prop."""
         value = Signal("value", "")
         processed, signals = process_datastar_kwargs({"data_bind": (value, {"event": "change"})})
 
@@ -405,7 +405,7 @@ class TestEventModifiers:
         assert processed["data-on:click__outside"] == "close()"
 
     def test_event_with_multiple_101_modifiers(self):
-        """Common Datastar 1.0.1 data-on modifiers should compose predictably."""
+        """Common Datastar 1.0.2 data-on modifiers should compose predictably."""
         processed, _ = process_datastar_kwargs(
             {
                 "data_on_click": (
@@ -422,7 +422,7 @@ class TestFetchActionOptions:
     """Test fetch action helper option output."""
 
     def test_post_action_can_emit_retry_max_wait(self):
-        """Datastar 1.0.1 uses retryMaxWait, not retryMaxWaitMs."""
+        """Datastar 1.0.2 uses retryMaxWait, not retryMaxWaitMs."""
         action = post("/save", retryMaxWait=15000)
 
         assert str(action) == "@post('/save', {retryMaxWait: 15000})"

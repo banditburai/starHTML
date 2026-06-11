@@ -19,15 +19,25 @@ The public wrapper and private patched core are served alongside plugins and deb
 ## Updating Datastar
 
 ```
-python scripts/update_datastar.py 1.0.1
+python scripts/update_datastar.py 1.0.2
 bun run build
 ```
 
-(The `v` prefix is optional — `v1.0.1` also works.)
+(The `v` prefix is optional — `v1.0.2` also works.)
 
 This downloads vanilla Datastar from CDN, dry-runs all patches to verify they apply, saves the vanilla source to `patches/datastar-upstream.js`, and updates `DATASTAR_VERSION`.
 
-If a patch fails (Datastar internals changed), the script saves `patches/datastar-upstream.vanilla.js` for diffing. Fix the search strings in `patches/patch_definitions.py`.
+Patches anchor on **stable string/structural landmarks**, not on the minified
+single-char identifiers Datastar reassigns each release. Each patch captures the
+volatile tokens it needs (scan-fn name, event consts, handler vars, the `action`
+export alias) from those landmarks and substitutes them into `«token»` placeholders,
+so the same definitions usually apply across Datastar versions with no edits — the
+1.0.1 → 1.0.2 bump required none.
+
+If a patch *does* fail (a landmark itself changed upstream), the script saves
+`patches/datastar-upstream.vanilla.js` for diffing. Update the affected `captures`
+regex or `operations` template in `patches/patch_definitions.py` — prefer re-anchoring
+on a nearby stable literal over hardcoding a new minified name.
 
 To verify patches on the current built core file:
 
@@ -47,9 +57,9 @@ Serves vanilla Datastar from CDN. Shadow DOM components (StarElements) require t
 
 **Problem**: Datastar's `MutationObserver` cannot see inside shadow trees. The `datastar:scan` custom event dispatched by StarElements has no listener, so shadow DOM components get zero reactive bindings.
 
-**Fix**: Added a `document.addEventListener("datastar:scan", ...)` that calls Datastar's internal `En` (scan) function on the provided root. The scan function now accepts a third filter argument: normal late-plugin rescans keep upstream's newly-registered-plugin filter, while explicit `datastar:scan` calls pass no filter so all loaded plugins bind inside the shadow root.
+**Fix**: Added a `document.addEventListener("datastar:scan", ...)` that calls Datastar's internal scan function on the provided root. The scan function now accepts a third filter argument: normal late-plugin rescans keep upstream's newly-registered-plugin filter, while explicit `datastar:scan` calls pass no filter so all loaded plugins bind inside the shadow root.
 
-**Note**: The minified function name `En` may change across versions. Look for the function that calls the attribute scan helper on descendants and sets up a `MutationObserver`.
+**Anchor**: The scan function is captured by its stable signature `(\w+)=\(e=document.documentElement,t=!0\)=>{`, so its minified name (`En` in 1.0.1, `bn` in 1.0.2, …) is resolved automatically rather than hardcoded.
 
 ## Patch 2: Outside Modifier Race Fix
 
