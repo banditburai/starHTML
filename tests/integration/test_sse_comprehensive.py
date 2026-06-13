@@ -83,7 +83,6 @@ class TestSSEFormatCompliance:
         )
         assert "data: useViewTransition true" in output
         assert "data: viewTransitionSelector #vt-root" in output
-        # Ordering: viewTransitionSelector follows useViewTransition and precedes the elements.
         assert output.index("useViewTransition") < output.index("viewTransitionSelector") < output.index("data: elements")
 
     def test_view_transition_selector_omitted_by_default(self):

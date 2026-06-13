@@ -322,6 +322,11 @@ def format_signal_event(
     return format_sse_event("datastar-patch-signals", data_lines, debug_ctx=debug_ctx)
 
 
+def _warn_if_unsafe_selector(selector: str) -> None:
+    if not SELECTOR_VALIDATION_REGEX.match(selector):
+        warn(f"Potentially unsafe selector: {selector}", stacklevel=3)
+
+
 def format_element_event(
     element: Any,
     selector: str | None = None,
@@ -350,16 +355,14 @@ def format_element_event(
         data_lines.append(f"mode {mode}")
 
     if selector and selector.strip():
-        if not SELECTOR_VALIDATION_REGEX.match(selector):
-            warn(f"Potentially unsafe selector: {selector}", stacklevel=2)
+        _warn_if_unsafe_selector(selector)
         data_lines.append(f"selector {selector}")
 
     if use_view_transition:
         data_lines.append("useViewTransition true")
 
     if view_transition_selector and view_transition_selector.strip():
-        if not SELECTOR_VALIDATION_REGEX.match(view_transition_selector):
-            warn(f"Potentially unsafe selector: {view_transition_selector}", stacklevel=2)
+        _warn_if_unsafe_selector(view_transition_selector)
         data_lines.append(f"viewTransitionSelector {view_transition_selector}")
 
     if "\n" in element_html:

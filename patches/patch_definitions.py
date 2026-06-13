@@ -1,17 +1,10 @@
-"""Patch definitions for vendored Datastar (durable stable-landmark anchoring).
+"""Patch definitions for vendored Datastar.
 
-Datastar ships a minified bundle whose single-char identifiers are reassigned on
-every release, so patches anchored on those names break on each upgrade. Instead,
-each patch first *captures* the few volatile tokens it needs (scan-fn name, event
-consts, handler vars, the `action` export alias) by matching STABLE string/
-structural landmarks — `document.documentElement,t=!0)=>{`, `n.has("outside")`,
-`"kebab"`, `e.style.display==="none"`, `export{… as action}` — none of which
-changed across 1.0.1 → 1.0.2. The captured names fill `«token»` placeholders in
-the search/replace operations (guillemets never occur in the bundle, so the JS
-braces need no escaping). The same definitions therefore patch multiple Datastar
-versions unchanged. `apply_patch` still requires each search to occur exactly
-once, so a genuine structural change upstream fails loudly instead of silently
-mis-patching.
+Datastar's minified bundle reassigns single-char identifiers every release, so
+patches anchored on those names break on each upgrade. Instead each patch captures
+its volatile tokens from stable string/structural landmarks, then fills `«token»`
+placeholders in the search/replace operations. Guillemets are used (not f-strings
+or .format) because the JS payloads are full of unescaped `{}`.
 """
 
 from __future__ import annotations
@@ -123,10 +116,9 @@ def apply_patch(content: str, patch: PatchDef) -> str:
     if patch.markers and all(marker in content for marker in patch.markers):
         return content
     caps = _resolve_captures(content, patch)
-    for search_t, replace_t in patch.operations:
-        search, replace = _fill(search_t, caps), _fill(replace_t, caps)
-        count = content.count(search)
-        if count != 1:
+    for search, replace in patch.operations:
+        search, replace = _fill(search, caps), _fill(replace, caps)
+        if (count := content.count(search)) != 1:
             raise ValueError(f"Patch '{patch.name}': expected search string exactly once (found {count}): {search!r}")
         content = content.replace(search, replace, 1)
     return content
