@@ -428,7 +428,7 @@ const positionAttributePlugin: AttributePlugin = {
       cleanup = autoUpdate(target, el, updatePosition, {
         ancestorScroll: true,
         ancestorResize: true,
-        elementResize: au.elementResize ?? false,
+        elementResize: au.elementResize ?? isPopover,
         layoutShift: au.layoutShift ?? false,
       });
     };
