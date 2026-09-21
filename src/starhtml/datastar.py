@@ -1085,7 +1085,21 @@ def process_datastar_kwargs(kwargs: dict) -> tuple[dict, set[Signal]]:
         processed["style"] = f"{existing}; display:none" if existing else "display:none"
 
     _apply_additive_class_behavior(processed)
-    return processed, signals_found
+    return _declarations_first(processed), signals_found
+
+
+def _declarations_first(processed: dict[str, Any]) -> dict[str, Any]:
+    """Move signal/computed declarations ahead of every other attribute.
+
+    Datastar applies an element's attributes in markup order and reading an undeclared signal creates it as "",
+    which a later ``data-signals:x__ifmissing`` then leaves in place. So ``Div(sig, data_attr_x=sig)`` and
+    ``Input(sig, data_bind=sig)`` (without a value= attribute) rendered the reader first and ended with "".
+    Markup order follows dict order, so hoisting the declarations fixes every emit path at once.
+    """
+    decls = {k: v for k, v in processed.items() if k.startswith(("data-signals", "data-computed"))}
+    if not decls:
+        return processed
+    return decls | {k: v for k, v in processed.items() if k not in decls}
 
 
 # fmt: off

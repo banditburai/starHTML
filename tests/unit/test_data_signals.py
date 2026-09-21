@@ -2,7 +2,9 @@
 
 import unittest
 
-from starhtml import Div, P
+import pytest
+
+from starhtml import Div, P, to_xml
 from starhtml.datastar import Signal, build_data_signals, f_, js
 
 
@@ -380,3 +382,25 @@ class TestDataSignalsAttribute(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# Datastar applies attributes in markup order; a reader before its declaration auto-creates the signal as "" and
+# __ifmissing then keeps it (verified in Chrome: aria-valuenow="" / bound input value ""). Declarations go first.
+@pytest.mark.parametrize(
+    "kw",
+    ["data_text", "data_attr_aria_valuenow", "data_show", "data_class_x", "data_style_width", "data_bind"],
+)
+def test_signal_declaration_precedes_reader_on_same_element(kw):
+    s = Signal("sig", 66)
+    html = to_xml(Div(s, **{kw: s}))
+    decl = html.index("data-signals:sig__ifmissing")
+    reader_attr = {"data_text": "data-text", "data_attr_aria_valuenow": "data-attr:aria-valuenow", "data_show": "data-show",
+                   "data_class_x": "data-class:x", "data_style_width": "data-style:width", "data_bind": "data-bind"}[kw]
+    assert decl < html.index(reader_attr), html
+
+
+def test_explicit_data_signals_kwarg_is_hoisted():
+    s = Signal("sig", 66)
+    html = to_xml(Div(data_text=s, data_signals=[s]))
+    assert html.index("data-signals") < html.index("data-text"), html
+
