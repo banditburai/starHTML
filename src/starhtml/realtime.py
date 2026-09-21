@@ -322,16 +322,29 @@ def format_signal_event(
     return format_sse_event("datastar-patch-signals", data_lines, debug_ctx=debug_ctx)
 
 
+def _warn_if_unsafe_selector(selector: str) -> None:
+    if not SELECTOR_VALIDATION_REGEX.match(selector):
+        warn(f"Potentially unsafe selector: {selector}", stacklevel=3)
+
+
 def format_element_event(
     element: Any,
     selector: str | None = None,
     mode: SSEMode = DEFAULT_MODE,
     use_view_transition: bool = False,
+    view_transition_selector: str | None = None,
     preserve_whitespace: bool | None = None,
     debug_ctx: DevtoolsContext | None = None,
 ) -> str:
     """Format an element/fragment event for Datastar.
 
+    view_transition_selector: CSS selector for the element whose *scoped*
+    ``startViewTransition`` drives the transition (Datastar 1.0.2+); only honored
+    by the client when use_view_transition is set. Since Datastar 1.0.3 there is
+    no fallback to the document transition: on engines without scoped view
+    transitions (Firefox and WebKit as of 2026-09) a selector means the patch
+    is applied with no transition at all, so leave it unset unless the page is
+    known to run on Chromium-class engines.
     preserve_whitespace: None=auto-detect (<pre>/<textarea>), True=keep empty lines, False=strip.
     """
     if debug_ctx is None:
@@ -346,12 +359,15 @@ def format_element_event(
         data_lines.append(f"mode {mode}")
 
     if selector and selector.strip():
-        if not SELECTOR_VALIDATION_REGEX.match(selector):
-            warn(f"Potentially unsafe selector: {selector}", stacklevel=2)
+        _warn_if_unsafe_selector(selector)
         data_lines.append(f"selector {selector}")
 
     if use_view_transition:
         data_lines.append("useViewTransition true")
+
+    if view_transition_selector and view_transition_selector.strip():
+        _warn_if_unsafe_selector(view_transition_selector)
+        data_lines.append(f"viewTransitionSelector {view_transition_selector}")
 
     if "\n" in element_html:
         preserve = preserve_whitespace
@@ -378,13 +394,18 @@ def elements(
     selector: str | None = None,
     mode: SSEMode = DEFAULT_MODE,
     use_view_transition: bool = False,
+    view_transition_selector: str | None = None,
     preserve_whitespace: bool | None = None,
 ) -> tuple[str, tuple]:
     """Create an elements SSE item for the @sse decorator.
 
+    view_transition_selector: CSS selector whose element's scoped view transition
+    is used (Datastar 1.0.2+); only honored when use_view_transition is set. No
+    document fallback since Datastar 1.0.3: engines without scoped view
+    transitions apply the patch with no transition. See format_elements().
     preserve_whitespace: None=auto-detect (<pre>/<textarea>), True=keep empty lines, False=strip.
     """
-    return ("elements", (element, selector, mode, use_view_transition, preserve_whitespace))
+    return ("elements", (element, selector, mode, use_view_transition, view_transition_selector, preserve_whitespace))
 
 
 def execute_script(
@@ -474,13 +495,15 @@ def process_sse_item(item_type: str, payload: Any) -> str | None:
                 selector = payload[1] if len(payload) > 1 else None
                 mode = payload[2] if len(payload) > 2 else DEFAULT_MODE
                 use_view_transition = payload[3] if len(payload) > 3 else False
-                preserve_whitespace = payload[4] if len(payload) > 4 else None
+                view_transition_selector = payload[4] if len(payload) > 4 else None
+                preserve_whitespace = payload[5] if len(payload) > 5 else None
             else:
-                element, selector, mode, use_view_transition, preserve_whitespace = (
+                element, selector, mode, use_view_transition, view_transition_selector, preserve_whitespace = (
                     payload,
                     None,
                     DEFAULT_MODE,
                     False,
+                    None,
                     None,
                 )
 
@@ -489,7 +512,9 @@ def process_sse_item(item_type: str, payload: Any) -> str | None:
                 if element_id := element.attrs.get("id"):
                     selector = f"#{element_id}"
 
-            return format_element_event(element, selector, mode, use_view_transition, preserve_whitespace)
+            return format_element_event(
+                element, selector, mode, use_view_transition, view_transition_selector, preserve_whitespace
+            )
         case _:
             raise ValueError(f"Unknown SSE item type: {item_type}")
 

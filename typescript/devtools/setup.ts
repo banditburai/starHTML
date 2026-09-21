@@ -385,7 +385,8 @@ export function setup(
   // Derive bare signal names so the filter excludes devtools' own signals
   let devtoolsSignalNames: string[] = [];
   try {
-    const parsed = JSON.parse(el.getAttribute("data-signals") || "{}");
+    // StarElements declares host signals as data-signals__ifmissing (older runtimes: data-signals).
+    const parsed = JSON.parse(el.getAttribute("data-signals__ifmissing") ?? el.getAttribute("data-signals") ?? "{}");
     const prefix = `${devtoolsNs}_`;
     devtoolsSignalNames = Object.keys(parsed).map((k) =>
       k.startsWith(prefix) ? k.slice(prefix.length) : k

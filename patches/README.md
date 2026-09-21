@@ -19,15 +19,27 @@ The public wrapper and private patched core are served alongside plugins and deb
 ## Updating Datastar
 
 ```
-python scripts/update_datastar.py 1.0.1
+python scripts/update_datastar.py 1.0.4
 bun run build
 ```
 
-(The `v` prefix is optional — `v1.0.1` also works.)
+(The `v` prefix is optional — `v1.0.4` also works.)
 
 This downloads vanilla Datastar from CDN, dry-runs all patches to verify they apply, saves the vanilla source to `patches/datastar-upstream.js`, and updates `DATASTAR_VERSION`.
 
-If a patch fails (Datastar internals changed), the script saves `patches/datastar-upstream.vanilla.js` for diffing. Fix the search strings in `patches/patch_definitions.py`.
+Patches anchor on **stable string/structural landmarks**, not on the minified
+single-char identifiers Datastar reassigns each release. Each patch captures the
+volatile tokens it needs (scan-fn name, event consts, handler vars, the `action`
+export alias) from those landmarks and substitutes them into `«token»` placeholders,
+so the same definitions usually apply across Datastar versions with no edits — the
+1.0.1 → 1.0.2 bump required none. 1.0.4 aliased `document` to a minified name
+(`p=document`), so both patches now capture the alias (`«doc»`) from their landmarks
+instead of spelling `document`; the definitions apply to 1.0.2 and 1.0.4 alike.
+
+If a patch *does* fail (a landmark itself changed upstream), the script saves
+`patches/datastar-upstream.vanilla.js` for diffing. Update the affected `captures`
+regex or `operations` template in `patches/patch_definitions.py` — prefer re-anchoring
+on a nearby stable literal over hardcoding a new minified name.
 
 To verify patches on the current built core file:
 
@@ -47,9 +59,9 @@ Serves vanilla Datastar from CDN. Shadow DOM components (StarElements) require t
 
 **Problem**: Datastar's `MutationObserver` cannot see inside shadow trees. The `datastar:scan` custom event dispatched by StarElements has no listener, so shadow DOM components get zero reactive bindings.
 
-**Fix**: Added a `document.addEventListener("datastar:scan", ...)` that calls Datastar's internal `En` (scan) function on the provided root. The scan function now accepts a third filter argument: normal late-plugin rescans keep upstream's newly-registered-plugin filter, while explicit `datastar:scan` calls pass no filter so all loaded plugins bind inside the shadow root.
+**Fix**: Added a `document.addEventListener("datastar:scan", ...)` that calls Datastar's internal scan function on the provided root. The scan function now accepts a third filter argument: normal late-plugin rescans keep upstream's newly-registered-plugin filter, while explicit `datastar:scan` calls pass no filter so all loaded plugins bind inside the shadow root.
 
-**Note**: The minified function name `En` may change across versions. Look for the function that calls the attribute scan helper on descendants and sets up a `MutationObserver`.
+**Anchor**: The scan function is captured by its stable signature `(\w+)=\(e=\w+.documentElement,t=!0\)=>{`, so its minified name (`En` in 1.0.1, `bn` in 1.0.2, `Nn` in 1.0.4, …) and the `document` alias are resolved automatically rather than hardcoded. Note the Rocket bundle (`datastar-rocket.js`) defines two functions with this signature, so it cannot be patched with these definitions as-is.
 
 ## Patch 2: Outside Modifier Race Fix
 
@@ -79,7 +91,7 @@ Datastar `1.0.1` tracks observed roots and preserves the newly-registered-plugin
 
 ## Removed: Retry Current Payload
 
-StarHTML briefly patched ordinary HTTP and network-error retries to rebuild the request payload from current signals before each retry. Datastar `1.0.1` only rebuilds request init for visibility reconnect/resume; normal retry attempts reuse the original request body/query. StarHTML now follows upstream semantics here to avoid surprising form and non-idempotent action behavior.
+StarHTML briefly patched ordinary HTTP and network-error retries to rebuild the request payload from current signals before each retry, then removed the patch to match Datastar `1.0.1`, which reused the original body/query for normal retries. Datastar `1.0.3` (#1174) adopted current-state retries upstream, so since the 1.0.4 vendoring the behaviour is back without any patch: HTTP-status, network-error, GET, form, and form-submitter retries all resend current signals / current form values (covered by the `*_rebuilds_*` tests in `tests/browser/test_datastar_runtime_migration.py`).
 
 ## Removed: Persist-Aware Init Patch
 

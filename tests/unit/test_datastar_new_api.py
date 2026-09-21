@@ -276,6 +276,11 @@ class TestActionUrlNormalization:
     def test_patch_bare_resource_gets_leading_slash(self):
         assert str(patch("things/x")) == "@patch('/things/x')"
 
+    def test_query_bare_resource_gets_leading_slash(self):
+        # Datastar 1.0.4: @query() sends a QUERY request with signals in a JSON body.
+        assert str(query("search/items")) == "@query('/search/items')"
+        assert str(query("/search", include="/^q/")) == "@query('/search', {include: \"/^q/\"})"
+
     def test_already_absolute_path_unchanged(self):
         assert str(post("/chat/foo")) == "@post('/chat/foo')"
         assert str(get("/api/users")) == "@get('/api/users')"

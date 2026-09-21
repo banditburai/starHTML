@@ -199,3 +199,22 @@ class TestHandleRequestCaseInsensitive:
         response = await app.handle_request("POST", "/submit")
 
         assert response.status_code == 200
+
+
+class TestHandleRequestQuery:
+    """QUERY (Datastar 1.0.4 @query()) forwards its JSON body like POST/PUT/PATCH."""
+
+    @pytest.mark.asyncio
+    async def test_handle_request_query_forwards_body(self):
+        app = StarHTML()
+
+        @app.query("/search")
+        def search(q: str):
+            return f"<p>{q}</p>"
+
+        response = await app.handle_request(
+            "QUERY", "/search", body='{"q": "ada"}', headers={"content-type": "application/json"}
+        )
+
+        assert response.status_code == 200
+        assert b"<p>ada</p>" in response.body

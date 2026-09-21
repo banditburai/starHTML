@@ -27,7 +27,20 @@ from starlette.responses import FileResponse, RedirectResponse, Response
 from starlette.routing import Mount, Route, WebSocketRoute
 
 from .realtime import _ws_endp, set_devtools_context, setup_ws
-from .server import _handle, _mk_locfunc, _wrap_call, _wrap_ex, _wrap_req, all_meths, cookie, render_response, serve
+from .server import (
+    DEFAULT_CSP_POLICY,
+    _BODY_METHODS,
+    _handle,
+    _mk_locfunc,
+    _wrap_call,
+    _wrap_ex,
+    _wrap_req,
+    all_meths,
+    cookie,
+    new_csp_nonce,
+    render_response,
+    serve,
+)
 from .starapp import Beforeware, _datastar_cdn_url, def_hdrs
 from .utils import _list, _params, get_key, noop_body, reg_re_param
 
@@ -193,9 +206,14 @@ class StarHTML(Starlette):
         canonical=True,
         static_path=None,
         datastar: str = "patched",
+        csp: bool | str = False,
         **bodykw,
     ):
         middleware, before, after = map(_list, (middleware, before, after))
+        # CSP mode: True -> DEFAULT_CSP_POLICY, str -> custom policy template with a {nonce} slot.
+        self.csp_policy: str | None = (DEFAULT_CSP_POLICY if csp is True else csp) or None
+        if self.csp_policy and "{nonce}" not in self.csp_policy:
+            raise ValueError("csp policy template must contain a {nonce} placeholder")
         self.title, self.canonical = title, canonical
         hdrs, ftrs = map(listify, (hdrs, ftrs))
 
@@ -329,7 +347,7 @@ class StarHTML(Starlette):
         async with httpx.AsyncClient(transport=transport, base_url="http://app") as client:
             kwargs = {"method": method.upper(), "url": path, "headers": headers or {}}
 
-            if method.upper() in ("POST", "PUT", "PATCH") and body:
+            if method.upper() in _BODY_METHODS and body:
                 kwargs["content"] = body
 
             response = await client.request(**kwargs)
@@ -385,6 +403,7 @@ def _endp(self: StarHTML, f, body_wrap):
         req.injects = []
         req.hdrs, req.ftrs = list(self.hdrs), list(self.ftrs)
         req.htmlkw, req.bodykw = dict(self.htmlkw), dict(self.bodykw)
+        req.csp_nonce = new_csp_nonce() if self.csp_policy else None
         # No reset needed — each ASGI request gets its own contextvars copy
         if _has_devtools:
             set_devtools_context(handler=f.__qualname__, route=req.url.path)

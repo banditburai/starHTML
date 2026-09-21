@@ -11,6 +11,7 @@ This module consolidates SSE-related tests from multiple files:
 import asyncio
 import time
 
+import pytest
 from starlette.testclient import TestClient
 
 from starhtml import H1, Div, P, star_app
@@ -19,6 +20,7 @@ from starhtml.realtime import (
     elements,
     format_element_event,
     format_signal_event,
+    process_sse_item,
     signals,
     sse,
 )
@@ -73,6 +75,31 @@ class TestSSEFormatCompliance:
         expected = "\n".join(expected_lines)
 
         assert output == expected
+
+    def test_view_transition_selector_format(self):
+        """view_transition_selector emits a viewTransitionSelector data line (Datastar 1.0.2, #1154)."""
+        output = format_element_event(
+            "<div>x</div>", "#target", use_view_transition=True, view_transition_selector="#vt-root"
+        )
+        assert "data: useViewTransition true" in output
+        assert "data: viewTransitionSelector #vt-root" in output
+        assert output.index("useViewTransition") < output.index("viewTransitionSelector") < output.index("data: elements")
+
+    def test_view_transition_selector_omitted_by_default(self):
+        """No viewTransitionSelector line unless one is provided."""
+        assert "viewTransitionSelector" not in format_element_event("<div>x</div>", use_view_transition=True)
+
+    def test_view_transition_selector_unsafe_warns(self):
+        """An unsafe view-transition selector warns, mirroring the patch selector check."""
+        with pytest.warns(UserWarning, match="unsafe selector"):
+            format_element_event("<div>x</div>", view_transition_selector="#bad<script>")
+
+    def test_view_transition_selector_roundtrips_through_elements(self):
+        """elements() threads view_transition_selector through process_sse_item unpacking."""
+        item_type, payload = elements(Div("x", id="r"), view_transition_selector="#vt")
+        output = process_sse_item(item_type, payload)
+        assert output is not None
+        assert "data: viewTransitionSelector #vt" in output
 
     def test_multiple_elements_format(self):
         """Test handling multiple elements in SSE format."""

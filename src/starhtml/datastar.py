@@ -430,7 +430,20 @@ def _try_evaluate_initial(expr: Expr) -> Any:
 
 
 class Signal(Expr):
-    """Typed reactive state reference that auto-generates JavaScript and data attributes."""
+    """Typed reactive state reference that auto-generates JavaScript and data attributes.
+
+    ``ifmissing`` (default ``True``) declares the signal as ``data-signals:name__ifmissing``: the initial value only
+    applies when the browser has no value yet, so persisted/patched state survives a re-render. ``ifmissing=False``
+    emits a plain ``data-signals="{name: value}"`` object *when the Signal is declared* (positional child or
+    ``data_signals=[...]``): the server value wins every time the element is (re)applied, which is the *reset* form
+    for server-authoritative values. Used only as a ``data_bind``/``data_ref``/``data_indicator`` value, an
+    ``ifmissing=False`` (or ``initial=None``) Signal emits no declaration at all. To reset a live signal from a
+    handler instead, send ``signals(name=value)`` (SSE ``datastar-patch-signals``; ``only_if_missing=True`` for the
+    ifmissing analogue).
+
+    Declarations are hoisted ahead of the readers on the same element; a read on an *earlier* element than the one
+    declaring the signal is still a footgun (``starhtml.lint.check_signal_order`` reports it).
+    """
 
     _is_signal = True
 
@@ -716,6 +729,11 @@ def patch(url: str, **kwargs) -> _JSRaw:
 
 def delete(url: str, **kwargs) -> _JSRaw:
     return _action("delete", url, **kwargs)
+
+
+def query(url: str, **kwargs) -> _JSRaw:
+    """QUERY request with signals in a JSON body (Datastar 1.0.4+): a read that needs a body."""
+    return _action("query", url, **kwargs)
 
 
 def _timer_ref(timer: "Signal", window: bool = False) -> str:
@@ -1080,13 +1098,29 @@ def process_datastar_kwargs(kwargs: dict) -> tuple[dict, set[Signal]]:
         processed["style"] = f"{existing}; display:none" if existing else "display:none"
 
     _apply_additive_class_behavior(processed)
-    return processed, signals_found
+    return _declarations_first(processed), signals_found
+
+
+def _declarations_first(processed: dict[str, Any]) -> dict[str, Any]:
+    """Move signal/computed declarations ahead of every other attribute.
+
+    Datastar applies an element's attributes in markup order and reading an undeclared signal creates it as "",
+    which a later ``data-signals:x__ifmissing`` then leaves in place. So ``Div(sig, data_attr_x=sig)`` and
+    ``Input(sig, data_bind=sig)`` (without a value= attribute) rendered the reader first and ended with "".
+    Markup order follows dict order, so hoisting the declarations fixes every emit path at once.
+    """
+    signals = {k: v for k, v in processed.items() if k.startswith("data-signals")}
+    computed = {k: v for k, v in processed.items() if k.startswith("data-computed")}
+    if not signals and not computed:
+        return processed
+    # Signals before computeds: a computed's expression reads signals (lazily today, but order costs nothing).
+    return signals | computed | {k: v for k, v in processed.items() if k not in signals and k not in computed}
 
 
 # fmt: off
 __all__ = [
     "Signal", "Expr", "js", "expr", "f_", "regex", "match", "switch", "collect", "seq",
-    "all_", "any_", "post", "get", "put", "patch", "delete", "set_timeout",
+    "all_", "any_", "post", "get", "put", "patch", "delete", "query", "set_timeout",
     "clear_timeout", "reset_timeout", "scroll_to", "emit", "console", "Math", "JSON",
     "Object", "Array", "Date", "Number", "String", "Boolean", "evt", "el", "document",
     "window", "process_datastar_kwargs", "to_js_value", "register_on_plugin",

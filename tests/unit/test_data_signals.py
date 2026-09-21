@@ -2,7 +2,9 @@
 
 import unittest
 
-from starhtml import Div, P
+import pytest
+
+from starhtml import Div, P, Span, to_xml
 from starhtml.datastar import Signal, build_data_signals, f_, js
 
 
@@ -380,3 +382,47 @@ class TestDataSignalsAttribute(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# Datastar applies attributes in markup order; a reader before its declaration auto-creates the signal as "" and
+# __ifmissing then keeps it (verified in Chrome: aria-valuenow="" / bound input value ""). Declarations go first.
+@pytest.mark.parametrize(
+    "kw",
+    ["data_text", "data_attr_aria_valuenow", "data_show", "data_class_x", "data_style_width", "data_bind"],
+)
+def test_signal_declaration_precedes_reader_on_same_element(kw):
+    s = Signal("sig", 66)
+    html = to_xml(Div(s, **{kw: s}))
+    decl = html.index("data-signals:sig__ifmissing")
+    reader_attr = {"data_text": "data-text", "data_attr_aria_valuenow": "data-attr:aria-valuenow", "data_show": "data-show",
+                   "data_class_x": "data-class:x", "data_style_width": "data-style:width", "data_bind": "data-bind"}[kw]
+    assert decl < html.index(reader_attr), html
+
+
+def test_explicit_data_signals_kwarg_is_hoisted():
+    s = Signal("sig", 66)
+    html = to_xml(Div(data_text=s, data_signals=[s]))
+    assert html.index("data-signals") < html.index("data-text"), html
+
+
+
+def test_ifmissing_false_emits_plain_data_signals_and_is_hoisted():
+    """ifmissing=False is the server-authoritative reset form: a plain data-signals object, still ahead of readers."""
+    s = Signal("sig", 66, ifmissing=False)
+    html = to_xml(Div(s, data_text=s))
+    assert 'data-signals="{sig: 66}"' in html and "__ifmissing" not in html
+    assert html.index("data-signals=") < html.index("data-text")
+
+
+def test_signals_are_hoisted_ahead_of_computeds():
+    """A computed reads signals, so `data-signals*` comes first, then `data-computed:*`, then readers."""
+    s = Signal("sig", 5, ifmissing=False)
+    total = Signal("total", s * 2)
+    html = to_xml(Div(total, s, data_text=total))
+    assert html.index("data-signals=") < html.index("data-computed:total") < html.index("data-text")
+
+
+def test_slot_attrs_keep_declarations_first():
+    s = Signal("count", 5)
+    html = to_xml(Div(Span(data_slot="a", data_text=s), slot_a={"data_signals": [s]}))
+    assert html.index("data-signals:count") < html.index("data-text"), html

@@ -123,6 +123,10 @@ def _apply_slot_attrs_to_children(parent, slot_attrs):
                             for key, value in processed_attrs.items():
                                 child.attrs.setdefault(key, value)
 
+            if slot_name in slot_attrs:
+                # Slot attrs append after the child's own readers; keep declarations first (same-element order).
+                child.attrs = ds._declarations_first(child.attrs)
+
         _apply_slot_attrs_to_children(child, slot_attrs)
 
 

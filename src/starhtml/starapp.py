@@ -82,6 +82,7 @@ def star_app(
     body_wrap: Callable = None,
     datastar: str = "patched",
     inline_icons: bool = False,
+    csp: bool | str = False,
     **kwargs: Any,
 ) -> tuple["StarHTML", Callable[..., RouteDecorator]]:
     from .core import noop_body
@@ -138,6 +139,7 @@ def star_app(
         reload_interval=reload_interval,
         body_wrap=body_wrap,
         datastar=datastar,
+        csp=csp,
     )
     if static_path:
         app.static_route_exts(static_path=static_path)
@@ -165,7 +167,7 @@ def star_app(
     return app, app.route, *db_tables
 
 
-DATASTAR_VERSION = "1.0.1+starhtml"
+DATASTAR_VERSION = "1.0.4+starhtml"
 _DATASTAR_CDN_TEMPLATE = "https://cdn.jsdelivr.net/gh/starfederation/datastar@{version}/bundles/datastar.js"
 ICONIFY_VERSION = "2.3.0"
 
