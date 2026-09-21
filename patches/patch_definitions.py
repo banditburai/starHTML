@@ -33,6 +33,8 @@ PATCHES: list[PatchDef] = [
             "chk": r"=\(e=\w+\.documentElement,t=!0\)=>\{(\w+)\(e\)&&",  # connected-check
             "scan": r"=>\{\w+\(e\)&&(\w+)\(\[e\],!0\),",  # attribute-scan helper
             "act": r"export\{(\w+) as action",  # `action` export alias
+            "roots": r"=\(\)=>(\w+)\.has\(\w+\.documentElement\)",  # observed-roots Set (drives the deferred first scan)
+            "ready": r'(\w+)="datastar-ready"',  # DATASTAR_READY_EVENT const
         },
         operations=[
             # Add a third filter arg `n` (default keep upstream behavior) threaded to both
@@ -44,15 +46,23 @@ PATCHES: list[PatchDef] = [
             # StarElements' `datastar:scan` event has no upstream listener; add one that
             # scans the provided (shadow) root with no plugin filter. `document` is spelled
             # literally here on purpose: this runs at module scope, outside any alias.
+            #
+            # Datastar defers its first scan to a timeout and then scans `roots.size ? [...roots]
+            # : [documentElement]`. A host that connects before that timeout (StarElements
+            # defines its elements as soon as its module runs) must not register itself as a
+            # root, or the document is never scanned: light-DOM hosts are covered by the pending
+            # document scan, shadow roots are scanned once `datastar-ready` fires.
             (
                 "export{«act» as action",
-                'document.addEventListener("datastar:scan",e=>{let t=e.detail?.root;t&&«fn»(t.shadowRoot||t,!0,!1)});'
+                'document.addEventListener("datastar:scan",e=>{let t=e.detail?.root;if(!t)return;'
+                "let r=t.shadowRoot||t,s=()=>«fn»(r,!0,!1);"
+                "«roots».has(document.documentElement)?s():r instanceof ShadowRoot&&document.addEventListener(«ready»,s,{once:!0})});"
                 "export{«act» as action",
             ),
         ],
         markers=[
             'e.querySelectorAll("*"),n),',
-            'document.addEventListener("datastar:scan",e=>{let t=e.detail',
+            'document.addEventListener("datastar:scan",e=>{let t=e.detail?.root;if(!t)return;',
         ],
     ),
     PatchDef(
