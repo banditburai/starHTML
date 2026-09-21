@@ -424,3 +424,47 @@ async def test_empty_int_default_does_not_abort_registration(page):
         await text_of(page, "#n", "1")
         await text_of(page, "#k", "4")  # the template after it still registered
         assert not errors, errors
+
+
+# ---------------------------------------------------------------------------------------------------------------------
+# Patch modes without an upstream scope-children hook (append/prepend/before/after/replace, selectorless outer):
+# fragments are pre-scoped in a capture-phase datastar-fetch listener before Datastar parses them.
+# ---------------------------------------------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("mode", ["append", "prepend", "before", "after", "replace", "inner", "outer-by-id"])
+async def test_patch_modes_into_host_are_prescoped(page, mode):
+    from starhtml import Button, Div, Span, elements, sse, star_app
+
+    from starelements import Local, element
+
+    @element("mode-host")
+    def ModeHost():
+        count = Local("count", 5)
+        return Div(count, Div(Span("old", id="anchor"), id="slot"), Div(**{"data-computed:dbl": "$$count * 2"}, id="decl"))
+
+    app, rt = star_app()
+    app.register(ModeHost)
+
+    @rt("/")
+    def index():
+        return Div(ModeHost(), Button("go", id="go", data_on_click="@get('/patch')"))
+
+    @rt("/patch")
+    @sse
+    def patch():
+        frag = Span(data_text="$$count + 1", id="patched", **{"data-computed:tripled": "$$count * 3"})
+        if mode == "outer-by-id":
+            yield elements(Div(frag, id="slot"))  # no selector: matched by id, outer mode
+        else:
+            selector = "#slot" if mode in ("append", "prepend", "inner") else "#anchor"
+            yield elements(frag, selector=selector, mode=mode)
+
+    async with served(page, app) as errors:
+        await page.goto(f"{ORIGIN}/", wait_until="load")
+        await page.locator("#go").click()
+        await text_of(page, "#patched", "6")
+        attrs = await page.evaluate("[...document.querySelector('#patched').attributes].map(a => a.name + '=' + a.value)")
+        assert any(a.startswith("data-computed:_star_mode_host_id") and a.endswith("_tripled=$_star_mode_host_id0_count * 3") for a in attrs), attrs
+        assert await page.evaluate("document.querySelector('#patched').closest('mode-host') !== null")
+        assert not errors, errors
