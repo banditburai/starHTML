@@ -82,6 +82,7 @@ def star_app(
     body_wrap: Callable = None,
     datastar: str = "patched",
     inline_icons: bool = False,
+    csp: bool | str = False,
     **kwargs: Any,
 ) -> tuple["StarHTML", Callable[..., RouteDecorator]]:
     from .core import noop_body
@@ -138,6 +139,7 @@ def star_app(
         reload_interval=reload_interval,
         body_wrap=body_wrap,
         datastar=datastar,
+        csp=csp,
     )
     if static_path:
         app.static_route_exts(static_path=static_path)

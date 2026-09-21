@@ -1337,3 +1337,62 @@ async def test_patch_elements_view_transition_target(page, datastar_runtime_sour
         assert counts == {"document": 0, "element": 1}
     else:
         assert counts == {"document": 0, "element": 0}, "1.0.3+ no longer falls back to the document transition"
+
+
+@pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
+@pytest.mark.asyncio
+async def test_star_app_csp_mode_end_to_end(page):
+    """`star_app(csp=True)` serves a page that runs under its own CSP header with no unsafe-eval.
+
+    The real ASGI app is proxied through page.route so the browser enforces the header StarHTML
+    sends: import map, Datastar loader + core, a registered plugin (module import chain via
+    'strict-dynamic'), the theme script, and the handler's inline script all execute; Datastar
+    compiles `data-text`/`data-on` through nonced scripts (CSP mode) and consumes `data-nonce`.
+    """
+    import httpx
+
+    from starhtml import Button, Div, Output, Signal, star_app, theme_script
+    from starhtml.plugins import persist
+    from starhtml.xtend import Script
+
+    app, rt = star_app(csp=True, hdrs=(theme_script(),), inline_icons=True)
+    app.register(persist)
+
+    @rt("/")
+    def index():
+        name = Signal("name", "Ada")
+        return Div(
+            name,
+            Output(data_text=name + "!", id="ready"),  # DSL: Signal + str -> `${$name}!`
+            Button("Bump", id="bump", data_on_click=name.set("Grace")),
+            Script("window.__inline_ran = true", id="inline"),
+        )
+
+    origin = "https://starhtml.test"
+    transport = httpx.ASGITransport(app=app)
+    client = httpx.AsyncClient(transport=transport, base_url=origin)
+
+    async def proxy(route):
+        req = route.request
+        resp = await client.request(req.method, req.url.replace(origin, ""), headers=req.headers)
+        headers = {k: v for k, v in resp.headers.items() if k.lower() in ("content-type", "content-security-policy")}
+        await route.fulfill(status=resp.status_code, headers=headers, body=resp.content)
+
+    violations: list[str] = []
+    page.on("console", lambda m: violations.append(m.text) if "Content Security Policy" in m.text else None)
+    await page.route(f"{origin}/**", proxy)
+    try:
+        response = await page.goto(f"{origin}/", wait_until="load")
+        assert response is not None
+        csp = response.headers.get("content-security-policy", "")
+        assert "'nonce-" in csp and "'strict-dynamic'" in csp and "unsafe-eval" not in csp
+
+        await wait_for_dom_text(page, "#ready", "Ada!")
+        await page.locator("#bump").click()
+        await wait_for_dom_text(page, "#ready", "Grace!")
+        assert await page.evaluate("window.__inline_ran") is True
+        assert await page.evaluate("document.documentElement.hasAttribute('data-nonce')") is False
+        assert not violations, violations
+    finally:
+        await page.unroute(f"{origin}/**", proxy)
+        await client.aclose()

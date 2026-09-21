@@ -4,6 +4,7 @@ import asyncio
 import inspect
 import json
 import os
+import secrets
 import sys
 import types
 from collections.abc import Mapping
@@ -66,6 +67,8 @@ __all__ = [
     "signal_shutdown",
     "ResponseRenderer",
     "render_response",
+    "csp_nonce",
+    "DEFAULT_CSP_POLICY",
     "to_string",
     "url_path_for",
 ]
@@ -73,6 +76,43 @@ __all__ = [
 all_meths = "get post put delete patch query head trace options".split()  # query: Datastar 1.0.4 @query()
 _iter_typs = (tuple, list, map, filter, range, types.GeneratorType)
 _IS_WASM = sys.platform == "emscripten"  # Pyodide/WASM environment
+
+
+# Content Security Policy support (Datastar 1.0.3+ CSP mode).
+#
+# With ``StarHTML(csp=True)`` every response gets a fresh nonce: it is stamped on the
+# ``<html>`` root as ``data-nonce`` (Datastar reads it once, removes it, and then compiles
+# expressions through nonced <script> tags instead of ``Function()``), on every
+# ``<script>``/``<style>`` StarHTML renders (import map, Datastar loader, plugins, theme,
+# devtools, and the handler's own tags), and into the ``Content-Security-Policy`` header.
+# ``'strict-dynamic'`` lets the nonced module scripts import further modules (plugin CDN
+# deps, ``datastar-core.js``) without host allow-lists. Inline ``style=`` attributes that
+# Datastar writes (data-show, data-style) are not covered by nonces; the default policy
+# therefore constrains scripts only. Raw HTML passed as ``NotStr`` is not walked.
+DEFAULT_CSP_POLICY = "script-src 'nonce-{nonce}' 'strict-dynamic'; object-src 'none'; base-uri 'self'"
+_NONCED_TAGS = frozenset({"script", "style"})
+
+
+def new_csp_nonce() -> str:
+    """A fresh per-response nonce (128 bits, base64url)."""
+    return secrets.token_urlsafe(16)
+
+
+def csp_nonce(req) -> str | None:
+    """The nonce for this request, or None when CSP mode is off."""
+    return getattr(req, "csp_nonce", None)
+
+
+def _apply_csp_nonce(node: Any, nonce: str) -> None:
+    """Stamp ``nonce`` on every script/style in the FT tree (in place) that has none."""
+    if isinstance(node, FT):
+        if node.tag in _NONCED_TAGS and "nonce" not in node.attrs:
+            node.attrs["nonce"] = nonce
+        for child in node.children:
+            _apply_csp_nonce(child, nonce)
+    elif isinstance(node, list | tuple):
+        for child in node:
+            _apply_csp_nonce(child, nonce)
 
 
 def _ft_tag(o: Any) -> str:
@@ -430,6 +470,7 @@ class ResponseRenderer:
         if self._is_ft_response(body):
             processed_body = self._process_ft_objects(body)
             html_content = self._wrap_in_full_page(processed_body)
+            self._add_csp_header()
             return html_content, "html"
 
         if isinstance(body, Mapping):
@@ -437,6 +478,12 @@ class ResponseRenderer:
         if isinstance(body, str):
             return body, "html"
         return str(body), "html"  # Default to HTML
+
+    def _add_csp_header(self) -> None:
+        nonce = csp_nonce(self.request)
+        policy = getattr(getattr(self.request.scope.get("app"), "csp_policy", None), "format", None)
+        if nonce and policy:
+            self.headers.setdefault("Content-Security-Policy", policy(nonce=nonce))
 
     def _build_final_response(
         self,
@@ -487,7 +534,13 @@ class ResponseRenderer:
         from .html import fh_cfg
 
         resp = tuplify(resp)
+        nonce = csp_nonce(self.request)
         if self._is_full_page(resp):
+            if nonce:
+                for o in resp:
+                    if _ft_tag(o) == "html":
+                        o.attrs.setdefault("data-nonce", nonce)
+                _apply_csp_nonce(resp, nonce)
             html = to_xml(resp, indent=fh_cfg.indent)
         else:
             hdr_tags = "title", "meta", "link", "style", "base", "template"
@@ -511,7 +564,11 @@ class ResponseRenderer:
             body = Body(*signals, body_wrap(*bw_args), *flat_xt(self.request.ftrs), **self.request.bodykw)
 
             htmlkw = {"lang": "en", **self.request.htmlkw}
+            if nonce:
+                htmlkw.setdefault("data_nonce", nonce)
             html_page = Html(Head(*heads, *title, *canonical, *flat_xt(self.request.hdrs)), body, **htmlkw)
+            if nonce:
+                _apply_csp_nonce(html_page, nonce)
 
             html = f"<!DOCTYPE html>\n{to_xml(html_page, indent=fh_cfg.indent)}"
 
@@ -691,6 +748,7 @@ def _wrap_ex(f, status_code, hdrs, ftrs, htmlkw, bodykw, body_wrap):
     async def _f(req, exc):
         req.hdrs, req.ftrs, req.htmlkw, req.bodykw = list(hdrs), list(ftrs), dict(htmlkw), dict(bodykw)
         req.body_wrap = body_wrap
+        req.csp_nonce = new_csp_nonce() if getattr(req.scope.get("app"), "csp_policy", None) else None
         res = await _handle(f, (req, exc))
         return render_response(req, res, status_code=status_code)
 

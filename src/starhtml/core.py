@@ -28,6 +28,7 @@ from starlette.routing import Mount, Route, WebSocketRoute
 
 from .realtime import _ws_endp, set_devtools_context, setup_ws
 from .server import (
+    DEFAULT_CSP_POLICY,
     _BODY_METHODS,
     _handle,
     _mk_locfunc,
@@ -36,6 +37,7 @@ from .server import (
     _wrap_req,
     all_meths,
     cookie,
+    new_csp_nonce,
     render_response,
     serve,
 )
@@ -204,9 +206,14 @@ class StarHTML(Starlette):
         canonical=True,
         static_path=None,
         datastar: str = "patched",
+        csp: bool | str = False,
         **bodykw,
     ):
         middleware, before, after = map(_list, (middleware, before, after))
+        # CSP mode: True -> DEFAULT_CSP_POLICY, str -> custom policy template with a {nonce} slot.
+        self.csp_policy: str | None = (DEFAULT_CSP_POLICY if csp is True else csp) or None
+        if self.csp_policy and "{nonce}" not in self.csp_policy:
+            raise ValueError("csp policy template must contain a {nonce} placeholder")
         self.title, self.canonical = title, canonical
         hdrs, ftrs = map(listify, (hdrs, ftrs))
 
@@ -396,6 +403,7 @@ def _endp(self: StarHTML, f, body_wrap):
         req.injects = []
         req.hdrs, req.ftrs = list(self.hdrs), list(self.ftrs)
         req.htmlkw, req.bodykw = dict(self.htmlkw), dict(self.bodykw)
+        req.csp_nonce = new_csp_nonce() if self.csp_policy else None
         # No reset needed — each ASGI request gets its own contextvars copy
         if _has_devtools:
             set_devtools_context(handler=f.__qualname__, route=req.url.path)
