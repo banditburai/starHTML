@@ -217,3 +217,44 @@ async def test_local_bind_ref_and_root_escape(page):
         assert "data-ref=page_box" in attrs["#ref_page"] and not any(a.startswith("data-ref__root") for a in attrs["#ref_page"])
         assert "data-computed:shout=$page_name + '!'" in attrs["#shout"], attrs
         assert not errors, errors
+
+
+# ---------------------------------------------------------------------------------------------------------------------
+# 2d: CSP — under star_app(csp=True) component setup/static scripts compile through nonced <script>s (no unsafe-eval)
+# ---------------------------------------------------------------------------------------------------------------------
+
+
+async def test_component_scripts_run_under_csp_without_unsafe_eval(page):
+    from starhtml import Button, Div, Span, star_app
+    from starhtml.xtend import Script
+
+    from starelements import Local, element
+
+    @element("csp-host")
+    def CspHost():
+        count = Local("count", 1)
+        return Div(
+            count,
+            Span(data_text=count, id="count"),
+            Button("bump", id="bump", data_on_click=count.set(count + 1)),
+            Script("window.__static_ran = (window.__static_ran || 0) + 1", data_static=True),
+            Script("$$count = $$count + 40; effect(() => { el.dataset.seen = String($$count); });"),
+        )
+
+    app, rt = star_app(csp=True)
+    app.register(CspHost)
+
+    @rt("/")
+    def index():
+        return Div(CspHost())
+
+    async with served(page, app) as errors:
+        response = await page.goto(f"{ORIGIN}/", wait_until="load")
+        csp = response.headers.get("content-security-policy", "")
+        assert "'nonce-" in csp and "unsafe-eval" not in csp, csp
+        await text_of(page, "#count", "41")  # setup script ran (with `$$` scoping through the `with` proxy)
+        await page.locator("#bump").click()
+        await text_of(page, "#count", "42")
+        assert await page.evaluate("document.querySelector('csp-host').dataset.seen") == "42"  # setup effect tracked
+        assert await page.evaluate("window.__static_ran") == 1
+        assert not errors, errors
