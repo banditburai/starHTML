@@ -28,14 +28,6 @@ WRAPPER_TEMPLATE = """// Datastar v{version} (StarHTML wrapper: persist-prehydra
 import {{ mergePatch }} from "./datastar-core.js";
 export * from "./datastar-core.js";
 
-// Resolves once Datastar's deferred first document scan has run (`datastar-ready`). Datastar exposes no way to
-// ask whether it already fired; this wrapper evaluates right after the core module and before that scan's
-// timeout, so its listener is always in time. Custom-element runtimes (StarElements) define their elements
-// only after this, mirroring Rocket: a host that connects before the first scan must not call apply().
-export const ready = new Promise((resolve) => {{
-  document.addEventListener("datastar-ready", () => resolve(), {{ once: true }});
-}});
-
 const DEFAULT_STORAGE_PREFIX = "starhtml-persist";
 
 function readPersistedSignals() {{

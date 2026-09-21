@@ -1054,7 +1054,7 @@ async def test_morphing_preserve_attr_keeps_protected_attrs(page, datastar_runti
 @pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
 @pytest.mark.asyncio
 async def test_datastar_scan_binds_shadow_root(page, datastar_runtime_source):
-    """StarHTML's datastar:scan patch binds attributes inside shadow roots."""
+    """StarHTML's shadow-dom-scan patch exports `apply(root, observe)` so a runtime can bind a shadow root."""
     await load_datastar_page(
         page,
         """
@@ -1075,7 +1075,7 @@ async def test_datastar_scan_binds_shadow_root(page, datastar_runtime_source):
     await page.evaluate(
         """() => {
             const host = document.querySelector("#host");
-            document.dispatchEvent(new CustomEvent("datastar:scan", { detail: { root: host } }));
+            window.__datastar.apply(host.shadowRoot, true);
         }"""
     )
     await wait_for_shadow_text(page, "#host", "#count", "0")
@@ -1397,10 +1397,3 @@ async def test_star_app_csp_mode_end_to_end(page):
         await page.unroute(f"{origin}/**", proxy)
         await client.aclose()
 
-
-@pytest.mark.asyncio
-async def test_wrapper_ready_promise_resolves_after_first_scan(page, datastar_runtime_source):
-    """`import { ready } from "datastar"` resolves once datastar-ready fired (custom-element runtimes gate on it)."""
-    body = "<span data-text='$x' id='out'></span><div data-signals:x=\"'ok'\"></div>"
-    await load_datastar_page(page, body, datastar_runtime_source)
-    assert await page.evaluate("window.__datastar.ready.then(() => document.querySelector('#out').textContent)") == "ok"

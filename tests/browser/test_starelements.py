@@ -468,3 +468,134 @@ async def test_patch_modes_into_host_are_prescoped(page, mode):
         assert any(a.startswith("data-computed:_star_mode_host_id") and a.endswith("_tripled=$_star_mode_host_id0_count * 3") for a in attrs), attrs
         assert await page.evaluate("document.querySelector('#patched').closest('mode-host') !== null")
         assert not errors, errors
+
+
+# ---------------------------------------------------------------------------------------------------------------------
+# Critique follow-ups: a selector matching targets in two hosts is not cross-wired; a host inserted by a fragment
+# with `$$` light children is scoped before Datastar sees them; <pre> keeps its leading newline through the
+# pre-scope round trip; light hosts render without any scan call (document observer) and never enter Datastar's
+# roots (a later attribute() registration applies inside hosts exactly once).
+# ---------------------------------------------------------------------------------------------------------------------
+
+
+async def test_multi_host_selector_is_not_cross_wired(page):
+    from starhtml import Button, Div, Span, elements, sse, star_app
+
+    from starelements import Local, element
+
+    @element("twin-host")
+    def TwinHost():
+        return Div(Local("v", 0), Div(cls="slot"))
+
+    app, rt = star_app()
+    app.register(TwinHost)
+
+    @rt("/")
+    def index():
+        return Div(TwinHost(id="a", v="1"), TwinHost(id="b", v="2"), Button("go", id="go", data_on_click="@get('/patch')"))
+
+    @rt("/patch")
+    @sse
+    def patch():
+        yield elements(Span(data_text="$$v", cls="p"), selector="twin-host .slot", mode="inner")  # two hosts
+
+    async with served(page, app) as errors:
+        await page.goto(f"{ORIGIN}/", wait_until="load")
+        await page.locator("#go").click()
+        await page.wait_for_function("document.querySelector('#a .p')?.textContent === '1'")  # inner mode: per-host hook
+        await page.wait_for_function("document.querySelector('#b .p')?.textContent === '2'")
+        assert not errors, errors
+
+
+async def test_inserted_host_with_local_children_is_scoped_before_apply(page):
+    from starhtml import Button, Div, NotStr, Span, elements, sse, star_app
+
+    from starelements import Local, element
+
+    @element("late-host")
+    def LateHost():
+        return Div(Local("n", 3), Span(data_text="$$n", cls="tpl"))
+
+    app, rt = star_app()
+    app.register(LateHost)
+
+    @rt("/")
+    def index():
+        return Div(Button("go", id="go", data_on_click="@get('/patch')"), Div(id="out"))
+
+    @rt("/patch")
+    @sse
+    def patch():
+        # a bare host carrying a `$$` light child (hydration-style), plus a <pre> whose first line is blank
+        yield elements(
+            NotStr('<late-host id="late"><span data-text="$$n + 1" id="kid"></span></late-host>'),
+            selector="#out", mode="inner",
+        )
+
+    async with served(page, app) as errors:
+        await page.goto(f"{ORIGIN}/", wait_until="load")
+        await page.locator("#go").click()
+        await page.wait_for_function("document.querySelector('#late .tpl')?.textContent === '3'")
+        await page.wait_for_function("document.querySelector('#kid')?.textContent === '4'")
+        assert not errors, errors  # no "$$ is not defined" from the observer applying raw children
+
+
+async def test_pre_leading_newline_survives_prescope(page):
+    from starhtml import Button, Div, NotStr, elements, sse, star_app
+
+    from starelements import Local, element
+
+    @element("pre-host")
+    def PreHost():
+        return Div(Local("n", 1), Div(id="slot"))
+
+    app, rt = star_app()
+    app.register(PreHost)
+
+    @rt("/")
+    def index():
+        return Div(PreHost(), Button("go", id="go", data_on_click="@get('/patch')"))
+
+    @rt("/patch")
+    @sse
+    def patch():
+        yield elements(NotStr('<pre id="pre" data-attr:title="$$n">\n\nline</pre>'), selector="#slot", mode="inner")
+
+    async with served(page, app) as errors:
+        await page.goto(f"{ORIGIN}/", wait_until="load")
+        await page.locator("#go").click()
+        await page.wait_for_function("document.querySelector('#pre')?.title === '1'")
+        assert await page.evaluate("document.querySelector('#pre').textContent") == "\nline"  # one newline, as a direct parse keeps
+        assert not errors, errors
+
+
+async def test_light_hosts_do_not_enter_datastar_roots(page):
+    from starhtml import Div, Span, star_app
+
+    from starelements import Local, element
+
+    @element("root-host")
+    def RootHost():
+        return Div(Local("n", 1), Span(data_text="$$n + 1", cls="v", **{"data-probe": "x"}))  # non-empty: empty values are skipped
+
+    app, rt = star_app()
+    app.register(RootHost)
+
+    @rt("/")
+    def index():
+        return Div(*[RootHost() for _ in range(20)])
+
+    async with served(page, app) as errors:
+        await page.goto(f"{ORIGIN}/", wait_until="load")
+        await page.wait_for_function("[...document.querySelectorAll('root-host .v')].every(s => s.textContent === '2')")
+        # register a plugin late: Datastar re-applies every observed root; light hosts must not be roots, so the
+        # new attribute applies exactly once per element (via the document root)
+        count = await page.evaluate("""async () => {
+            const ds = await import('/_pkg/starhtml/datastar.js');
+            window.__probe = 0;
+            ds.attribute({ name: 'probe', apply() { window.__probe++; } });
+            await new Promise(r => setTimeout(r, 50));
+            return window.__probe;
+        }""")
+        assert count == 20, count
+        assert not errors, errors

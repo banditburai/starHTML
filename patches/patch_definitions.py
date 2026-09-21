@@ -33,8 +33,6 @@ PATCHES: list[PatchDef] = [
             "chk": r"=\(e=\w+\.documentElement,t=!0\)=>\{(\w+)\(e\)&&",  # connected-check
             "scan": r"=>\{\w+\(e\)&&(\w+)\(\[e\],!0\),",  # attribute-scan helper
             "act": r"export\{(\w+) as action",  # `action` export alias
-            "roots": r"=\(\)=>(\w+)\.has\(\w+\.documentElement\)",  # observed-roots Set (drives the deferred first scan)
-            "ready": r'(\w+)="datastar-ready"',  # DATASTAR_READY_EVENT const
         },
         operations=[
             # Add a third filter arg `n` (default keep upstream behavior) threaded to both
@@ -43,27 +41,19 @@ PATCHES: list[PatchDef] = [
                 '«fn»=(e=«doc».documentElement,t=!0)=>{«chk»(e)&&«scan»([e],!0),«scan»(e.querySelectorAll("*"),!0),',
                 '«fn»=(e=«doc».documentElement,t=!0,n=!0)=>{«chk»(e)&&«scan»([e],n),«scan»(e.querySelectorAll("*"),n),',
             ),
-            # StarElements' `datastar:scan` event has no upstream listener; add one that
-            # scans the provided (shadow) root with no plugin filter. `document` is spelled
-            # literally here on purpose: this runs at module scope, outside any alias.
-            #
-            # Datastar defers its first scan to a timeout and then scans `roots.size ? [...roots]
-            # : [documentElement]`. A host that connects before that timeout (StarElements
-            # defines its elements as soon as its module runs) must not register itself as a
-            # root, or the document is never scanned: light-DOM hosts are covered by the pending
-            # document scan, shadow roots are scanned once `datastar-ready` fires (skipped if the host
-            # was disconnected meanwhile: roots are never removed from the Set).
+            # The plain bundle tree-shakes the engine's `apply`; the `n` arg above turns the scan function into a
+            # full-plugin apply, so export it. Custom-element runtimes (StarElements) call `apply(shadowRoot, true)`
+            # for shadow roots after Datastar's first document scan (light DOM is covered by the document observer).
+            # Calling it before the first scan would register the root and starve the document scan
+            # (engine.ts: `observedRoots.size ? [...observedRoots] : [documentElement]`) — callers own that ordering.
             (
                 "export{«act» as action",
-                'document.addEventListener("datastar:scan",e=>{let t=e.detail?.root;if(!t)return;'
-                "let r=t.shadowRoot||t,s=()=>{t.isConnected&&«fn»(r,!0,!1)};"
-                "«roots».has(document.documentElement)?s():r instanceof ShadowRoot&&document.addEventListener(«ready»,s,{once:!0})});"
-                "export{«act» as action",
+                "let _ap=(e,t=!0)=>«fn»(e,t,!1);export{_ap as apply,«act» as action",
             ),
         ],
         markers=[
             'e.querySelectorAll("*"),n),',
-            'document.addEventListener("datastar:scan",e=>{let t=e.detail?.root;if(!t)return;',
+            "export{_ap as apply,",
         ],
     ),
     PatchDef(
