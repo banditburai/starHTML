@@ -27,8 +27,9 @@ PATCHES: list[PatchDef] = [
     PatchDef(
         name="shadow-dom-scan",
         captures={
-            "fn": r"(\w+)=\(e=document\.documentElement,t=!0\)=>\{",  # scan function
-            "chk": r"=\(e=document\.documentElement,t=!0\)=>\{(\w+)\(e\)&&",  # connected-check
+            "fn": r"(\w+)=\(e=\w+\.documentElement,t=!0\)=>\{",  # scan function
+            "doc": r"=\(e=(\w+)\.documentElement,t=!0\)=>\{",  # `document` or its minified alias (1.0.4+)
+            "chk": r"=\(e=\w+\.documentElement,t=!0\)=>\{(\w+)\(e\)&&",  # connected-check
             "scan": r"=>\{\w+\(e\)&&(\w+)\(\[e\],!0\),",  # attribute-scan helper
             "act": r"export\{(\w+) as action",  # `action` export alias
         },
@@ -36,8 +37,8 @@ PATCHES: list[PatchDef] = [
             # Add a third filter arg `n` (default keep upstream behavior) threaded to both
             # scan calls, so explicit shadow-root scans can bind all loaded plugins.
             (
-                '«fn»=(e=document.documentElement,t=!0)=>{«chk»(e)&&«scan»([e],!0),«scan»(e.querySelectorAll("*"),!0),',
-                '«fn»=(e=document.documentElement,t=!0,n=!0)=>{«chk»(e)&&«scan»([e],n),«scan»(e.querySelectorAll("*"),n),',
+                '«fn»=(e=«doc».documentElement,t=!0)=>{«chk»(e)&&«scan»([e],!0),«scan»(e.querySelectorAll("*"),!0),',
+                '«fn»=(e=«doc».documentElement,t=!0,n=!0)=>{«chk»(e)&&«scan»([e],n),«scan»(e.querySelectorAll("*"),n),',
             ),
             # StarElements' `datastar:scan` event has no upstream listener; add one that
             # scans the provided (shadow) root with no plugin filter.
@@ -56,8 +57,10 @@ PATCHES: list[PatchDef] = [
         name="outside-race-fix",
         captures={
             "kebab": r'let o=(\w+)\(t,n,"kebab"\)',  # event-name kebab helper
-            "saved": r'if\(n\.has\("outside"\)\)\{s=document;let (\w+)=i;',  # saved inner handler
-            "ev": r"\}\((o===\w+\|\|o===\w+)\)&&\(s=document\);",  # focus/blur event consts
+            "doc": r'if\(n\.has\("outside"\)\)\{s=(\w+);let \w+=i;',  # `document` or its minified alias (1.0.4+)
+            "saved": r'if\(n\.has\("outside"\)\)\{s=\w+;let (\w+)=i;',  # saved inner handler
+            "arg": r"i=(\w+)=>\{e\.contains\(\w+\?\.target\)\|\|",  # outside-handler event param
+            "ev": r"\}\((o===\w+\|\|o===\w+)\)&&\(s=\w+\);",  # focus/blur event consts
             "listener": r"s\.removeEventListener\(o,(\w+),a\)\}\}\}\);",  # registered listener
         },
         operations=[
@@ -66,17 +69,17 @@ PATCHES: list[PatchDef] = [
             # snapshot (same-event). `d` tears both down on listener removal.
             (
                 'let o=«kebab»(t,n,"kebab"),a={capture:n.has("capture"),passive:n.has("passive"),once:n.has("once")};'
-                'if(n.has("outside")){s=document;let «saved»=i;i=u=>{e.contains(u?.target)||«saved»(u)}}'
-                "(«ev»)&&(s=document);",
+                'if(n.has("outside")){s=«doc»;let «saved»=i;i=«arg»=>{e.contains(«arg»?.target)||«saved»(«arg»)}}'
+                "(«ev»)&&(s=«doc»);",
                 'let o=«kebab»(t,n,"kebab"),a={capture:n.has("capture"),passive:n.has("passive"),once:n.has("once")},d;'
-                'if(n.has("outside")){s=document;let «saved»=i,u=!1,'
+                'if(n.has("outside")){s=«doc»;let «saved»=i,u=!1,'
                 "f=new MutationObserver(()=>{u=!0;requestAnimationFrame(()=>{u=!1})});"
                 'f.observe(e,{attributeFilter:["style"]});'
                 'let g=!1,h=()=>{g=e.style.display==="none"};'
-                "document.addEventListener(o,h,!0);"
-                "i=p=>{u||g||e.contains(p?.target)||«saved»(p)};"
-                "d=()=>{f.disconnect();document.removeEventListener(o,h,!0)}}"
-                "(«ev»)&&(s=document);",
+                "«doc».addEventListener(o,h,!0);"
+                "i=_e=>{u||g||e.contains(_e?.target)||«saved»(_e)};"
+                "d=()=>{f.disconnect();«doc».removeEventListener(o,h,!0)}}"
+                "(«ev»)&&(s=«doc»);",
             ),
             (
                 "s.removeEventListener(o,«listener»,a)}}});",

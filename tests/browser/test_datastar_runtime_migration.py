@@ -5,6 +5,7 @@ of a CDN copy so migration coverage follows the vendored runtime.
 """
 
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -70,18 +71,22 @@ def datastar_runtime_source() -> str:
 
 @pytest.fixture(scope="session")
 def datastar_upstream_source() -> str:
-    """Return vanilla Datastar 1.0.2 for upstream behavior comparisons."""
+    """Return vanilla Datastar (the vendored upstream version) for behavior comparisons."""
     return DATASTAR_UPSTREAM.read_text()
 
 
 @pytest_asyncio.fixture
 async def page():
-    """Create a Chromium page for focused Datastar migration tests."""
+    """Create a browser page for focused Datastar migration tests.
+
+    Chromium by default; set STARHTML_BROWSER=firefox|webkit to run the same matrix elsewhere.
+    """
     if not PLAYWRIGHT_AVAILABLE:
         pytest.skip("Playwright not available")
 
+    browser_name = os.environ.get("STARHTML_BROWSER", "chromium")
     async with async_playwright() as playwright:
-        browser = await playwright.chromium.launch()
+        browser = await getattr(playwright, browser_name).launch()
         context = await browser.new_context()
         test_page = await context.new_page()
         try:
@@ -319,7 +324,7 @@ async def test_local_runtime_binds_signals_text_and_click(page, datastar_runtime
     [("GET", "@get('https://example.test/capture')"), ("DELETE", "@delete('https://example.test/capture')")],
 )
 async def test_get_and_delete_send_signals_in_query_without_body(page, datastar_runtime_source, method, action):
-    """Datastar 1.0.2 sends GET/DELETE signal payloads as query params only."""
+    """Datastar 1.0.2+ sends GET/DELETE signal payloads as query params only."""
     await load_datastar_page(
         page,
         f"""
@@ -350,10 +355,11 @@ async def test_get_and_delete_send_signals_in_query_without_body(page, datastar_
         ("POST", "@post('https://example.test/capture')"),
         ("PUT", "@put('https://example.test/capture')"),
         ("PATCH", "@patch('https://example.test/capture')"),
+        ("QUERY", "@query('https://example.test/capture')"),
     ],
 )
 async def test_mutation_fetch_actions_send_json_body(page, datastar_runtime_source, method, action):
-    """POST/PUT/PATCH keep the Datastar signal payload in a JSON body."""
+    """POST/PUT/PATCH/QUERY keep the Datastar signal payload in a JSON body (QUERY: Datastar 1.0.4)."""
     await load_datastar_page(
         page,
         f"""
@@ -379,7 +385,7 @@ async def test_mutation_fetch_actions_send_json_body(page, datastar_runtime_sour
 @pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
 @pytest.mark.asyncio
 async def test_form_submit_input_value_is_included(page, datastar_runtime_source):
-    """Datastar 1.0.2 includes input[type=submit] name/value in form submissions."""
+    """Datastar 1.0.2+ includes input[type=submit] name/value in form submissions."""
     await load_datastar_page(
         page,
         f"""
@@ -405,8 +411,8 @@ async def test_form_submit_input_value_is_included(page, datastar_runtime_source
 @pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
 @pytest.mark.asyncio
 @pytest.mark.parametrize("runtime_fixture", ["datastar_upstream_source", "datastar_runtime_source"])
-async def test_http_retry_reuses_original_signal_payload(page, request, runtime_fixture):
-    """Vanilla and StarHTML Datastar 1.0.2 ordinary HTTP retries reuse the original payload."""
+async def test_http_retry_rebuilds_payload_from_current_signals(page, request, runtime_fixture):
+    """Datastar 1.0.3+ (#1174) rebuilds ordinary HTTP-status retries from current signals."""
     datastar_source = request.getfixturevalue(runtime_fixture)
     await load_datastar_page(
         page,
@@ -430,14 +436,14 @@ async def test_http_retry_reuses_original_signal_payload(page, request, runtime_
 
     calls = await read_fetch_calls(page, expected_count=2)
     assert json.loads(calls[0]["body"]) == {"name": "Ada"}
-    assert json.loads(calls[1]["body"]) == {"name": "Ada"}
+    assert json.loads(calls[1]["body"]) == {"name": "Grace"}
 
 
 @pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
 @pytest.mark.asyncio
 @pytest.mark.parametrize("runtime_fixture", ["datastar_upstream_source", "datastar_runtime_source"])
-async def test_network_retry_reuses_original_signal_payload(page, request, runtime_fixture):
-    """Network-error retries reuse the request init created by the original action."""
+async def test_network_retry_rebuilds_payload_from_current_signals(page, request, runtime_fixture):
+    """Network-error retries rebuild the request body from current signals (Datastar 1.0.3+, #1174)."""
     datastar_source = request.getfixturevalue(runtime_fixture)
     await load_datastar_page(
         page,
@@ -461,14 +467,14 @@ async def test_network_retry_reuses_original_signal_payload(page, request, runti
 
     calls = await read_fetch_calls(page, expected_count=2)
     assert json.loads(calls[0]["body"]) == {"name": "Ada"}
-    assert json.loads(calls[1]["body"]) == {"name": "Ada"}
+    assert json.loads(calls[1]["body"]) == {"name": "Grace"}
 
 
 @pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
 @pytest.mark.asyncio
 @pytest.mark.parametrize("runtime_fixture", ["datastar_upstream_source", "datastar_runtime_source"])
-async def test_get_retry_reuses_original_query_payload(page, request, runtime_fixture):
-    """GET retries reuse the original Datastar query payload."""
+async def test_get_retry_rebuilds_query_payload_from_current_signals(page, request, runtime_fixture):
+    """GET retries rebuild the Datastar query payload from current signals (1.0.3+)."""
     datastar_source = request.getfixturevalue(runtime_fixture)
     await load_datastar_page(
         page,
@@ -496,14 +502,14 @@ async def test_get_retry_reuses_original_query_payload(page, request, runtime_fi
     assert calls[0]["body"] is None
     assert calls[1]["body"] is None
     assert datastar_query_payload(calls[0]["url"]) == {"name": "Ada"}
-    assert datastar_query_payload(calls[1]["url"]) == {"name": "Ada"}
+    assert datastar_query_payload(calls[1]["url"]) == {"name": "Grace"}
 
 
 @pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
 @pytest.mark.asyncio
 @pytest.mark.parametrize("runtime_fixture", ["datastar_upstream_source", "datastar_runtime_source"])
-async def test_form_post_retry_reuses_original_form_payload(page, request, runtime_fixture):
-    """Form retries do not rebuild changed field values after the original submit."""
+async def test_form_post_retry_rebuilds_form_payload(page, request, runtime_fixture):
+    """Form retries re-read field values changed after the original submit (Datastar 1.0.3+)."""
     datastar_source = request.getfixturevalue(runtime_fixture)
     await load_datastar_page(
         page,
@@ -528,14 +534,14 @@ async def test_form_post_retry_reuses_original_form_payload(page, request, runti
 
     calls = await read_fetch_calls(page, expected_count=2)
     assert parse_qs(calls[0]["body"]) == {"item": ["book"]}
-    assert parse_qs(calls[1]["body"]) == {"item": ["book"]}
+    assert parse_qs(calls[1]["body"]) == {"item": ["pen"]}
 
 
 @pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
 @pytest.mark.asyncio
 @pytest.mark.parametrize("runtime_fixture", ["datastar_upstream_source", "datastar_runtime_source"])
-async def test_form_submitter_retry_reuses_original_submitter_payload(page, request, runtime_fixture):
-    """Form retries preserve the submitter name/value captured by the original submit."""
+async def test_form_submitter_retry_rebuilds_submitter_payload(page, request, runtime_fixture):
+    """Form retries re-read the submitter name/value at retry time (Datastar 1.0.3+)."""
     datastar_source = request.getfixturevalue(runtime_fixture)
     await load_datastar_page(
         page,
@@ -560,14 +566,14 @@ async def test_form_submitter_retry_reuses_original_submitter_payload(page, requ
 
     calls = await read_fetch_calls(page, expected_count=2)
     assert parse_qs(calls[0]["body"]) == {"item": ["book"], "intent": ["save"]}
-    assert parse_qs(calls[1]["body"]) == {"item": ["book"], "intent": ["save"]}
+    assert parse_qs(calls[1]["body"]) == {"item": ["book"], "intent": ["delete"]}
 
 
 @pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
 @pytest.mark.asyncio
 @pytest.mark.parametrize("runtime_fixture", ["datastar_upstream_source", "datastar_runtime_source"])
 async def test_visibility_reconnect_rebuilds_payload_from_current_signals(page, request, runtime_fixture):
-    """Vanilla and StarHTML Datastar 1.0.2 rebuild payloads on visibility reconnect."""
+    """Vanilla and StarHTML Datastar rebuild payloads on visibility reconnect (1.0.0+)."""
     datastar_source = request.getfixturevalue(runtime_fixture)
     await load_datastar_page(
         page,
@@ -1229,3 +1235,49 @@ async def test_wrapper_prehydrate_storage_errors_fall_back_to_ifmissing_defaults
     )
 
     await wait_for_dom_text(page, "#theme", "default")
+
+
+@pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
+@pytest.mark.asyncio
+async def test_csp_mode_evaluates_expressions_without_unsafe_eval(page, datastar_runtime_source):
+    """Datastar 1.0.3+ CSP mode: a nonce on <html> compiles expressions via nonced <script> tags.
+
+    The page ships a strict CSP (no 'unsafe-eval'); without CSP mode `data-text` could not
+    compile `$name`. StarHTML apps still need per-response nonces on their own inline scripts
+    before they can adopt this (see docs/designs/2026-09-21-datastar-1.0.4-integration.md).
+    """
+    csp_errors: list[str] = []
+    page.on("console", lambda msg: csp_errors.append(msg.text) if msg.type == "error" else None)
+    core_source = built_datastar_core_source()
+    wrapper_source = datastar_runtime_source
+    core_json = json.dumps(core_source)
+    wrapper_json = json.dumps(wrapper_source)
+    await page.set_content(
+        f"""<!doctype html>
+<html lang="en" data-nonce="n0nce">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="script-src 'nonce-n0nce' blob:; object-src 'none'">
+</head>
+<body>
+  <main data-signals='{{"name": "Ada"}}'>
+    <output id="ready" data-text="$name + '!'"></output>
+    <button id="bump" data-on:click="$name = 'Grace'">Bump</button>
+  </main>
+  <script type="module" nonce="n0nce">
+    const coreUrl = URL.createObjectURL(new Blob([{core_json}], {{ type: "text/javascript" }}));
+    const wrapper = {wrapper_json}.replaceAll("./datastar-core.js", coreUrl);
+    const wrapperUrl = URL.createObjectURL(new Blob([wrapper], {{ type: "text/javascript" }}));
+    window.__datastar = await import(wrapperUrl);
+  </script>
+</body>
+</html>""",
+        wait_until="load",
+    )
+
+    await wait_for_dom_text(page, "#ready", "Ada!")
+    await page.locator("#bump").click()
+    await wait_for_dom_text(page, "#ready", "Grace!")
+    # The nonce is consumed (removed from <html>) so it cannot be scraped by injected markup.
+    assert await page.evaluate("document.documentElement.hasAttribute('data-nonce')") is False
+    assert not [e for e in csp_errors if "Content Security Policy" in e], csp_errors

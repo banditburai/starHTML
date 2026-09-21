@@ -527,3 +527,39 @@ def test_type_conversions():
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+def test_datastar_unpacking_query_request():
+    """QUERY (Datastar 1.0.4 @query()) carries signals in a JSON body like POST."""
+    app, rt = star_app()
+
+    @rt("/search", methods="query")
+    def search(name: str, limit: int):
+        return f"Name: {name}, Limit: {limit}"
+
+    client = TestClient(app)
+    response = client.request("QUERY", "/search", json={"name": "Ada", "limit": 5})
+    assert response.status_code == 200
+    assert response.text == "Name: Ada, Limit: 5"
+
+    response = client.request("QUERY", "/search", json={"$name": "Grace", "$limit": 3})
+    assert response.status_code == 200
+    assert response.text == "Name: Grace, Limit: 3"
+
+
+def test_query_method_shortcut_and_default_methods():
+    """`app.query(...)` registers a QUERY-only route; unspecified routes stay GET/POST only."""
+    app, rt = star_app()
+
+    @app.query("/items")
+    def items(q: str):
+        return f"q={q}"
+
+    @rt("/plain")
+    def plain(q: str):
+        return f"q={q}"
+
+    client = TestClient(app)
+    assert client.request("QUERY", "/items", json={"q": "x"}).text == "q=x"
+    assert client.get("/items").status_code == 405
+    assert client.request("QUERY", "/plain", json={"q": "x"}).status_code == 405

@@ -70,7 +70,7 @@ __all__ = [
     "url_path_for",
 ]
 
-all_meths = "get post put delete patch head trace options".split()
+all_meths = "get post put delete patch query head trace options".split()  # query: Datastar 1.0.4 @query()
 _iter_typs = (tuple, list, map, filter, range, types.GeneratorType)
 _IS_WASM = sys.platform == "emscripten"  # Pyodide/WASM environment
 
@@ -544,6 +544,11 @@ def render_response(
     return renderer.process(user_response, cls, status_code)
 
 
+# Methods whose request body may carry form fields or Datastar signals. QUERY (RFC draft,
+# Datastar 1.0.4 @query()) is a body-bearing read; DELETE is kept for form-encoded clients.
+_BODY_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE", "QUERY"})
+
+
 def _should_extract_datastar_signals(req):
     """Check if datastar signal extraction is enabled."""
     if not (hasattr(req, "scope") and req.scope):
@@ -566,7 +571,7 @@ def _extract_from_datastar_query(req, arg):
 
 async def _extract_from_datastar_body(req, arg):
     """Extract parameter from datastar signals in request body."""
-    if req.method not in {"POST", "PUT", "PATCH", "DELETE"}:
+    if req.method not in _BODY_METHODS:
         return empty
 
     form_data = form2dict(await parse_form(req))
@@ -627,7 +632,7 @@ async def _find_p(req, arg: str, p):
         res = req.query_params.getlist(arg)
     if res == []:
         res = None
-    if res in (empty, None) and req.method in {"POST", "PUT", "PATCH", "DELETE"}:
+    if res in (empty, None) and req.method in _BODY_METHODS:
         res = form2dict(await parse_form(req)).get(arg, None)
     found_in_datastar = False
 

@@ -718,6 +718,11 @@ def delete(url: str, **kwargs) -> _JSRaw:
     return _action("delete", url, **kwargs)
 
 
+def query(url: str, **kwargs) -> _JSRaw:
+    """QUERY request with signals in a JSON body (Datastar 1.0.4+): a read that needs a body."""
+    return _action("query", url, **kwargs)
+
+
 def _timer_ref(timer: "Signal", window: bool = False) -> str:
     timer_id = timer._id if hasattr(timer, "_id") else timer
     return f"window._{timer_id}" if window else f"${timer_id}"
@@ -1086,7 +1091,7 @@ def process_datastar_kwargs(kwargs: dict) -> tuple[dict, set[Signal]]:
 # fmt: off
 __all__ = [
     "Signal", "Expr", "js", "expr", "f_", "regex", "match", "switch", "collect", "seq",
-    "all_", "any_", "post", "get", "put", "patch", "delete", "set_timeout",
+    "all_", "any_", "post", "get", "put", "patch", "delete", "query", "set_timeout",
     "clear_timeout", "reset_timeout", "scroll_to", "emit", "console", "Math", "JSON",
     "Object", "Array", "Date", "Number", "String", "Boolean", "evt", "el", "document",
     "window", "process_datastar_kwargs", "to_js_value", "register_on_plugin",

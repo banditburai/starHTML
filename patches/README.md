@@ -19,11 +19,11 @@ The public wrapper and private patched core are served alongside plugins and deb
 ## Updating Datastar
 
 ```
-python scripts/update_datastar.py 1.0.2
+python scripts/update_datastar.py 1.0.4
 bun run build
 ```
 
-(The `v` prefix is optional — `v1.0.2` also works.)
+(The `v` prefix is optional — `v1.0.4` also works.)
 
 This downloads vanilla Datastar from CDN, dry-runs all patches to verify they apply, saves the vanilla source to `patches/datastar-upstream.js`, and updates `DATASTAR_VERSION`.
 
@@ -32,7 +32,9 @@ single-char identifiers Datastar reassigns each release. Each patch captures the
 volatile tokens it needs (scan-fn name, event consts, handler vars, the `action`
 export alias) from those landmarks and substitutes them into `«token»` placeholders,
 so the same definitions usually apply across Datastar versions with no edits — the
-1.0.1 → 1.0.2 bump required none.
+1.0.1 → 1.0.2 bump required none. 1.0.4 aliased `document` to a minified name
+(`p=document`), so both patches now capture the alias (`«doc»`) from their landmarks
+instead of spelling `document`; the definitions apply to 1.0.2 and 1.0.4 alike.
 
 If a patch *does* fail (a landmark itself changed upstream), the script saves
 `patches/datastar-upstream.vanilla.js` for diffing. Update the affected `captures`
@@ -59,7 +61,7 @@ Serves vanilla Datastar from CDN. Shadow DOM components (StarElements) require t
 
 **Fix**: Added a `document.addEventListener("datastar:scan", ...)` that calls Datastar's internal scan function on the provided root. The scan function now accepts a third filter argument: normal late-plugin rescans keep upstream's newly-registered-plugin filter, while explicit `datastar:scan` calls pass no filter so all loaded plugins bind inside the shadow root.
 
-**Anchor**: The scan function is captured by its stable signature `(\w+)=\(e=document.documentElement,t=!0\)=>{`, so its minified name (`En` in 1.0.1, `bn` in 1.0.2, …) is resolved automatically rather than hardcoded.
+**Anchor**: The scan function is captured by its stable signature `(\w+)=\(e=\w+.documentElement,t=!0\)=>{`, so its minified name (`En` in 1.0.1, `bn` in 1.0.2, `Nn` in 1.0.4, …) and the `document` alias are resolved automatically rather than hardcoded. Note the Rocket bundle (`datastar-rocket.js`) defines two functions with this signature, so it cannot be patched with these definitions as-is.
 
 ## Patch 2: Outside Modifier Race Fix
 

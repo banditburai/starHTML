@@ -329,7 +329,7 @@ class StarHTML(Starlette):
         async with httpx.AsyncClient(transport=transport, base_url="http://app") as client:
             kwargs = {"method": method.upper(), "url": path, "headers": headers or {}}
 
-            if method.upper() in ("POST", "PUT", "PATCH") and body:
+            if method.upper() in ("POST", "PUT", "PATCH", "QUERY") and body:
                 kwargs["content"] = body
 
             response = await client.request(**kwargs)
