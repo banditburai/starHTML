@@ -338,9 +338,13 @@ def format_element_event(
 ) -> str:
     """Format an element/fragment event for Datastar.
 
-    view_transition_selector: CSS selector for the element to drive the view
-    transition (Datastar 1.0.2+); only honored by the client when
-    use_view_transition is set.
+    view_transition_selector: CSS selector for the element whose *scoped*
+    ``startViewTransition`` drives the transition (Datastar 1.0.2+); only honored
+    by the client when use_view_transition is set. Since Datastar 1.0.3 there is
+    no fallback to the document transition: on engines without scoped view
+    transitions (Firefox and WebKit as of 2026-09) a selector means the patch
+    is applied with no transition at all, so leave it unset unless the page is
+    known to run on Chromium-class engines.
     preserve_whitespace: None=auto-detect (<pre>/<textarea>), True=keep empty lines, False=strip.
     """
     if debug_ctx is None:
@@ -395,8 +399,10 @@ def elements(
 ) -> tuple[str, tuple]:
     """Create an elements SSE item for the @sse decorator.
 
-    view_transition_selector: CSS selector driving the view transition (Datastar
-    1.0.2+); only honored when use_view_transition is set.
+    view_transition_selector: CSS selector whose element's scoped view transition
+    is used (Datastar 1.0.2+); only honored when use_view_transition is set. No
+    document fallback since Datastar 1.0.3: engines without scoped view
+    transitions apply the patch with no transition. See format_elements().
     preserve_whitespace: None=auto-detect (<pre>/<textarea>), True=keep empty lines, False=strip.
     """
     return ("elements", (element, selector, mode, use_view_transition, view_transition_selector, preserve_whitespace))

@@ -252,7 +252,12 @@ except ImportError:
 class TestBrowserCompatibility:
     """Browser compatibility tests using Playwright."""
 
-    @pytest_asyncio.fixture(scope="class")
+    # The class-scoped fixture and the function-scoped tests must share one event loop:
+    # pytest-asyncio >= 1.0 otherwise creates Playwright objects on a class loop and awaits
+    # them from a per-test loop, which never resolves (the suite hung forever, not just on
+    # Firefox/WebKit; Chromium alone slipped through because its launch is fast enough to
+    # finish before the loop switch).
+    @pytest_asyncio.fixture(scope="class", loop_scope="class")
     async def browser_setup(self):
         """Set up browsers for testing."""
         if not PLAYWRIGHT_AVAILABLE:
@@ -290,7 +295,7 @@ class TestBrowserCompatibility:
             for browser in browsers.values():
                 await browser.close()
 
-    @pytest.mark.asyncio
+    @pytest.mark.asyncio(loop_scope="class")
     async def test_feature_detection_all_browsers(self, browser_setup):
         """Test that all required features are available in target browsers."""
         browsers = browser_setup
@@ -320,7 +325,12 @@ class TestBrowserCompatibility:
 
             await context.close()
 
-    @pytest.mark.asyncio
+    @pytest.mark.xfail(
+        strict=True,
+        reason="Harness inlines the ES-module scroll plugin as a classic <script> and never loads Datastar, "
+        "so data-on-scroll can never bind; needs an import-map based page (see tests/browser/test_datastar_runtime_migration.py).",
+    )
+    @pytest.mark.asyncio(loop_scope="class")
     async def test_scroll_all_browsers(self, browser_setup):
         """Test scroll handler functionality across browsers."""
         browsers = browser_setup
@@ -357,7 +367,7 @@ class TestBrowserCompatibility:
 
             await context.close()
 
-    @pytest.mark.asyncio
+    @pytest.mark.asyncio(loop_scope="class")
     async def test_resize_all_browsers(self, browser_setup):
         """Test resize handler functionality across browsers."""
         browsers = browser_setup
@@ -405,7 +415,7 @@ class TestBrowserCompatibility:
 
             await context.close()
 
-    @pytest.mark.asyncio
+    @pytest.mark.asyncio(loop_scope="class")
     async def test_persist_all_browsers(self, browser_setup):
         """Test persist handler functionality across browsers."""
         browsers = browser_setup
@@ -461,7 +471,7 @@ class TestBrowserCompatibility:
 
             await context.close()
 
-    @pytest.mark.asyncio
+    @pytest.mark.asyncio(loop_scope="class")
     async def test_mobile_compatibility(self, browser_setup):
         """Test mobile device compatibility."""
         browsers = browser_setup
@@ -496,7 +506,7 @@ class TestBrowserCompatibility:
                 await scroll_container.scroll_into_view_if_needed()
 
                 # Simulate touch scroll
-                await page.touch_screen.tap(200, 300)
+                await page.touchscreen.tap(200, 300)
                 await page.evaluate("document.querySelector('.scroll-container').scrollTop = 50")
                 await page.wait_for_timeout(300)
 
@@ -525,7 +535,7 @@ class TestBrowserCompatibility:
 
                 await context.close()
 
-    @pytest.mark.asyncio
+    @pytest.mark.asyncio(loop_scope="class")
     async def test_performance_across_browsers(self, browser_setup):
         """Test performance characteristics across browsers."""
         browsers = browser_setup

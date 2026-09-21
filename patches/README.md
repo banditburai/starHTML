@@ -91,7 +91,7 @@ Datastar `1.0.1` tracks observed roots and preserves the newly-registered-plugin
 
 ## Removed: Retry Current Payload
 
-StarHTML briefly patched ordinary HTTP and network-error retries to rebuild the request payload from current signals before each retry. Datastar `1.0.1` only rebuilds request init for visibility reconnect/resume; normal retry attempts reuse the original request body/query. StarHTML now follows upstream semantics here to avoid surprising form and non-idempotent action behavior.
+StarHTML briefly patched ordinary HTTP and network-error retries to rebuild the request payload from current signals before each retry, then removed the patch to match Datastar `1.0.1`, which reused the original body/query for normal retries. Datastar `1.0.3` (#1174) adopted current-state retries upstream, so since the 1.0.4 vendoring the behaviour is back without any patch: HTTP-status, network-error, GET, form, and form-submitter retries all resend current signals / current form values (covered by the `*_rebuilds_*` tests in `tests/browser/test_datastar_runtime_migration.py`).
 
 ## Removed: Persist-Aware Init Patch
 

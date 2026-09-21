@@ -27,7 +27,18 @@ from starlette.responses import FileResponse, RedirectResponse, Response
 from starlette.routing import Mount, Route, WebSocketRoute
 
 from .realtime import _ws_endp, set_devtools_context, setup_ws
-from .server import _handle, _mk_locfunc, _wrap_call, _wrap_ex, _wrap_req, all_meths, cookie, render_response, serve
+from .server import (
+    _BODY_METHODS,
+    _handle,
+    _mk_locfunc,
+    _wrap_call,
+    _wrap_ex,
+    _wrap_req,
+    all_meths,
+    cookie,
+    render_response,
+    serve,
+)
 from .starapp import Beforeware, _datastar_cdn_url, def_hdrs
 from .utils import _list, _params, get_key, noop_body, reg_re_param
 
@@ -329,7 +340,7 @@ class StarHTML(Starlette):
         async with httpx.AsyncClient(transport=transport, base_url="http://app") as client:
             kwargs = {"method": method.upper(), "url": path, "headers": headers or {}}
 
-            if method.upper() in ("POST", "PUT", "PATCH", "QUERY") and body:
+            if method.upper() in _BODY_METHODS and body:
                 kwargs["content"] = body
 
             response = await client.request(**kwargs)

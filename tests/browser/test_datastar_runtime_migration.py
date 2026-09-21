@@ -412,7 +412,11 @@ async def test_form_submit_input_value_is_included(page, datastar_runtime_source
 @pytest.mark.asyncio
 @pytest.mark.parametrize("runtime_fixture", ["datastar_upstream_source", "datastar_runtime_source"])
 async def test_http_retry_rebuilds_payload_from_current_signals(page, request, runtime_fixture):
-    """Datastar 1.0.3+ (#1174) rebuilds ordinary HTTP-status retries from current signals."""
+    """Datastar 1.0.3+ (#1174) rebuilds ordinary HTTP-status retries from current signals.
+
+    retryInterval is 400ms (not 50) in these five tests so the signal patch, issued over two CDP
+    round-trips after the first call is observed, reliably lands before the retry fires.
+    """
     datastar_source = request.getfixturevalue(runtime_fixture)
     await load_datastar_page(
         page,
@@ -421,7 +425,7 @@ async def test_http_retry_rebuilds_payload_from_current_signals(page, request, r
 <main data-signals='{{"name": "Ada"}}'>
   <button
     id="send"
-    data-on:click="@post('https://example.test/capture', {{retry: 'error', retryInterval: 50, retryMaxCount: 3}})"
+    data-on:click="@post('https://example.test/capture', {{retry: 'error', retryInterval: 400, retryMaxCount: 3}})"
   >Send</button>
   <output id="ready" data-text="$name"></output>
 </main>
@@ -452,7 +456,7 @@ async def test_network_retry_rebuilds_payload_from_current_signals(page, request
 <main data-signals='{{"name": "Ada"}}'>
   <button
     id="send"
-    data-on:click="@post('https://example.test/capture', {{retry: 'error', retryInterval: 50, retryMaxCount: 3}})"
+    data-on:click="@post('https://example.test/capture', {{retry: 'error', retryInterval: 400, retryMaxCount: 3}})"
   >Send</button>
   <output id="ready" data-text="$name"></output>
 </main>
@@ -483,7 +487,7 @@ async def test_get_retry_rebuilds_query_payload_from_current_signals(page, reque
 <main data-signals='{{"name": "Ada"}}'>
   <button
     id="send"
-    data-on:click="@get('https://example.test/capture', {{retry: 'error', retryInterval: 50, retryMaxCount: 3}})"
+    data-on:click="@get('https://example.test/capture', {{retry: 'error', retryInterval: 400, retryMaxCount: 3}})"
   >Send</button>
   <output id="ready" data-text="$name"></output>
 </main>
@@ -517,7 +521,7 @@ async def test_form_post_retry_rebuilds_form_payload(page, request, runtime_fixt
 {fetch_capture_script([500, 204])}
 <form
   id="form"
-  data-on:submit__prevent="@post('https://example.test/capture', {{contentType: 'form', retry: 'error', retryInterval: 50, retryMaxCount: 3}})"
+  data-on:submit__prevent="@post('https://example.test/capture', {{contentType: 'form', retry: 'error', retryInterval: 400, retryMaxCount: 3}})"
 >
   <input id="item" name="item" value="book">
   <button id="submit" type="submit">Send</button>
@@ -549,7 +553,7 @@ async def test_form_submitter_retry_rebuilds_submitter_payload(page, request, ru
 {fetch_capture_script([500, 204])}
 <form
   id="form"
-  data-on:submit__prevent="@post('https://example.test/capture', {{contentType: 'form', retry: 'error', retryInterval: 50, retryMaxCount: 3}})"
+  data-on:submit__prevent="@post('https://example.test/capture', {{contentType: 'form', retry: 'error', retryInterval: 400, retryMaxCount: 3}})"
 >
   <input name="item" value="book">
   <input id="submit" type="submit" name="intent" value="save">
@@ -1281,3 +1285,55 @@ async def test_csp_mode_evaluates_expressions_without_unsafe_eval(page, datastar
     # The nonce is consumed (removed from <html>) so it cannot be scraped by injected markup.
     assert await page.evaluate("document.documentElement.hasAttribute('data-nonce')") is False
     assert not [e for e in csp_errors if "Content Security Policy" in e], csp_errors
+
+
+@pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not available")
+@pytest.mark.asyncio
+@pytest.mark.parametrize("with_selector", [False, True], ids=["document", "selector"])
+async def test_patch_elements_view_transition_target(page, datastar_runtime_source, with_selector):
+    """Datastar 1.0.3+ (#1181) resolves `viewTransitionSelector` to the element itself, with no document fallback.
+
+    - No selector: `document.startViewTransition` wraps the patch (every engine).
+    - Selector: the matched element's scoped `startViewTransition` is used where the engine has it
+      (Chromium); where it does not (Firefox, WebKit today) the patch is applied with NO transition.
+      1.0.2 fell back to the document transition in that case. StarHTML's `view_transition_selector`
+      therefore trades the transition away on non-scoped engines; see realtime.py docstrings.
+    """
+    await load_datastar_page(
+        page,
+        """
+<div id="panel"><p id="content">before</p></div>
+<script>
+  window.__vt = { document: 0, element: 0 };
+  const origDoc = document.startViewTransition?.bind(document);
+  document.startViewTransition = (cb) => { window.__vt.document++; return origDoc ? origDoc(cb) : (cb(), {}); };
+  const panel = document.getElementById("panel");
+  window.__scoped = typeof panel.startViewTransition === "function";
+  if (window.__scoped) {
+    const origEl = panel.startViewTransition.bind(panel);
+    panel.startViewTransition = (cb) => { window.__vt.element++; return origEl(cb); };
+  }
+</script>
+""",
+        datastar_runtime_source,
+    )
+
+    await page.evaluate(
+        """args => document.dispatchEvent(new CustomEvent("datastar-fetch", {
+            detail: { type: "datastar-patch-elements", argsRaw: args } }))""",
+        {
+            "elements": '<p id="content">after</p>',
+            "useViewTransition": "true",
+            **({"viewTransitionSelector": "#panel"} if with_selector else {}),
+        },
+    )
+    await wait_for_dom_text(page, "#content", "after")
+    counts = await page.evaluate("window.__vt")
+    scoped = await page.evaluate("window.__scoped")
+
+    if not with_selector:
+        assert counts == {"document": 1, "element": 0}
+    elif scoped:
+        assert counts == {"document": 0, "element": 1}
+    else:
+        assert counts == {"document": 0, "element": 0}, "1.0.3+ no longer falls back to the document transition"

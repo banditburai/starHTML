@@ -282,7 +282,7 @@ class Client:
 
 
 # Add HTTP method shortcuts to Client
-for o in ("get", "post", "delete", "put", "patch", "options"):
+for o in ("get", "post", "delete", "put", "patch", "query", "options"):
     setattr(Client, o, partialmethod(Client._sync, o))
 
 # ============================================================================
