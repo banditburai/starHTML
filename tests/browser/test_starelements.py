@@ -146,14 +146,25 @@ async def test_sse_fragment_patched_into_host_is_rescoped(page):
     @rt("/patch")
     @sse
     def patch():
-        yield elements(Span(data_text="$$count", id="patched"), selector="#slot", mode="inner")
+        # `data-computed:` keys and `data-ref` values are namespaced too; the second patch morphs onto the nodes the
+        # first one left behind, so the rescope must be idempotent (no `ns_ns_` doubling).
+        yield elements(
+            Div(Span(data_text="$$count", id="patched"), Span(data_text="$$doubled", id="dbl"), **{"data-computed:doubled": "$$count * 2", "data-ref": "box"}),
+            selector="#slot", mode="inner",
+        )
 
     async with served(page, app) as errors:
         await page.goto(f"{ORIGIN}/", wait_until="load")
         await text_of(page, "#static", "5")
-        await page.locator("#go").click()
-        await text_of(page, "#patched", "5")
+        for _ in range(2):
+            await page.locator("#go").click()
+            await text_of(page, "#patched", "5")
+            await text_of(page, "#dbl", "10")
         ns = await page.evaluate("document.querySelector('#static').getAttribute('data-text')")
         assert await page.evaluate("document.querySelector('#patched').getAttribute('data-text')") == ns
+        names = await page.evaluate("[...document.querySelector('#slot > div').attributes].map(a => a.name + '=' + a.value)")
+        prefix = ns[1:-len("count")]  # `$_star_scope_host_id0_`
+        assert f"data-computed:{prefix}doubled=${prefix}count * 2" in names, names
+        assert f"data-ref={prefix}box" in names, names
         assert await page.evaluate("document.querySelector('scope-host').hasAttribute('data-scope-children')")
         assert not errors, errors
