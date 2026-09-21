@@ -4,7 +4,7 @@ import unittest
 
 import pytest
 
-from starhtml import Div, P, to_xml
+from starhtml import Div, P, Span, to_xml
 from starhtml.datastar import Signal, build_data_signals, f_, js
 
 
@@ -420,3 +420,9 @@ def test_signals_are_hoisted_ahead_of_computeds():
     total = Signal("total", s * 2)
     html = to_xml(Div(total, s, data_text=total))
     assert html.index("data-signals=") < html.index("data-computed:total") < html.index("data-text")
+
+
+def test_slot_attrs_keep_declarations_first():
+    s = Signal("count", 5)
+    html = to_xml(Div(Span(data_slot="a", data_text=s), slot_a={"data_signals": [s]}))
+    assert html.index("data-signals:count") < html.index("data-text"), html

@@ -51,11 +51,12 @@ PATCHES: list[PatchDef] = [
             # : [documentElement]`. A host that connects before that timeout (StarElements
             # defines its elements as soon as its module runs) must not register itself as a
             # root, or the document is never scanned: light-DOM hosts are covered by the pending
-            # document scan, shadow roots are scanned once `datastar-ready` fires.
+            # document scan, shadow roots are scanned once `datastar-ready` fires (skipped if the host
+            # was disconnected meanwhile: roots are never removed from the Set).
             (
                 "export{«act» as action",
                 'document.addEventListener("datastar:scan",e=>{let t=e.detail?.root;if(!t)return;'
-                "let r=t.shadowRoot||t,s=()=>«fn»(r,!0,!1);"
+                "let r=t.shadowRoot||t,s=()=>{t.isConnected&&«fn»(r,!0,!1)};"
                 "«roots».has(document.documentElement)?s():r instanceof ShadowRoot&&document.addEventListener(«ready»,s,{once:!0})});"
                 "export{«act» as action",
             ),

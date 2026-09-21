@@ -4,7 +4,8 @@
 ``data-*`` attributes in document order, and a reader (``data-text="$x"``, ``data-attr:…``, ``data-bind``…) that runs
 before ``$x`` is declared auto-creates the signal as ``""``, which a later ``data-signals:x__ifmissing`` then leaves in
 place. Same-element order is fixed at render time (declarations are hoisted); a declaration on a *later* element than
-its first reader is still a bug, and that is what this reports.
+its first reader is still a bug, and that is what this reports. Reads are ``$name`` roots (``$user.name`` reads
+``user``) outside string literals, plus the bare names in ``data-bind``/``data-ref``/``data-indicator`` values.
 """
 
 from __future__ import annotations
@@ -13,9 +14,10 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-_READ = re.compile(r"(?<![$\w])\$([A-Za-z_][\w.]*)")  # `$name` (not `$$name`, which is StarElements-local)
-_OBJECT_KEY = re.compile(r"(?:^|[{,])\s*['\"]?([A-Za-z_][\w.]*)['\"]?\s*:")
-_DECLARING_PREFIXES = ("data-signals", "data-computed")
+_READ = re.compile(r"(?<![$\w])\$([A-Za-z_]\w*)")  # root of `$name`, `$name.path`; not `$$name` (StarElements-local)
+_STRING = re.compile(r"'(?:\\.|[^'\\])*'|\"(?:\\.|[^\"\\])*\"|`(?:\\.|[^`\\])*`")  # masked before read detection
+_KEY = re.compile(r"\s*['\"]?([A-Za-z_]\w*)['\"]?\s*:")
+_SIGNAL_PATH_ATTRS = ("data-bind", "data-ref", "data-indicator")  # bare-name values are reads of that signal
 
 
 @dataclass(frozen=True)
@@ -32,12 +34,38 @@ class SignalOrderIssue:
         )
 
 
+def _top_level_keys(obj: str) -> list[str]:
+    """Keys at brace depth 1 of a JS object literal (nested objects declare nothing)."""
+    keys: list[str] = []
+    depth = 0
+    i = 0
+    while i < len(obj):
+        ch = obj[i]
+        if ch in "{[(":
+            depth += 1
+            if depth == 1 and ch == "{" and (m := _KEY.match(obj, i + 1)):
+                keys.append(m.group(1))
+        elif ch in "}])":
+            depth -= 1
+        elif ch == "," and depth == 1 and (m := _KEY.match(obj, i + 1)):
+            keys.append(m.group(1))
+        i += 1
+    return keys
+
+
 def _declared_names(attr: str, value: Any) -> list[str]:
     if attr.startswith("data-signals:") or attr.startswith("data-computed:"):
         return [attr.split(":", 1)[1].split("__", 1)[0]]
     if attr.split("__", 1)[0] == "data-signals":  # object form, possibly with modifiers
-        return [m.group(1) for m in _OBJECT_KEY.finditer(str(value))]
+        return _top_level_keys(str(value))
     return []
+
+
+def _reads(attr: str, value: str) -> list[str]:
+    base = attr.split("__", 1)[0]
+    if base in _SIGNAL_PATH_ATTRS:  # `data-bind="x"` reads/writes x; `$$x` is a StarElements local
+        return [] if not value or value.startswith("$$") or ":" in base else [value]
+    return [m.group(1) for m in _READ.finditer(_STRING.sub('""', value))]
 
 
 def _walk(node: Any):
@@ -71,10 +99,7 @@ def check_signal_order(ft: Any) -> list[SignalOrderIssue]:
                     tag, reader_attr = pending.pop(name)
                     issues.append(SignalOrderIssue(name, tag, reader_attr, el.tag))
                 declared.add(name)
-            if attr.startswith(_DECLARING_PREFIXES) and not attr.startswith("data-computed"):
-                continue  # data-signals values are literals, not reads
-            for m in _READ.finditer(str(value)):
-                name = m.group(1)
+            for name in _reads(attr, str(value)):
                 if name not in declared and name not in pending:
                     pending[name] = (el.tag, f'{attr}="{value}"')
     return issues

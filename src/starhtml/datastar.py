@@ -434,9 +434,12 @@ class Signal(Expr):
 
     ``ifmissing`` (default ``True``) declares the signal as ``data-signals:name__ifmissing``: the initial value only
     applies when the browser has no value yet, so persisted/patched state survives a re-render. ``ifmissing=False``
-    emits a plain ``data-signals="{name: value}"`` object: the server value wins every time the element is (re)applied,
-    which is the *reset* form for server-authoritative values. To reset a live signal from a handler instead, send
-    ``signals(name=value)`` (SSE ``datastar-patch-signals``; ``only_if_missing=True`` for the ifmissing analogue).
+    emits a plain ``data-signals="{name: value}"`` object *when the Signal is declared* (positional child or
+    ``data_signals=[...]``): the server value wins every time the element is (re)applied, which is the *reset* form
+    for server-authoritative values. Used only as a ``data_bind``/``data_ref``/``data_indicator`` value, an
+    ``ifmissing=False`` (or ``initial=None``) Signal emits no declaration at all. To reset a live signal from a
+    handler instead, send ``signals(name=value)`` (SSE ``datastar-patch-signals``; ``only_if_missing=True`` for the
+    ifmissing analogue).
 
     Declarations are hoisted ahead of the readers on the same element; a read on an *earlier* element than the one
     declaring the signal is still a footgun (``starhtml.lint.check_signal_order`` reports it).

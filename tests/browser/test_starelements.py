@@ -102,7 +102,7 @@ async def test_host_connecting_before_first_scan_does_not_starve_document_scan(p
 
     @element("early-host", shadow=shadow)
     def EarlyHost():
-        return Div((count := Local("count", 5)), Span(data_text=count, id="static"))
+        return Div((count := Local("count", 5)), Span(data_text=count + 1, id="static"))  # no SSR fallback text
 
     app, rt = star_app()
     app.register(EarlyHost)
@@ -113,12 +113,14 @@ async def test_host_connecting_before_first_scan_does_not_starve_document_scan(p
         return Div(EarlyHost(), x, Button("bump", id="bump", data_on_click=x.set(x + 1)), Span(data_text=x, id="xs"))
 
     root = "document.querySelector('early-host').shadowRoot" if shadow else "document"
+    await page.add_init_script("document.addEventListener('datastar-ready', () => { window.__ready = (window.__ready || 0) + 1 })")
     async with served(page, app) as errors:
         await page.goto(f"{ORIGIN}/", wait_until="load")
         await text_of(page, "#xs", "0")  # page-level scan happened
-        await page.wait_for_function(f"{root}.querySelector('#static')?.textContent === '5'")  # host scanned too
+        await page.wait_for_function(f"{root}.querySelector('#static')?.textContent === '6'")  # host content reactive
         await page.locator("#bump").click()
         await text_of(page, "#xs", "1")
+        assert await page.evaluate("window.__ready") == 1  # document scan ran exactly once
         assert not errors, errors
 
 
@@ -214,8 +216,9 @@ async def test_local_bind_ref_and_root_escape(page):
         ns = attrs["#inp"][[a.startswith("data-bind=") for a in attrs["#inp"]].index(True)].split("=")[1].removesuffix("text")
         assert ns.startswith("_star_bind_host_id"), attrs
         assert f"data-ref={ns}box" in attrs["#ref_local"]
-        assert "data-ref=page_box" in attrs["#ref_page"] and not any(a.startswith("data-ref__root") for a in attrs["#ref_page"])
-        assert "data-computed:shout=$page_name + '!'" in attrs["#shout"], attrs
+        # `__root` stays in the markup (Datastar ignores unknown modifiers), so a later rescope cannot re-capture it
+        assert "data-ref__root=page_box" in attrs["#ref_page"], attrs
+        assert "data-computed:shout__root=$page_name + '!'" in attrs["#shout"], attrs
         assert not errors, errors
 
 
@@ -276,7 +279,7 @@ async def test_late_host_codec_fallback_and_declared_events(page):
     @element("late-host", events=["ping"])
     def LateHost():
         count = Local("count", 7)
-        return Div(count, Span(data_text=count, cls="n"), Script("el.emit('ping'); el.emit('pong');"))
+        return Div(count, Span(data_text=count + 1, cls="n"), Script("el.emit('ping'); el.emit('pong');"))
 
     app, rt = star_app()
     app.register(LateHost)
@@ -295,9 +298,129 @@ async def test_late_host_codec_fallback_and_declared_events(page):
     async with served(page, app) as errors:
         await page.goto(f"{ORIGIN}/", wait_until="load")
         await page.locator("#add").click()
-        await page.wait_for_function("document.querySelector('#late .n')?.textContent === '7'")  # default, not NaN
+        await page.wait_for_function("document.querySelector('#late .n')?.textContent === '8'")  # default 7, not NaN
         assert await page.evaluate("document.querySelector('#late').hasAttribute('data-star-ready')")
         assert any("CodecParseError" in w and "count" in w for w in warnings), warnings
         assert any("UndeclaredEvent" in w and "pong" in w for w in warnings), warnings
         assert not any('emit("ping")' in w for w in warnings), warnings  # declared: no warning
+        assert not errors, errors
+
+
+# ---------------------------------------------------------------------------------------------------------------------
+# Review follow-ups: __root stays idempotent across later patches; nested hosts are not re-prefixed by the outer
+# host's rescope; a patch that re-sends the host's outer markup re-renders it; an empty int default registers.
+# ---------------------------------------------------------------------------------------------------------------------
+
+
+async def test_root_escape_survives_later_patches_and_nested_hosts_keep_their_scope(page):
+    from starhtml import Button, Div, Signal, Span, elements, sse, star_app
+
+    from starelements import Local, element
+
+    @element("inner-host")
+    def InnerHost():
+        n = Local("n", 2)
+        return Div(n, Span(data_text="$$dbl", id="inner_dbl", **{"data-computed:dbl": "$$n * 2"}), Div(data_ref="box", id="inner_ref"))
+
+    @element("outer-host")
+    def OuterHost():
+        text = Local("text", "hi")
+        return Div(
+            text,
+            Div(**{"data-ref__root": "page_box"}, id="ref_page"),
+            Span(data_text="$shout", id="shout", **{"data-computed:shout__root": "$page_name + '!'"}),
+            Div(id="slot"),
+            InnerHost(),
+        )
+
+    app, rt = star_app()
+    app.register(OuterHost, InnerHost)
+
+    @rt("/")
+    def index():
+        return Div(Signal("page_name", "ada"), OuterHost(), Button("go", id="go", data_on_click="@get('/patch')"))
+
+    @rt("/patch")
+    @sse
+    def patch():
+        yield elements(Span(data_text="$$text", id="patched"), selector="#slot", mode="inner")
+
+    async with served(page, app) as errors:
+        await page.goto(f"{ORIGIN}/", wait_until="load")
+        await text_of(page, "#shout", "ada!")
+        await text_of(page, "#inner_dbl", "4")
+        inner_ref = await page.evaluate("document.querySelector('#inner_ref').getAttribute('data-ref')")
+        assert inner_ref.startswith("_star_inner_host_id") and inner_ref.endswith("_box"), inner_ref
+        for _ in range(2):  # every patch into the outer host rescopes its children again
+            await page.locator("#go").click()
+            await text_of(page, "#patched", "hi")
+        names = await page.evaluate("[...document.querySelector('#ref_page').attributes].map(a => a.name + '=' + a.value)")
+        assert "data-ref__root=page_box" in names, names  # modifier kept, name never namespaced
+        assert await page.evaluate("document.querySelector('#shout').hasAttribute('data-computed:shout__root')")
+        await text_of(page, "#shout", "ada!")
+        assert await page.evaluate("document.querySelector('#inner_ref').getAttribute('data-ref')") == inner_ref
+        await text_of(page, "#inner_dbl", "4")  # inner computed key not re-prefixed by the outer rescope
+        assert not errors, errors
+
+
+async def test_repatching_outer_markup_rerenders_host(page):
+    from starhtml import Button, Div, Span, elements, sse, star_app
+
+    from starelements import Local, element
+
+    @element("wrap-host")
+    def WrapHost():
+        n = Local("n", 1)
+        return Div(n, Span(data_text=n + 1, cls="n"), Button("+", cls="inc", data_on_click=n.set(n + 1)))
+
+    app, rt = star_app()
+    app.register(WrapHost)
+
+    @rt("/")
+    def index():
+        return Div(Div(WrapHost(id="h"), id="wrap"), Button("re", id="re", data_on_click="@get('/re')"))
+
+    @rt("/re")
+    @sse
+    def re_send():
+        yield elements(Div(WrapHost(id="h"), id="wrap"), selector="#wrap", mode="outer")  # server markup is bare
+
+    async with served(page, app) as errors:
+        await page.goto(f"{ORIGIN}/", wait_until="load")
+        await page.wait_for_function("document.querySelector('#h .n')?.textContent === '2'")
+        await page.locator("#h .inc").click()
+        await page.wait_for_function("document.querySelector('#h .n')?.textContent === '3'")
+        await page.locator("#re").click()
+        await page.wait_for_function("document.querySelector('#h .n')?.textContent === '3'")  # re-rendered, state kept
+        assert await page.evaluate("getComputedStyle(document.querySelector('#h')).visibility") == "visible"
+        assert await page.evaluate("document.querySelector('#h').hasAttribute('data-star-ready')")
+        await page.locator("#h .inc").click()
+        await page.wait_for_function("document.querySelector('#h .n')?.textContent === '4'")
+        assert not errors, errors
+
+
+async def test_empty_int_default_does_not_abort_registration(page):
+    from starhtml import Div, Span, star_app
+
+    from starelements import Local, element
+
+    @element("nullable-host")
+    def NullableHost():
+        return Div(Local("n", None, type_=int), Span("x", data_text="$$n + 1", id="n"))  # empty default -> 0, not NaN
+
+    @element("after-host")
+    def AfterHost():
+        return Div(Local("k", 3), Span(data_text="$$k + 1", id="k"))
+
+    app, rt = star_app()
+    app.register(NullableHost, AfterHost)
+
+    @rt("/")
+    def index():
+        return Div(NullableHost(), AfterHost())
+
+    async with served(page, app) as errors:
+        await page.goto(f"{ORIGIN}/", wait_until="load")
+        await text_of(page, "#n", "1")
+        await text_of(page, "#k", "4")  # the template after it still registered
         assert not errors, errors
