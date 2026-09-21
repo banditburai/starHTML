@@ -168,3 +168,52 @@ async def test_sse_fragment_patched_into_host_is_rescoped(page):
         assert f"data-ref={prefix}box" in names, names
         assert await page.evaluate("document.querySelector('scope-host').hasAttribute('data-scope-children')")
         assert not errors, errors
+
+
+# ---------------------------------------------------------------------------------------------------------------------
+# 2b: attribute-aware rewrite — Local emits `$$name` for data-bind/data-indicator/data-ref; `__root` escapes to page scope
+# ---------------------------------------------------------------------------------------------------------------------
+
+
+async def test_local_bind_ref_and_root_escape(page):
+    from starhtml import Div, Input, Signal, Span, star_app
+
+    from starelements import Local, element
+
+    @element("bind-host")
+    def BindHost():
+        text = Local("text", "hi")
+        return Div(
+            text,
+            Input(data_bind=text, id="inp"),
+            Span(data_text=text, id="echo"),
+            Div(data_ref="box", id="ref_local"),  # refs inside a component are local by contract
+            Div(**{"data-ref__root": "page_box"}, id="ref_page"),
+            Span(data_text="$shout", id="shout", **{"data-computed:shout__root": "$page_name + '!'"}),
+        )
+
+    app, rt = star_app()
+    app.register(BindHost)
+
+    @rt("/")
+    def index():
+        text, page_name = Signal("text", "page"), Signal("page_name", "ada")
+        return Div(text, page_name, BindHost(), Input(data_bind=text, id="page_inp"), Span(data_text=text, id="page_echo"))
+
+    async with served(page, app) as errors:
+        await page.goto(f"{ORIGIN}/", wait_until="load")
+        await text_of(page, "#echo", "hi")
+        await text_of(page, "#page_echo", "page")
+        await text_of(page, "#shout", "ada!")
+        await page.locator("#inp").fill("yo")
+        await text_of(page, "#echo", "yo")
+        assert await page.evaluate("document.querySelector('#page_echo').textContent") == "page"  # still page scope
+        attrs = await page.evaluate(
+            "Object.fromEntries(['#inp','#ref_local','#ref_page','#shout'].map(s => [s, [...document.querySelector(s).attributes].map(a => a.name + '=' + a.value)]))"
+        )
+        ns = attrs["#inp"][[a.startswith("data-bind=") for a in attrs["#inp"]].index(True)].split("=")[1].removesuffix("text")
+        assert ns.startswith("_star_bind_host_id"), attrs
+        assert f"data-ref={ns}box" in attrs["#ref_local"]
+        assert "data-ref=page_box" in attrs["#ref_page"] and not any(a.startswith("data-ref__root") for a in attrs["#ref_page"])
+        assert "data-computed:shout=$page_name + '!'" in attrs["#shout"], attrs
+        assert not errors, errors
