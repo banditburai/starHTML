@@ -1396,3 +1396,11 @@ async def test_star_app_csp_mode_end_to_end(page):
     finally:
         await page.unroute(f"{origin}/**", proxy)
         await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_wrapper_ready_promise_resolves_after_first_scan(page, datastar_runtime_source):
+    """`import { ready } from "datastar"` resolves once datastar-ready fired (custom-element runtimes gate on it)."""
+    body = "<span data-text='$x' id='out'></span><div data-signals:x=\"'ok'\"></div>"
+    await load_datastar_page(page, body, datastar_runtime_source)
+    assert await page.evaluate("window.__datastar.ready.then(() => document.querySelector('#out').textContent)") == "ok"
