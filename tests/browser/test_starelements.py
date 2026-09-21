@@ -258,3 +258,46 @@ async def test_component_scripts_run_under_csp_without_unsafe_eval(page):
         assert await page.evaluate("document.querySelector('csp-host').dataset.seen") == "42"  # setup effect tracked
         assert await page.evaluate("window.__static_ran") == 1
         assert not errors, errors
+
+
+# ---------------------------------------------------------------------------------------------------------------------
+# 2c (not applicable) / 2e / 2f: a host patched in after the first scan upgrades and renders (hosts are bare, `$$` only
+# lives in inert templates); bad attribute values fall back to the codec default with a named warning; emit() warns on
+# events not declared with @element(events=[...]).
+# ---------------------------------------------------------------------------------------------------------------------
+
+
+async def test_late_host_codec_fallback_and_declared_events(page):
+    from starhtml import Button, Div, Span, elements, sse, star_app
+    from starhtml.xtend import Script
+
+    from starelements import Local, element
+
+    @element("late-host", events=["ping"])
+    def LateHost():
+        count = Local("count", 7)
+        return Div(count, Span(data_text=count, cls="n"), Script("el.emit('ping'); el.emit('pong');"))
+
+    app, rt = star_app()
+    app.register(LateHost)
+
+    @rt("/")
+    def index():
+        return Div(Button("add", id="add", data_on_click="@get('/add')"), Div(id="out"))
+
+    @rt("/add")
+    @sse
+    def add():
+        yield elements(Div(LateHost(count="abc", id="late")), selector="#out", mode="inner")
+
+    warnings: list[str] = []
+    page.on("console", lambda m: warnings.append(m.text) if m.type == "warning" else None)
+    async with served(page, app) as errors:
+        await page.goto(f"{ORIGIN}/", wait_until="load")
+        await page.locator("#add").click()
+        await page.wait_for_function("document.querySelector('#late .n')?.textContent === '7'")  # default, not NaN
+        assert await page.evaluate("document.querySelector('#late').hasAttribute('data-star-ready')")
+        assert any("CodecParseError" in w and "count" in w for w in warnings), warnings
+        assert any("UndeclaredEvent" in w and "pong" in w for w in warnings), warnings
+        assert not any('emit("ping")' in w for w in warnings), warnings  # declared: no warning
+        assert not errors, errors
