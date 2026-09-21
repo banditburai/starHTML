@@ -430,7 +430,17 @@ def _try_evaluate_initial(expr: Expr) -> Any:
 
 
 class Signal(Expr):
-    """Typed reactive state reference that auto-generates JavaScript and data attributes."""
+    """Typed reactive state reference that auto-generates JavaScript and data attributes.
+
+    ``ifmissing`` (default ``True``) declares the signal as ``data-signals:name__ifmissing``: the initial value only
+    applies when the browser has no value yet, so persisted/patched state survives a re-render. ``ifmissing=False``
+    emits a plain ``data-signals="{name: value}"`` object: the server value wins every time the element is (re)applied,
+    which is the *reset* form for server-authoritative values. To reset a live signal from a handler instead, send
+    ``signals(name=value)`` (SSE ``datastar-patch-signals``; ``only_if_missing=True`` for the ifmissing analogue).
+
+    Declarations are hoisted ahead of the readers on the same element; a read on an *earlier* element than the one
+    declaring the signal is still a footgun (``starhtml.lint.check_signal_order`` reports it).
+    """
 
     _is_signal = True
 
@@ -1096,10 +1106,12 @@ def _declarations_first(processed: dict[str, Any]) -> dict[str, Any]:
     ``Input(sig, data_bind=sig)`` (without a value= attribute) rendered the reader first and ended with "".
     Markup order follows dict order, so hoisting the declarations fixes every emit path at once.
     """
-    decls = {k: v for k, v in processed.items() if k.startswith(("data-signals", "data-computed"))}
-    if not decls:
+    signals = {k: v for k, v in processed.items() if k.startswith("data-signals")}
+    computed = {k: v for k, v in processed.items() if k.startswith("data-computed")}
+    if not signals and not computed:
         return processed
-    return decls | {k: v for k, v in processed.items() if k not in decls}
+    # Signals before computeds: a computed's expression reads signals (lazily today, but order costs nothing).
+    return signals | computed | {k: v for k, v in processed.items() if k not in signals and k not in computed}
 
 
 # fmt: off

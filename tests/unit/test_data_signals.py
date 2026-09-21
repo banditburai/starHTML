@@ -404,3 +404,19 @@ def test_explicit_data_signals_kwarg_is_hoisted():
     html = to_xml(Div(data_text=s, data_signals=[s]))
     assert html.index("data-signals") < html.index("data-text"), html
 
+
+
+def test_ifmissing_false_emits_plain_data_signals_and_is_hoisted():
+    """ifmissing=False is the server-authoritative reset form: a plain data-signals object, still ahead of readers."""
+    s = Signal("sig", 66, ifmissing=False)
+    html = to_xml(Div(s, data_text=s))
+    assert 'data-signals="{sig: 66}"' in html and "__ifmissing" not in html
+    assert html.index("data-signals=") < html.index("data-text")
+
+
+def test_signals_are_hoisted_ahead_of_computeds():
+    """A computed reads signals, so `data-signals*` comes first, then `data-computed:*`, then readers."""
+    s = Signal("sig", 5, ifmissing=False)
+    total = Signal("total", s * 2)
+    html = to_xml(Div(total, s, data_text=total))
+    assert html.index("data-signals=") < html.index("data-computed:total") < html.index("data-text")
